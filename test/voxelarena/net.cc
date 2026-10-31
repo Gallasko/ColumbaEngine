@@ -675,6 +675,22 @@ TEST(arena_net, the_run_plays_for_every_client_and_each_has_their_own_shop)
     EXPECT_GE(s.clientPlayer(a)->shards, 100);
     EXPECT_EQ(s.clientPlayer(b)->shop.size(), static_cast<size_t>(s.content.run.shopSlots));
 
+    // The moment after the wave, the same for the client; then a's level ups (the kill's XP), first
+    EXPECT_GT(a.world.run.timer, 0.0f);
+    s.run(static_cast<int>(s.content.run.intermission * 60.0f) + 10);
+    EXPECT_EQ(a.world.run.timer, 0.0f);
+    for (int k = 0; k < 8 and s.clientPlayer(a)->levelUps > 0; ++k)
+    {
+        const size_t spells = s.serverPlayer(a)->runSpells.size();
+        a.input.pick = InputFrame::LEVEL;
+        s.tick();
+        a.input.pick = 0;
+        s.run(10);
+        EXPECT_TRUE(s.serverPlayer(a)->runSpells.size() > spells or s.serverPlayer(a)->runSpells.size() == spells);
+    }
+    ASSERT_EQ(s.clientPlayer(a)->levelUps, 0);
+    EXPECT_EQ(s.clientPlayer(a)->runSpells.size(), s.serverPlayer(a)->runSpells.size());
+
     // a buys, and is ready; the wave waits for b
     const auto offer = s.clientPlayer(a)->shop[0];
     const int shards = s.clientPlayer(a)->shards;
@@ -712,7 +728,7 @@ TEST(arena_net, a_client_gets_the_runs_arena_and_each_reset)
     s.run(15);
 
     // The run's own arena, its size and all
-    const glm::ivec3 size = s.content.run.arena.size;
+    const glm::ivec3 size = s.content.arenaById(s.content.run.arenas.front().arena).size;
     EXPECT_EQ(glm::ivec3(a.world.grid.width(), a.world.grid.height(), a.world.grid.depth()), size);
     EXPECT_EQ(a.world.grid.raw(), s.serverWorld.grid.raw());
 

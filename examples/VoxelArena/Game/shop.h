@@ -15,6 +15,12 @@ namespace arena
     };
     OfferInfo offerInfo(const Content& content, const std::string& id);
 
+    /** A run's spell with its level: "Fireball", "Fireball II". */
+    std::string runSpellName(const Content& content, const Fighter::RunSpell& spell);
+
+    /** A stat or spell item at a rarity, in words: "+40 max health", "+24% damage". */
+    std::string itemText(const Content& content, const UpgradeDef& item, float power);
+
     /** The icon an offer (or anything owned) is drawn with. */
     std::string offerIcon(const Content& content, const std::string& id);
 
@@ -27,5 +33,8 @@ namespace arena
     {
     public:
         void draw(Ui& ui, const Content& content, const ArenaWorld& world, const Fighter& me);
+
+        /** The level ups, before the shop: a card each for a new spell, a spell's next level, a weapon skill. */
+        void drawLevelUp(Ui& ui, const Content& content, const ArenaWorld& world, const Fighter& me);
     };
 }

@@ -1,2 +1,9 @@
-// Ready-made: a wide, long field of cold where you aim.
-{ "name": "Glacier", "recipe": ["ice", "zone", "enlarge", "extend"] }
+// A wide, long field of cold where you aim. Levels: harder, wider, longer.
+// In a run, level ups give spells and their next levels: each entry of "levels" is what that level
+// adds to the recipe (keywords, as in keywords.json).
+{
+    "name": "Glacier",
+    "text": "A field of cold where you aim, slowing all in it.",
+    "recipe": ["ice", "zone", "enlarge", "extend"],
+    "levels": [["empower"], ["enlarge"], ["extend"]]
+}

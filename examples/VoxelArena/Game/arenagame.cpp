@@ -127,7 +127,7 @@ namespace arena
             {"freeCursor", {"Left Alt"}}, {"toggleView", {"F", "V"}},
             {"ability1", {"Q"}}, {"ability2", {"E"}}, {"ability3", {"G", "Mouse2"}}, {"ability4", {"R"}},
             {"ability5", {"1"}}, {"ability6", {"2"}}, {"ability7", {"3"}}, {"ability8", {"4"}},
-            {"crouch", {"Left Ctrl", "C"}}, {"nextWeapon", {"Tab"}}, {"spellbook", {"B"}}, {"options", {"O"}}, {"lobby", {"L"}}, {"invite", {"I"}}, {"join", {"J"}}, {"multiplayer", {"M"}},
+            {"crouch", {"Left Ctrl", "C"}}, {"nextWeapon", {"Tab"}}, {"options", {"O"}}, {"lobby", {"L"}}, {"invite", {"I"}}, {"join", {"J"}}, {"multiplayer", {"M"}},
             // The spellbook's parts, while it is open: elements, forms, modifiers
             {"spellElement1", {"Z"}}, {"spellElement2", {"X"}}, {"spellElement3", {"C"}},
             {"spellForm1", {"A"}}, {"spellForm2", {"S"}}, {"spellForm3", {"D"}}, {"spellForm4", {"F"}},
@@ -791,12 +791,6 @@ namespace arena
             if (p.repeat)
                 continue;
 
-            if (keyIs(p.scancode, "spellbook"))
-            {
-                setBookOpen(true);
-                continue;
-            }
-
             if (keyIs(p.scancode, "options"))
             {
                 setOptionsOpen(true);
@@ -884,10 +878,18 @@ namespace arena
                     const Fighter* me = world.player();
                     const int levelPicks = me and me->levelUps > 0 ? static_cast<int>(me->levelOffer.size()) : 0;
 
+                    // The level ups first (1-3 take one), then the shop
+                    if (levelPicks > 0)
+                    {
+                        if (p.scancode >= SDL_SCANCODE_1 and p.scancode <= SDL_SCANCODE_9 and static_cast<int>(p.scancode - SDL_SCANCODE_1) < levelPicks)
+                            pendingPick = InputFrame::LEVEL + static_cast<int>(p.scancode - SDL_SCANCODE_1);
+                        else if (p.scancode == SDL_SCANCODE_ESCAPE)
+                            setOptionsOpen(true);
+                        continue;
+                    }
+
                     if (p.scancode >= SDL_SCANCODE_1 and p.scancode <= SDL_SCANCODE_4)
                         pendingPick = (shift ? InputFrame::LOCK : InputFrame::BUY) + static_cast<int>(p.scancode - SDL_SCANCODE_1);
-                    else if (p.scancode >= SDL_SCANCODE_5 and p.scancode <= SDL_SCANCODE_9 and static_cast<int>(p.scancode - SDL_SCANCODE_5) < levelPicks)
-                        pendingPick = InputFrame::LEVEL + static_cast<int>(p.scancode - SDL_SCANCODE_5);
                     else if (p.scancode == SDL_SCANCODE_R)
                         pendingPick = InputFrame::REROLL;
                     else if (p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER)
@@ -1348,40 +1350,6 @@ namespace arena
             std::ofstream(std::filesystem::path(spellbookPath()).parent_path() / "best.txt") << bestScore;
         }
 
-        // A run begins: with no spell on the keys it can cast (the book's want what is not bought yet), key 1 gets
-        // one of the start kit, for the run (the book on disk keeps its own)
-        if (r.phase == RunPhase::Fighting and (lastPhase == RunPhase::Off or lastPhase == RunPhase::Victory or lastPhase == RunPhase::Defeat) and me and
-            not book.equipped.empty())
-        {
-            auto usable = [&](const SpellRecipe& recipe) {
-                if (not world.spellOf(recipe)->valid() or not world.owns(*me, "element:" + recipe.element))
-                    return false;
-                for (const auto& k : recipe.keywords)
-                    if (not world.owns(*me, k))
-                        return false;
-                return true;
-            };
-
-            if (std::none_of(book.equipped.begin(), book.equipped.end(), usable))
-            {
-                SpellRecipe start;
-                for (const auto& id : me->owned)
-                {
-                    if (start.element.empty() and id.rfind("element:", 0) == 0)
-                        start.element = id.substr(8);
-                    else if (start.keywords.empty() and content.keywords.count(id) and content.keywords.at(id).form)
-                        start.keywords.push_back(id);
-                }
-
-                if (usable(start))
-                {
-                    book.equipped[0] = start;
-                    applySpells();
-                    print("spell 1 is " + recipeText(content, start) + " for this run: buy elements and keywords in the shop, build with them in the spellbook (B)");
-                }
-            }
-        }
-
         lastPhase = r.phase;
 
         if (r.phase != RunPhase::Fighting and r.phase != RunPhase::Shop)
@@ -1397,6 +1365,7 @@ namespace arena
         v.timer = r.timer;
         v.bossWave = r.bossWave;
         v.score = r.score;
+        v.arenaName = content.arenaById(content.runArenaId(r.wave, r.phase == RunPhase::Duel)).name;
 
         if (me)
         {
@@ -1447,6 +1416,14 @@ namespace arena
             }
         }
 
+        // The wave's end: a moment before the level ups and the shop
+        if (r.phase == RunPhase::Shop and r.timer > 0.0f)
+        {
+            v.headline = "Wave cleared";
+            if (me and me->levelUps > 0)
+                v.subline = me->levelUps > 1 ? "Level up! x" + std::to_string(me->levelUps) : "Level up!";
+        }
+
         // The wave's name as it starts (a boss's), its last seconds counted down
         if (r.phase == RunPhase::Fighting)
         {
@@ -1463,6 +1440,10 @@ namespace arena
                 auto b = def.bosses.find(r.wave);
                 auto e = b != def.bosses.end() ? content.enemies.find(b->second) : content.enemies.end();
                 v.headline = r.bossWave and e != content.enemies.end() ? e->second.name : "Wave " + std::to_string(r.wave);
+
+                // Into another arena: its name under the wave's
+                if (r.wave == 1 or content.runArenaId(r.wave, false) != content.runArenaId(r.wave - 1, false))
+                    v.subline = v.arenaName;
             }
             else if (not r.bossWave and r.timer > 0.0f and r.timer <= 3.0f)
             {
@@ -1547,7 +1528,8 @@ namespace arena
     {
         // Open while the run is in its shop (and nothing else is in front)
         const Fighter* me = world.player();
-        shopOpen = me and world.run.phase == RunPhase::Shop and not titleOpen and not bookOpen and not optionsOpen;
+        // (after the moment a wave's end is left to sink in: run.json "intermission")
+        shopOpen = me and world.run.phase == RunPhase::Shop and world.run.timer <= 0.0f and not titleOpen and not bookOpen and not optionsOpen;
         armoryOpen = me and world.run.phase == RunPhase::Armory and not titleOpen and not bookOpen and not optionsOpen;
 
         if (shopOpen or armoryOpen)
@@ -2377,8 +2359,8 @@ namespace arena
 
         // The mana dims when not even the cheapest spell is affordable
         float cheapest = 1e9f;
-        for (const auto& r : book.equipped)
-            if (const auto sp = world.spellOf(r); sp->valid())
+        for (int slot = 0; slot < ArenaWorld::SPELL_SLOTS; ++slot)
+            if (const auto sp = world.spellOf(world.spellRecipe(p, slot)); sp->valid())
                 cheapest = std::min(cheapest, sp->mana);
         v.manaLow = p.mana < cheapest and cheapest < 1e8f and not world.infiniteMana;
 
@@ -2396,22 +2378,21 @@ namespace arena
 
             if (const int slot = world.spellSlotAt(i); slot >= 0)
             {
-                if (slot >= static_cast<int>(book.equipped.size()))
+                // In a run: the spells the level ups gave (a key with none yet is left out)
+                const bool given = world.inRun();
+                if (given ? slot >= static_cast<int>(p.runSpells.size()) : slot >= static_cast<int>(book.equipped.size()))
                     continue;
 
-                const SpellRecipe& r = book.equipped[static_cast<size_t>(slot)];
+                const SpellRecipe r = world.spellRecipe(p, slot);
                 const auto sp = world.spellOf(r);
 
                 Hud::SpellKey k;
                 k.key = key;
-                k.name = spellName(content, book, r);
+                k.name = given ? runSpellName(content, p.runSpells[static_cast<size_t>(slot)]) : spellName(content, book, r);
                 k.element = r.element;
-                k.mana = static_cast<int>(std::lround(sp->mana));
+                k.mana = static_cast<int>(std::lround(sp->mana * std::max(0.3f, 1.0f - p.boon.manaCost)));
 
-                // In a run: a spell of something not bought yet does nothing
-                bool locked = not sp->valid() or not world.owns(p, "element:" + r.element);
-                for (const auto& kw : r.keywords)
-                    locked = locked or not world.owns(p, kw);
+                const bool locked = not sp->valid();
 
                 const float left = p.abilityCooldown[i];
                 if (locked)
@@ -3156,7 +3137,7 @@ namespace arena
         // The final duel begins: the view turns to the middle, and the others
         if (p and phase == RunPhase::Duel and duelSeen != RunPhase::Duel)
         {
-            const glm::vec3 toCentre = content.run.centre - p->body.position;
+            const glm::vec3 toCentre = content.arenaById(content.runArenaId(world.run.wave, true)).centre - p->body.position;
             if (glm::length(glm::vec2(toCentre.x, toCentre.z)) > 0.5f)
                 camera.yaw = glm::degrees(std::atan2(toCentre.x, toCentre.z));
         }
@@ -3906,7 +3887,7 @@ namespace arena
         {
             return "reload | tune <key> [value] | tunes [prefix] | spawn <enemy> [count] | clear | reset\n"
                    "place x y z <block|air> | fill x0 y0 z0 x1 y1 z1 <block|air>\n"
-                   "view [first|third] | weapon <id> | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | training | wave <n> | duel | timeup | join <address> | leave | shards <n> | kill | options | mods | errors | warnings\n"
+                   "view [first|third] | weapon <id> | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | map [arena] | training | wave <n> | duel | timeup | join <address> | leave | shards <n> | kill | options | mods | errors | warnings\n"
                    "scripted input: mouse [on|off] | click <x> <y> | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
         }
 
@@ -4035,6 +4016,34 @@ namespace arena
 
             world.skipToWave(std::atoi(args[1].c_str()));
             return "wave " + std::to_string(world.run.wave);
+        }
+
+        if (cmd == "map")
+        {
+            if (args.size() < 2)
+            {
+                std::string out = "map <arena|training>: the training ground becomes that arena. Arenas:";
+                for (const auto& [id, a] : content.arenas)
+                    out += "\n  " + id + "  " + a.name + "  " + std::to_string(a.size.x) + "x" + std::to_string(a.size.z);
+                out += "\nthe run's:";
+                for (const auto& pick : content.run.arenas)
+                    out += " " + pick.arena + " (wave " + std::to_string(pick.from) + ")";
+                if (not content.run.duel.arena.empty())
+                    out += ", duel: " + content.run.duel.arena;
+                return out;
+            }
+            if (client)
+                return "map: the host's arena";
+            if (world.inRun())
+                return "map: outside a run (a run's arenas come with its waves)";
+
+            std::string id = args[1] == "training" ? "" : resolveId(args[1], "base");
+            if (not id.empty() and not content.arenas.count(id))
+                return "no arena " + id + " (map: the list)";
+
+            world.showArena(id);
+            meshDirty = true;
+            return id.empty() ? "the training arena" : content.arenas.at(id).name;
         }
 
         if (cmd == "join")

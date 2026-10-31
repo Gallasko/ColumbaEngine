@@ -226,7 +226,7 @@ namespace arena::screens
         ui.raised(40, 60, 1200, 600, PANEL, 4.0f);
 
         ui.text(66, 84, "CHOOSE YOUR WEAPON", Font::Display, 40, TEXT, Align::Left, 1.0f);
-        ui.text(66, 128, "It is yours for the whole run: the shop sells its skills, not other weapons.", Font::Text500, 13, TEXT_DIM);
+        ui.text(66, 128, "It is yours for the whole run: level ups offer its skills, with your spells.", Font::Text500, 13, TEXT_DIM);
 
         if (v.players > 1)
             ui.text(1214, 98, std::to_string(v.ready) + " / " + std::to_string(v.players) + " chose", Font::Display, 26, v.picked ? GOOD : TEXT_DIM, Align::Right);
@@ -263,7 +263,7 @@ namespace arena::screens
 
             cy += ui.paragraph(x + 14, cy, cw - 28, w.text, Font::Text500, 13, TEXT_DIM, 18.0f, 6) + 12.0f;
 
-            ui.text(x + 14, cy, "ITS SKILLS IN THE SHOP", Font::Text700, 10, MUTED, Align::Left, 1.5f);
+            ui.text(x + 14, cy, "ITS SKILLS, BY LEVEL UPS", Font::Text700, 10, MUTED, Align::Left, 1.5f);
             cy += 18.0f;
             if (w.skills.empty())
                 ui.text(x + 14, cy, "none", Font::Text600, 12, FAINT);
@@ -408,11 +408,10 @@ namespace arena::screens
         const Item items[] = {
             {"T", "Training ground", "dummies, enemies that come back", TITLE_TRAINING},
             {"M", "Multiplayer", "host a game, or join a friend's", TITLE_MULTIPLAYER},
-            {"B", "Spellbook", "build your spells", TITLE_SPELLBOOK},
             {"O", "Options", "mouse, view, sound", TITLE_OPTIONS},
         };
 
-        for (int k = 0; k < 4; ++k)
+        for (int k = 0; k < 3; ++k)
         {
             const auto itemScope = ui.scope(static_cast<uint64_t>(k));
             const float y = 404.0f + static_cast<float>(k) * 52.0f;
@@ -550,10 +549,10 @@ namespace arena::screens
             ui.hit(72, by, 472, 58, LOBBY_READY);
         }
 
-        // ---- The training ground, the spellbook, the options
+        // ---- The training ground, the options
         struct Item { std::string key, name; int action; };
-        const Item items[] = {{"T", "Training", TITLE_TRAINING}, {"B", "Spellbook", TITLE_SPELLBOOK}, {"O", "Options", TITLE_OPTIONS}};
-        for (int k = 0; k < 3; ++k)
+        const Item items[] = {{"T", "Training", TITLE_TRAINING}, {"O", "Options", TITLE_OPTIONS}};
+        for (int k = 0; k < 2; ++k)
         {
             const float x = 72.0f + static_cast<float>(k) * 160.0f;
             const bool over = ui.hover(x, 542, 152, 40);

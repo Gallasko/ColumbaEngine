@@ -1,0 +1,63 @@
+// The Gorge: two plateaus and a ravine between them, stepped so anyone can climb out.
+//  - Three plank bridges cross it, with rope rails: fire runs along the rope and eats the bridge,
+//    and what is left in the middle falls on whoever is in the ravine under it.
+//  - Two boulders hang over the ravine from beams on stone posts, either side of the middle
+//    bridge: burn the rope (or the beam) to drop one.
+//  - Stone outcrops on the plateaus for cover; volt breaks stone four times as fast.
+{
+    "name": "The Gorge",
+    "size": [48, 28, 48],
+    "playerSpawn": [10, 8, 24],
+    "centre": [24, 8, 24],
+    "spawnRadius": 19,
+    "shapes": [
+        { "block": "bedrock", "from": [0, 0, 0], "to": [47, 0, 47] },
+        { "block": "dirt",    "from": [1, 1, 1], "to": [46, 6, 46] },
+        { "block": "grass",   "from": [1, 7, 1], "to": [46, 7, 46] },
+        { "block": "arena_wall",  "from": [0, 1, 0], "to": [47, 10, 47], "hollow": true },
+        { "block": "arena_brick", "from": [0, 11, 0], "to": [47, 11, 47], "hollow": true },
+
+        // The ravine: one step down at a time, four deep, sand at the bottom
+        { "block": "air",  "from": [19, 7, 1], "to": [28, 7, 46] },
+        { "block": "air",  "from": [20, 6, 1], "to": [27, 6, 46] },
+        { "block": "air",  "from": [21, 5, 1], "to": [26, 5, 46] },
+        { "block": "air",  "from": [22, 4, 1], "to": [25, 4, 46] },
+        { "block": "sand", "from": [22, 3, 1], "to": [25, 3, 46] },
+
+        // The bridges, at the plateaus' height, with rope rails
+        { "block": "planks", "from": [18, 7, 9],  "to": [29, 7, 11] },
+        { "block": "rope",   "from": [18, 8, 9],  "to": [29, 8, 9] },
+        { "block": "rope",   "from": [18, 8, 11], "to": [29, 8, 11] },
+
+        { "block": "planks", "from": [18, 7, 22], "to": [29, 7, 26] },
+        { "block": "rope",   "from": [18, 8, 22], "to": [29, 8, 22] },
+        { "block": "rope",   "from": [18, 8, 26], "to": [29, 8, 26] },
+
+        { "block": "planks", "from": [18, 7, 36], "to": [29, 7, 38] },
+        { "block": "rope",   "from": [18, 8, 36], "to": [29, 8, 36] },
+        { "block": "rope",   "from": [18, 8, 38], "to": [29, 8, 38] },
+
+        // The hanging boulders: posts on each plateau, a beam across, a rope down
+        { "block": "stone",   "from": [16, 8, 17],  "to": [16, 15, 17] },
+        { "block": "stone",   "from": [31, 8, 17],  "to": [31, 15, 17] },
+        { "block": "planks",  "from": [16, 16, 17], "to": [31, 16, 17] },
+        { "block": "rope",    "from": [24, 13, 17], "to": [24, 15, 17] },
+        { "block": "boulder", "from": [23, 10, 16], "to": [25, 12, 18] },
+
+        { "block": "stone",   "from": [16, 8, 31],  "to": [16, 15, 31] },
+        { "block": "stone",   "from": [31, 8, 31],  "to": [31, 15, 31] },
+        { "block": "planks",  "from": [16, 16, 31], "to": [31, 16, 31] },
+        { "block": "rope",    "from": [24, 13, 31], "to": [24, 15, 31] },
+        { "block": "boulder", "from": [23, 10, 30], "to": [25, 12, 32] },
+
+        // Outcrops on the plateaus
+        { "block": "stone",      "from": [8, 8, 14],  "to": [10, 9, 16] },
+        { "block": "stone",      "from": [9, 10, 15], "to": [9, 10, 15] },
+        { "block": "stone",      "from": [6, 8, 32],  "to": [8, 9, 34] },
+        { "block": "dark_stone", "from": [12, 8, 39], "to": [13, 10, 40] },
+        { "block": "stone",      "from": [37, 8, 31], "to": [39, 9, 33] },
+        { "block": "stone",      "from": [38, 10, 32], "to": [38, 10, 32] },
+        { "block": "stone",      "from": [39, 8, 13], "to": [41, 9, 15] },
+        { "block": "dark_stone", "from": [34, 8, 7],  "to": [35, 10, 8] }
+    ]
+}

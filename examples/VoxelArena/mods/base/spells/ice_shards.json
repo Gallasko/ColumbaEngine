@@ -1,2 +1,9 @@
-// Ready-made: four shards in a fan; each one chills.
-{ "name": "Ice shards", "recipe": ["ice", "bolt", "multiply", "multiply"] }
+// Four shards in a fan; each one chills. Levels: they jump on, harder, eight of them.
+// In a run, level ups give spells and their next levels: each entry of "levels" is what that level
+// adds to the recipe (keywords, as in keywords.json).
+{
+    "name": "Ice shards",
+    "text": "Four shards in a fan; each one chills.",
+    "recipe": ["ice", "bolt", "multiply", "multiply"],
+    "levels": [["chain"], ["empower"], ["multiply"]]
+}

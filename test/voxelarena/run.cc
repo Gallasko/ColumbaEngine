@@ -27,8 +27,10 @@ namespace
             ContentReport r;
             tuning = readTuning(content.tuning, content.tuningFile, r);
 
-            // Straight to the first wave with the start kit's weapon (the weapon choice has its own tests)
+            // Straight to the first wave with the start kit's weapon (the weapon choice has its own tests),
+            // straight to the shop as a wave ends (the moment before it has its own)
             content.run.chooseWeapon = false;
+            content.run.intermission = 0.0f;
 
             // Training: a bare floor (the run has its own arena, run.json's)
             content.arena.size = glm::ivec3(32, 16, 32);
@@ -149,7 +151,7 @@ TEST(arena_run, kills_drop_shards_that_fly_to_the_player_and_level_it_up)
     r.past(1.5f);
     EXPECT_FALSE(r.world.pickups.empty());
 
-    // Enough for a level: a free stat item to pick in the shop
+    // Enough for a level: a spell, a spell's next level or a weapon skill to pick as the wave ends
     r.player().xp = r.world.xpFor(1) - drops;
     r.timeUp();
     EXPECT_TRUE(r.world.pickups.empty());
@@ -158,9 +160,13 @@ TEST(arena_run, kills_drop_shards_that_fly_to_the_player_and_level_it_up)
     EXPECT_EQ(r.player().levelUps, 1);
     ASSERT_EQ(r.player().levelOffer.size(), static_cast<size_t>(r.content.run.levelChoices));
 
+    const auto spellsBefore = r.player().runSpells;
+    const auto ownedBefore = r.player().owned;
     const std::string chosen = r.player().levelOffer[2];
     r.pick(InputFrame::LEVEL + 2);
-    EXPECT_EQ(r.player().boons, std::vector<std::string>{chosen});
+    EXPECT_TRUE(r.player().runSpells.size() != spellsBefore.size() or r.player().owned.size() != ownedBefore.size() or
+                std::any_of(r.player().runSpells.begin(), r.player().runSpells.end(), [&](const Fighter::RunSpell& s) { return s.id == chosen and s.level == 2; }))
+        << chosen;
     EXPECT_EQ(r.player().levelUps, 0);
     EXPECT_TRUE(r.player().levelOffer.empty());
     EXPECT_EQ(r.player().shards, 2 * drops);   // free
@@ -169,6 +175,7 @@ TEST(arena_run, kills_drop_shards_that_fly_to_the_player_and_level_it_up)
 TEST(arena_run, the_shop_sells_locks_and_rerolls)
 {
     RunArena r;
+    r.content.run.unlocks.clear();   // the weapons a run without a weapon choice sells (a mod's)
     r.world.startRun(7);
     r.timeUp();
     ASSERT_EQ(r.world.run.phase, RunPhase::Shop);
@@ -195,10 +202,9 @@ TEST(arena_run, the_shop_sells_locks_and_rerolls)
     EXPECT_EQ(p.shards, before - offer.price);
     EXPECT_TRUE(p.shop[1].bought);
 
-    if (r.content.upgrades.count(offer.id))
-        EXPECT_EQ(std::count(p.boons.begin(), p.boons.end(), offer.id), 1);
-    else
-        EXPECT_TRUE(r.world.owns(p, offer.id));
+    ASSERT_TRUE(r.content.upgrades.count(offer.id)) << offer.id;
+    ASSERT_EQ(p.boons.size(), 1u);
+    EXPECT_EQ(p.boons[0], Fighter::Boon(offer.id, offer.rarity, offer.spell));
 
     // Bought once is bought: no second time
     r.pick(InputFrame::BUY + 1);
@@ -216,28 +222,192 @@ TEST(arena_run, the_shop_sells_locks_and_rerolls)
     EXPECT_GT(r.world.run.timer, r.content.run.duration.x);   // longer each wave
 }
 
-TEST(arena_run, prices_grow_and_owned_unlocks_are_not_offered_again)
+TEST(arena_run, the_shop_sells_stat_and_spell_items_dearer_later_and_by_rarity)
 {
     RunArena r;
+    r.content.run.unlocks.clear();   // the weapons a run without a weapon choice sells (a mod's)
     r.world.startRun(11);
     Fighter& p = r.player();
-
-    for (const auto& id : r.content.run.startOwned)
-        EXPECT_TRUE(r.world.owns(p, id));
-
-    // Everything to unlock owned: the shop has stat items only, and dearer later on
-    for (const auto& [id, price] : r.content.run.unlocks)
-        p.owned.push_back(id);
+    ASSERT_FALSE(r.content.run.rarities.empty());
 
     r.world.skipToWave(9);
     r.timeUp();
     ASSERT_EQ(r.world.run.phase, RunPhase::Shop);
+    r.world.collect(p, 5000);
+    p.levelUps = 0;
+    p.levelOffer.clear();
 
-    for (const auto& o : p.shop)
+    // Only items: stat items, and spell items for a spell the player has; dearer than at the start
+    bool sawSpellItem = false, sawRare = false;
+    for (int k = 0; k < 30; ++k)
     {
-        ASSERT_TRUE(r.content.upgrades.count(o.id)) << o.id;
-        EXPECT_GT(o.price, r.content.upgrades.at(o.id).price);
+        r.pick(InputFrame::REROLL);
+        for (const auto& o : p.shop)
+        {
+            ASSERT_TRUE(r.content.upgrades.count(o.id)) << o.id;
+            const UpgradeDef& u = r.content.upgrades.at(o.id);
+            const float rarityPrice = r.content.run.rarities[static_cast<size_t>(o.rarity)].price;
+            EXPECT_NEAR(static_cast<float>(o.price), static_cast<float>(u.price) * rarityPrice * (1.0f + r.content.run.priceGrowth * 8.0f), 1.0f) << o.id;
+
+            if (u.forSpell)
+            {
+                sawSpellItem = true;
+                EXPECT_TRUE(std::any_of(p.runSpells.begin(), p.runSpells.end(), [&](const Fighter::RunSpell& s) { return s.id == o.spell; })) << o.spell;
+            }
+            else
+                EXPECT_TRUE(o.spell.empty());
+
+            sawRare = sawRare or o.rarity > 0;
+        }
     }
+    EXPECT_TRUE(sawSpellItem);
+    EXPECT_TRUE(sawRare);
+}
+
+TEST(arena_run, a_rarer_item_does_more)
+{
+    RunArena r;
+    r.world.startRun(7);
+    Fighter& p = r.player();
+    const float health = p.maxHealth;
+    const UpgradeDef& tough = r.content.upgrades.at("base:tough");
+    const RarityDef& legendary = r.content.run.rarities.back();
+
+    r.timeUp();
+    p.shards = 1000;
+    Fighter::ShopOffer offer;
+    offer.id = "base:tough";
+    offer.price = 1;
+    offer.rarity = static_cast<int>(r.content.run.rarities.size()) - 1;
+    p.shop = {offer};
+    r.pick(InputFrame::BUY);
+    EXPECT_NEAR(p.maxHealth, health + tough.maxHealth * legendary.power, 0.01f);
+    EXPECT_GT(legendary.power, 1.0f);
+}
+
+TEST(arena_run, a_spell_item_changes_only_its_spell)
+{
+    RunArena r;
+    r.world.startRun(7);
+    Fighter& p = r.player();
+    ASSERT_FALSE(p.runSpells.empty());
+    p.runSpells.push_back({"base:fireball", 1});
+    const std::string target = p.runSpells[0].id;
+
+    const auto before0 = r.world.spellOf(r.world.spellRecipe(p, 0));
+    const auto before1 = r.world.spellOf(r.world.spellRecipe(p, 1));
+
+    r.timeUp();
+    p.shards = 1000;
+    Fighter::ShopOffer offer;
+    offer.id = "base:searing";
+    offer.price = 1;
+    offer.spell = target;
+    p.shop = {offer};
+    r.pick(InputFrame::BUY);
+
+    const auto after0 = r.world.spellOf(r.world.spellRecipe(p, 0));
+    const auto after1 = r.world.spellOf(r.world.spellRecipe(p, 1));
+    const float more = 1.0f + r.content.upgrades.at("base:searing").spell.damage;
+    EXPECT_NEAR(after0->stages[0].damage, before0->stages[0].damage * more, 0.01f);
+    EXPECT_FLOAT_EQ(after1->stages[0].damage, before1->stages[0].damage);
+}
+
+TEST(arena_run, level_ups_give_spells_and_their_levels_before_the_shop)
+{
+    RunArena r;
+    r.world.startRun(7);
+    Fighter& p = r.player();
+
+    // The run starts with its spells: on key 1, cast as given (no keyword to buy)
+    ASSERT_EQ(p.runSpells.size(), r.content.run.startSpells.size());
+    const std::string first = p.runSpells[0].id;
+    EXPECT_EQ(r.world.spellRecipe(p, 0), r.content.spells.at(first).recipe);
+
+    // A level up: the next level of a spell had adds its keywords
+    p.levelUps = 3;
+    r.timeUp();
+    ASSERT_FALSE(p.levelOffer.empty());
+
+    // Not the shop before the level ups are picked
+    p.shards = 1000;
+    r.pick(InputFrame::BUY);
+    EXPECT_FALSE(p.shop[0].bought);
+    r.pick(InputFrame::START);
+    EXPECT_FALSE(p.ready);
+
+    p.levelOffer = {first};
+    r.pick(InputFrame::LEVEL);
+    ASSERT_EQ(p.runSpells[0].level, 2);
+    SpellRecipe grown = r.content.spells.at(first).recipe;
+    for (const auto& k : r.content.spells.at(first).levels[0])
+        grown.keywords.push_back(k);
+    EXPECT_EQ(r.world.spellRecipe(p, 0), grown);
+    EXPECT_TRUE(r.world.spellOf(grown)->valid());
+
+    // A new spell: on the next key
+    p.levelOffer = {"base:fireball"};
+    r.pick(InputFrame::LEVEL);
+    ASSERT_EQ(p.runSpells.size(), 2u);
+    EXPECT_EQ(p.runSpells[1].id, "base:fireball");
+
+    // Three keys full: no new spell is offered, only levels and skills
+    p.runSpells.push_back({"base:glacier", 1});
+    r.world.skipToWave(3);
+    p.levelUps = 1;
+    r.timeUp();
+    for (const auto& id : p.levelOffer)
+    {
+        if (r.content.spells.count(id))
+            EXPECT_TRUE(std::any_of(p.runSpells.begin(), p.runSpells.end(), [&](const Fighter::RunSpell& s) { return s.id == id; })) << id;
+        else
+            EXPECT_TRUE(r.content.abilities.count(id)) << id;
+    }
+
+    // The client's own recipes count for nothing in a run
+    SpellRecipe mine;
+    mine.element = "volt";
+    mine.keywords = {"base:beam"};
+    r.world.setSpells(p, {mine, mine, mine});
+    EXPECT_EQ(r.world.spellRecipe(p, 0).element, r.content.spells.at(first).recipe.element);
+}
+
+TEST(arena_run, every_spells_levels_make_a_spell)
+{
+    RunArena r;
+    for (const auto& [id, sp] : r.content.spells)
+    {
+        EXPECT_GE(sp.maxLevel(), 2) << id;
+        for (int level = 1; level <= sp.maxLevel(); ++level)
+            EXPECT_TRUE(r.world.spellOf(r.world.spellAtLevel(id, level))->valid()) << id << " level " << level;
+    }
+}
+
+TEST(arena_run, nothing_is_taken_in_the_moment_after_a_wave)
+{
+    RunArena r;
+    r.content.run.intermission = 2.0f;
+    r.world.startRun(7);
+    Fighter& p = r.player();
+
+    r.timeUp();
+    ASSERT_EQ(r.world.run.phase, RunPhase::Shop);
+    EXPECT_GT(r.world.run.timer, 1.5f);
+    p.shards = 1000;
+    p.levelUps = 0;
+    p.levelOffer.clear();
+
+    // A click carried over from the fight: nothing
+    r.pick(InputFrame::BUY);
+    EXPECT_FALSE(p.shop[0].bought);
+    r.pick(InputFrame::START);
+    EXPECT_FALSE(p.ready);
+
+    // Then the shop is open
+    r.past(2.0f);
+    EXPECT_EQ(r.world.run.timer, 0.0f);
+    r.pick(InputFrame::BUY);
+    EXPECT_TRUE(p.shop[0].bought);
 }
 
 TEST(arena_run, what_is_not_owned_cannot_be_used)
@@ -260,17 +430,13 @@ TEST(arena_run, what_is_not_owned_cannot_be_used)
         if (const AbilityDef* a = r.world.ability(i, &p))
             EXPECT_NE(a->kind, "attack") << a->id;
 
-    // A spell: only of what is owned
-    auto cast = [&](const std::string& element, const std::string& keyword) {
-        SpellRecipe recipe;
-        recipe.element = element;
-        recipe.keywords = {keyword};
-        r.world.setSpells(p, {recipe, {}, {}});
+    // A spell: only the ones given (key 1: the run's start spell; key 2: none yet)
+    auto cast = [&](int slot) {
         p.mana = r.tuning.mana.max;
         std::fill(std::begin(p.abilityCooldown), std::end(p.abilityCooldown), 0.0f);
         int key = -1;
         for (int i = 0; i < InputFrame::ABILITIES; ++i)
-            if (r.world.spellSlotAt(i) == 0)
+            if (r.world.spellSlotAt(i) == slot)
                 key = i;
         InputFrame c;
         c.abilityPressed[key] = true;
@@ -280,9 +446,8 @@ TEST(arena_run, what_is_not_owned_cannot_be_used)
         return p.mana < r.tuning.mana.max - 1.0f;
     };
 
-    EXPECT_TRUE(cast("fire", "base:bolt"));
-    EXPECT_FALSE(cast("ice", "base:bolt"));
-    EXPECT_FALSE(cast("fire", "base:nova"));
+    EXPECT_TRUE(cast(0));
+    EXPECT_FALSE(cast(1));
 
     // Bought in the shop: in hand at once
     r.timeUp();
@@ -359,7 +524,7 @@ TEST(arena_run, falling_is_a_defeat_and_start_plays_again_from_the_beginning)
 {
     RunArena r;
     r.world.startRun(3);
-    r.player().boons = {"base:keen"};
+    r.player().boons = {Fighter::Boon("base:keen")};
     r.player().shards = 40;
     r.player().owned.push_back("base:dagger");
 
@@ -406,7 +571,7 @@ TEST(arena_run, stat_items_change_the_player)
 
     // At its most, it is not offered again
     for (int i = 0; i < 10; ++i)
-        p.boons.push_back("base:nimble");
+        p.boons.push_back(Fighter::Boon("base:nimble"));
     r.world.sumBoons(p);
     r.pick(InputFrame::REROLL);
     for (const auto& o : p.shop)
@@ -499,13 +664,14 @@ TEST(arena_run, enemies_in_a_run_come_for_the_player_from_anywhere)
 TEST(arena_run, it_plays_in_its_own_arena_built_anew_for_each_wave)
 {
     RunArena r;
-    ASSERT_TRUE(r.content.run.hasArena);
+    ASSERT_FALSE(r.content.run.arenas.empty());
+    const ArenaDef& first = r.content.arenaById(r.content.run.arenas.front().arena);
     const glm::ivec3 training(r.world.grid.width(), r.world.grid.height(), r.world.grid.depth());
 
     r.world.startRun(9);
-    const glm::ivec3 size = r.content.run.arena.size;
+    const glm::ivec3 size = first.size;
     EXPECT_EQ(glm::ivec3(r.world.grid.width(), r.world.grid.height(), r.world.grid.depth()), size);
-    EXPECT_NEAR(glm::length(r.player().body.position - r.content.run.arena.playerSpawn), 0.0f, 0.5f);
+    EXPECT_NEAR(glm::length(r.player().body.position - first.playerSpawn), 0.0f, 0.5f);
 
     // Wave 1: a pillar broken, the player wanders off
     const glm::ivec3 pillar(9, 5, 13);
@@ -756,7 +922,7 @@ TEST(arena_run, a_run_starts_with_each_player_choosing_a_weapon)
     EXPECT_FALSE(r.world.owns(r.player(), "base:sword"));
 }
 
-TEST(arena_run, the_shop_sells_no_weapons_only_the_skills_of_the_one_in_hand)
+TEST(arena_run, level_ups_give_no_weapons_only_the_skills_of_the_one_in_hand)
 {
     RunArena r;
     r.content.run.chooseWeapon = true;
@@ -767,26 +933,37 @@ TEST(arena_run, the_shop_sells_no_weapons_only_the_skills_of_the_one_in_hand)
     r.pick(InputFrame::WEAPON + bow);
     ASSERT_EQ(r.world.run.phase, RunPhase::Fighting);
 
-    // Many shops (the wave's end, then reroll after reroll): never a weapon, never another weapon's skill
+    // Many level ups: never a weapon, never another weapon's skill; the shop never sells one either
     r.timeUp();
     ASSERT_EQ(r.world.run.phase, RunPhase::Shop);
-    r.world.collect(r.player(), 5000);
+    Fighter& p = r.player();
 
     bool sawBowSkill = false;
-    for (int k = 0; k < 40; ++k)
+    for (int k = 0; k < 60; ++k)
     {
-        r.pick(InputFrame::REROLL);
-        for (const auto& o : r.player().shop)
+        p.levelUps = 1;
+        r.world.rollLevel(p);
+        for (const auto& id : p.levelOffer)
         {
-            EXPECT_FALSE(r.content.weapons.count(o.id)) << o.id;
-            if (auto a = r.content.abilities.find(o.id); a != r.content.abilities.end() and not a->second.weapons.empty())
+            EXPECT_FALSE(r.content.weapons.count(id)) << id;
+            if (auto a = r.content.abilities.find(id); a != r.content.abilities.end() and not a->second.weapons.empty())
             {
-                EXPECT_EQ(a->second.weapons.front(), "bow") << o.id;
+                EXPECT_EQ(a->second.weapons.front(), "bow") << id;
                 sawBowSkill = true;
             }
         }
     }
     EXPECT_TRUE(sawBowSkill);
+
+    r.world.collect(p, 5000);
+    p.levelUps = 0;
+    p.levelOffer.clear();
+    for (int k = 0; k < 20; ++k)
+    {
+        r.pick(InputFrame::REROLL);
+        for (const auto& o : p.shop)
+            EXPECT_TRUE(r.content.upgrades.count(o.id)) << o.id;
+    }
 }
 
 TEST(arena_run, the_bow_shoots_where_you_aim_and_its_volley_fans_out)
@@ -913,4 +1090,145 @@ TEST(arena_run, the_bows_light_is_drawn_a_tap_is_weak_a_held_shot_strong)
     ASSERT_GT(tap.def.damage, 0.0f);
     EXPECT_NEAR(drawn.def.damage, tap.def.damage * charge.damage, 0.01f);
     EXPECT_GT(glm::length(drawn.velocity), glm::length(tap.velocity) * 1.3f);
+}
+
+// ---- The arenas: one per stretch of waves, the duel's own ---------------------------------------
+
+namespace
+{
+    bool standsAt(const ArenaWorld& w, const glm::vec3& p)
+    {
+        const int x = static_cast<int>(std::floor(p.x)), y = static_cast<int>(std::floor(p.y + 0.01f)), z = static_cast<int>(std::floor(p.z));
+        const auto& t = w.content->blockTable;
+        return w.grid.isSolid(t, x, y - 1, z) and not w.grid.isSolid(t, x, y, z) and not w.grid.isSolid(t, x, y + 1, z);
+    }
+}
+
+TEST(arena_run, the_base_mods_arenas_load_and_the_run_names_them)
+{
+    RunArena r;
+    EXPECT_TRUE(r.content.report.errors.empty()) << (r.content.report.errors.empty() ? "" : r.content.report.errors[0].str());
+
+    for (const char* id : {"base:pit", "base:stockade", "base:gorge", "base:icefall", "base:quarry", "base:crucible"})
+    {
+        ASSERT_TRUE(r.content.arenas.count(id)) << id;
+        EXPECT_FALSE(r.content.arenas.at(id).name.empty()) << id;
+    }
+
+    EXPECT_EQ(r.content.runArenaId(1, false), "base:pit");
+    EXPECT_EQ(r.content.runArenaId(4, false), "base:pit");
+    EXPECT_EQ(r.content.runArenaId(5, false), "base:stockade");
+    EXPECT_EQ(r.content.runArenaId(12, false), "base:gorge");
+    EXPECT_EQ(r.content.runArenaId(20, false), "base:quarry");
+    EXPECT_EQ(r.content.runArenaId(20, true), "base:crucible");
+
+    // An unknown id is the training arena
+    EXPECT_EQ(&r.content.arenaById("base:nowhere"), &r.content.arena);
+}
+
+TEST(arena_run, a_new_arena_is_built_as_its_first_wave_starts_everyone_at_its_spawn)
+{
+    RunArena r;
+    r.world.startRun(3);
+    EXPECT_EQ(r.world.arenaId, "base:pit");
+
+    r.world.skipToWave(5);
+    const ArenaDef& stockade = r.content.arenas.at("base:stockade");
+    EXPECT_EQ(r.world.arenaId, "base:stockade");
+    EXPECT_EQ(glm::ivec3(r.world.grid.width(), r.world.grid.height(), r.world.grid.depth()), stockade.size);
+    EXPECT_NEAR(glm::length(r.player().body.position - stockade.playerSpawn), 0.0f, 0.5f);
+
+    // Enemies come in round its centre, on its ground
+    r.past(6.0f);
+    int seen = 0;
+    for (const auto& f : r.world.fighters)
+        if (f.team == Team::Enemy)
+        {
+            ++seen;
+            EXPECT_LT(glm::length(glm::vec2(f.spawnPosition.x - stockade.centre.x, f.spawnPosition.z - stockade.centre.z)), stockade.spawnRadius + 0.5f);
+        }
+    EXPECT_GT(seen, 0);
+
+    // Back to an earlier wave: its arena again; the run's end: the training arena
+    r.world.skipToWave(2);
+    EXPECT_EQ(r.world.arenaId, "base:pit");
+    r.world.stopRun();
+    EXPECT_EQ(r.world.arenaId, "");
+    EXPECT_EQ(r.world.grid.width(), 32);
+}
+
+TEST(arena_run, every_run_arena_has_ground_to_spawn_on)
+{
+    RunArena r;
+    r.world.startRun(11);
+
+    for (const auto& pick : r.content.run.arenas)
+    {
+        r.world.skipToWave(pick.from);
+        ASSERT_EQ(r.world.arenaId, pick.arena);
+        const ArenaDef& a = r.content.arenas.at(pick.arena);
+
+        EXPECT_TRUE(standsAt(r.world, a.playerSpawn)) << pick.arena << " player spawn";
+
+        // The duel's ring and the enemies' edge: somewhere to stand
+        for (int k = 0; k < 8; ++k)
+        {
+            const float angle = static_cast<float>(k) * 0.785f;
+            const glm::vec3 ring = r.world.groundNear(a.centre + glm::vec3(std::sin(angle), 0.0f, std::cos(angle)) * r.content.run.duel.radius);
+            EXPECT_TRUE(standsAt(r.world, ring)) << pick.arena << " ring " << k;
+        }
+    }
+}
+
+TEST(arena_run, the_final_duel_is_fought_in_its_own_arena_on_its_ground)
+{
+    RunArena r;
+    const int second = toTheDuel(r);
+    ASSERT_EQ(r.world.run.phase, RunPhase::Duel);
+    EXPECT_EQ(r.world.arenaId, "base:crucible");
+
+    const Fighter* b = r.world.find(second);
+    ASSERT_TRUE(b);
+    EXPECT_TRUE(standsAt(r.world, r.player().spawnPosition));
+    EXPECT_TRUE(standsAt(r.world, b->spawnPosition));
+}
+
+TEST(arena_run, the_stockades_barn_comes_down_once_its_posts_are_gone)
+{
+    RunArena r;
+    r.world.showArena("base:stockade");
+    ASSERT_EQ(r.world.arenaId, "base:stockade");
+
+    const BlockId brick = r.content.block("base:brick");
+    ASSERT_EQ(r.world.grid.get(22, 9, 22), brick);
+
+    // All posts but one: the roof still holds
+    const int posts[8][2] = {{16, 16}, {22, 16}, {28, 16}, {16, 22}, {28, 22}, {16, 28}, {22, 28}, {28, 28}};
+    for (int k = 0; k < 7; ++k)
+        for (int y = 4; y <= 7; ++y)
+            r.world.terrain.remove({posts[k][0], y, posts[k][1]});
+    r.run(3);
+    EXPECT_EQ(r.world.grid.get(22, 9, 22), brick);
+    EXPECT_TRUE(r.world.terrain.falling.empty());
+
+    // The last one: it falls
+    for (int y = 4; y <= 7; ++y)
+        r.world.terrain.remove({posts[7][0], y, posts[7][1]});
+    r.run(3);
+    EXPECT_EQ(r.world.grid.get(22, 9, 22), AIR);
+    EXPECT_FALSE(r.world.terrain.falling.empty());
+}
+
+TEST(arena_run, the_quarrys_table_falls_when_its_prop_burns)
+{
+    RunArena r;
+    r.world.showArena("base:quarry");
+    const BlockId dark = r.content.block("base:dark_stone");
+    ASSERT_EQ(r.world.grid.get(10, 8, 37), dark);
+
+    for (int y = 4; y <= 6; ++y)
+        r.world.terrain.remove({10, y, 37});
+    r.run(3);
+    EXPECT_EQ(r.world.grid.get(10, 8, 37), AIR);
+    EXPECT_FALSE(r.world.terrain.falling.empty());
 }

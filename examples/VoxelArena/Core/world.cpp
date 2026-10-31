@@ -127,7 +127,7 @@ namespace arena
         if (withLocalPlayer)
             localPlayerId = addPlayer(0);
 
-        for (const auto& s : c.arena.spawns)
+        for (const auto& s : arena().spawns)
             spawnEnemy(s.enemy, s.position, s.yaw);
     }
 
@@ -195,6 +195,7 @@ namespace arena
 
     void ArenaWorld::buildArena()
     {
+        arenaId = useRunArena ? content->runArenaId(run.wave, run.phase == RunPhase::Duel) : trainingArena;
         const ArenaDef& a = arena();
         ++arenaBuilds;
         grid = VoxelGrid(a.size.x, a.size.y, a.size.z);
@@ -234,6 +235,28 @@ namespace arena
                 grid.fill(lo, hi, block);
             }
         }
+    }
+
+    void ArenaWorld::showArena(const std::string& id)
+    {
+        trainingArena = id;
+
+        if (inRun())
+            return;
+
+        buildArena();
+        projectiles.clear();
+        zones.clear();
+        pendingHits.clear();
+        removeEnemies();
+        placePlayers();
+
+        for (auto& f : fighters)
+            if (f.team == Team::Player)
+                respawn(f);
+
+        for (const auto& s : arena().spawns)
+            spawnEnemy(s.enemy, s.position, s.yaw);
     }
 
     int ArenaWorld::spawnEnemy(const std::string& enemyId, const glm::vec3& position, float yaw)
@@ -2013,6 +2036,12 @@ namespace arena
         std::string key = recipe.element;
         for (const auto& k : recipe.keywords)
             key += "|" + k;
+        if (not recipe.tweak.empty())
+        {
+            const SpellTweak& t = recipe.tweak;
+            for (float v : {t.damage, t.area, t.cooldown, t.cost, t.duration, t.speed})
+                key += "|" + std::to_string(v);
+        }
 
         auto it = spellCache.find(key);
 
@@ -2038,23 +2067,17 @@ namespace arena
 
     bool ArenaWorld::castSpell(Fighter& f, int slot, const InputFrame& in, int abilityIndex)
     {
-        if (slot < 0 or slot >= static_cast<int>(f.spells.size()))
+        // In a run: the spell given to the player (by level ups); else the player's own
+        const SpellRecipe recipe = spellRecipe(f, slot);
+        if (recipe.keywords.empty())
             return false;
 
-        const auto spell = spellOf(f.spells[slot]);
+        const auto spell = spellOf(recipe);
         const bool free = infiniteMana and f.team == Team::Player;
         const float cost = spell->mana * std::max(0.3f, 1.0f - f.boon.manaCost);
 
         if (not spell->valid() or spell->stages.empty() or (f.mana < cost and not free))
             return false;
-
-        // In a run: only with the element and the keywords bought
-        if (not owns(f, "element:" + f.spells[slot].element))
-            return false;
-
-        for (const auto& k : f.spells[slot].keywords)
-            if (not owns(f, k))
-                return false;
 
         if (not free)
         {

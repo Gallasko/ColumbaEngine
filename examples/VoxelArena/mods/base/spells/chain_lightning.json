@@ -1,2 +1,9 @@
-// Ready-made: a beam that jumps on to two more enemies.
-{ "name": "Chain lightning", "recipe": ["volt", "beam", "chain"] }
+// A beam that jumps on to more enemies. Levels: one more jump, harder, further.
+// In a run, level ups give spells and their next levels: each entry of "levels" is what that level
+// adds to the recipe (keywords, as in keywords.json).
+{
+    "name": "Chain lightning",
+    "text": "A beam that jumps on to the enemies near the one it strikes.",
+    "recipe": ["volt", "beam", "chain"],
+    "levels": [["chain"], ["empower"], ["extend"]]
+}

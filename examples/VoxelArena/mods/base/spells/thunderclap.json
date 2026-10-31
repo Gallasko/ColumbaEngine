@@ -1,2 +1,9 @@
-// Ready-made: a beam that bursts where it strikes.
-{ "name": "Thunderclap", "recipe": ["volt", "beam", "nova"] }
+// A beam that bursts where it strikes. Levels: a wider burst, harder, two bursts.
+// In a run, level ups give spells and their next levels: each entry of "levels" is what that level
+// adds to the recipe (keywords, as in keywords.json).
+{
+    "name": "Thunderclap",
+    "text": "A beam that bursts where it strikes.",
+    "recipe": ["volt", "beam", "nova"],
+    "levels": [["enlarge"], ["empower"], ["multiply"]]
+}

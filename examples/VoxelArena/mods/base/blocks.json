@@ -23,5 +23,9 @@
     "rope":        { "color": [196, 170, 112], "colorNoise": 0.05, "hardness": 10, "flammable": true },
 
     // Ice shards freeze a dug pit over with it
-    "ice":         { "color": [178, 222, 246], "colorNoise": 0.05, "hardness": 30 }
+    "ice":         { "color": [178, 222, 246], "colorNoise": 0.05, "hardness": 30 },
+
+    // The arenas': snow underfoot (the icefall), hay that catches at a spark (the stockade)
+    "snow":        { "color": [228, 234, 242], "colorNoise": 0.05, "hardness": 30 },
+    "hay":         { "color": [214, 184, 96],  "colorNoise": 0.16, "hardness": 20, "flammable": true }
 }

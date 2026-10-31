@@ -3,8 +3,11 @@
 #include "shop.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <sstream>
+
+#include "Core/spells.h"
 
 namespace arena
 {
@@ -38,12 +41,98 @@ namespace arena
             const size_t colon = id.find(':');
             return colon == std::string::npos ? id : id.substr(colon + 1);
         }
+
+        std::string roman(int n)
+        {
+            static const char* const numerals[] = {"", "", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"};
+            return n >= 0 and n <= 10 ? numerals[n] : std::to_string(n);
+        }
+
+        /** Commonest first: grey, blue, purple, orange (more than four: the last again). */
+        Colour rarityColour(int rarity)
+        {
+            static const Colour colours[] = {hex(0xAEB4C2), hex(0x5EA8E8), hex(0xB27CE8), hex(0xF0A040)};
+            return colours[std::clamp(rarity, 0, 3)];
+        }
+
+        std::string rarityName(const Content& content, int rarity)
+        {
+            const auto& r = content.run.rarities;
+            return rarity >= 0 and rarity < static_cast<int>(r.size()) ? r[static_cast<size_t>(rarity)].name : "";
+        }
+
+        float rarityPower(const Content& content, int rarity)
+        {
+            const auto& r = content.run.rarities;
+            return rarity >= 0 and rarity < static_cast<int>(r.size()) ? r[static_cast<size_t>(rarity)].power : 1.0f;
+        }
+
+        std::string upper(std::string t)
+        {
+            for (auto& c : t)
+                c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+            return t;
+        }
+    }
+
+    std::string runSpellName(const Content& content, const Fighter::RunSpell& spell)
+    {
+        auto it = content.spells.find(spell.id);
+        const std::string name = it != content.spells.end() ? it->second.name : localName(spell.id);
+        return spell.level > 1 ? name + " " + roman(spell.level) : name;
+    }
+
+    std::string itemText(const Content& content, const UpgradeDef& u, float k)
+    {
+        (void)content;
+        std::vector<std::string> parts;
+        auto pc = [&](float v) { return std::to_string(static_cast<int>(std::lround(v * k * 100.0f))) + "%"; };
+        auto num = [&](float v) { return oneDecimal(v * k); };
+
+        if (u.forSpell)
+        {
+            const SpellTweak& t = u.spell;
+            if (t.damage != 0.0f) parts.push_back("+" + pc(t.damage) + " damage");
+            if (t.area != 0.0f) parts.push_back("+" + pc(t.area) + " area");
+            if (t.cooldown != 0.0f) parts.push_back("recharges " + pc(t.cooldown) + " faster");
+            if (t.cost != 0.0f) parts.push_back("costs " + pc(t.cost) + " less mana");
+            if (t.duration != 0.0f) parts.push_back("lasts " + pc(t.duration) + " longer");
+            if (t.speed != 0.0f) parts.push_back("flies " + pc(t.speed) + " faster");
+        }
+        else
+        {
+            if (u.maxHealth != 0.0f) parts.push_back("+" + std::to_string(static_cast<int>(std::lround(u.maxHealth * k))) + " max health");
+            if (u.damage != 0.0f) parts.push_back("+" + pc(u.damage) + " damage");
+            if (u.dashCharges != 0) parts.push_back("+" + std::to_string(u.dashCharges) + (u.dashCharges == 1 ? " dash charge" : " dash charges"));
+            if (u.manaCost != 0.0f) parts.push_back("Spells cost " + pc(u.manaCost) + " less");
+            if (u.manaRegen != 0.0f) parts.push_back("+" + pc(u.manaRegen) + " mana regeneration");
+            if (u.staminaRegen != 0.0f) parts.push_back("+" + pc(u.staminaRegen) + " stamina regeneration");
+            if (u.speed != 0.0f) parts.push_back("+" + pc(u.speed) + " move speed");
+            if (u.cooldown != 0.0f) parts.push_back("Skills and spells recharge " + pc(u.cooldown) + " faster");
+            if (u.lifeOnHit != 0.0f) parts.push_back("Heal " + num(u.lifeOnHit) + " on every hit");
+            if (u.statusStacks != 0) parts.push_back("Your statuses land " + std::to_string(u.statusStacks) + (u.statusStacks == 1 ? " stack deeper" : " stacks deeper"));
+            if (u.armor != 0.0f) parts.push_back("Take " + pc(u.armor) + " less damage");
+            if (u.crit != 0.0f) parts.push_back("+" + pc(u.crit) + " chance of a critical hit");
+            if (u.pickupRange != 0.0f) parts.push_back("Pick up shards " + num(u.pickupRange) + " m further");
+            if (u.regen != 0.0f) parts.push_back("Regenerate " + num(u.regen) + " health a second");
+        }
+
+        if (parts.empty())
+            return u.text;
+
+        std::string out;
+        for (const auto& part : parts)
+            out += (out.empty() ? "" : ", ") + part;
+        return out;
     }
 
     OfferInfo offerInfo(const Content& content, const std::string& id)
     {
         if (auto u = content.upgrades.find(id); u != content.upgrades.end())
-            return {"Stat", u->second.name, u->second.text};
+            return {u->second.forSpell ? "Spell item" : "Stat", u->second.name, itemText(content, u->second, 1.0f)};
+
+        if (auto sp = content.spells.find(id); sp != content.spells.end())
+            return {"Spell", sp->second.name, sp->second.text.empty() ? describe(content, compileSpell(content, sp->second.recipe)) : sp->second.text};
 
         if (auto w = content.weapons.find(id); w != content.weapons.end())
             return {"Weapon", w->second.name, "A " + w->second.type + ", with its own combos and skills. Tab switches weapons."};
@@ -59,8 +148,8 @@ namespace arena
         if (auto k = content.keywords.find(id); k != content.keywords.end())
         {
             if (k->second.form)
-                return {"Spell form", k->second.name, "Spells can take the " + k->second.name + " form (the spellbook, B)."};
-            return {"Modifier", k->second.name, "Spells can use " + k->second.name + ": it changes the form before it (the spellbook, B)."};
+                return {"Spell form", k->second.name, "Spells can take the " + k->second.name + " form (the spellbook)."};
+            return {"Modifier", k->second.name, "Spells can use " + k->second.name + ": it changes the form before it (the spellbook)."};
         }
 
         if (id.rfind("element:", 0) == 0)
@@ -68,7 +157,7 @@ namespace arena
             Element e = Element::None;
             const std::string name = id.substr(8);
             const std::string shown = elementFromName(name, e) and content.elements.count(e) ? content.elements.at(e).name : name;
-            return {"Element", shown, "Spells of " + shown + " (the spellbook, B)."};
+            return {"Element", shown, "Spells of " + shown + " (the spellbook)."};
         }
 
         return {"", id, ""};
@@ -78,6 +167,9 @@ namespace arena
     {
         if (id.rfind("element:", 0) == 0)
             return id.substr(8);
+
+        if (auto sp = content.spells.find(id); sp != content.spells.end())
+            return sp->second.recipe.element;
 
         const std::string name = localName(id);
 
@@ -124,6 +216,13 @@ namespace arena
     void ShopScreen::draw(Ui& ui, const Content& content, const ArenaWorld& world, const Fighter& me)
     {
         const RunState& r = world.run;
+
+        // The level ups first: the shop after
+        if (me.levelUps > 0 and not me.levelOffer.empty())
+        {
+            drawLevelUp(ui, content, world, me);
+            return;
+        }
 
         ui.section("shop");
         ui.anchor(Anchor::TopLeft);
@@ -173,29 +272,15 @@ namespace arena
             ui.text(x + 14 + 21 + 8, 57, shards, Font::Display, 30, SHARDS);
         }
 
-        // A level up: free stat items
-        if (me.levelUps > 0 and not me.levelOffer.empty())
+        // What is sold, by rarity
         {
-            ui.box(66, 108, 872, 64, LEVEL_STRIP, 2.0f, GOLD);
-            ui.text(82, 116, "LEVEL UP! +" + std::to_string(me.levelUps), Font::Display, 28, GOLD);
-            ui.text(82, 146, std::string("A stat item, free") + (me.levelUps > 1 ? " (" + std::to_string(me.levelUps) + " to pick)" : ""), Font::Text600, 11, TEXT_DIM);
-
-            const size_t n = me.levelOffer.size();
-            const float startX = 288.0f, endX = 928.0f;
-            const float pw = (endX - startX - 10.0f * static_cast<float>(n - 1)) / static_cast<float>(n);
-
-            for (size_t i = 0; i < n; ++i)
+            float lx = 66.0f + ui.text(66, 124, "Stat items, and items for one of your spells. Rarer ones do more:", Font::Text500, 13, TEXT_DIM) + 10.0f;
+            for (int k = 0; k < static_cast<int>(content.run.rarities.size()); ++k)
             {
-                const auto itemScope = ui.scope(i);
-                const float px = std::round(startX + static_cast<float>(i) * (pw + 10.0f));
-                const OfferInfo about = offerInfo(content, me.levelOffer[i]);
-                const bool over = ui.hover(px, 117, pw, 46);
-                ui.box(px, 117, pw, 46, LEVEL_PICK, 2.0f, over ? GOLD : LEVEL_PICK);
-                ui.keycap(px + 10, 129, 22, std::to_string(5 + static_cast<int>(i)), GOLD, GOLD_INK, 18, 0.0f);
-                ui.text(px + 40, 122, about.name, Font::Display, 20, TEXT);
-                const auto lines = ui.wrap(about.text, Font::Text500, 10, pw - 48.0f);
-                ui.text(px + 40, 144, lines.empty() ? "" : lines[0] + (lines.size() > 1 ? "\xE2\x80\xA6" : ""), Font::Text500, 10, TEXT_DIM);
-                ui.hit(px, 117, pw, 46, InputFrame::LEVEL + static_cast<int>(i));
+                const auto itemScope = ui.scope(static_cast<uint64_t>(100 + k));
+                ui.rect(lx, 128, 8, 8, rarityColour(k));
+                lx += 14.0f + ui.text(lx + 14, 124, content.run.rarities[static_cast<size_t>(k)].name + " x" + oneDecimal(content.run.rarities[static_cast<size_t>(k)].power),
+                                      Font::Text700, 12, rarityColour(k)) + 14.0f;
             }
         }
 
@@ -212,33 +297,51 @@ namespace arena
             }
 
             const auto& o = me.shop[static_cast<size_t>(i)];
-            const OfferInfo about = offerInfo(content, o.id);
-            const Colour kind = kindColour(about.kind);
-            const int had = static_cast<int>(std::count(me.boons.begin(), me.boons.end(), o.id));
+            OfferInfo about = offerInfo(content, o.id);
+            const auto item = content.upgrades.find(o.id);
+            if (item != content.upgrades.end())
+                about.text = itemText(content, item->second, rarityPower(content, o.rarity));
+
+            // An item has a rarity: its colour on the card's edge and its kind row
+            const bool rated = item != content.upgrades.end() and not content.run.rarities.empty();
+            const Colour kind = rated ? rarityColour(o.rarity) : kindColour(about.kind);
+            const int had = static_cast<int>(std::count_if(me.boons.begin(), me.boons.end(), [&](const Fighter::Boon& b) { return b.id == o.id and b.spell == o.spell; }));
             const bool afford = me.shards >= o.price;
 
             if (o.bought)
                 ui.raised(x, y, CARD_W, CARD_H, CARD_DIM, 0.0f, 2.0f, INK);
             else
-                ui.raised(x, y, CARD_W, CARD_H, CARD, 3.0f, 2.0f, o.locked ? GOLD : INK);
+                ui.raised(x, y, CARD_W, CARD_H, CARD, 3.0f, 2.0f, o.locked ? GOLD : (rated ? kind : INK));
 
             const Colour main = o.bought ? MUTED : TEXT;
             float cy = y + 14.0f;
 
-            // The kind row
+            // The kind row: "RARE STAT"
+            const std::string kindText = (rated ? upper(rarityName(content, o.rarity)) + " " : std::string()) + upper(about.kind.empty() ? "?" : about.kind);
             ui.rect(x + 14, cy + 2, 8, 8, o.bought ? MUTED : kind);
-            float kx = x + 28.0f + ui.text(x + 28, cy, std::string(about.kind.empty() ? "?" : about.kind), Font::Text700, 11, o.bought ? MUTED : kind, Align::Left, 1.5f);
+            float kx = x + 28.0f + ui.text(x + 28, cy, kindText, Font::Text700, 11, o.bought ? MUTED : kind, Align::Left, 1.5f);
             if (had > 0)
                 ui.text(kx + 8, cy, "(have " + std::to_string(had) + ")", Font::Text600, 11, MUTED);
             cy += 14.0f + 10.0f;
 
-            // The icon
+            // The icon (a spell item: its spell's)
             ui.box(x + 14, cy, 52, 52, WELL, 2.0f, o.bought ? LINE : kind);
-            ui.icon(offerIcon(content, o.id), x + 26, cy + 12, 4.0f, o.bought ? MUTED : kind);
+            ui.icon(offerIcon(content, o.spell.empty() ? o.id : o.spell), x + 26, cy + 12, 4.0f, o.bought ? MUTED : kind);
             cy += 52.0f + 10.0f;
 
             ui.text(x + 14, cy, about.name, Font::Display, 30, main);
             cy += 30.0f + 10.0f;
+
+            // A spell item: which spell
+            if (not o.spell.empty())
+            {
+                Fighter::RunSpell target{o.spell, 1};
+                for (const auto& rs : me.runSpells)
+                    if (rs.id == o.spell)
+                        target = rs;
+                ui.text(x + 14, cy - 4, "for " + runSpellName(content, target), Font::Text700, 13, o.bought ? MUTED : GOLD);
+                cy += 20.0f;
+            }
 
             ui.paragraph(x + 14, cy, CARD_W - 28.0f, about.text, Font::Text500, 13, o.bought ? MUTED : TEXT_DIM, 18.2f, 9);
 
@@ -325,6 +428,19 @@ namespace arena
             ry += 8.0f;
             ui.rect(x + 14, ry, w - 28, 2, LINE);
             ry += 12.0f;
+            ui.text(x + 14, ry, "SPELLS", Font::Text700, 11, MUTED, Align::Left, 1.5f);
+            ry += 20.0f;
+
+            for (const auto& rs : me.runSpells)
+            {
+                const auto itemScope = ui.scope(Ui::idOf("spell " + rs.id));
+                const std::string element = content.spells.count(rs.id) ? content.spells.at(rs.id).recipe.element : "";
+                ui.icon(element, x + 14, ry + 2, 2.0f, element == "ice" ? hex(0x7FC8F0) : element == "volt" ? hex(0xE8D060) : hex(0xE87850));
+                ui.text(x + 34, ry, runSpellName(content, rs), Font::Text600, 13, TEXT);
+                ry += 20.0f;
+            }
+
+            ry += 6.0f;
             ui.text(x + 14, ry, "OWNED", Font::Text700, 11, MUTED, Align::Left, 1.5f);
             ry += 20.0f;
 
@@ -371,8 +487,7 @@ namespace arena
             ui.hit(x, y, w, h, InputFrame::REROLL);
         }
 
-        ui.text(340, 636, "1-4 buy \xC2\xB7 5-" + std::to_string(4 + static_cast<int>(std::max<size_t>(1, me.levelOffer.size()))) +
-                          " level-up picks \xC2\xB7 Shift+n lock \xC2\xB7 R reroll \xC2\xB7 Enter ready", Font::Text500, 11, FAINT);
+        ui.text(340, 636, "1-4 buy \xC2\xB7 Shift+n lock \xC2\xB7 R reroll \xC2\xB7 Enter ready", Font::Text500, 11, FAINT);
 
         // Ready
         {
@@ -405,5 +520,93 @@ namespace arena
 
             ui.hit(x, y, w, h, InputFrame::START);
         }
+    }
+
+    void ShopScreen::drawLevelUp(Ui& ui, const Content& content, const ArenaWorld& world, const Fighter& me)
+    {
+        (void)world;
+        ui.section("levelup");
+        ui.anchor(Anchor::TopLeft);
+        ui.rectPx(0, 0, ui.width(), ui.height(), withAlpha(INK, 0.62f));
+
+        ui.anchor(Anchor::Centre);
+        ui.text(640, 92, "LEVEL UP", Font::Display, 64, GOLD, Align::Centre, 2.0f);
+        ui.text(640, 168, "Lv " + std::to_string(me.level - me.levelUps + 1) + (me.levelUps > 1 ? "  \xC2\xB7  " + std::to_string(me.levelUps) + " picks to make" : "  \xC2\xB7  pick one"),
+                Font::Text700, 14, TEXT_DIM, Align::Centre, 1.5f);
+
+        const size_t n = me.levelOffer.size();
+        const float w = 330.0f, h = 380.0f, gap = 24.0f, y = 210.0f;
+        const float startX = 640.0f - (static_cast<float>(n) * w + static_cast<float>(n - 1) * gap) * 0.5f;
+
+        for (size_t i = 0; i < n; ++i)
+        {
+            const auto itemScope = ui.scope(i);
+            const std::string& id = me.levelOffer[i];
+            const float x = std::round(startX + static_cast<float>(i) * (w + gap));
+            const bool over = ui.hover(x, y, w, h);
+
+            // What it is: a spell new or levelled, or a skill
+            std::string kind, name, text;
+            Colour colour = KIND_SKILL;
+
+            if (auto sp = content.spells.find(id); sp != content.spells.end())
+            {
+                const auto has = std::find_if(me.runSpells.begin(), me.runSpells.end(), [&](const Fighter::RunSpell& r) { return r.id == id; });
+                const int level = has == me.runSpells.end() ? 1 : has->level + 1;
+                SpellRecipe recipe = sp->second.recipe;
+                for (int l = 2; l <= level and l - 2 < static_cast<int>(sp->second.levels.size()); ++l)
+                    for (const auto& k : sp->second.levels[static_cast<size_t>(l - 2)])
+                        recipe.keywords.push_back(k);
+
+                const std::string element = recipe.element;
+                colour = element == "ice" ? hex(0x7FC8F0) : element == "volt" ? hex(0xE8D060) : hex(0xE87850);
+                name = runSpellName(content, {id, level});
+
+                if (has == me.runSpells.end())
+                {
+                    kind = "NEW SPELL";
+                    text = (sp->second.text.empty() ? "" : sp->second.text + " ") + describe(content, compileSpell(content, recipe));
+                }
+                else
+                {
+                    kind = "SPELL LEVEL " + std::to_string(level);
+                    std::string adds;
+                    for (const auto& k : sp->second.levels[static_cast<size_t>(level - 2)])
+                        adds += (adds.empty() ? "" : " and ") + (content.keywords.count(k) ? content.keywords.at(k).name : localName(k));
+                    text = "Adds " + adds + ". " + describe(content, compileSpell(content, recipe));
+                }
+            }
+            else if (auto a = content.abilities.find(id); a != content.abilities.end())
+            {
+                kind = "NEW SKILL";
+                name = a->second.name;
+                text = offerInfo(content, id).text;
+            }
+
+            ui.raised(x, y, w, h, CARD, 3.0f, 2.0f, over ? GOLD : colour);
+            float cy = y + 18.0f;
+            ui.rect(x + 18, cy + 2, 8, 8, colour);
+            ui.text(x + 32, cy, kind, Font::Text700, 12, colour, Align::Left, 1.5f);
+            cy += 30.0f;
+
+            ui.box(x + 18, cy, 64, 64, WELL, 2.0f, colour);
+            ui.icon(offerIcon(content, id), x + 32, cy + 14, 5.0f, colour);
+            cy += 64.0f + 14.0f;
+
+            ui.text(x + 18, cy, name, Font::Display, 34, TEXT);
+            cy += 34.0f + 14.0f;
+
+            ui.paragraph(x + 18, cy, w - 36.0f, text, Font::Text500, 14, TEXT_DIM, 19.6f, 8);
+
+            // Take it
+            const float by = y + h - 18.0f - 44.0f;
+            ui.raised(x + 18, by, w - 36, 44, over ? GOLD : CARD_DIM, 3.0f, 2.0f, over ? TEXT : LINE);
+            ui.keycap(x + 30, by + 11, 22, std::to_string(i + 1), over ? INK : GOLD, over ? GOLD : GOLD_INK, 18, 0.0f);
+            ui.text(x + 64, by + 11, "Take", Font::Text700, 16, over ? GOLD_INK : TEXT);
+
+            ui.hit(x, y, w, h, InputFrame::LEVEL + static_cast<int>(i));
+        }
+
+        ui.text(640, 620, "1-" + std::to_string(n) + " or click to take one \xC2\xB7 the shop comes next", Font::Text500, 12, FAINT, Align::Centre);
     }
 }

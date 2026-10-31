@@ -144,6 +144,23 @@ namespace arena
             }
         }
 
+        // A run's spell items, on every form of it
+        const SpellTweak& t = recipe.tweak;
+        if (not t.empty())
+        {
+            for (auto& st : s.stages)
+            {
+                st.damage *= 1.0f + t.damage;
+                st.poiseDamage *= 1.0f + t.damage;
+                st.radius *= 1.0f + t.area;
+                st.duration *= 1.0f + t.duration;
+                st.speed *= 1.0f + t.speed;
+            }
+
+            s.mana *= std::max(0.2f, 1.0f - t.cost);
+            s.cooldown *= std::max(0.2f, 1.0f - t.cooldown);
+        }
+
         return s;
     }
 

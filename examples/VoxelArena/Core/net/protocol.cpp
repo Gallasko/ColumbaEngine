@@ -15,7 +15,7 @@ namespace arena::net
             "fire_burst", "ice_burst", "volt_arc", "ignite", "freeze", "status", "leap",
             "volt_burst", "fire_nova", "ice_nova", "volt_nova", "fire_zone", "ice_zone", "volt_zone", "fire_beam", "ice_beam", "volt_beam",
             "run_start", "spawn_warn", "boss_warn", "spawn", "boss_spawn", "wave_clear", "run_victory", "run_defeat", "boon",
-            "wave_start", "arena_reset", "despawn", "elite_warn", "pickup", "level_up", "buy", "crit",
+            "wave_start", "arena_reset", "arena_change", "despawn", "elite_warn", "pickup", "level_up", "buy", "crit",
         };
 
         const char* const AI_MOVES[] = { "hold", "chase", "strafe", "retreat", "flank" };
@@ -142,6 +142,8 @@ namespace arena::net
             all.insert(id);
         for (const auto& [id, u] : content.upgrades)
             all.insert(id);
+        for (const auto& [id, sp] : content.spells)
+            all.insert(id);   // a run's spells, its level ups and spell items
 
         for (const auto& [id, a] : content.abilities)
         {
@@ -571,7 +573,19 @@ namespace arena::net
         // The run: the boons picked and the ones offered now
         w.u8(static_cast<uint8_t>(std::min<size_t>(f.boons.size(), 64)));
         for (size_t i = 0; i < f.boons.size() and i < 64; ++i)
-            w.u16(names.id(f.boons[i]));
+        {
+            w.u16(names.id(f.boons[i].id));
+            w.u8(static_cast<uint8_t>(std::clamp(f.boons[i].rarity, 0, 255)));
+            w.u16(names.id(f.boons[i].spell));
+        }
+
+        // ... the spells it was given, and their levels
+        w.u8(static_cast<uint8_t>(std::min<size_t>(f.runSpells.size(), 8)));
+        for (size_t i = 0; i < f.runSpells.size() and i < 8; ++i)
+        {
+            w.u16(names.id(f.runSpells[i].id));
+            w.u8(static_cast<uint8_t>(std::clamp(f.runSpells[i].level, 0, 255)));
+        }
 
         // ... and what the shop has: shards, the level, what is owned, the offers, the level up's picks
         w.u16(static_cast<uint16_t>(std::clamp(f.shards, 0, 65535)));
@@ -589,6 +603,8 @@ namespace arena::net
             w.u16(names.id(f.shop[i].id));
             w.u16(static_cast<uint16_t>(std::clamp(f.shop[i].price, 0, 65535)));
             w.u8(static_cast<uint8_t>((f.shop[i].locked ? 1 : 0) | (f.shop[i].bought ? 2 : 0)));
+            w.u8(static_cast<uint8_t>(std::clamp(f.shop[i].rarity, 0, 255)));
+            w.u16(names.id(f.shop[i].spell));
         }
         w.u8(static_cast<uint8_t>(std::min<size_t>(f.levelOffer.size(), 8)));
         for (size_t i = 0; i < f.levelOffer.size() and i < 8; ++i)
@@ -676,7 +692,23 @@ namespace arena::net
         f.boons.clear();
         const uint8_t boons = r.u8();
         for (uint8_t k = 0; k < boons and k < 64 and not r.failed; ++k)
-            f.boons.push_back(names.name(r.u16()));
+        {
+            Fighter::Boon b;
+            b.id = names.name(r.u16());
+            b.rarity = r.u8();
+            b.spell = names.name(r.u16());
+            f.boons.push_back(b);
+        }
+
+        f.runSpells.clear();
+        const uint8_t spells = r.u8();
+        for (uint8_t k = 0; k < spells and k < 8 and not r.failed; ++k)
+        {
+            Fighter::RunSpell rs;
+            rs.id = names.name(r.u16());
+            rs.level = r.u8();
+            f.runSpells.push_back(rs);
+        }
 
         f.shards = r.u16();
         f.xp = r.u16();
@@ -698,6 +730,8 @@ namespace arena::net
             const uint8_t flags = r.u8();
             o.locked = flags & 1;
             o.bought = flags & 2;
+            o.rarity = r.u8();
+            o.spell = names.name(r.u16());
             f.shop.push_back(o);
         }
         f.levelOffer.clear();

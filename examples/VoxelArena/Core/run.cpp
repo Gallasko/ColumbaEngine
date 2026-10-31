@@ -45,29 +45,82 @@ namespace arena
         if (not content)
             return;
 
-        for (const auto& id : f.boons)
+        for (const auto& b : f.boons)
         {
-            auto it = content->upgrades.find(id);
+            auto it = content->upgrades.find(b.id);
 
-            if (it == content->upgrades.end())
+            if (it == content->upgrades.end() or it->second.forSpell)
                 continue;
 
+            // Its numbers times its rarity's power; whole ones (dash charges, stacks) as they are
             const UpgradeDef& u = it->second;
-            f.boon.maxHealth += u.maxHealth;
-            f.boon.damage += u.damage;
+            const float k = rarityPower(b.rarity);
+            f.boon.maxHealth += u.maxHealth * k;
+            f.boon.damage += u.damage * k;
             f.boon.dashCharges += u.dashCharges;
-            f.boon.manaCost += u.manaCost;
-            f.boon.manaRegen += u.manaRegen;
-            f.boon.staminaRegen += u.staminaRegen;
-            f.boon.speed += u.speed;
-            f.boon.cooldown += u.cooldown;
-            f.boon.lifeOnHit += u.lifeOnHit;
+            f.boon.manaCost += u.manaCost * k;
+            f.boon.manaRegen += u.manaRegen * k;
+            f.boon.staminaRegen += u.staminaRegen * k;
+            f.boon.speed += u.speed * k;
+            f.boon.cooldown += u.cooldown * k;
+            f.boon.lifeOnHit += u.lifeOnHit * k;
             f.boon.statusStacks += u.statusStacks;
-            f.boon.armor += u.armor;
-            f.boon.crit += u.crit;
-            f.boon.pickupRange += u.pickupRange;
-            f.boon.regen += u.regen;
+            f.boon.armor += u.armor * k;
+            f.boon.crit += u.crit * k;
+            f.boon.pickupRange += u.pickupRange * k;
+            f.boon.regen += u.regen * k;
         }
+    }
+
+    float ArenaWorld::rarityPower(int rarity) const
+    {
+        const auto& rarities = content->run.rarities;
+        return rarity >= 0 and rarity < static_cast<int>(rarities.size()) ? rarities[static_cast<size_t>(rarity)].power : 1.0f;
+    }
+
+    SpellRecipe ArenaWorld::spellAtLevel(const std::string& spellId, int level) const
+    {
+        auto it = content->spells.find(spellId);
+        if (it == content->spells.end())
+            return {};
+
+        SpellRecipe r = it->second.recipe;
+        for (int l = 2; l <= level and l - 2 < static_cast<int>(it->second.levels.size()); ++l)
+            for (const auto& k : it->second.levels[static_cast<size_t>(l - 2)])
+                r.keywords.push_back(k);
+
+        return r;
+    }
+
+    SpellRecipe ArenaWorld::spellRecipe(const Fighter& f, int slot) const
+    {
+        if (not inRun())
+            return slot >= 0 and slot < static_cast<int>(f.spells.size()) ? f.spells[static_cast<size_t>(slot)] : SpellRecipe{};
+
+        if (slot < 0 or slot >= static_cast<int>(f.runSpells.size()))
+            return {};
+
+        const Fighter::RunSpell& rs = f.runSpells[static_cast<size_t>(slot)];
+        SpellRecipe r = spellAtLevel(rs.id, rs.level);
+
+        // The spell items bought for it
+        for (const auto& b : f.boons)
+        {
+            auto it = content->upgrades.find(b.id);
+            if (b.spell != rs.id or it == content->upgrades.end() or not it->second.forSpell)
+                continue;
+
+            const SpellTweak& t = it->second.spell;
+            const float k = rarityPower(b.rarity);
+            r.tweak.damage += t.damage * k;
+            r.tweak.area += t.area * k;
+            r.tweak.cooldown += t.cooldown * k;
+            r.tweak.cost += t.cost * k;
+            r.tweak.duration += t.duration * k;
+            r.tweak.speed += t.speed * k;
+        }
+
+        return r;
     }
 
     // ---- Starting, stopping ---------------------------------------------------------------------
@@ -99,6 +152,10 @@ namespace arena
 
             f.boons.clear();
             f.owned = def.startOwned;
+            f.runSpells.clear();
+            for (const auto& id : def.startSpells)
+                if (f.runSpells.size() < SPELL_SLOTS)
+                    f.runSpells.push_back({id, 1});
 
             if (content->weapons.count(def.startWeapon))
             {
@@ -115,7 +172,7 @@ namespace arena
             respawn(f);
         }
 
-        event("run_start", def.centre, 1.0f);
+        event("run_start", arena().centre, 1.0f);
 
         // Each player picks a weapon first (when there is a choice): the first wave waits for everyone
         if (def.chooseWeapon and content->weaponOrder.size() > 1)
@@ -149,6 +206,7 @@ namespace arena
         for (auto& f : fighters)
         {
             f.boons.clear();
+            f.runSpells.clear();
             f.owned.clear();
             f.shop.clear();
             f.levelOffer.clear();
@@ -186,22 +244,22 @@ namespace arena
 
     glm::vec3 ArenaWorld::edgePoint(float away)
     {
-        const RunDef& def = content->run;
-        glm::vec3 best = def.centre;
+        const ArenaDef& where = arena();
+        glm::vec3 best = where.centre;
         float bestDistance = -1.0f;
 
         // A few tries round the edge: the first far enough from the players, else the furthest
         for (int k = 0; k < 6; ++k)
         {
             const float a = static_cast<float>(runRandom() % 3600) * 0.1f * 0.0174533f;
-            const float r = def.spawnRadius * (0.75f + 0.25f * static_cast<float>(runRandom() % 1000) / 1000.0f);
-            glm::vec3 p = def.centre + glm::vec3(std::cos(a), 0.0f, std::sin(a)) * r;
+            const float r = where.spawnRadius * (0.75f + 0.25f * static_cast<float>(runRandom() % 1000) / 1000.0f);
+            glm::vec3 p = where.centre + glm::vec3(std::cos(a), 0.0f, std::sin(a)) * r;
             p.x = std::clamp(p.x, 2.0f, static_cast<float>(grid.width()) - 3.0f);
             p.z = std::clamp(p.z, 2.0f, static_cast<float>(grid.depth()) - 3.0f);
 
             // On the ground there
             const RayHit down = raycast(grid, content->blockTable, glm::vec3(p.x, static_cast<float>(grid.height()) - 1.5f, p.z), glm::vec3(0, -1, 0), static_cast<float>(grid.height()));
-            p.y = down.hit ? static_cast<float>(down.cell.y) + 1.0f : def.centre.y;
+            p.y = down.hit ? static_cast<float>(down.cell.y) + 1.0f : where.centre.y;
 
             float nearest = 1e9f;
             for (const auto& f : fighters)
@@ -221,6 +279,26 @@ namespace arena
         return best;
     }
 
+    glm::vec3 ArenaWorld::groundNear(glm::vec3 p) const
+    {
+        const int x = static_cast<int>(std::floor(p.x)), z = static_cast<int>(std::floor(p.z));
+        const auto& table = content->blockTable;
+
+        // The nearest floor with room to stand, from a little above the point down, then up from there
+        const int start = std::clamp(static_cast<int>(std::floor(p.y)) + 3, 1, grid.height() - 2);
+        auto standable = [&](int y) { return grid.isSolid(table, x, y - 1, z) and not grid.isSolid(table, x, y, z) and not grid.isSolid(table, x, y + 1, z); };
+
+        for (int y = start; y >= 1; --y)
+            if (standable(y))
+                return glm::vec3(p.x, static_cast<float>(y), p.z);
+
+        for (int y = start + 1; y < grid.height() - 1; ++y)
+            if (standable(y))
+                return glm::vec3(p.x, static_cast<float>(y), p.z);
+
+        return p;
+    }
+
     void ArenaWorld::beginWave(int wave)
     {
         const RunDef& def = content->run;
@@ -236,13 +314,19 @@ namespace arena
         run.bossId = 0;
         pickups.clear();
 
-        // A fresh arena for each wave after the first: what was broken is whole again, everyone back in place
-        if (wave > 1 and def.resetEachWave)
+        // A fresh arena for each wave after the first: what was broken is whole again, everyone back in place.
+        // Another arena from this wave on: built whatever resetEachWave says, everyone at its spawn point
+        const bool newArena = content->runArenaId(wave, false) != arenaId;
+
+        if ((wave > 1 and def.resetEachWave) or newArena)
         {
             buildArena();
             projectiles.clear();
             zones.clear();
             pendingHits.clear();
+
+            if (newArena)
+                placePlayers();
 
             for (auto& f : fighters)
             {
@@ -255,7 +339,7 @@ namespace arena
                 f.yaw = f.spawnYaw;
             }
 
-            event("arena_reset", def.centre, 1.0f);
+            event(newArena ? "arena_change" : "arena_reset", arena().centre, 1.0f);
         }
 
         // The ones down get back up for the new wave
@@ -280,7 +364,7 @@ namespace arena
             event("boss_warn", run.pending.back().position, 2.0f);
         }
 
-        event("wave_start", def.centre, static_cast<float>(wave));
+        event("wave_start", arena().centre, static_cast<float>(wave));
     }
 
     void ArenaWorld::endWave()
@@ -329,12 +413,14 @@ namespace arena
             }
 
             run.phase = RunPhase::Victory;
-            event("run_victory", def.centre, static_cast<float>(run.score));
+            event("run_victory", arena().centre, static_cast<float>(run.score));
             return;
         }
 
-        // The shop: each player's own
+        // The shop: each player's own, its level ups first; nothing taken for a moment (no misclicks
+        // carried over from the fight)
         run.phase = RunPhase::Shop;
+        run.timer = def.intermission;
 
         for (auto& f : fighters)
         {
@@ -347,7 +433,7 @@ namespace arena
             rollLevel(f);
         }
 
-        event("wave_clear", def.centre, static_cast<float>(run.wave));
+        event("wave_clear", arena().centre, static_cast<float>(run.wave));
     }
 
     void ArenaWorld::beginDuel()
@@ -380,15 +466,15 @@ namespace arena
         {
             Fighter& f = *players[k];
             const float angle = static_cast<float>(k) * 2.0f * 3.14159265f / static_cast<float>(players.size());
-            f.spawnPosition = def.centre + glm::vec3(std::sin(angle), 0.0f, std::cos(angle)) * def.duel.radius;
-            const glm::vec3 toCentre = def.centre - f.spawnPosition;
+            f.spawnPosition = groundNear(arena().centre + glm::vec3(std::sin(angle), 0.0f, std::cos(angle)) * def.duel.radius);
+            const glm::vec3 toCentre = arena().centre - f.spawnPosition;
             f.spawnYaw = glm::degrees(std::atan2(toCentre.x, toCentre.z));
             f.ready = false;
             f.statuses.clear();
             respawn(f);
         }
 
-        event("duel_start", def.centre, static_cast<float>(players.size()));
+        event("duel_start", arena().centre, static_cast<float>(players.size()));
     }
 
     // ---- Shards ---------------------------------------------------------------------------------
@@ -522,16 +608,31 @@ namespace arena
             if (o.locked and not o.bought)
                 kept.push_back(o);
 
-        auto offered = [&](const std::string& id) {
-            return std::any_of(kept.begin(), kept.end(), [&](const Fighter::ShopOffer& o) { return o.id == id; });
+        auto offered = [&](const std::string& id, const std::string& spell) {
+            return std::any_of(kept.begin(), kept.end(), [&](const Fighter::ShopOffer& o) { return o.id == id and o.spell == spell; });
+        };
+        auto taken = [&](const std::string& id, const std::string& spell) {
+            return static_cast<int>(std::count_if(f.boons.begin(), f.boons.end(), [&](const Fighter::Boon& b) { return b.id == id and b.spell == spell; }));
         };
 
-        // What can be offered: stat items not at their most, unlocks not owned, nothing twice
-        std::vector<std::pair<std::string, int>> open;
+        // What can be offered: stat items not at their most, spell items for a spell the player has,
+        // unlocks (a mod's: the base run has none) not owned, nothing twice
+        struct Open { std::string id, spell; int price; bool item; };
+        std::vector<Open> open;
 
         for (const auto& [id, u] : content->upgrades)
-            if (std::count(f.boons.begin(), f.boons.end(), id) < u.most and not offered(id))
-                open.emplace_back(id, static_cast<int>(std::lround(static_cast<float>(u.price) * growth)));
+        {
+            if (not u.forSpell)
+            {
+                if (taken(id, "") < u.most and not offered(id, ""))
+                    open.push_back({id, "", u.price, true});
+                continue;
+            }
+
+            for (const auto& rs : f.runSpells)
+                if (taken(id, rs.id) < u.most and not offered(id, rs.id))
+                    open.push_back({id, rs.id, u.price, true});
+        }
 
         // The weapon was chosen at the start: no weapons, and only the skills of the one in hand
         const auto weapon = content->weapons.find(f.weapon);
@@ -548,20 +649,46 @@ namespace arena
         };
 
         for (const auto& [id, price] : def.unlocks)
-            if (not owns(f, id) and not offered(id) and forSale(id))
-                open.emplace_back(id, static_cast<int>(std::lround(static_cast<float>(price) * growth)));
+            if (not owns(f, id) and not offered(id, "") and forSale(id))
+                open.push_back({id, "", price, false});
 
         for (size_t i = open.size(); i > 1; --i)
             std::swap(open[i - 1], open[runRandom() % i]);
 
+        // Each item's rarity: rarer ones come up more as the waves go on
+        const float t = def.waves > 1 ? std::clamp(static_cast<float>(run.wave - 1) / static_cast<float>(def.waves - 1), 0.0f, 1.0f) : 0.0f;
+        auto rollRarity = [&]() {
+            float total = 0.0f;
+            for (const auto& r : def.rarities)
+                total += std::max(0.0f, r.weight.x + (r.weight.y - r.weight.x) * t);
+            if (total <= 0.0f)
+                return 0;
+
+            float roll = static_cast<float>(runRandom() % 100000) / 100000.0f * total;
+            for (size_t k = 0; k < def.rarities.size(); ++k)
+            {
+                roll -= std::max(0.0f, def.rarities[k].weight.x + (def.rarities[k].weight.y - def.rarities[k].weight.x) * t);
+                if (roll < 0.0f)
+                    return static_cast<int>(k);
+            }
+            return 0;
+        };
+
         f.shop = kept;
 
-        for (const auto& [id, price] : open)
+        for (const auto& o : open)
         {
             if (static_cast<int>(f.shop.size()) >= def.shopSlots)
                 break;
 
-            f.shop.push_back({id, price, false, false});
+            const int rarity = o.item ? rollRarity() : 0;
+            const float rarityPrice = o.item and rarity < static_cast<int>(def.rarities.size()) ? def.rarities[static_cast<size_t>(rarity)].price : 1.0f;
+            Fighter::ShopOffer offer;
+            offer.id = o.id;
+            offer.price = static_cast<int>(std::lround(static_cast<float>(o.price) * rarityPrice * growth));
+            offer.rarity = rarity;
+            offer.spell = o.spell;
+            f.shop.push_back(offer);
         }
     }
 
@@ -572,10 +699,36 @@ namespace arena
         if (f.levelUps <= 0)
             return;
 
+        // A spell not had (while a key is free), a spell's next level, a weapon skill of the one in hand
         std::vector<std::string> open;
-        for (const auto& [id, u] : content->upgrades)
-            if (std::count(f.boons.begin(), f.boons.end(), id) < u.most)
+
+        for (const auto& entry : content->spells)
+        {
+            const std::string& id = entry.first;
+            auto has = std::find_if(f.runSpells.begin(), f.runSpells.end(), [&](const Fighter::RunSpell& r) { return r.id == id; });
+
+            if (has == f.runSpells.end() ? f.runSpells.size() < SPELL_SLOTS : has->level < entry.second.maxLevel())
                 open.push_back(id);
+        }
+
+        const auto weapon = content->weapons.find(f.weapon);
+        const std::string type = weapon != content->weapons.end() ? weapon->second.type : "";
+
+        for (const auto& id : content->run.levelSkills)
+        {
+            auto a = content->abilities.find(id);
+            if (a == content->abilities.end() or owns(f, id))
+                continue;
+            if (a->second.weapons.empty() or std::find(a->second.weapons.begin(), a->second.weapons.end(), type) != a->second.weapons.end())
+                open.push_back(id);
+        }
+
+        // Nothing left to give: the level ups are spent
+        if (open.empty())
+        {
+            f.levelUps = 0;
+            return;
+        }
 
         for (size_t i = open.size(); i > 1; --i)
             std::swap(open[i - 1], open[runRandom() % i]);
@@ -584,10 +737,27 @@ namespace arena
         f.levelOffer = open;
     }
 
-    void ArenaWorld::takeBoon(Fighter& f, const std::string& id)
+    void ArenaWorld::takeLevel(Fighter& f, const std::string& id)
+    {
+        if (content->spells.count(id))
+        {
+            auto has = std::find_if(f.runSpells.begin(), f.runSpells.end(), [&](const Fighter::RunSpell& r) { return r.id == id; });
+
+            if (has != f.runSpells.end())
+                has->level = std::min(has->level + 1, content->spells.at(id).maxLevel());
+            else if (f.runSpells.size() < SPELL_SLOTS)
+                f.runSpells.push_back({id, 1});
+        }
+        else if (content->abilities.count(id) and not owns(f, id))
+        {
+            f.owned.push_back(id);
+        }
+    }
+
+    void ArenaWorld::takeBoon(Fighter& f, const Fighter::Boon& boon)
     {
         const float healthBefore = f.boon.maxHealth;
-        f.boons.push_back(id);
+        f.boons.push_back(boon);
         sumBoons(f);
 
         // More health: there at once
@@ -606,6 +776,15 @@ namespace arena
     {
         const int offers = static_cast<int>(f.shop.size());
 
+        // The moment after a wave: nothing taken yet
+        if (run.timer > 0.0f)
+            return;
+
+        // The level ups come first: the shop waits for them
+        const bool levelling = f.levelUps > 0 and not f.levelOffer.empty();
+        if (levelling and not (pick >= InputFrame::LEVEL and pick < InputFrame::LEVEL + static_cast<int>(f.levelOffer.size())))
+            return;
+
         if (pick >= InputFrame::BUY and pick < InputFrame::BUY + offers)
         {
             auto& o = f.shop[static_cast<size_t>(pick - InputFrame::BUY)];
@@ -619,7 +798,7 @@ namespace arena
 
             if (content->upgrades.count(o.id))
             {
-                takeBoon(f, o.id);
+                takeBoon(f, {o.id, o.rarity, o.spell});
             }
             else
             {
@@ -652,7 +831,7 @@ namespace arena
         }
         else if (pick >= InputFrame::LEVEL and pick < InputFrame::LEVEL + static_cast<int>(f.levelOffer.size()))
         {
-            takeBoon(f, f.levelOffer[static_cast<size_t>(pick - InputFrame::LEVEL)]);
+            takeLevel(f, f.levelOffer[static_cast<size_t>(pick - InputFrame::LEVEL)]);
             --f.levelUps;
             rollLevel(f);
             event("boon", chest(f), 1.0f, f.id);
@@ -713,7 +892,7 @@ namespace arena
                 {
                     run.phase = RunPhase::Defeat;
                     pickups.clear();
-                    event("run_defeat", def.centre, static_cast<float>(run.wave));
+                    event("run_defeat", arena().centre, static_cast<float>(run.wave));
                     break;
                 }
 
@@ -731,7 +910,7 @@ namespace arena
                         continue;
                     }
 
-                    glm::vec3 toCentre = def.centre - s.position;
+                    glm::vec3 toCentre = arena().centre - s.position;
                     toCentre.y = 0.0f;
                     const int id = spawnEnemy(s.enemy, s.position, glm::length(toCentre) > 0.1f ? glm::degrees(std::atan2(toCentre.x, toCentre.z)) : 0.0f);
 
@@ -840,6 +1019,7 @@ namespace arena
 
             case RunPhase::Shop:
             {
+                run.timer = std::max(0.0f, run.timer - dt);
                 bool all = players > 0;
 
                 for (auto& f : fighters)
@@ -865,7 +1045,7 @@ namespace arena
                 {
                     run.warmup = std::max(0.0f, run.warmup - dt);
                     if (run.warmup <= 0.0f)
-                        event("duel_fight", def.centre, 1.0f);
+                        event("duel_fight", arena().centre, 1.0f);
                     break;
                 }
 
@@ -882,8 +1062,8 @@ namespace arena
                 {
                     run.champion = last ? last->id : 0;
                     run.phase = RunPhase::Victory;
-                    event("duel_end", last ? last->body.position : def.centre, static_cast<float>(run.champion));
-                    event("run_victory", def.centre, static_cast<float>(run.score));
+                    event("duel_end", last ? last->body.position : arena().centre, static_cast<float>(run.champion));
+                    event("run_victory", arena().centre, static_cast<float>(run.score));
                 }
                 break;
             }

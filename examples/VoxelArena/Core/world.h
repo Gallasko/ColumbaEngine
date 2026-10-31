@@ -113,8 +113,28 @@ namespace arena
         /** The spells on the spell keys (abilities "spell:1".."spell:3"): recipes the player made or picked. */
         std::vector<SpellRecipe> spells;
 
-        // The arena run: the stat items taken (ids, in order) and what they add up to
-        std::vector<std::string> boons;
+        // The arena run: the items taken (in order, each with its rarity, a spell item with its spell)
+        // and what the stat ones add up to
+        struct Boon
+        {
+            std::string id;
+            int rarity = 0;           // into the run's rarities
+            std::string spell;        // a spell item's spell
+
+            Boon() = default;
+            Boon(std::string id, int rarity = 0, std::string spell = "") : id(std::move(id)), rarity(rarity), spell(std::move(spell)) {}
+            bool operator==(const std::string& other) const { return id == other; }
+            bool operator==(const Boon& o) const { return id == o.id and rarity == o.rarity and spell == o.spell; }
+        };
+        std::vector<Boon> boons;
+
+        // ... and the spells it was given (level ups), on the spell keys in order
+        struct RunSpell
+        {
+            std::string id;           // spells/*.json
+            int level = 1;
+        };
+        std::vector<RunSpell> runSpells;
         struct Boons
         {
             float maxHealth = 0.0f, damage = 0.0f, manaCost = 0.0f, manaRegen = 0.0f, staminaRegen = 0.0f;
@@ -131,9 +151,11 @@ namespace arena
             std::string id;           // a stat item (upgrades.json) or an unlock
             int price = 0;
             bool locked = false, bought = false;
+            int rarity = 0;           // a stat item's
+            std::string spell;        // a spell item's spell
         };
         std::vector<ShopOffer> shop;
-        std::vector<std::string> levelOffer;
+        std::vector<std::string> levelOffer;   // a level up's picks: a spell (new, or its next level) or a weapon skill
         bool ready = false;
         int rerolls = 0;
 
@@ -424,6 +446,11 @@ namespace arena
         /** Rebuilds the grid from the arena definition. */
         void buildArena();
 
+        /** Outside a run: the training ground becomes this arena ("": arena.json), built anew with everyone at its spawn. */
+        void showArena(const std::string& id);
+        /** Where to stand at a point: its x and z on the nearest floor with room above (from a little over it, down). */
+        glm::vec3 groundNear(glm::vec3 point) const;
+
         Fighter* player();
         const Fighter* player() const;
         Fighter* find(int id);
@@ -485,9 +512,11 @@ namespace arena
         /** A player's START begins a run even outside one (a dedicated server: there is no title there). */
         bool runOnRequest = false;
 
-        /** The arena being played: the run's own during a run (run.json "arena"), else arena.json. */
-        const ArenaDef& arena() const { return useRunArena and content->run.hasArena ? content->run.arena : content->arena; }
-        bool useRunArena = false;
+        /** The arena built (the grid is made from it): the wave's during a run, the training one's else. */
+        const ArenaDef& arena() const { return content->arenaById(arenaId); }
+        std::string arenaId;          // its id ("": the training arena, arena.json)
+        bool useRunArena = false;     // in a run: buildArena() builds the wave's arena (the duel's in the duel)
+        std::string trainingArena;    // outside a run: built instead of arena.json ("": arena.json)
         /** Goes up each time the arena is built anew: a server sends it whole, the game meshes it again. */
         int arenaBuilds = 0;
         /** Each player's place in the arena (a row across its spawn point). */
@@ -499,10 +528,23 @@ namespace arena
         int xpFor(int level) const;
         /** Shards to a player: money and XP (its level ups with them). */
         void collect(Fighter& f, int value);
+        /** The shop's offers rolled anew (the locked ones kept), and a level up's picks. */
+        void rollShop(Fighter& f);
+        void rollLevel(Fighter& f);
         /** What the shop's reroll costs this player now. */
         int rerollPrice(const Fighter& f) const;
         /** What a fighter's boons add up to (from its list: a client works it out the same way). */
         void sumBoons(Fighter& f) const;
+        /** What a rarity multiplies an item's numbers by (the run's rarities; 1 without). */
+        float rarityPower(int rarity) const;
+
+        /**
+         * The spell on a spell key: in a run, the one given to the player (its recipe grown by its
+         * levels, its spell items on it); outside one, the player's own recipe.
+         */
+        SpellRecipe spellRecipe(const Fighter& f, int slot) const;
+        /** A run's spell at a level: its recipe and the keywords of each level up to it. */
+        SpellRecipe spellAtLevel(const std::string& spellId, int level) const;
         int maxDashes(const Fighter& f) const { return tuning.dash.charges + f.boon.dashCharges; }
 
         /** Puts a status on a fighter (stacks add up to its maxStacks): what a hit with one does. */
@@ -586,10 +628,9 @@ namespace arena
         void stepRun(const std::map<int, InputFrame>& inputs);
         void beginWave(int wave);
         void endWave();
-        void rollShop(Fighter& f);
-        void rollLevel(Fighter& f);
         void shopPick(Fighter& f, int pick);
-        void takeBoon(Fighter& f, const std::string& id);
+        void takeBoon(Fighter& f, const Fighter::Boon& boon);
+        void takeLevel(Fighter& f, const std::string& id);
         void stepPickups();
         void spawnShards(const Fighter& from, int value);
         glm::vec3 edgePoint(float awayFromPlayers);

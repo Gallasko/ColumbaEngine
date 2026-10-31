@@ -173,19 +173,42 @@ namespace arena
     };
 
     /** The words of a spell: "fire", then keyword ids ("base:bolt", "base:zone"). */
+    /**
+     * What a run's spell items did to one spell, on top of its recipe: damage 0.2 is 20% more, area
+     * 0.2 a 20% wider radius, cooldown 0.2 recharges 20% faster, cost 0.2 is 20% cheaper, duration
+     * 0.2 lasts 20% longer (zones), speed 0.2 flies 20% faster (bolts).
+     */
+    struct SpellTweak
+    {
+        float damage = 0.0f, area = 0.0f, cooldown = 0.0f, cost = 0.0f, duration = 0.0f, speed = 0.0f;
+
+        bool empty() const { return damage == 0.0f and area == 0.0f and cooldown == 0.0f and cost == 0.0f and duration == 0.0f and speed == 0.0f; }
+        bool operator==(const SpellTweak& o) const
+        {
+            return damage == o.damage and area == o.area and cooldown == o.cooldown and cost == o.cost and duration == o.duration and speed == o.speed;
+        }
+    };
+
     struct SpellRecipe
     {
         std::string element;
         std::vector<std::string> keywords;
+        SpellTweak tweak;
 
-        bool operator==(const SpellRecipe& o) const { return element == o.element and keywords == o.keywords; }
+        bool operator==(const SpellRecipe& o) const { return element == o.element and keywords == o.keywords and tweak == o.tweak; }
     };
 
-    /** A ready-made spell (spells/<name>.json): a name and a recipe. */
+    /**
+     * A ready-made spell (spells/<name>.json): a name and a recipe. In a run, spells are given by
+     * level ups, not made: each level after the first adds its `levels` entry's keywords to the recipe.
+     */
     struct SpellDef
     {
-        std::string id, name;
+        std::string id, name, text;
         SpellRecipe recipe;
+        std::vector<std::vector<std::string>> levels;   // what levels 2, 3... add
+
+        int maxLevel() const { return 1 + static_cast<int>(levels.size()); }
     };
 
     /**
@@ -434,9 +457,14 @@ namespace arena
 
     struct ArenaDef
     {
+        std::string id;              // "base:gorge" (arenas/gorge.json); "" for the training arena
+        std::string name;            // shown as a run moves into it ("The Gorge")
         glm::ivec3 size = glm::ivec3(64, 32, 64);
         Json shapes;                 // list of { block, from, to } applied in order
         glm::vec3 playerSpawn = glm::vec3(32, 2, 32);
+        glm::vec3 centre = glm::vec3(32, 4, 32);   // the run's waves: enemies come in round it, the duel's ring is round it
+        float spawnRadius = 12.0f;   // m from the centre enemies come in at
+        bool hasCentre = false, hasSpawnRadius = false;   // given (else made from the size)
         std::vector<ArenaSpawn> spawns;
         std::string file;
         std::string mod;             // block names without a namespace are this mod's
@@ -463,8 +491,22 @@ namespace arena
         float crit = 0.0f;            // chance of a critical hit (1.75 times the damage)
         float pickupRange = 0.0f;     // m more that shards fly to you from
         float regen = 0.0f;           // health a second
-        int most = 3;                 // bought at most this many times in a run
+
+        // A spell item: it is for one of the spells the player has (picked when offered)
+        SpellTweak spell;
+        bool forSpell = false;
+
+        int most = 3;                 // bought at most this many times in a run (a spell item: for each spell)
         int price = 10;               // in shards, at the shop (it goes up with the waves)
+    };
+
+    /** How rare a shop item is: its numbers and its price times these, and how often it comes up. */
+    struct RarityDef
+    {
+        std::string name;
+        float power = 1.0f;           // the item's numbers (not its whole ones: dash charges, stacks) times this
+        float price = 1.0f;
+        glm::vec2 weight = glm::vec2(1.0f);   // how often, at the first wave and at the last
     };
 
     /** Who comes in during the waves of a run, from which wave on, how often (weight). */
@@ -499,13 +541,19 @@ namespace arena
         int xpBase = 10, xpStep = 6;  // shards to the next level: base + step x (level - 1)
         std::string startWeapon = "base:sword";
         std::vector<std::string> startOwned = {"element:fire", "base:bolt"};
+        std::vector<std::string> startSpells;   // the spells a run starts with (spells/*.json ids), on keys 1, 2, 3
+
+        // Level ups, picked as a wave ends: a new spell, a spell's next level, or one of these weapon skills
+        std::vector<std::string> levelSkills;
+        float intermission = 2.5f;    // s between a wave's end and its level ups and shop (no misclicks)
+        std::vector<RarityDef> rarities;   // the shop's, commonest first (none: everything is the first)
 
         // The shop between waves: offers, rerolls, prices
         int shopSlots = 4;
         int weaponPrice = 30;         // a weapon not in unlocks (another mod's) sells for this
         int rerollPrice = 2, rerollStep = 2;   // the first reroll of a shop, then this much more each
         float priceGrowth = 0.08f;    // prices grow this much a wave
-        int levelChoices = 4;         // stat items offered free for a level
+        int levelChoices = 3;         // picks offered for a level
         std::map<std::string, int> unlocks;   // weapons, skills, keywords, elements ("element:ice") -> price
         bool resetEachWave = true;    // the arena is built anew before each wave (and the players put back)
         bool chooseWeapon = true;     // each player picks their weapon before the first wave (none are for sale then)
@@ -517,9 +565,16 @@ namespace arena
             float duration = 120.0f;  // s; then the one with the most health left (of their max) wins
             float countdown = 3.0f;   // s before anyone may hurt anyone
             float radius = 9.0f;      // m from the arena's centre the players start, in a ring
+            std::string arena;        // the arena it is fought in ("": the last wave's)
         } duel;
-        bool hasArena = false;
-        ArenaDef arena;               // the run's own arena ("arena", as arena.json)
+
+        // The arenas the waves are fought in: each from its wave on, until the next one's
+        struct ArenaPick
+        {
+            std::string arena;        // an arenas/*.json id ("base:gorge")
+            int from = 1;
+        };
+        std::vector<ArenaPick> arenas;
         std::string file;
     };
 
@@ -595,7 +650,14 @@ namespace arena
         Json sounds;
         std::string tuningFile;
 
-        ArenaDef arena;
+        ArenaDef arena;               // the training arena (arena.json)
+        std::map<std::string, ArenaDef> arenas;   // arenas/*.json, and a run.json's own "arena" ("<mod>:run")
+
+        /** The arena of a wave of the run (duel: the final duel's), by id ("": none, the training one). */
+        std::string runArenaId(int wave, bool duel) const;
+
+        /** An arena by id: the training arena for "" or one unknown. */
+        const ArenaDef& arenaById(const std::string& id) const;
 
         ContentReport report;
 
