@@ -284,6 +284,18 @@ extern DECLSPEC IPaddress * SDLCALL SDLNet_TCP_GetPeerAddress(TCPsocket sock);
 extern DECLSPEC int SDLCALL SDLNet_TCP_Send(TCPsocket sock, const void *data, int len);
 
 /**
+ * PgEngine addition: send what fits in the socket's buffer now, without blocking.
+ *
+ * SDLNet_TCP_Send blocks until everything is written: a peer that stops reading
+ * stalls the caller for ever. This sends as much as the system takes at once and
+ * leaves the rest to the caller.
+ *
+ * \returns the number of bytes sent (0 when the buffer is full), or -1 when the
+ *          connection is broken.
+ */
+extern DECLSPEC int SDLCALL SDLNet_TCP_SendNonBlocking(TCPsocket sock, const void *data, int len);
+
+/**
  * Receive data from a non-server socket.
  *
  * `sock` must be a valid socket that was created by SDLNet_TCP_Open with a
