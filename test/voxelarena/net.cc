@@ -43,6 +43,7 @@ namespace
             content = loadContent(VOXELARENA_MODS_DIR);
             ContentReport r;
             tuning = readTuning(content.tuning, content.tuningFile, r);
+            content.run.chooseWeapon = false;   // straight to the first wave
 
             // A bare floor, no enemies: tests add what they need
             content.arena.size = glm::ivec3(32, 16, 32);

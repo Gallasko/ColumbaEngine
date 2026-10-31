@@ -11,7 +11,7 @@
 namespace arena::net
 {
     /** Bumped when messages change shape: a client and server of different versions refuse each other. */
-    constexpr uint16_t PROTOCOL_VERSION = 12;
+    constexpr uint16_t PROTOCOL_VERSION = 13;
 
     /** The server sends a snapshot every this many steps (60 / 2 = 30 per second). */
     constexpr int SNAPSHOT_EVERY = 2;
@@ -96,6 +96,7 @@ namespace arena::net
         float radius = 0.0f;
         float remaining = 0.0f;
         float duration = 0.0f;
+        float heal = 0.0f;   // a healing zone (drawn as one)
     };
 
     struct SpellsMsg

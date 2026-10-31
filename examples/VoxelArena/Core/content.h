@@ -214,6 +214,8 @@ namespace arena
         StatusHit status;
         float burst = 0.0f;           // > 0: on impact, hits every enemy this close (m), not only the one struck
         float terrainRadius = 0.0f;   // fire sets alight, ice freezes pits over, this close to the impact
+        int count = 1;                // shot at once, fanned out
+        float spread = 0.0f;          // degrees between two of them
     };
 
     /**
@@ -303,6 +305,21 @@ namespace arena
             float damage = 1.0f;
         } charge;
 
+        /** Healing (a healer's): on the first active frame, the players this close (the attacker too) get this back. */
+        struct Heal
+        {
+            float amount = 0.0f;
+            float radius = 0.0f;
+        } heal;
+
+        /** A healing zone on the ground where the attacker stands, from the first active frame: health a second to the players in it. */
+        struct HealZone
+        {
+            float radius = 0.0f;
+            float duration = 0.0f;
+            float perSecond = 0.0f;
+        } healZone;
+
         bool tellHeavy = false;   // looks: an enemy's heavy attack shows a danger zone while it winds up ("tell": "heavy")
 
         int total() const { return startup + active + recovery; }
@@ -329,6 +346,8 @@ namespace arena
         std::string id;
         std::string name;
         std::string type;        // "dagger", "sword"...: the weapon skills it can use (AbilityDef::weapons)
+        std::string role;        // "melee", "ranged", "support": the weapon choice shows it
+        std::string text;        // a line on how it plays, for the weapon choice
         std::string model;       // model id, "base:sword"
         float modelScale = 0.0625f;
         glm::vec3 grip = glm::vec3(0.0f);    // model-space point held in the hand (in model voxels)
@@ -487,6 +506,7 @@ namespace arena
         int levelChoices = 4;         // stat items offered free for a level
         std::map<std::string, int> unlocks;   // weapons, skills, keywords, elements ("element:ice") -> price
         bool resetEachWave = true;    // the arena is built anew before each wave (and the players put back)
+        bool chooseWeapon = true;     // each player picks their weapon before the first wave (none are for sale then)
 
         // After the last wave, two players or more: a final duel, everyone for themselves
         struct Duel

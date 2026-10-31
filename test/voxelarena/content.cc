@@ -76,9 +76,11 @@ TEST(arena_content, the_shipped_mods_load_without_errors)
     EXPECT_TRUE(c.weapons.count("base:sword"));
     EXPECT_TRUE(c.weapons.count("testmod:spear"));
     EXPECT_TRUE(c.weapons.count("base:dagger"));
-    ASSERT_EQ(c.weaponOrder.size(), 3u);
-    EXPECT_EQ(c.weaponOrder[0], "base:dagger");   // load order: base's (by id), then testmod's
-    EXPECT_EQ(c.weaponOrder[2], "testmod:spear");
+    EXPECT_TRUE(c.weapons.count("base:bow"));
+    EXPECT_TRUE(c.weapons.count("base:staff"));
+    ASSERT_EQ(c.weaponOrder.size(), 5u);
+    EXPECT_EQ(c.weaponOrder[0], "base:bow");   // load order: base's (by id), then testmod's
+    EXPECT_EQ(c.weaponOrder[4], "testmod:spear");
 
     EXPECT_TRUE(c.enemies.count("base:brute"));
     EXPECT_TRUE(c.enemies.count("base:dummy"));

@@ -574,7 +574,7 @@ namespace arena
             altHeld = held("freeCursor");
         }
 
-        const bool want = not altHeld and not consoleOpen and not cursorFree and not bookOpen and not optionsOpen and not shopOpen and not titleOpen and not endOpen;
+        const bool want = not altHeld and not consoleOpen and not cursorFree and not bookOpen and not optionsOpen and not shopOpen and not titleOpen and not endOpen and not armoryOpen;
 
         if (want == cursorLocked)
             return;
@@ -793,6 +793,16 @@ namespace arena
             if (world.inRun())
             {
                 const RunPhase phase = world.run.phase;
+
+                // The weapon choice: 1-9 take one
+                if (armoryOpen)
+                {
+                    if (p.scancode >= SDL_SCANCODE_1 and p.scancode <= SDL_SCANCODE_9)
+                        pendingPick = InputFrame::WEAPON + static_cast<int>(p.scancode - SDL_SCANCODE_1);
+                    else if (p.scancode == SDL_SCANCODE_ESCAPE)
+                        setOptionsOpen(true);
+                    continue;
+                }
 
                 if (shopOpen)
                 {
@@ -1281,7 +1291,7 @@ namespace arena
         if (r.phase != RunPhase::Fighting and r.phase != RunPhase::Shop)
             headlineWave = 0;
 
-        if (titleOpen or not world.inRun())
+        if (titleOpen or not world.inRun() or r.phase == RunPhase::Armory)
             return;
 
         // The top: the wave and its time, the shards and the level, the score
@@ -1442,8 +1452,9 @@ namespace arena
         // Open while the run is in its shop (and nothing else is in front)
         const Fighter* me = world.player();
         shopOpen = me and world.run.phase == RunPhase::Shop and not titleOpen and not bookOpen and not optionsOpen;
+        armoryOpen = me and world.run.phase == RunPhase::Armory and not titleOpen and not bookOpen and not optionsOpen;
 
-        if (shopOpen)
+        if (shopOpen or armoryOpen)
         {
             std::lock_guard<std::mutex> lock(inputMutex);
             stepPresses.clear();
@@ -1595,7 +1606,7 @@ namespace arena
         // Spell zones: their element's particles all over them
         for (const auto& z : world.zones)
         {
-            auto look = effects.find(std::string("zone:") + elementName(z.element));
+            auto look = effects.find(z.heal > 0.0f ? std::string("zone:heal") : std::string("zone:") + elementName(z.element));
 
             if (look == effects.end() or look->second.every <= 0.0f or look->second.particles.count <= 0)
                 continue;
@@ -2040,7 +2051,7 @@ namespace arena
 
     bool ArenaGame::uiTakesClicks() const
     {
-        return optionsOpen or bookOpen or shopOpen or titleOpen or endOpen;
+        return optionsOpen or bookOpen or shopOpen or titleOpen or endOpen or armoryOpen;
     }
 
     std::string ArenaGame::playerNameOf(int id) const
@@ -2149,7 +2160,9 @@ namespace arena
             sk.key = key;
             sk.name = a->name;
             sk.cost = static_cast<int>(std::lround(a->staminaCost));
-            sk.charging = p.chargeSlot == i;
+            // Held to charge: only while its attack is winding up and waiting on the key (a charge skill's)
+            sk.charging = p.chargeSlot == i and p.action == Action::Attack and p.attack == "@" + a->id and a->attack.charge.at >= 0 and
+                          p.frame <= a->attack.charge.at + 1;
 
             const float left = p.abilityCooldown[i];
             if (left > 0.0f)
@@ -2247,6 +2260,13 @@ namespace arena
             if (shopOpen)
             {
                 pendingPick = action;
+                continue;
+            }
+
+            if (armoryOpen)
+            {
+                if (action >= screens::ARMORY_PICK)
+                    pendingPick = InputFrame::WEAPON + (action - screens::ARMORY_PICK);
                 continue;
             }
 
@@ -2593,6 +2613,41 @@ namespace arena
         screens::drawInvite(ui, v);
     }
 
+    void ArenaGame::drawArmory()
+    {
+        const Fighter* me = world.player();
+        ArmoryView v;
+        v.picked = me and me->ready;
+        v.players = 0;
+
+        for (const auto& f : world.fighters)
+            if (f.team == Team::Player)
+            {
+                ++v.players;
+                v.ready += f.ready ? 1 : 0;
+            }
+
+        for (const auto& id : content.weaponOrder)
+        {
+            const WeaponDef& w = content.weapons.at(id);
+            ArmoryView::Weapon card;
+            card.name = w.name;
+            card.role = w.role;
+            card.text = w.text;
+            card.icon = offerIcon(content, id);
+            card.chosen = me and me->ready and me->weapon == id;
+
+            // Its skills: the weapon skills made for its type
+            for (const auto& [aid, a] : content.abilities)
+                if (std::find(a.weapons.begin(), a.weapons.end(), w.type) != a.weapons.end())
+                    card.skills.push_back(a.name);
+
+            v.weapons.push_back(card);
+        }
+
+        screens::drawArmory(ui, v);
+    }
+
     void ArenaGame::drawLobby()
     {
         LobbyView v;
@@ -2787,6 +2842,9 @@ namespace arena
 
         if (shopOpen and p)
             shopScreen.draw(ui, content, world, *p);
+
+        if (armoryOpen and p)
+            drawArmory();
 
         if (bookOpen)
         {
@@ -3135,7 +3193,7 @@ namespace arena
         // Spell zones: a disc on the ground in the element's colour (effects.json "zone:<element>"), fading at the end
         for (const auto& z : world.zones)
         {
-            auto look = effects.find(std::string("zone:") + elementName(z.element));
+            auto look = effects.find(z.heal > 0.0f ? std::string("zone:heal") : std::string("zone:") + elementName(z.element));
             const glm::vec3 tint = look != effects.end() and look->second.hasTint ? look->second.tint : glm::vec3(1.0f);
             const float fade = glm::clamp(z.remaining / 0.6f, 0.0f, 1.0f) * glm::clamp((z.duration - z.remaining) / 0.2f + 0.3f, 0.0f, 1.0f);
             const float side = z.radius * 2.0f * 0.92f;
@@ -3145,7 +3203,7 @@ namespace arena
             {
                 const glm::mat4 m = glm::translate(glm::mat4(1.0f), z.position + glm::vec3(0, 0.03f + 0.004f * static_cast<float>(k), 0)) * rotY(22.5f * static_cast<float>(k)) *
                                     glm::scale(glm::mat4(1.0f), glm::vec3(side, 0.03f, side)) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f, 0, -0.5f));
-                pushInstance(danger, view, m, glm::vec4(tint, 0.1f * fade), glm::vec4(0.0f));
+                pushInstance(danger, view, m, glm::vec4(tint, (z.heal > 0.0f ? 0.22f : 0.1f) * fade), glm::vec4(0.0f));   // a healing zone shows more: you go to it
             }
         }
 

@@ -2,6 +2,7 @@
 
 #include "screens.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace arena::screens
@@ -150,6 +151,85 @@ namespace arena::screens
             ui.text(x + 28, y + h - 34, ui.fit(v.message, Font::Text600, 12, w - 56), Font::Text600, 12, v.message.rfind("Copied", 0) == 0 ? GOOD : WARNING);
         else if (v.hosting)
             ui.text(x + 28, y + h - 34, std::to_string(v.players) + (v.players == 1 ? " player" : " players") + " in \xC2\xB7 everyone needs the same mods", Font::Text600, 12, FAINT);
+    }
+
+    void drawArmory(Ui& ui, const ArmoryView& v)
+    {
+        ui.section("armory");
+        ui.anchor(Anchor::TopLeft);
+        ui.rectPx(0, 0, ui.width(), ui.height(), withAlpha(INK, 0.58f));
+
+        ui.anchor(Anchor::Centre);
+        ui.raised(40, 60, 1200, 600, PANEL, 4.0f);
+
+        ui.text(66, 84, "CHOOSE YOUR WEAPON", Font::Display, 40, TEXT, Align::Left, 1.0f);
+        ui.text(66, 128, "It is yours for the whole run: the shop sells its skills, not other weapons.", Font::Text500, 13, TEXT_DIM);
+
+        if (v.players > 1)
+            ui.text(1214, 98, std::to_string(v.ready) + " / " + std::to_string(v.players) + " chose", Font::Display, 26, v.picked ? GOOD : TEXT_DIM, Align::Right);
+
+        const size_t n = std::max<size_t>(1, v.weapons.size());
+        const float gap = 12.0f;
+        const float cw = std::floor((1148.0f - gap * static_cast<float>(n - 1)) / static_cast<float>(n));
+
+        for (size_t i = 0; i < v.weapons.size(); ++i)
+        {
+            const auto itemScope = ui.scope(i);
+            const auto& w = v.weapons[i];
+            const float x = 66.0f + static_cast<float>(i) * (cw + gap), y = 160.0f, h = 470.0f;
+            const bool over = ui.hover(x, y, cw, h);
+
+            Colour role = KIND_WEAPON;
+            if (w.role == "ranged") role = KIND_STAT;
+            if (w.role == "support") role = GOOD;
+
+            ui.raised(x, y, cw, h, CARD, 3.0f, 2.0f, w.chosen ? GOLD : (over ? TEXT_DIM : INK));
+
+            float cy = y + 14.0f;
+            ui.keycap(x + 14, cy, 22, std::to_string(i + 1), GOLD, GOLD_INK, 18, 0.0f);
+            ui.rect(x + 46, cy + 7, 8, 8, role);
+            ui.text(x + 60, cy + 4, w.role.empty() ? "WEAPON" : w.role, Font::Text700, 11, role, Align::Left, 1.5f);
+            cy += 36.0f;
+
+            ui.box(x + 14, cy, 60, 60, WELL, 2.0f, role);
+            ui.icon(w.icon, x + 23, cy + 9, 6.0f, role);
+            cy += 72.0f;
+
+            ui.text(x + 14, cy, ui.fit(w.name, Font::Display, 30, cw - 28), Font::Display, 30, TEXT);
+            cy += 40.0f;
+
+            cy += ui.paragraph(x + 14, cy, cw - 28, w.text, Font::Text500, 13, TEXT_DIM, 18.0f, 6) + 12.0f;
+
+            ui.text(x + 14, cy, "ITS SKILLS IN THE SHOP", Font::Text700, 10, MUTED, Align::Left, 1.5f);
+            cy += 18.0f;
+            if (w.skills.empty())
+                ui.text(x + 14, cy, "none", Font::Text600, 12, FAINT);
+            for (size_t k = 0; k < w.skills.size() and k < 4; ++k)
+            {
+                ui.rect(x + 14, cy + 5, 6, 6, KIND_SKILL);
+                ui.text(x + 26, cy, w.skills[k], Font::Text600, 12, TEXT);
+                cy += 18.0f;
+            }
+
+            // Take it (or taken)
+            const float by = y + h - 14 - 44;
+            if (w.chosen)
+            {
+                ui.box(x + 14, by, cw - 28, 44, hex(0x16261C), 2.0f, INK);
+                ui.icon("check", x + 26, by + 15, 2.0f, GOOD);
+                ui.text(x + 46, by + 9, "TAKEN", Font::Display, 24, GOOD);
+            }
+            else
+            {
+                ui.raised(x + 14, by, cw - 28, 44, GOLD, 3.0f, 2.0f, over ? TEXT : INK);
+                ui.text(x + cw * 0.5f, by + 9, "Take it", Font::Display, 26, GOLD_INK, Align::Centre);
+            }
+
+            ui.hit(x, y, cw, h, ARMORY_PICK + static_cast<int>(i));
+        }
+
+        ui.text(66, 640, v.picked and v.players > 1 ? "Waiting for the others to choose\xE2\x80\xA6 (you can still change your mind)"
+                                                  : "1-" + std::to_string(n) + " or a click to take one", Font::Text500, 12, FAINT);
     }
 
     void drawJoin(Ui& ui, const JoinView& v)

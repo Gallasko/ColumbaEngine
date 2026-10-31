@@ -13,6 +13,8 @@
 {
     "name": "Dagger",
     "type": "dagger",
+    "role": "melee",
+    "text": "Fast and slippery: jabs that keep you moving, finishers that dash through or flip you away.",
     "model": "dagger",
     "modelScale": 0.05,
     "grip": [1.5, 1.5, 1.5],

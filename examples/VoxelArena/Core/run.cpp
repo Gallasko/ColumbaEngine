@@ -116,7 +116,29 @@ namespace arena
         }
 
         event("run_start", def.centre, 1.0f);
+
+        // Each player picks a weapon first (when there is a choice): the first wave waits for everyone
+        if (def.chooseWeapon and content->weaponOrder.size() > 1)
+        {
+            run.phase = RunPhase::Armory;
+            run.wave = 1;
+            return;
+        }
+
         beginWave(1);
+    }
+
+    void ArenaWorld::chooseWeapon(Fighter& f, const std::string& id)
+    {
+        if (not content->weapons.count(id))
+            return;
+
+        // One weapon for the run: the one in hand before (the start kit's) goes
+        f.owned.erase(std::remove_if(f.owned.begin(), f.owned.end(), [&](const std::string& o) { return content->weapons.count(o) > 0; }), f.owned.end());
+        f.owned.push_back(id);
+        f.weapon = id;
+        f.ready = true;
+        event("weapon_pick", chest(f), 1.0f, f.id);
     }
 
     void ArenaWorld::stopRun()
@@ -511,8 +533,22 @@ namespace arena
             if (std::count(f.boons.begin(), f.boons.end(), id) < u.most and not offered(id))
                 open.emplace_back(id, static_cast<int>(std::lround(static_cast<float>(u.price) * growth)));
 
+        // The weapon was chosen at the start: no weapons, and only the skills of the one in hand
+        const auto weapon = content->weapons.find(f.weapon);
+        const std::string type = weapon != content->weapons.end() ? weapon->second.type : "";
+
+        auto forSale = [&](const std::string& id) {
+            if (def.chooseWeapon and content->weapons.count(id))
+                return false;
+
+            if (auto a = content->abilities.find(id); a != content->abilities.end() and not a->second.weapons.empty())
+                return std::find(a->second.weapons.begin(), a->second.weapons.end(), type) != a->second.weapons.end();
+
+            return true;
+        };
+
         for (const auto& [id, price] : def.unlocks)
-            if (not owns(f, id) and not offered(id))
+            if (not owns(f, id) and not offered(id) and forSale(id))
                 open.emplace_back(id, static_cast<int>(std::lround(static_cast<float>(price) * growth)));
 
         for (size_t i = open.size(); i > 1; --i)
@@ -778,6 +814,27 @@ namespace arena
 
                 if ((not run.bossWave and run.timer <= 0.0f) or bossDown)
                     endWave();
+                break;
+            }
+
+            case RunPhase::Armory:
+            {
+                bool all = players > 0;
+
+                for (auto& f : fighters)
+                {
+                    if (f.team != Team::Player)
+                        continue;
+
+                    const int pick = pickOf(f) - InputFrame::WEAPON;
+                    if (pick >= 0 and pick < static_cast<int>(content->weaponOrder.size()))
+                        chooseWeapon(f, content->weaponOrder[static_cast<size_t>(pick)]);
+
+                    all = all and f.ready;
+                }
+
+                if (all)
+                    beginWave(1);
                 break;
             }
 

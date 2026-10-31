@@ -56,10 +56,11 @@ namespace arena
 
         /**
          * The arena run's shop and menus: BUY + i buys offer i, LOCK + i keeps it for the next shop,
-         * REROLL rolls the shop again, LEVEL + i takes level-up pick i, START is ready (or plays again).
+         * REROLL rolls the shop again, LEVEL + i takes level-up pick i, START is ready (or plays again),
+         * WEAPON + i takes weapon i (Content::weaponOrder) before the first wave.
          */
         int pick = 0;
-        static constexpr int START = 9, BUY = 1, LOCK = 11, REROLL = 20, LEVEL = 31;
+        static constexpr int START = 9, BUY = 1, LOCK = 11, REROLL = 20, LEVEL = 31, WEAPON = 41;
 
         static constexpr int ABILITIES = 8;
         bool abilityPressed[ABILITIES] = {};
@@ -265,13 +266,17 @@ namespace arena
         float remaining = 4.0f;
         float damage = 0.0f;                    // per second
         float poiseDamage = 0.0f;
+        float heal = 0.0f;                      // a healing zone: health a second to its team's players in it
         float tick = 0.0f;
         std::shared_ptr<const Spell> spell;
         int stage = 0;
     };
 
-    /** Where the arena run is (see ArenaWorld::startRun). Duel: after the last wave, in multiplayer, everyone for themselves. */
-    enum class RunPhase { Off, Fighting, Shop, Victory, Defeat, Duel };
+    /**
+     * Where the arena run is (see ArenaWorld::startRun). Armory: before the first wave, each player
+     * picks a weapon. Duel: after the last wave, in multiplayer, everyone for themselves.
+     */
+    enum class RunPhase { Off, Fighting, Shop, Victory, Defeat, Duel, Armory };
 
     struct RunState
     {
@@ -469,6 +474,8 @@ namespace arena
         bool hostile(Team team, int owner, const Fighter& target) const;
         /** The final duel: everyone revived, in a ring, the last one standing wins (run.json "duel"). */
         void beginDuel();
+        /** A player's weapon for the run (the armory, before the first wave). */
+        void chooseWeapon(Fighter& f, const std::string& id);
         /** A player's START begins a run even outside one (a dedicated server: there is no title there). */
         bool runOnRequest = false;
 
@@ -565,6 +572,8 @@ namespace arena
         void runStage(const std::shared_ptr<const Spell>& spell, int stage, const glm::vec3& point, const glm::vec3& dir, int owner, Team team, const InputFrame* aim);
         void strikeBeam(const std::shared_ptr<const Spell>& spell, int stage, const glm::vec3& start, const glm::vec3& hand, const glm::vec3& dir, int owner, Team team);
         void hitAround(const AttackDef& hit, const glm::vec3& centre, float radius, int owner, Team team, bool flat);
+        /** Health back to the players this close (on the ground: a disc at the feet), the healer too, never above their most. */
+        void healAround(const glm::vec3& centre, float radius, float amount, int owner, Team team, bool flat);
         void chainFrom(const AttackDef& hit, Fighter& first, int chains, int owner, Team team, Element element);
         void stepZones();
         void rideFallingPieces();

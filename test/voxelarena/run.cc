@@ -27,6 +27,9 @@ namespace
             ContentReport r;
             tuning = readTuning(content.tuning, content.tuningFile, r);
 
+            // Straight to the first wave with the start kit's weapon (the weapon choice has its own tests)
+            content.run.chooseWeapon = false;
+
             // Training: a bare floor (the run has its own arena, run.json's)
             content.arena.size = glm::ivec3(32, 16, 32);
             content.arena.shapes = parseJson(R"([ { "block": "stone", "from": [0, 0, 0], "to": [31, 0, 31] } ])").value;
@@ -714,4 +717,165 @@ TEST(arena_run, when_the_duels_time_is_up_the_most_health_left_wins)
 
     EXPECT_EQ(r.world.run.phase, RunPhase::Victory);
     EXPECT_EQ(r.world.run.champion, second);
+}
+
+// ---- The weapon choice, the bow, the healer ---------------------------------------------------
+
+TEST(arena_run, a_run_starts_with_each_player_choosing_a_weapon)
+{
+    RunArena r;
+    r.content.run.chooseWeapon = true;
+    const int second = r.world.addPlayer(1);
+    r.world.startRun(5);
+
+    ASSERT_EQ(r.world.run.phase, RunPhase::Armory);
+    EXPECT_EQ(r.enemies(), 0);
+
+    const auto& order = r.content.weaponOrder;
+    const int bow = static_cast<int>(std::find(order.begin(), order.end(), "base:bow") - order.begin());
+    const int staff = static_cast<int>(std::find(order.begin(), order.end(), "base:staff") - order.begin());
+    ASSERT_LT(bow, static_cast<int>(order.size()));
+    ASSERT_LT(staff, static_cast<int>(order.size()));
+
+    // The first one takes the bow: the wave waits for the second
+    std::map<int, InputFrame> inputs;
+    inputs[r.player().id].pick = InputFrame::WEAPON + bow;
+    r.world.step(inputs);
+    EXPECT_EQ(r.player().weapon, "base:bow");
+    EXPECT_EQ(r.world.run.phase, RunPhase::Armory);
+
+    inputs.clear();
+    inputs[second].pick = InputFrame::WEAPON + staff;
+    r.world.step(inputs);
+    EXPECT_EQ(r.world.find(second)->weapon, "base:staff");
+    EXPECT_EQ(r.world.run.phase, RunPhase::Fighting);
+    EXPECT_EQ(r.world.run.wave, 1);
+
+    // One weapon each for the run: the start kit's sword is not theirs any more
+    EXPECT_TRUE(r.world.owns(r.player(), "base:bow"));
+    EXPECT_FALSE(r.world.owns(r.player(), "base:sword"));
+}
+
+TEST(arena_run, the_shop_sells_no_weapons_only_the_skills_of_the_one_in_hand)
+{
+    RunArena r;
+    r.content.run.chooseWeapon = true;
+    r.world.startRun(5);
+
+    const auto& order = r.content.weaponOrder;
+    const int bow = static_cast<int>(std::find(order.begin(), order.end(), "base:bow") - order.begin());
+    r.pick(InputFrame::WEAPON + bow);
+    ASSERT_EQ(r.world.run.phase, RunPhase::Fighting);
+
+    // Many shops (the wave's end, then reroll after reroll): never a weapon, never another weapon's skill
+    r.timeUp();
+    ASSERT_EQ(r.world.run.phase, RunPhase::Shop);
+    r.world.collect(r.player(), 5000);
+
+    bool sawBowSkill = false;
+    for (int k = 0; k < 40; ++k)
+    {
+        r.pick(InputFrame::REROLL);
+        for (const auto& o : r.player().shop)
+        {
+            EXPECT_FALSE(r.content.weapons.count(o.id)) << o.id;
+            if (auto a = r.content.abilities.find(o.id); a != r.content.abilities.end() and not a->second.weapons.empty())
+            {
+                EXPECT_EQ(a->second.weapons.front(), "bow") << o.id;
+                sawBowSkill = true;
+            }
+        }
+    }
+    EXPECT_TRUE(sawBowSkill);
+}
+
+TEST(arena_run, the_bow_shoots_where_you_aim_and_its_volley_fans_out)
+{
+    RunArena r;
+    r.player().weapon = "base:bow";
+    r.run(5);
+
+    InputFrame in;
+    in.lightPressed = true;
+    in.aimDir = glm::vec3(0, 0, 1);
+    r.world.step(in);
+    r.run(10, InputFrame{});
+    ASSERT_EQ(r.world.projectiles.size(), 1u);
+    EXPECT_GT(r.world.projectiles[0].velocity.z, 30.0f);
+
+    // The volley skill: five arrows, all going different ways
+    r.world.projectiles.clear();
+    const AbilityDef& volley = r.content.abilities.at("base:volley");
+    EXPECT_EQ(volley.attack.projectile.count, 5);
+    r.player().owned.push_back("base:volley");
+    const int slot = [&]() {
+        for (int i = 0; i < InputFrame::ABILITIES; ++i)
+            if (const AbilityDef* a = r.world.ability(i, &r.player()); a and a->id == "base:volley")
+                return i;
+        return -1;
+    }();
+    ASSERT_GE(slot, 0);
+
+    InputFrame skill;
+    skill.abilityPressed[slot] = true;
+    skill.abilityHeld[slot] = true;
+    skill.aimDir = glm::vec3(0, 0, 1);
+    r.world.step(skill);
+    r.run(20, InputFrame{});
+    ASSERT_EQ(r.world.projectiles.size(), 5u);
+    EXPECT_GT(std::fabs(r.world.projectiles.front().velocity.x - r.world.projectiles.back().velocity.x), 2.0f);
+}
+
+TEST(arena_run, the_healer_heals_itself_and_allies_close_by_never_above_their_most)
+{
+    RunArena r;
+    const int ally = r.world.addPlayer(1);
+    r.run(5);
+
+    Fighter& healer = r.player();
+    healer.weapon = "base:staff";
+    healer.health = 50.0f;
+    Fighter* friendNear = r.world.find(ally);
+    friendNear->body.position = healer.body.position + glm::vec3(2, 0, 0);
+    friendNear->health = friendNear->maxHealth - 5.0f;
+
+    InputFrame in;
+    in.heavyPressed = true;
+    r.world.step(in);
+    r.run(40, InputFrame{});
+
+    EXPECT_NEAR(r.player().health, 50.0f + r.content.weapons.at("base:staff").moveset.attacks.at("mending_pulse").heal.amount, 0.5f);
+    EXPECT_FLOAT_EQ(r.world.find(ally)->health, r.world.find(ally)->maxHealth);   // topped up, not past it
+}
+
+TEST(arena_run, sanctuary_heals_the_players_in_it_for_a_while_and_not_the_enemies)
+{
+    RunArena r;
+    r.run(5);
+    const int enemy = r.world.spawnEnemy("base:slime", r.player().body.position + glm::vec3(1, 0, 0), 0.0f);   // a dummy mends itself
+    r.world.find(enemy)->health = 10.0f;
+
+    // (after the spawn: a new fighter can move the others in memory)
+    Fighter& healer = r.player();
+    healer.weapon = "base:staff";
+    healer.health = 20.0f;
+
+    healer.owned.push_back("base:sanctuary");
+    int slot = -1;
+    for (int i = 0; i < InputFrame::ABILITIES; ++i)
+        if (const AbilityDef* a = r.world.ability(i, &healer); a and a->id == "base:sanctuary")
+            slot = i;
+    ASSERT_GE(slot, 0);
+
+    InputFrame skill;
+    skill.abilityPressed[slot] = true;
+    skill.abilityHeld[slot] = true;
+    r.world.step(skill);
+    r.run(30, InputFrame{});
+    ASSERT_EQ(r.world.zones.size(), 1u);
+    EXPECT_GT(r.world.zones[0].heal, 0.0f);
+
+    r.past(3.0f);
+    EXPECT_GT(r.player().health, 35.0f);
+    EXPECT_FLOAT_EQ(r.world.find(enemy)->health, 10.0f);
 }

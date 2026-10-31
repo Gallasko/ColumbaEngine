@@ -1,0 +1,18 @@
+// Staff skill (4 by default): radiance. A burst of light all around: enemies close by are hurt and
+// thrown back, allies further out (you too) get health back.
+{
+    "name": "Radiance",
+    "kind": "attack",
+    "weapons": ["staff"],
+    "staminaCost": 22,
+    "cooldown": 9,
+    "attack": {
+        "moveSpeed": 0.2, "armor": 15,
+        "startup": 20, "active": 4, "recovery": 18,
+        "damage": 16, "poiseDamage": 25,
+        "knockback": 9, "knockup": 3, "hitstop": 4, "shake": 0.4,
+        "hitboxes": [ { "offset": [0, 1.0, 0.0], "size": [7.0, 2.5, 7.0] } ],
+        "heal": { "amount": 25, "radius": 8 },
+        "swing": { "yaw": 0, "pitchFrom": 80, "pitchTo": -30 }
+    }
+}

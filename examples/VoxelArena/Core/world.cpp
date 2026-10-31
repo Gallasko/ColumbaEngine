@@ -2203,6 +2203,27 @@ namespace arena
         }
     }
 
+    void ArenaWorld::healAround(const glm::vec3& centre, float radius, float amount, int owner, Team team, bool flatArea)
+    {
+        for (auto& t : fighters)
+        {
+            // Its own side (in the duel, only the healer: the others are rivals)
+            if (t.team != team or not t.alive() or (t.id != owner and hostile(team, owner, t)))
+                continue;
+
+            const bool inside = flatArea
+                ? glm::length(flat(t.body.position - centre)) <= radius + t.body.width * 0.5f and t.body.position.y > centre.y - 1.0f and t.body.position.y < centre.y + 2.0f
+                : glm::length(chest(t) - centre) <= radius + t.body.width * 0.5f;
+
+            if (not inside or t.health >= t.maxHealth)
+                continue;
+
+            const float before = t.health;
+            t.health = std::min(t.maxHealth, t.health + amount);
+            event("heal", chest(t), t.health - before, t.id);
+        }
+    }
+
     void ArenaWorld::hitAround(const AttackDef& hit, const glm::vec3& centre, float radius, int owner, Team team, bool flatArea)
     {
         // The caster if still there, else a stand-in at the centre (knockback goes away from the centre)
@@ -2372,9 +2393,16 @@ namespace arena
             if (z.tick <= 0.0f)
             {
                 z.tick += 0.5f;
-                const StatusHit status = z.spell ? z.spell->status : StatusHit{};
-                const AttackDef hit = hitOf("zone", z.damage * 0.5f, z.poiseDamage * 0.5f, 0.0f, 0, 0.0f, z.element, status);
-                hitAround(hit, z.position, z.radius, z.owner, z.team, true);
+
+                if (z.heal > 0.0f)
+                    healAround(z.position, z.radius, z.heal * 0.5f, z.owner, z.team, true);
+
+                if (z.damage > 0.0f or z.poiseDamage > 0.0f or z.spell)
+                {
+                    const StatusHit status = z.spell ? z.spell->status : StatusHit{};
+                    const AttackDef hit = hitOf("zone", z.damage * 0.5f, z.poiseDamage * 0.5f, 0.0f, 0, 0.0f, z.element, status);
+                    hitAround(hit, z.position, z.radius, z.owner, z.team, true);
+                }
             }
 
             if (z.remaining > 0.0f)
@@ -2729,6 +2757,28 @@ namespace arena
             if (not a or f.frame - 1 != a->startup)
                 continue;
 
+            // A healer's: health back around it now, or a zone that heals for a while
+            if (a->heal.amount > 0.0f)
+            {
+                healAround(chest(f), a->heal.radius, a->heal.amount, f.id, f.team, false);
+                event("heal_burst", chest(f), a->heal.radius, f.id);
+            }
+
+            if (a->healZone.radius > 0.0f and a->healZone.perSecond > 0.0f and a->healZone.duration > 0.0f)
+            {
+                Zone z;
+                z.id = nextZone++;
+                z.owner = f.id;
+                z.team = f.team;
+                z.position = f.body.position;
+                z.dir = yawForward(f.yaw);
+                z.radius = a->healZone.radius;
+                z.duration = z.remaining = a->healZone.duration;
+                z.heal = a->healZone.perSecond;
+                zones.push_back(z);
+                event("heal_zone", f.body.position, z.radius, f.id);
+            }
+
             if (not a->projectile.enabled)
             {
                 event("swing", chest(f), a->damage, f.id);
@@ -2761,8 +2811,19 @@ namespace arena
                 dir = f.aimDir;
             }
 
-            p.velocity = dir * def.speed;
-            projectiles.push_back(p);
+            // Several at once (a volley): fanned out across the aim, the middle one along it
+            for (int k = 0; k < def.count; ++k)
+            {
+                const float offset = (static_cast<float>(k) - 0.5f * static_cast<float>(def.count - 1)) * def.spread;
+                const float c = std::cos(glm::radians(offset)), sn = std::sin(glm::radians(offset));
+                const glm::vec3 turned(dir.x * c + dir.z * sn, dir.y, -dir.x * sn + dir.z * c);
+
+                Projectile shot = p;
+                if (k > 0)
+                    shot.id = nextProjectile++;
+                shot.velocity = turned * def.speed;
+                projectiles.push_back(shot);
+            }
             event("shoot", p.position, 1.0f, f.id);
         }
     }

@@ -245,6 +245,8 @@ namespace arena
         float mouseX = -1.0f, mouseY = -1.0f;
         float uiTime = 0.0f;
         bool endOpen = false;               // the end of a run is up
+        bool armoryOpen = false;            // the weapon choice before the first wave is up
+        void drawArmory();
         bool uiTakesClicks() const;         // a screen is up that the mouse clicks on
         void handleUiClicks();
         void drawUi(float frameSeconds);

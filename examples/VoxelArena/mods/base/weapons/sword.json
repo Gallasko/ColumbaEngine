@@ -13,6 +13,8 @@
 {
     "name": "Iron Sword",
     "type": "sword",
+    "role": "melee",
+    "text": "Steady and strong: a three-hit combo, a heavy that breaks poise, a slash out of a roll.",
     "model": "sword",
     "modelScale": 0.0625,
     "grip": [1.5, 1.5, 2.0],

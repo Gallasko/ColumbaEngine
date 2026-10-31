@@ -9,8 +9,8 @@
         // Abilities on the keys ability1 .. ability8 (Q, E, G, R, 1, 2, 3, 4 by default); "" leaves a slot empty.
         // A slot can be a list: the first one the weapon in hand allows is there (weapon skills).
         // The terrain on Q E G, your spells on 1 2 3 ("spell:1"...), the weapon's skills on R and 4
-        "abilities": ["base:raise_wall", "base:dig_pit", "base:mine", ["base:shadow_dash", "base:whirlwind"],
-                      "spell:1", "spell:2", "spell:3", ["base:backflip", "base:leap_slam"]],
+        "abilities": ["base:raise_wall", "base:dig_pit", "base:mine", ["base:shadow_dash", "base:whirlwind", "base:volley", "base:sanctuary"],
+                      "spell:1", "spell:2", "spell:3", ["base:backflip", "base:leap_slam", "base:disengage", "base:radiance"]],
         // The spells on 1 2 3 to begin with (ready-made, spells/); the spellbook (B) changes them
         "spells": ["base:firebolt", "base:ice_shards", "base:chain_lightning"],
         "hand": [0.42, 0.95, 0.3],

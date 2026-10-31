@@ -474,6 +474,7 @@ namespace arena::net
             z.position = zs.position;
             z.radius = zs.radius;
             z.duration = zs.duration;
+            z.heal = zs.heal;
             z.remaining = zs.remaining - static_cast<float>(since);
             world.zones.push_back(z);
         }

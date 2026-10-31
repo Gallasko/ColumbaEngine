@@ -17,6 +17,8 @@
 // Score: each enemy's "score" for the kill (twice for an elite), waveScore times the wave's number
 // for getting through it, victoryScore for the last one.
 // arena: the run's own arena (as arena.json); resetEachWave builds it anew before each wave.
+// chooseWeapon: each player picks a weapon before the first wave (start.weapon is in hand until then),
+// and none are for sale: the shop sells the skills of the weapon in hand instead.
 // duel: in multiplayer, after the last wave, a final duel: the arena anew, everyone back up and in a
 // ring `radius` m from its centre, `countdown` s with no harm done, then everyone for themselves, one life
 // each. The last one standing wins; after `duration` s, the one with the most of their health left.
@@ -34,6 +36,7 @@
     "coopScale": 0.5,
     "pickupRange": 3.5,
     "resetEachWave": true,
+    "chooseWeapon": true,
     "duel": { "enabled": true, "duration": 120, "countdown": 3, "radius": 9 },
 
     "pools": [
@@ -56,8 +59,8 @@
         "priceGrowth": 0.08,
         "levelChoices": 4,
         "unlocks": {
-            "dagger": 30,
             "leap_slam": 22, "whirlwind": 22, "shadow_dash": 22, "backflip": 18,
+            "volley": 22, "disengage": 18, "sanctuary": 24, "radiance": 24,
             "element:ice": 20, "element:volt": 20,
             "zone": 16, "nova": 16, "beam": 18,
             "multiply": 24, "extend": 12, "enlarge": 12, "chain": 20, "empower": 22

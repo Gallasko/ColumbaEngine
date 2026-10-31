@@ -95,7 +95,7 @@ namespace arena
         if (auto w = content.weapons.find(id); w != content.weapons.end())
         {
             const std::string& type = w->second.type;
-            if (type == "dagger" or type == "spear" or type == "sword")
+            if (type == "dagger" or type == "spear" or type == "sword" or type == "bow" or type == "staff")
                 return type;
             return "sword";
         }
@@ -108,6 +108,10 @@ namespace arena
             if (name == "raise_wall") return "wall";
             if (name == "dig_pit") return "pit";
             if (name == "mine") return "mine";
+            if (name == "volley") return "bow";
+            if (name == "disengage") return "leap";
+            if (name == "sanctuary") return "zone";
+            if (name == "radiance") return "nova";
             return "star";
         }
 

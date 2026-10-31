@@ -439,10 +439,13 @@ namespace arena
         void readProjectile(const Json& pj, ProjectileDef& p, const std::string& file, ContentReport& report, const std::string& where)
         {
             checkKeys(pj, {"speed", "gravity", "radius", "lifetime", "lead", "damage", "poiseDamage", "knockback", "terrainDamage", "hitstop", "shake", "spawn", "model", "modelScale",
-                           "element", "status", "burst", "terrainRadius"},
+                           "element", "status", "burst", "terrainRadius", "count", "spread"},
                       file, report, where);
 
             p.enabled = true;
+            readInt(pj, "count", p.count, file, report);
+            p.count = std::clamp(p.count, 1, 12);
+            readNum(pj, "spread", p.spread, file, report);
             readNum(pj, "speed", p.speed, file, report);
             readNum(pj, "gravity", p.gravity, file, report);
             readNum(pj, "radius", p.radius, file, report);
@@ -1296,7 +1299,7 @@ namespace arena
             r.file = raw.file;
 
             checkKeys(j, {"waves", "duration", "spawnRate", "maxAlive", "eliteFrom", "eliteChance", "healthGrowth", "pools", "bosses", "warn", "centre", "spawnRadius", "coopScale",
-                          "waveScore", "victoryScore", "pickupRange", "xp", "start", "shop", "arena", "resetEachWave", "duel"},
+                          "waveScore", "victoryScore", "pickupRange", "xp", "start", "shop", "arena", "resetEachWave", "duel", "chooseWeapon"},
                       raw.file, report, "the run");
 
             readInt(j, "waves", r.waves, raw.file, report);
@@ -1326,6 +1329,7 @@ namespace arena
             readInt(j, "victoryScore", r.victoryScore, raw.file, report);
             readNum(j, "pickupRange", r.pickupRange, raw.file, report);
             readBool(j, "resetEachWave", r.resetEachWave, raw.file, report);
+            readBool(j, "chooseWeapon", r.chooseWeapon, raw.file, report);
 
             if (const Json* duel = j.find("duel"))
             {
@@ -1478,7 +1482,7 @@ namespace arena
             {
                 const Json& j = raw.data;
 
-                checkKeys(j, {"id", "name", "type", "model", "modelScale", "grip", "rest", "moveset"}, raw.file, report, "weapon " + id);
+                checkKeys(j, {"id", "name", "type", "role", "text", "model", "modelScale", "grip", "rest", "moveset"}, raw.file, report, "weapon " + id);
 
                 WeaponDef w;
                 w.id = id;
@@ -1486,6 +1490,8 @@ namespace arena
                 w.name = splitId(id).second;
                 readStr(j, "name", w.name, raw.file, report);
                 readStr(j, "type", w.type, raw.file, report);
+                readStr(j, "role", w.role, raw.file, report);
+                readStr(j, "text", w.text, raw.file, report);
                 readStr(j, "model", w.model, raw.file, report);
                 w.model = w.model.empty() ? "" : resolveId(w.model, raw.mod);
                 readNum(j, "modelScale", w.modelScale, raw.file, report);
@@ -1718,7 +1724,7 @@ namespace arena
         checkKeys(j, {"startup", "active", "recovery", "damage", "poiseDamage", "staminaCost", "knockback", "knockup", "hitstop", "shake",
                       "hitboxes", "lunge", "lungeFrom", "lungeTo", "turnRate", "moveSpeed", "moveUntil", "armor", "terrainDamage", "dodgeCancelFrom", "chainFrom", "bufferFrom",
                       "next", "swing", "projectile", "element", "status", "gravityScale", "plungeSpeed", "iframes", "leap", "leapAt", "turn",
-                      "charge", "tell", "dash"},
+                      "charge", "tell", "dash", "heal", "healZone"},
                   file, report, "attack " + name);
 
         const size_t errorsBefore = report.errors.size();
@@ -1751,6 +1757,21 @@ namespace arena
         readElement(j, a.element, file, report);
         readStatusHit(j, a.status, file, report);
         readNum(j, "gravityScale", a.gravityScale, file, report);
+
+        if (const Json* heal = j.find("heal"))
+        {
+            checkKeys(*heal, {"amount", "radius"}, file, report, "the heal of " + name);
+            readNum(*heal, "amount", a.heal.amount, file, report);
+            readNum(*heal, "radius", a.heal.radius, file, report);
+        }
+
+        if (const Json* zone = j.find("healZone"))
+        {
+            checkKeys(*zone, {"radius", "duration", "perSecond"}, file, report, "the healing zone of " + name);
+            readNum(*zone, "radius", a.healZone.radius, file, report);
+            readNum(*zone, "duration", a.healZone.duration, file, report);
+            readNum(*zone, "perSecond", a.healZone.perSecond, file, report);
+        }
         readNum(j, "plungeSpeed", a.plungeSpeed, file, report);
         readInt(j, "leapAt", a.leapAt, file, report);
         readBool(j, "dash", a.dash, file, report);

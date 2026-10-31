@@ -80,6 +80,21 @@ namespace arena
         float time = 0.0f;
     };
 
+    /** The weapon choice before the first wave (the armory): one card per weapon, its skills. */
+    struct ArmoryView
+    {
+        struct Weapon
+        {
+            std::string name, role, text, icon;
+            std::vector<std::string> skills;
+            bool chosen = false;
+        };
+
+        std::vector<Weapon> weapons;
+        bool picked = false;            // this player took one: waiting for the others
+        int ready = 0, players = 1;
+    };
+
     namespace screens
     {
         // Click actions
@@ -88,6 +103,9 @@ namespace arena
         constexpr int LOBBY_READY = 5;   // the host's start is TITLE_ARENA
         constexpr int TITLE_INVITE = 6, TITLE_JOIN = 7, LOBBY_LEAVE = 8;
         constexpr int INVITE_JOIN = 26;
+        constexpr int ARMORY_PICK = 600;   // + the weapon's index
+        void drawArmory(Ui& ui, const ArmoryView& v);
+
         constexpr int JOIN_ADDRESS = 31, JOIN_NAME = 32, JOIN_PASTE = 33, JOIN_GO = 34, JOIN_CLOSE = 35;
 
         void drawJoin(Ui& ui, const JoinView& v);

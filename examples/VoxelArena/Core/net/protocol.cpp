@@ -716,6 +716,7 @@ namespace arena::net
             w.f32(z.radius);
             w.f32(z.remaining);
             w.f32(z.duration);
+            w.f32(z.heal);
         }
 
         w.u8(static_cast<uint8_t>(std::min<size_t>(m.events.size(), 255)));
@@ -777,7 +778,7 @@ namespace arena::net
             m.pieces.push_back(p);
         }
 
-        m.run.phase = static_cast<RunPhase>(std::min<uint8_t>(r.u8(), static_cast<uint8_t>(RunPhase::Duel)));
+        m.run.phase = static_cast<RunPhase>(std::min<uint8_t>(r.u8(), static_cast<uint8_t>(RunPhase::Armory)));
         m.run.wave = r.u8();
         m.run.waves = r.u8();
         m.run.timer = r.f32();
@@ -812,6 +813,7 @@ namespace arena::net
             z.radius = r.f32();
             z.remaining = r.f32();
             z.duration = r.f32();
+            z.heal = r.f32();
             m.zones.push_back(z);
         }
 

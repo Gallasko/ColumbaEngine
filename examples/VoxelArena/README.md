@@ -54,12 +54,24 @@ and enemies that come back), **B** for the spellbook, **O** for the options.
 - **Shards**: what the enemies drop. They fly to you within pickup range (and the ones left lying
   are yours at the end of the wave). They are money and XP at once: each **level** gives a free stat
   item to pick in the shop.
+- **The weapon choice**: a run begins with each player picking a weapon (1-5 or a click), for the whole
+  run: the bow, the dagger, the healer's staff, the sword (and testmod's spear). The first wave waits for
+  everyone. No weapon is for sale after that: the shop sells the skills of the one in hand instead
+  (`run.json` `chooseWeapon`; off, the start kit's weapon is the one, and weapons are for sale).
+- **The bow** (ranged): arrows where you aim. Quick shots on light, a drawn power shot on heavy; Volley
+  (five arrows fanned out) and Disengage (a leap back out of reach, an arrow as you go) in the shop.
+- **The healer's staff** (support): orbs that burst a little on light, a mending pulse on heavy (health
+  back to you and every ally within 7 m); Sanctuary (a circle on the ground healing everyone in it for
+  6 s) and Radiance (enemies close by thrown back, allies further out healed) in the shop. In the
+  final duel it heals only its holder. An attack heals with `"heal": { "amount", "radius" }`, or leaves
+  a healing zone with `"healZone": { "radius", "duration", "perSecond" }`; a projectile shoots
+  several at once with `"count"` and `"spread"` (degrees).
 - **The shop**, between waves, each player their own: four offers to buy with 1-4 or a click, and
   **Lock** (Shift + 1-4) keeps one for the next shop. A level up's free stat items are on 5 and up.
   **R** rerolls (dearer each time), **Enter** is ready; in co-op the next wave waits for everyone. On sale:
   - stat items (`upgrades.json`): health, damage, armor, crit, speed, regeneration, pickup range,
     dash charges, cheaper spells, faster cooldowns, life on hit... They add up through the run;
-  - weapons (a run starts with the sword only; every mod's weapons are for sale), weapon skills,
+  - the skills of your weapon (the weapon itself is chosen at the start, see above),
     spell elements (fire to begin with) and keywords (bolt to begin with). A spell casts only when its
     element and every keyword are bought: the spellbook greys out the rest, the HUD marks a spell
     `(locked)`. With nothing on the keys it can cast, key 1 gets Fire > Bolt for the run.
