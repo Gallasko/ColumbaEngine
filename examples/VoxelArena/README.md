@@ -62,20 +62,32 @@ and enemies that come back), **O** for the options.
 
 - **Twenty timed waves**, from a minute to a minute and a half. Enemies keep coming in from the edges
   all through a wave (their spawn point glows red a moment first; one out of view, an arrow at the
-  edge of the screen points the way), more and faster as the run goes on, and more with more players.
-  Survive until the time is up; whoever is left then goes.
+  edge of the screen points the way), more and faster as the run goes on (`spawnScale` 0.75 of the
+  written rates for one player), and half again for each player past the first. Survive until the
+  time is up; whoever is left then goes.
 - **Slimes first**: the first waves are slimes only. They hop their way to you (a hop that lands on
   you stings a little), and close up they squash down, glow, pounce, and bounce back off. Skulkers
   join from wave 3, archers from 4, brutes from 6. From wave 7
-  some come as **elites**, glowing gold: tougher, harder hitting, three times the shards.
+  some come as **elites**, glowing gold: tougher, harder hitting, three times the shards, and now and
+  then (35%, three a wave at most) a **present**: a gold box with a red ribbon. Each one picked up is a
+  free shop item, picked among three after the level ups.
 - **Shards**: what the enemies drop. They fly to you within pickup range (and the ones left lying
   are yours at the end of the wave). They are money and XP at once.
-- **Spells come from levels**: no spell is made in a run. It starts with Firebolt on key 1. As a
-  wave ends, after a moment (**Wave cleared**: 2.5 s in which nothing can be clicked, so a click
-  from the fight buys nothing), each level up offers three picks (1-3 or a click): a **new spell**
-  (while one of the three spell keys is free), the **next level** of a spell you have (Firebolt II
-  adds Enlarge, III Extend, IV Empower: each spell's `levels`), or a **weapon skill** of the weapon in
-  hand. Then the shop.
+- **Spells and techniques come from levels**: no spell is made in a run. It starts with Firebolt on
+  key 1. As a wave ends, after a moment (**Wave cleared**: 2.5 s in which nothing can be clicked, so a
+  click from the fight buys nothing), each level up offers three picks (1-3 or a click): a **new
+  spell** (while one of the three spell keys is free), a **new technique** of the weapon in hand, or
+  the **next level** of one you have. Levels never run out:
+  - a spell's written `levels` add keywords (Firebolt II adds Enlarge, III Extend, IV Empower); a
+    technique's add a boost (+15% damage, a faster recharge...);
+  - at level 5 (`run.json` `branchLevel`) it **branches**: its branches are offered side by side and
+    you take one, for good. Firebolt's Inferno makes its burning patch burst as it ends, Twin bolts
+    shoots one more bolt; the Whirlwind's Firestorm sets enemies on fire, Cyclone spins far wider...
+    A branch adds keywords (a spell), an element and a status (a technique), tags and a boost;
+  - every level past those is **mastery**: +10% damage and a 3% faster recharge each (`mastery`).
+
+  Each card shows what changes, before -> after (green better, red worse). The XP to the next level
+  grows slowly (10, then 3 more each level). Then the presents, then the shop.
 - **The weapon choice**: a run begins with each player picking a weapon (1-5 or a click), for the whole
   run: the bow, the dagger, the healer's staff, the sword (and testmod's spear). The first wave waits for
   everyone. No weapon is for sale after that: level ups offer the skills of the one in hand instead
@@ -90,17 +102,25 @@ and enemies that come back), **O** for the options.
   final duel it heals only its holder. An attack heals with `"heal": { "amount", "radius" }`, or leaves
   a healing zone with `"healZone": { "radius", "duration", "perSecond" }`; a projectile shoots
   several at once with `"count"` and `"spread"` (degrees).
-- **The shop**, after the level ups, each player their own: four offers to buy with 1-4 or a click,
+- **The shop**, after the level ups and the presents, each player their own: four offers to buy with 1-4 or a click,
   and **Lock** (Shift + 1-4) keeps one for the next shop. **R** rerolls (dearer each time), **Enter**
   is ready; in co-op the next wave waits for everyone. On sale, only items (`upgrades.json`):
   - stat items: health, damage, armor, crit, speed, regeneration, pickup range, dash charges,
     cheaper spells, faster cooldowns, life on hit...;
-  - spell items, each for one of your spells: more damage, a wider area, a faster recharge, less
-    mana, longer zones, faster bolts.
+  - tag items: a boost for **every** spell and technique of yours with a tag. Spells are tagged with
+    "spell", their element and their shapes ("projectile" for a bolt, "area" for a nova or a zone,
+    "zone", "beam"); techniques with "technique", their own ("melee", "area", "dash", "heal") and
+    "projectile" when they shoot. Fire: +20% damage; Projectiles: +1 projectile, or +25% projectile
+    speed; Area: +20% area; Zones: last longer; Spells or Techniques: recharge faster, cost less...
+    One is offered only when something of yours has its tag.
 
-  Each comes at a **rarity**: Common, Rare (x1.5 its numbers), Epic (x2.1), Legendary (x3), shown
-  by the card's colour, dearer the rarer; rarer ones come up more as the run goes on (`run.json`
-  `shop.rarities`). They add up through the run. Prices go up each wave.
+  Hover a card: a tooltip lists what buying it changes, before -> after (your numbers, each spell's
+  and technique's). Each item comes at a **rarity**: Common, Rare (x1.5 its numbers), Epic (x2.1),
+  Legendary (x3), shown by the card's colour, dearer the rarer; rarer ones come up more as the run
+  goes on (`run.json` `shop.rarities`). They add up through the run. **Prices** start at half and end
+  at one and a half times the written ones (`shop.priceScale`). **Interest**: the shards you keep
+  through a shop grow by the next one as much as the prices did, so what you could buy and did not,
+  you still can (shown under your shards).
 - **Bosses**: the **Brute Chieftain** on wave 10 (a brute twice the size: a slam, a stomp all around
   when crowded, a rush when you keep away) and the **Stone Warden** on wave 20 (a slam, a sweep all
   around, a long charge, a thrown rock; volt cracks it, fire barely warms it, under half its health it
@@ -121,9 +141,10 @@ and enemies that come back), **O** for the options.
   Enter does.
 
 The run is data: `mods/base/run.json` (the waves' durations, spawn rates and pools, elites, bosses,
-XP, the start kit and spells, the level ups' skills, the pause after a wave, the shop and its
-rarities, the score, the arenas by wave), `mods/base/upgrades.json` (the stat and spell items and
-their prices), `mods/base/spells/` (each spell's levels) and `mods/base/arenas/`. Enemies take damage by element (`"weakness": { "volt": 1.5 }`),
+XP, the start kit and spells, the level ups' skills, the branch level and mastery, presents, the pause
+after a wave, the shop, its prices and rarities, the score, the arenas by wave), `mods/base/upgrades.json`
+(the stat and tag items and their prices), `mods/base/spells/` (each spell's levels and branches),
+`mods/base/abilities/` (each technique's tags, levels and branches) and `mods/base/arenas/`. Enemies take damage by element (`"weakness": { "volt": 1.5 }`),
 give `score` and drop `drops` shards. In a run every enemy's script gets `me.hunting = true`: it comes
 for the players from anywhere, whatever its engage range.
 
@@ -470,12 +491,12 @@ content API version the mod was written for. The API is unstable: a mismatch is 
 |---|---|---|
 | `blocks.json` | blocks: `color`, `solid`, `colorNoise`, `hardness`, `breakable`, `flammable`, `weakness` | `mymod:<key>` |
 | `statuses.json` | statuses: `duration`, `damagePerSecond`, `slow`, `maxStacks`, `atMax`, `stagger`, `heavy` | `mymod:<key>` |
-| `abilities/<name>.json` | an ability: terrain (`kind`: wall, pit, mine) or a weapon skill (attack) | `mymod:<name>` |
+| `abilities/<name>.json` | an ability: terrain (`kind`: wall, pit, mine) or a weapon skill (attack); a run's technique also has `tags`, `levels` (a boost each: `[{ "damage": 0.15 }]`) and `branches` (`name`, `text`, `element`, `status`, `tags`, `boost`) | `mymod:<name>` |
 | `elements.json` | the elements of spells: `name`, `status`, `mana` (fire, ice, volt) | `mymod:<key>` |
 | `keywords.json` | the keywords of spells: forms (`shape`: bolt, zone, nova, beam) and modifiers | `mymod:<key>` |
-| `spells/<name>.json` | a ready-made spell: `name`, `text`, `recipe` (`["fire", "bolt", "zone"]`), `levels` (what each level after the first adds: `[["enlarge"], ["extend"]]`) | `mymod:<name>` |
-| `upgrades.json` | the items of a run's shop: what a stat item adds (`maxHealth`, `damage`, `armor`, `crit`, `regen`, `pickupRange`, `dashCharges`...) or a spell item does to one spell (`"spell": { "damage", "area", "cooldown", "cost", "duration", "speed" }`), its `price`, how many one can have (`most`) | `mymod:<key>` |
-| `run.json` | the arena run: waves, spawn pools, elites, bosses, XP, the start kit and spells, `levelSkills`, `intermission`, the shop and its `rarities`, score, the `arenas` by wave and the duel's (the last mod with one wins) | |
+| `spells/<name>.json` | a ready-made spell: `name`, `text`, `recipe` (`["fire", "bolt", "zone"]`), `levels` (what each level after the first adds: `[["enlarge"], ["extend"]]`), `branches` (`name`, `text`, `keywords` added to the recipe, `tags`, `boost`) | `mymod:<name>` |
+| `upgrades.json` | the items of a run's shop: what a stat item adds (`maxHealth`, `damage`, `armor`, `crit`, `regen`, `pickupRange`, `dashCharges`...) or a tag item does to everything of the player with its `tag` (`"boost": { "damage", "area", "cooldown", "cost", "duration", "speed", "count" }`), its `price`, how many one can have (`most`) | `mymod:<key>` |
+| `run.json` | the arena run: waves, spawn pools and `spawnScale`, elites, bosses, XP, the start kit and spells, `levelSkills`, `branchLevel`, `mastery`, `presents`, `intermission`, the shop (`priceScale`, `interest`, `rarities`), score, the `arenas` by wave and the duel's (the last mod with one wins) | |
 | `arenas/<name>.json` | an arena for the run: `name`, `size`, `shapes`, `playerSpawn`, `centre`, `spawnRadius` | `mymod:<name>` |
 | `weapons/<name>.json` | a weapon and its moveset | `mymod:<name>` |
 | `enemies/<name>.json` | an enemy: stats, moveset, script, params | `mymod:<name>` |

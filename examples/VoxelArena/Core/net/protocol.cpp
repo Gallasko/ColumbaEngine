@@ -15,7 +15,7 @@ namespace arena::net
             "fire_burst", "ice_burst", "volt_arc", "ignite", "freeze", "status", "leap",
             "volt_burst", "fire_nova", "ice_nova", "volt_nova", "fire_zone", "ice_zone", "volt_zone", "fire_beam", "ice_beam", "volt_beam",
             "run_start", "spawn_warn", "boss_warn", "spawn", "boss_spawn", "wave_clear", "run_victory", "run_defeat", "boon",
-            "wave_start", "arena_reset", "arena_change", "despawn", "elite_warn", "pickup", "level_up", "buy", "crit",
+            "wave_start", "arena_reset", "arena_change", "despawn", "elite_warn", "pickup", "level_up", "buy", "crit", "present", "present_drop",
         };
 
         const char* const AI_MOVES[] = { "hold", "chase", "strafe", "retreat", "flank" };
@@ -144,13 +144,19 @@ namespace arena::net
         for (const auto& [id, u] : content.upgrades)
             all.insert(id);
         for (const auto& [id, sp] : content.spells)
-            all.insert(id);   // a run's spells, its level ups and spell items
+        {
+            all.insert(id);   // a run's spells and its level ups
+            for (size_t b = 0; b < sp.branches.size(); ++b)
+                all.insert(id + "#" + std::to_string(b));   // a level up's branch
+        }
 
         for (const auto& [id, a] : content.abilities)
         {
             all.insert(id);
             if (a.kind == "attack")
                 all.insert("@" + id);   // a weapon skill's attack, while it runs
+            for (size_t b = 0; b < a.branches.size(); ++b)
+                all.insert(id + "#" + std::to_string(b));
         }
 
         names.assign(all.begin(), all.end());
@@ -630,15 +636,18 @@ namespace arena::net
         {
             w.u16(names.id(f.boons[i].id));
             w.u8(static_cast<uint8_t>(std::clamp(f.boons[i].rarity, 0, 255)));
-            w.u16(names.id(f.boons[i].spell));
         }
 
-        // ... the spells it was given, and their levels
-        w.u8(static_cast<uint8_t>(std::min<size_t>(f.runSpells.size(), 8)));
-        for (size_t i = 0; i < f.runSpells.size() and i < 8; ++i)
+        // ... the spells and techniques it was given, their levels and branches
+        for (const auto* list : {&f.runSpells, &f.runSkills})
         {
-            w.u16(names.id(f.runSpells[i].id));
-            w.u8(static_cast<uint8_t>(std::clamp(f.runSpells[i].level, 0, 255)));
+            w.u8(static_cast<uint8_t>(std::min<size_t>(list->size(), 8)));
+            for (size_t i = 0; i < list->size() and i < 8; ++i)
+            {
+                w.u16(names.id((*list)[i].id));
+                w.u8(static_cast<uint8_t>(std::clamp((*list)[i].level, 0, 255)));
+                w.i8(static_cast<int8_t>(std::clamp((*list)[i].branch, -1, 127)));
+            }
         }
 
         // ... and what the shop has: shards, the level, what is owned, the offers, the level up's picks
@@ -658,11 +667,21 @@ namespace arena::net
             w.u16(static_cast<uint16_t>(std::clamp(f.shop[i].price, 0, 65535)));
             w.u8(static_cast<uint8_t>((f.shop[i].locked ? 1 : 0) | (f.shop[i].bought ? 2 : 0)));
             w.u8(static_cast<uint8_t>(std::clamp(f.shop[i].rarity, 0, 255)));
-            w.u16(names.id(f.shop[i].spell));
         }
         w.u8(static_cast<uint8_t>(std::min<size_t>(f.levelOffer.size(), 8)));
         for (size_t i = 0; i < f.levelOffer.size() and i < 8; ++i)
             w.u16(names.id(f.levelOffer[i]));
+
+        // ... presents, the interest
+        w.u8(static_cast<uint8_t>(std::clamp(f.presents, 0, 255)));
+        w.u8(static_cast<uint8_t>(std::min<size_t>(f.presentOffer.size(), 8)));
+        for (size_t i = 0; i < f.presentOffer.size() and i < 8; ++i)
+        {
+            w.u16(names.id(f.presentOffer[i].id));
+            w.u8(static_cast<uint8_t>(std::clamp(f.presentOffer[i].rarity, 0, 255)));
+        }
+        w.u16(static_cast<uint16_t>(std::clamp(f.banked, 0, 65535)));
+        w.u16(static_cast<uint16_t>(std::clamp(f.interest, 0, 65535)));
     }
 
     void readFighter(Reader& r, Fighter& f, const Names& names)
@@ -750,18 +769,21 @@ namespace arena::net
             Fighter::Boon b;
             b.id = names.name(r.u16());
             b.rarity = r.u8();
-            b.spell = names.name(r.u16());
             f.boons.push_back(b);
         }
 
-        f.runSpells.clear();
-        const uint8_t spells = r.u8();
-        for (uint8_t k = 0; k < spells and k < 8 and not r.failed; ++k)
+        for (auto* list : {&f.runSpells, &f.runSkills})
         {
-            Fighter::RunSpell rs;
-            rs.id = names.name(r.u16());
-            rs.level = r.u8();
-            f.runSpells.push_back(rs);
+            list->clear();
+            const uint8_t n = r.u8();
+            for (uint8_t k = 0; k < n and k < 8 and not r.failed; ++k)
+            {
+                Fighter::RunSpell rs;
+                rs.id = names.name(r.u16());
+                rs.level = r.u8();
+                rs.branch = r.i8();
+                list->push_back(rs);
+            }
         }
 
         f.shards = r.u16();
@@ -785,13 +807,25 @@ namespace arena::net
             o.locked = flags & 1;
             o.bought = flags & 2;
             o.rarity = r.u8();
-            o.spell = names.name(r.u16());
             f.shop.push_back(o);
         }
         f.levelOffer.clear();
         const uint8_t level = r.u8();
         for (uint8_t k = 0; k < level and k < 8 and not r.failed; ++k)
             f.levelOffer.push_back(names.name(r.u16()));
+
+        f.presents = r.u8();
+        f.presentOffer.clear();
+        const uint8_t presents = r.u8();
+        for (uint8_t k = 0; k < presents and k < 8 and not r.failed; ++k)
+        {
+            Fighter::ShopOffer o;
+            o.id = names.name(r.u16());
+            o.rarity = r.u8();
+            f.presentOffer.push_back(o);
+        }
+        f.banked = r.u16();
+        f.interest = r.u16();
     }
 
     // ---- Snapshot ---------------------------------------------------------------------------------
@@ -850,6 +884,7 @@ namespace arena::net
                 w.i16(static_cast<int16_t>(std::clamp(std::lround(p.position[a] * 100.0f), -32767l, 32767l)));
             w.u8(static_cast<uint8_t>(std::clamp(p.value, 0, 255)));
             w.u16(static_cast<uint16_t>(p.target));
+            w.boolean(p.present);
         }
 
         w.u8(static_cast<uint8_t>(std::min<size_t>(m.zones.size(), 64)));
@@ -946,6 +981,7 @@ namespace arena::net
                 p.position[a] = static_cast<float>(r.i16()) / 100.0f;
             p.value = r.u8();
             p.target = r.u16();
+            p.present = r.boolean();
             m.pickups.push_back(p);
         }
 

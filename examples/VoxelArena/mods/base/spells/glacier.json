@@ -5,5 +5,9 @@
     "name": "Glacier",
     "text": "A field of cold where you aim, slowing all in it.",
     "recipe": ["ice", "zone", "enlarge", "extend"],
-    "levels": [["empower"], ["enlarge"], ["extend"]]
+    "levels": [["empower"], ["enlarge"], ["extend"]],
+    "branches": [
+        { "name": "Avalanche", "text": "The field bursts as it ends.", "keywords": ["nova"] },
+        { "name": "Tundra", "text": "A wider field that lasts longer.", "boost": { "area": 0.3, "duration": 0.4 } }
+    ]
 }

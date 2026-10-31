@@ -5,5 +5,9 @@
     "name": "Firebolt",
     "text": "A bolt that leaves a burning patch where it lands.",
     "recipe": ["fire", "bolt", "zone"],
-    "levels": [["enlarge"], ["extend"], ["empower"]]
+    "levels": [["enlarge"], ["extend"], ["empower"]],
+    "branches": [
+        { "name": "Inferno", "text": "Its burning patch bursts into flame as it ends.", "keywords": ["nova"] },
+        { "name": "Twin bolts", "text": "One more bolt each cast.", "boost": { "count": 1 } }
+    ]
 }

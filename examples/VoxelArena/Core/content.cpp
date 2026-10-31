@@ -1075,6 +1075,51 @@ namespace arena
                 content.report.error(raw.file, raw.data.line, "unknown status \"" + hit.status + "\" (statuses.json)");
         }
 
+        /** A boost: { "damage": 0.2, "area": 0.2, "cooldown": 0.15, "cost": 0.2, "duration": 0.3, "speed": 0.25, "count": 1 } */
+        void readBoost(const Json& j, SpellTweak& out, const std::string& file, ContentReport& report, const std::string& what)
+        {
+            checkKeys(j, {"damage", "area", "cooldown", "cost", "duration", "speed", "count"}, file, report, what);
+            readNum(j, "damage", out.damage, file, report);
+            readNum(j, "area", out.area, file, report);
+            readNum(j, "cooldown", out.cooldown, file, report);
+            readNum(j, "cost", out.cost, file, report);
+            readNum(j, "duration", out.duration, file, report);
+            readNum(j, "speed", out.speed, file, report);
+            readInt(j, "count", out.count, file, report);
+        }
+
+        /** "branches": [{ "name", "text", "keywords" (a spell's), "tags", "boost", "element" and "status" (a technique's) }] */
+        void readBranches(Content& content, const Json& j, const RawDef& raw, std::vector<BranchDef>& out, const std::string& what)
+        {
+            auto& report = content.report;
+            const Json* branches = j.find("branches");
+
+            if (not branches)
+                return;
+
+            for (const auto& b : branches->array)
+            {
+                checkKeys(b, {"name", "text", "keywords", "tags", "boost", "element", "status"}, raw.file, report, what + "'s branch");
+                BranchDef d;
+                readStr(b, "name", d.name, raw.file, report);
+                readStr(b, "text", d.text, raw.file, report);
+                readStringList(b, "keywords", d.keywords, raw.file, report);
+                for (auto& k : d.keywords)
+                    k = resolveId(k, raw.mod);
+                readStringList(b, "tags", d.tags, raw.file, report);
+                if (const Json* boost = b.find("boost"))
+                    readBoost(*boost, d.boost, raw.file, report, what + "'s branch boost");
+                readElement(b, d.element, raw.file, report);
+                readStatusHit(b, d.status, raw.file, report);
+                resolveStatus(content, d.status, raw);
+
+                if (d.name.empty())
+                    report.error(raw.file, b.line, what + ": a branch needs a \"name\"");
+                else
+                    out.push_back(d);
+            }
+        }
+
         void requireModel(Content& content, const std::string& id, const std::string& file, int line);
 
         void typeElements(Content& content)
@@ -1186,7 +1231,7 @@ namespace arena
             for (const auto& [id, raw] : content.raw["spell"])
             {
                 const Json& j = raw.data;
-                checkKeys(j, {"id", "name", "text", "recipe", "levels"}, raw.file, report, "spell " + id);
+                checkKeys(j, {"id", "name", "text", "recipe", "levels", "branches"}, raw.file, report, "spell " + id);
 
                 SpellDef s;
                 s.id = id;
@@ -1245,6 +1290,28 @@ namespace arena
 
                         s.levels.push_back(adds);
                     }
+                }
+
+                // Its branches: each must still make a spell, on top of every level
+                readBranches(content, j, raw, s.branches, "spell \"" + id + "\"");
+                SpellRecipe full = s.recipe;
+                for (const auto& level : s.levels)
+                    full.keywords.insert(full.keywords.end(), level.begin(), level.end());
+
+                for (auto b = s.branches.begin(); b != s.branches.end();)
+                {
+                    SpellRecipe branched = full;
+                    branched.keywords.insert(branched.keywords.end(), b->keywords.begin(), b->keywords.end());
+                    const Spell next = compileSpell(content, branched);
+
+                    if (next.valid())
+                    {
+                        ++b;
+                        continue;
+                    }
+
+                    report.error(raw.file, j.line, "spell \"" + id + "\" branch \"" + b->name + "\": " + next.error);
+                    b = s.branches.erase(b);
                 }
 
                 content.spells[id] = s;
@@ -1322,7 +1389,7 @@ namespace arena
             {
                 const Json& j = raw.data;
                 checkKeys(j, {"name", "text", "maxHealth", "damage", "dashCharges", "manaCost", "manaRegen", "staminaRegen", "speed", "cooldown", "lifeOnHit",
-                              "statusStacks", "most", "armor", "crit", "pickupRange", "regen", "price", "spell"},
+                              "statusStacks", "most", "armor", "crit", "pickupRange", "regen", "price", "tag", "boost"},
                           raw.file, report, "boon " + id);
 
                 UpgradeDef u;
@@ -1347,18 +1414,12 @@ namespace arena
                 readNum(j, "regen", u.regen, raw.file, report);
                 readInt(j, "price", u.price, raw.file, report);
 
-                // A spell item: { "damage": 0.2 } and the like, for one spell
-                if (const Json* sp = j.find("spell"))
-                {
-                    checkKeys(*sp, {"damage", "area", "cooldown", "cost", "duration", "speed"}, raw.file, report, "boon " + id + "'s spell");
-                    readNum(*sp, "damage", u.spell.damage, raw.file, report);
-                    readNum(*sp, "area", u.spell.area, raw.file, report);
-                    readNum(*sp, "cooldown", u.spell.cooldown, raw.file, report);
-                    readNum(*sp, "cost", u.spell.cost, raw.file, report);
-                    readNum(*sp, "duration", u.spell.duration, raw.file, report);
-                    readNum(*sp, "speed", u.spell.speed, raw.file, report);
-                    u.forSpell = true;
-                }
+                // A tag item: "tag": "fire", "boost": { "damage": 0.2 }: for everything of the player with the tag
+                readStr(j, "tag", u.tag, raw.file, report);
+                if (const Json* boost = j.find("boost"))
+                    readBoost(*boost, u.boost, raw.file, report, "boon " + id + "'s boost");
+                if (u.forTag() != (j.find("boost") != nullptr))
+                    report.error(raw.file, j.line, "boon \"" + id + "\": a tag item has both a \"tag\" and a \"boost\"");
 
                 content.upgrades[id] = u;
             }
@@ -1379,7 +1440,7 @@ namespace arena
 
             checkKeys(j, {"waves", "duration", "spawnRate", "maxAlive", "eliteFrom", "eliteChance", "healthGrowth", "pools", "bosses", "warn", "centre", "spawnRadius", "coopScale",
                           "waveScore", "victoryScore", "pickupRange", "xp", "start", "shop", "arena", "arenas", "resetEachWave", "duel", "chooseWeapon",
-                          "levelSkills", "intermission"},
+                          "levelSkills", "intermission", "spawnScale", "branchLevel", "mastery", "presents"},
                       raw.file, report, "the run");
 
             readInt(j, "waves", r.waves, raw.file, report);
@@ -1405,6 +1466,19 @@ namespace arena
             readVec3(j, "centre", r.centre, raw.file, report);
             readNum(j, "spawnRadius", r.spawnRadius, raw.file, report);
             readNum(j, "coopScale", r.coopScale, raw.file, report);
+            readNum(j, "spawnScale", r.spawnScale, raw.file, report);
+            readInt(j, "branchLevel", r.branchLevel, raw.file, report);
+            r.branchLevel = std::max(2, r.branchLevel);
+            if (const Json* mastery = j.find("mastery"))
+                readBoost(*mastery, r.mastery, raw.file, report, "the run's mastery");
+            if (const Json* presents = j.find("presents"))
+            {
+                checkKeys(*presents, {"chance", "perWave", "choices"}, raw.file, report, "the run's presents");
+                readNum(*presents, "chance", r.presentChance, raw.file, report);
+                readInt(*presents, "perWave", r.presentsPerWave, raw.file, report);
+                readInt(*presents, "choices", r.presentChoices, raw.file, report);
+                r.presentChoices = std::clamp(r.presentChoices, 1, 4);
+            }
             readInt(j, "waveScore", r.waveScore, raw.file, report);
             readInt(j, "victoryScore", r.victoryScore, raw.file, report);
             readNum(j, "pickupRange", r.pickupRange, raw.file, report);
@@ -1544,7 +1618,7 @@ namespace arena
 
             if (const Json* shop = j.find("shop"))
             {
-                checkKeys(*shop, {"slots", "reroll", "rerollStep", "priceGrowth", "levelChoices", "weaponPrice", "unlocks", "rarities"}, raw.file, report, "the run's shop");
+                checkKeys(*shop, {"slots", "reroll", "rerollStep", "priceScale", "interest", "levelChoices", "weaponPrice", "unlocks", "rarities"}, raw.file, report, "the run's shop");
 
                 // Rarities, commonest first: [{ "name": "Rare", "power": 1.5, "price": 1.5, "weight": [25, 35] }]
                 if (const Json* rarities = shop->find("rarities"))
@@ -1566,7 +1640,14 @@ namespace arena
                 readInt(*shop, "slots", r.shopSlots, raw.file, report);
                 readInt(*shop, "reroll", r.rerollPrice, raw.file, report);
                 readInt(*shop, "rerollStep", r.rerollStep, raw.file, report);
-                readNum(*shop, "priceGrowth", r.priceGrowth, raw.file, report);
+                if (const Json* ps = shop->find("priceScale"))
+                {
+                    if (ps->isArray() and ps->array.size() == 2)
+                        r.priceScale = glm::vec2(static_cast<float>(ps->array[0].number), static_cast<float>(ps->array[1].number));
+                    else
+                        report.error(raw.file, ps->line, "\"priceScale\" is [at the first wave, at the last]");
+                }
+                readBool(*shop, "interest", r.interest, raw.file, report);
                 readInt(*shop, "levelChoices", r.levelChoices, raw.file, report);
                 readInt(*shop, "weaponPrice", r.weaponPrice, raw.file, report);
                 r.shopSlots = std::clamp(r.shopSlots, 1, 4);
@@ -1809,7 +1890,7 @@ namespace arena
                 const Json& j = raw.data;
 
                 checkKeys(j, {"id", "name", "kind", "block", "staminaCost", "cooldown", "range", "distance", "lifetime", "damage", "rate", "width", "height", "depth",
-                              "weapons", "attack"},
+                              "weapons", "attack", "tags", "levels", "branches"},
                           raw.file, report, "ability " + id);
 
                 AbilityDef a;
@@ -1830,6 +1911,19 @@ namespace arena
                 readInt(j, "height", a.height, raw.file, report);
                 readInt(j, "depth", a.depth, raw.file, report);
                 readStringList(j, "weapons", a.weapons, raw.file, report);
+                readStringList(j, "tags", a.tags, raw.file, report);
+
+                // A technique's levels in a run: [{ "damage": 0.2 }, { "cooldown": 0.15 }], what levels 2, 3... add
+                if (const Json* levels = j.find("levels"))
+                {
+                    for (const auto& level : levels->array)
+                    {
+                        SpellTweak t;
+                        readBoost(level, t, raw.file, report, "ability " + id + "'s level");
+                        a.levels.push_back(t);
+                    }
+                }
+                readBranches(content, j, raw, a.branches, "ability \"" + id + "\"");
 
                 if (const Json* aj = j.find("attack"))
                 {

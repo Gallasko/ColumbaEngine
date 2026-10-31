@@ -119,6 +119,7 @@ namespace arena
         hits.clear();
         zones.clear();
         spellCache.clear();
+        techniqueCache.clear();
         useRunArena = false;
         run = RunState{};
         time = 0.0f;
@@ -142,6 +143,7 @@ namespace arena
         content = &c;
         tuning = t;
         spellCache.clear();   // made from the old keywords
+        techniqueCache.clear();
 
         if (rebuildArena)
             buildArena();
@@ -1776,7 +1778,28 @@ namespace arena
         if (not name.empty() and name[0] == '@')
         {
             auto it = content->abilities.find(name.substr(1));
-            return it != content->abilities.end() and it->second.kind == "attack" ? &it->second.attack : nullptr;
+            if (it == content->abilities.end() or it->second.kind != "attack")
+                return nullptr;
+
+            // A run's technique: as its levels, branch and the player's tag items make it (kept until they change)
+            const SpellTweak boost = techniqueBoost(f, it->first);
+            const Fighter::RunSpell* rs = inRun() and f.team == Team::Player ? runSkill(f, it->first) : nullptr;
+            const int branch = rs ? rs->branch : -1;
+
+            if (boost.empty() and branch < 0)
+                return &it->second.attack;
+
+            std::string key = std::to_string(branch) + "|" + std::to_string(boost.count);
+            for (float v : {boost.damage, boost.area, boost.cooldown, boost.cost, boost.duration, boost.speed})
+                key += "|" + std::to_string(v);
+
+            auto& slot = techniqueCache[std::to_string(f.id) + it->first];
+            if (not slot.second or slot.first != key)
+            {
+                const BranchDef* b = branch >= 0 and branch < static_cast<int>(it->second.branches.size()) ? &it->second.branches[static_cast<size_t>(branch)] : nullptr;
+                slot = {key, std::make_shared<AttackDef>(boostedAttack(it->second, boost, b))};
+            }
+            return slot.second.get();
         }
 
         const Moveset* m = movesetOf(f);
@@ -2048,8 +2071,10 @@ namespace arena
 
             if (used)
             {
-                spendStamina(f, a->staminaCost);
-                f.abilityCooldown[i] = a->cooldown * std::max(0.3f, 1.0f - f.boon.cooldown);
+                // A run's technique: its levels and tag items may make it cheaper and quicker to come back
+                const SpellTweak boost = techniqueBoost(f, a->id);
+                spendStamina(f, a->staminaCost * std::max(0.2f, 1.0f - boost.cost));
+                f.abilityCooldown[i] = a->cooldown * std::max(0.3f, 1.0f - f.boon.cooldown) * std::max(0.2f, 1.0f - boost.cooldown);
 
 
                 if (a->kind == "wall")
@@ -2080,6 +2105,7 @@ namespace arena
             const SpellTweak& t = recipe.tweak;
             for (float v : {t.damage, t.area, t.cooldown, t.cost, t.duration, t.speed})
                 key += "|" + std::to_string(v);
+            key += "|" + std::to_string(t.count);
         }
 
         auto it = spellCache.find(key);
@@ -3274,6 +3300,21 @@ namespace arena
             {
                 run.score += def->second.score * (target.elite ? 2 : 1);
                 spawnShards(target, def->second.drops * (target.elite ? 3 : 1));
+            }
+
+            // An elite may leave a present: a free item to pick in the shop (a few a wave at most)
+            const RunDef& rd = content->run;
+            if (target.elite and run.presentsDropped < rd.presentsPerWave and static_cast<float>(runRandom() % 1000) / 1000.0f < rd.presentChance)
+            {
+                ++run.presentsDropped;
+                Pickup p;
+                p.id = nextPickup++;
+                p.position = chest(target);
+                p.velocity = glm::vec3(0.0f, 5.0f, 0.0f);
+                p.value = 0;
+                p.present = true;
+                pickups.push_back(p);
+                event("present_drop", p.position, 1.0f, target.id);
             }
         }
 

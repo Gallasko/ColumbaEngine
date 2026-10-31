@@ -5,5 +5,9 @@
     "name": "Frost nova",
     "text": "A burst of cold all around you.",
     "recipe": ["ice", "nova", "enlarge"],
-    "levels": [["empower"], ["enlarge"], ["multiply"]]
+    "levels": [["empower"], ["enlarge"], ["multiply"]],
+    "branches": [
+        { "name": "Permafrost", "text": "Leaves a field of cold where it burst.", "keywords": ["zone"] },
+        { "name": "Shatter", "text": "Much harder, and wider.", "boost": { "damage": 0.4, "area": 0.2 } }
+    ]
 }

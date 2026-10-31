@@ -5,5 +5,9 @@
     "name": "Fireball",
     "text": "A bolt that bursts where it lands.",
     "recipe": ["fire", "bolt", "nova"],
-    "levels": [["enlarge"], ["empower"], ["multiply"]]
+    "levels": [["enlarge"], ["empower"], ["multiply"]],
+    "branches": [
+        { "name": "Meteor", "text": "Its burst leaves a burning patch.", "keywords": ["zone"] },
+        { "name": "Cluster", "text": "One more fireball each cast.", "boost": { "count": 1 } }
+    ]
 }

@@ -15,5 +15,11 @@
         "iframes": [1, 16],
         "turn": { "pitch": -360, "from": 2, "to": 22 },
         "swing": { "yaw": 10, "pitch": 40, "reach": 0.0 }
-    }
+    },
+    "tags": ["melee", "dash"],
+    "levels": [{ "damage": 0.15 }, { "cooldown": 0.15 }, { "damage": 0.15, "area": 0.1 }],
+    "branches": [
+        { "name": "Flip kick", "text": "The kick hits far harder.", "boost": { "damage": 0.6 } },
+        { "name": "Frost flip", "text": "The kick chills.", "element": "ice", "status": { "id": "chill", "stacks": 2 }, "tags": ["ice"] }
+    ]
 }

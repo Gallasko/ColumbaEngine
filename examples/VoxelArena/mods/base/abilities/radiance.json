@@ -14,5 +14,11 @@
         "hitboxes": [ { "offset": [0, 1.0, 0.0], "size": [5.0, 2.5, 5.0] } ],
         "heal": { "amount": 12, "radius": 6 },
         "swing": { "yaw": 0, "pitchFrom": 80, "pitchTo": -30 }
-    }
+    },
+    "tags": ["heal", "area"],
+    "levels": [{ "damage": 0.15 }, { "cooldown": 0.15 }, { "damage": 0.15, "area": 0.1 }],
+    "branches": [
+        { "name": "Solar flare", "text": "The burst sets enemies on fire.", "element": "fire", "status": "burn", "tags": ["fire"] },
+        { "name": "Benediction", "text": "Heals and hurts much more.", "boost": { "damage": 0.5 } }
+    ]
 }

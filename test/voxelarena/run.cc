@@ -104,7 +104,7 @@ TEST(arena_run, a_wave_is_timed_and_enemies_keep_coming_from_the_edges)
     EXPECT_EQ(r.enemies(), 0);
 
     // A spawn point shows first, then they come; more as the wave goes on
-    r.past(1.0f / r.content.run.spawnRate.x + 0.1f);
+    r.past(1.0f / (r.content.run.spawnRate.x * r.content.run.spawnScale) + 0.1f);
     EXPECT_FALSE(r.world.run.pending.empty());
     r.past(r.content.run.warn);
     const int early = r.enemies();
@@ -204,7 +204,7 @@ TEST(arena_run, the_shop_sells_locks_and_rerolls)
 
     ASSERT_TRUE(r.content.upgrades.count(offer.id)) << offer.id;
     ASSERT_EQ(p.boons.size(), 1u);
-    EXPECT_EQ(p.boons[0], Fighter::Boon(offer.id, offer.rarity, offer.spell));
+    EXPECT_EQ(p.boons[0], Fighter::Boon(offer.id, offer.rarity));
 
     // Bought once is bought: no second time
     r.pick(InputFrame::BUY + 1);
@@ -222,7 +222,7 @@ TEST(arena_run, the_shop_sells_locks_and_rerolls)
     EXPECT_GT(r.world.run.timer, r.content.run.duration.x);   // longer each wave
 }
 
-TEST(arena_run, the_shop_sells_stat_and_spell_items_dearer_later_and_by_rarity)
+TEST(arena_run, the_shop_sells_stat_and_tag_items_priced_by_the_wave_and_rarity)
 {
     RunArena r;
     r.content.run.unlocks.clear();   // the weapons a run without a weapon choice sells (a mod's)
@@ -236,9 +236,19 @@ TEST(arena_run, the_shop_sells_stat_and_spell_items_dearer_later_and_by_rarity)
     r.world.collect(p, 5000);
     p.levelUps = 0;
     p.levelOffer.clear();
+    p.presents = 0;
+    p.presentOffer.clear();
 
-    // Only items: stat items, and spell items for a spell the player has; dearer than at the start
-    bool sawSpellItem = false, sawRare = false;
+    // What the player's spells reach
+    std::vector<std::string> tags;
+    for (const auto& rs : p.runSpells)
+        for (const auto& t : r.world.spellTags(r.world.spellAt(rs)))
+            tags.push_back(t);
+
+    // Only items: stat items, and tag items for a tag the player has; priced for the wave
+    const float scale = r.content.run.priceScale.x + (r.content.run.priceScale.y - r.content.run.priceScale.x) * 8.0f / static_cast<float>(r.content.run.waves - 1);
+    EXPECT_FLOAT_EQ(r.world.priceScale(9), scale);
+    bool sawTagItem = false, sawRare = false;
     for (int k = 0; k < 30; ++k)
     {
         r.pick(InputFrame::REROLL);
@@ -247,21 +257,53 @@ TEST(arena_run, the_shop_sells_stat_and_spell_items_dearer_later_and_by_rarity)
             ASSERT_TRUE(r.content.upgrades.count(o.id)) << o.id;
             const UpgradeDef& u = r.content.upgrades.at(o.id);
             const float rarityPrice = r.content.run.rarities[static_cast<size_t>(o.rarity)].price;
-            EXPECT_NEAR(static_cast<float>(o.price), static_cast<float>(u.price) * rarityPrice * (1.0f + r.content.run.priceGrowth * 8.0f), 1.0f) << o.id;
+            EXPECT_NEAR(static_cast<float>(o.price), static_cast<float>(u.price) * rarityPrice * scale, 1.0f) << o.id;
 
-            if (u.forSpell)
+            if (u.forTag())
             {
-                sawSpellItem = true;
-                EXPECT_TRUE(std::any_of(p.runSpells.begin(), p.runSpells.end(), [&](const Fighter::RunSpell& s) { return s.id == o.spell; })) << o.spell;
+                sawTagItem = true;
+                EXPECT_NE(std::find(tags.begin(), tags.end(), u.tag), tags.end()) << u.tag;
             }
-            else
-                EXPECT_TRUE(o.spell.empty());
 
             sawRare = sawRare or o.rarity > 0;
         }
     }
-    EXPECT_TRUE(sawSpellItem);
+    EXPECT_TRUE(sawTagItem);
     EXPECT_TRUE(sawRare);
+}
+
+TEST(arena_run, prices_start_at_half_and_end_at_one_and_a_half)
+{
+    RunArena r;
+    r.world.startRun(3);
+    EXPECT_FLOAT_EQ(r.world.priceScale(1), 0.5f);
+    EXPECT_FLOAT_EQ(r.world.priceScale(r.content.run.waves), 1.5f);
+}
+
+TEST(arena_run, the_interest_keeps_what_could_be_bought_affordable)
+{
+    RunArena r;
+    r.content.run.unlocks.clear();
+    r.world.startRun(5);
+    Fighter& p = r.player();
+
+    // A shop at wave 3: an item the player can just afford, not bought
+    r.world.skipToWave(3);
+    r.timeUp();
+    p.levelUps = 0;
+    p.levelOffer.clear();
+    ASSERT_FALSE(p.shop.empty());
+    p.shards = p.shop[0].price;
+    const UpgradeDef& item = r.content.upgrades.at(p.shop[0].id);
+    const int rarity = p.shop[0].rarity;
+
+    // Ready, through the next wave earning nothing: the same item costs more now, and the interest pays for it
+    r.pick(InputFrame::START);
+    ASSERT_EQ(r.world.run.wave, 4);
+    r.timeUp();
+    const int now = static_cast<int>(std::lround(static_cast<float>(item.price) * r.content.run.rarities[static_cast<size_t>(rarity)].price * r.world.priceScale(4)));
+    EXPECT_GT(p.interest, 0);
+    EXPECT_GE(p.shards, now);
 }
 
 TEST(arena_run, a_rarer_item_does_more)
@@ -285,32 +327,147 @@ TEST(arena_run, a_rarer_item_does_more)
     EXPECT_GT(legendary.power, 1.0f);
 }
 
-TEST(arena_run, a_spell_item_changes_only_its_spell)
+TEST(arena_run, a_tag_item_boosts_everything_with_its_tag)
 {
     RunArena r;
     r.world.startRun(7);
     Fighter& p = r.player();
-    ASSERT_FALSE(p.runSpells.empty());
-    p.runSpells.push_back({"base:fireball", 1});
-    const std::string target = p.runSpells[0].id;
+    p.runSpells = {{"base:firebolt", 1}, {"base:frost_nova", 1}};
 
-    const auto before0 = r.world.spellOf(r.world.spellRecipe(p, 0));
-    const auto before1 = r.world.spellOf(r.world.spellRecipe(p, 1));
+    const auto fire0 = r.world.spellOf(r.world.spellRecipe(p, 0));
+    const auto ice0 = r.world.spellOf(r.world.spellRecipe(p, 1));
 
+    // Fire damage: the firebolt, not the frost nova
     r.timeUp();
+    p.levelUps = 0;
+    p.levelOffer.clear();
     p.shards = 1000;
-    Fighter::ShopOffer offer;
-    offer.id = "base:searing";
-    offer.price = 1;
-    offer.spell = target;
-    p.shop = {offer};
+    Fighter::ShopOffer searing;
+    searing.id = "base:searing";
+    searing.price = 1;
+    Fighter::ShopOffer split = searing;
+    split.id = "base:split_shot";
+    p.shop = {searing, split};
     r.pick(InputFrame::BUY);
 
-    const auto after0 = r.world.spellOf(r.world.spellRecipe(p, 0));
-    const auto after1 = r.world.spellOf(r.world.spellRecipe(p, 1));
-    const float more = 1.0f + r.content.upgrades.at("base:searing").spell.damage;
-    EXPECT_NEAR(after0->stages[0].damage, before0->stages[0].damage * more, 0.01f);
-    EXPECT_FLOAT_EQ(after1->stages[0].damage, before1->stages[0].damage);
+    const auto fire1 = r.world.spellOf(r.world.spellRecipe(p, 0));
+    const auto ice1 = r.world.spellOf(r.world.spellRecipe(p, 1));
+    const float more = 1.0f + r.content.upgrades.at("base:searing").boost.damage;
+    EXPECT_NEAR(fire1->stages[0].damage, fire0->stages[0].damage * more, 0.01f);
+    EXPECT_FLOAT_EQ(ice1->stages[0].damage, ice0->stages[0].damage);
+
+    // One more projectile: the firebolt's bolt
+    r.pick(InputFrame::BUY + 1);
+    EXPECT_EQ(r.world.spellOf(r.world.spellRecipe(p, 0))->stages[0].count, fire0->stages[0].count + 1);
+}
+
+TEST(arena_run, a_tag_item_reaches_a_technique)
+{
+    RunArena r;
+    r.world.startRun(7);
+    Fighter& p = r.player();
+    r.world.chooseWeapon(p, "base:sword");
+    p.runSkills = {{"base:whirlwind", 1}};
+    p.owned.push_back("base:whirlwind");
+
+    const float damage = r.world.attackDef(p, "@base:whirlwind")->damage;
+    p.boons.push_back({"base:honed", 0});
+    EXPECT_NEAR(r.world.attackDef(p, "@base:whirlwind")->damage, damage * (1.0f + r.content.upgrades.at("base:honed").boost.damage), 0.01f);
+
+    // Its levels too, and a branch: an element and a status on its hits
+    p.runSkills[0].level = r.content.run.branchLevel;
+    p.runSkills[0].branch = 0;
+    const AttackDef* a = r.world.attackDef(p, "@base:whirlwind");
+    EXPECT_GT(a->damage, damage * (1.0f + r.content.upgrades.at("base:honed").boost.damage));
+    EXPECT_EQ(a->element, Element::Fire);
+    EXPECT_EQ(a->status.status, "base:burn");
+
+    // Outside a run: as written
+    r.world.stopRun();
+    EXPECT_FLOAT_EQ(r.world.attackDef(r.player(), "@base:whirlwind")->damage, damage);
+}
+
+TEST(arena_run, levels_go_on_with_a_branch_then_mastery)
+{
+    RunArena r;
+    r.world.startRun(7);
+    Fighter& p = r.player();
+    p.runSpells = {{"base:firebolt", r.content.spells.at("base:firebolt").maxLevel()}};
+
+    // At the branch level: its branches are the picks for it
+    auto offers = [&]() {
+        p.levelUps = 1;
+        r.world.rollLevel(p);
+        return p.levelOffer;
+    };
+
+    bool sawBranch = false;
+    for (int k = 0; k < 20 and not sawBranch; ++k)
+    {
+        const auto o = offers();
+        sawBranch = std::find(o.begin(), o.end(), "base:firebolt#0") != o.end();
+        if (sawBranch)
+            EXPECT_NE(std::find(o.begin(), o.end(), "base:firebolt#1"), o.end());
+        EXPECT_EQ(std::find(o.begin(), o.end(), "base:firebolt"), o.end());   // not a plain level now
+    }
+    ASSERT_TRUE(sawBranch);
+
+    const auto before = r.world.spellOf(r.world.spellRecipe(p, 0));
+    p.runSpells[0].level += 1;
+    p.runSpells[0].branch = 0;
+    const auto branched = r.world.spellOf(r.world.spellRecipe(p, 0));
+    EXPECT_GT(branched->stages.size(), before->stages.size());   // Inferno: a nova as the patch ends
+
+    // Past it: mastery, on and on
+    p.runSpells[0].level += 2;
+    const auto mastered = r.world.spellOf(r.world.spellRecipe(p, 0));
+    EXPECT_NEAR(mastered->stages[0].damage, branched->stages[0].damage * (1.0f + 2.0f * r.content.run.mastery.damage), 0.01f);
+    bool plain = false;
+    for (int k = 0; k < 20 and not plain; ++k)
+    {
+        const auto o = offers();
+        plain = std::find(o.begin(), o.end(), "base:firebolt") != o.end();
+    }
+    EXPECT_TRUE(plain);
+}
+
+TEST(arena_run, an_elite_may_leave_a_present_for_a_free_item)
+{
+    RunArena r;
+    r.content.run.presentChance = 1.0f;
+    r.world.startRun(9);
+
+    // Three a wave at most
+    for (int k = 0; k < 5; ++k)
+    {
+        Fighter& e = r.near("base:skulker", 2.0f);
+        e.elite = true;
+        r.killAll();
+    }
+    const int presents = static_cast<int>(std::count_if(r.world.pickups.begin(), r.world.pickups.end(), [](const Pickup& pk) { return pk.present; }));
+    EXPECT_EQ(presents, r.content.run.presentsPerWave);
+
+    r.past(2.0f);
+    Fighter& p = r.player();   // (the enemies spawned moved the fighters about)
+    EXPECT_EQ(p.presents, r.content.run.presentsPerWave);
+
+    // At the shop, after the level ups: a free pick each
+    r.timeUp();
+    p.levelUps = 0;
+    p.levelOffer.clear();
+    r.world.rollPresent(p);
+    ASSERT_EQ(p.presentOffer.size(), static_cast<size_t>(r.content.run.presentChoices));
+    r.past(r.content.run.intermission);
+
+    const int shards = p.shards;
+    r.pick(InputFrame::BUY);   // the shop waits
+    EXPECT_EQ(p.shards, shards);
+
+    const std::string chosen = p.presentOffer[1].id;
+    r.pick(InputFrame::PRESENT + 1);
+    EXPECT_EQ(p.presents, r.content.run.presentsPerWave - 1);
+    EXPECT_EQ(std::count(p.boons.begin(), p.boons.end(), chosen), 1);
+    EXPECT_EQ(p.shards, shards);
 }
 
 TEST(arena_run, level_ups_give_spells_and_their_levels_before_the_shop)
@@ -469,7 +626,7 @@ TEST(arena_run, elites_are_tougher_and_drop_more)
     r.content.run.eliteChance = 1.0f;
     r.content.run.pools = {{"base:skulker", 1, 1000, 1.0f}};
     r.world.startRun(9);
-    r.past(1.0f / r.content.run.spawnRate.x + r.content.run.warn + 0.5f);
+    r.past(1.0f / (r.content.run.spawnRate.x * r.content.run.spawnScale) + r.content.run.warn + 0.5f);
 
     const Fighter* elite = nullptr;
     for (const auto& f : r.world.fighters)

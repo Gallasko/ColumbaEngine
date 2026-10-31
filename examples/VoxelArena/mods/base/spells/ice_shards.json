@@ -5,5 +5,9 @@
     "name": "Ice shards",
     "text": "Four shards in a fan; each one chills.",
     "recipe": ["ice", "bolt", "multiply", "multiply"],
-    "levels": [["chain"], ["empower"], ["multiply"]]
+    "levels": [["chain"], ["empower"], ["multiply"]],
+    "branches": [
+        { "name": "Splinter", "text": "Each shard bursts where it lands.", "keywords": ["nova"], "tags": ["area"] },
+        { "name": "Frost lance", "text": "Harder, faster shards.", "boost": { "damage": 0.35, "speed": 0.3 } }
+    ]
 }

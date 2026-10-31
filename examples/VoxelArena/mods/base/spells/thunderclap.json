@@ -5,5 +5,9 @@
     "name": "Thunderclap",
     "text": "A beam that bursts where it strikes.",
     "recipe": ["volt", "beam", "nova"],
-    "levels": [["enlarge"], ["empower"], ["multiply"]]
+    "levels": [["enlarge"], ["empower"], ["multiply"]],
+    "branches": [
+        { "name": "Overload", "text": "Its burst leaves a charged field.", "keywords": ["zone"] },
+        { "name": "Echo", "text": "Recharges much faster.", "boost": { "cooldown": 0.35 } }
+    ]
 }

@@ -12,13 +12,21 @@
 // start: the weapon in hand, what is owned (weapons, weapon skills) and the spells (spells/*.json) the
 // run starts with. Players make no spells in a run: level ups give them. As a wave ends, after
 // `intermission` s, each level up offers levelChoices picks: a spell not had yet (while one of the
-// three spell keys is free), the next level of one had (its "levels"), or a weapon skill of
-// levelSkills for the weapon in hand. Then the shop.
-// shop: offers a time (stat and spell items of upgrades.json, each of a rarity: its numbers times
+// three spell keys is free), a technique of levelSkills for the weapon in hand not had yet, or the
+// next level of one had. Levels never run out: after a spell's or technique's written "levels", at
+// `branchLevel` it takes one of its "branches" (the player picks), and every level past those adds
+// `mastery`. Then the presents, then the shop.
+// presents: an elite may leave one (chance), at most perWave a wave; each is a free pick among
+// `choices` shop items, made after the level ups.
+// shop: offers a time (stat and tag items of upgrades.json, each of a rarity: its numbers times
 // `power`, its price times `price`, how often by `weight` [at the first wave, at the last]; and the
-// unlocks not owned yet, for their price: a mod's, the base run sells none),
-// weaponPrice: what a weapon not in unlocks sells for (every mod's weapons are in the shop). The reroll's price (reroll, + rerollStep each time in a shop, + 1 every 2 waves), priceGrowth: every
-// price this much higher each wave. levelChoices: picks offered for a level up.
+// unlocks not owned yet, for their price: a mod's, the base run sells none). priceScale: every price
+// times this, [at the first wave, at the last]. interest: shards kept through a shop grow as the prices
+// do by the next one, so what could be bought then still can.
+// weaponPrice: what a weapon not in unlocks sells for (every mod's weapons are in the shop). The reroll's price (reroll, + rerollStep each time in a shop, + 1 every 2 waves).
+// levelChoices: picks offered for a level up.
+// spawnScale: the spawn rate and the most at once times this; coopScale: half again for each player
+// past the first (0.5).
 // Score: each enemy's "score" for the kill (twice for an elite), waveScore times the wave's number
 // for getting through it, victoryScore for the last one.
 // arenas: the arena of each stretch of waves (arenas/*.json: see arenas/pit.json), each from its
@@ -37,6 +45,7 @@
     "warn": 1.2,
     "eliteFrom": 7,
     "eliteChance": 0.08,
+    "spawnScale": 0.75,
     "coopScale": 0.5,
     "pickupRange": 3.5,
     "resetEachWave": true,
@@ -54,15 +63,19 @@
     ],
     "bosses": { "10": "chieftain", "20": "warden" },
 
-    "xp": { "base": 10, "step": 5 },
+    "xp": { "base": 10, "step": 3 },
     "start": { "weapon": "sword", "owned": [], "spells": ["firebolt"] },
     "levelSkills": ["leap_slam", "whirlwind", "shadow_dash", "backflip", "volley", "disengage", "sanctuary", "radiance"],
     "intermission": 2.5,
+    "branchLevel": 5,
+    "mastery": { "damage": 0.1, "cooldown": 0.03 },
+    "presents": { "chance": 0.35, "perWave": 3, "choices": 3 },
     "shop": {
         "slots": 4,
         "reroll": 2,
         "rerollStep": 2,
-        "priceGrowth": 0.08,
+        "priceScale": [0.5, 1.5],
+        "interest": true,
         "levelChoices": 3,
         "unlocks": {},
         "rarities": [

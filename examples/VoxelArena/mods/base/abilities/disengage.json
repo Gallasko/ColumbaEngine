@@ -16,5 +16,11 @@
                         "damage": 10, "poiseDamage": 12, "knockback": 5, "terrainDamage": 10,
                         "hitstop": 3, "shake": 0.2, "spawn": [0.2, 1.45, 0.5], "model": "arrow", "modelScale": 0.0625 },
         "swing": { "yaw": 0, "pitchFrom": 10, "pitchTo": -10 }
-    }
+    },
+    "tags": ["dash"],
+    "levels": [{ "damage": 0.15 }, { "cooldown": 0.15 }, { "damage": 0.15, "area": 0.1 }],
+    "branches": [
+        { "name": "Parting volley", "text": "Two more arrows as you leap away.", "boost": { "count": 2 } },
+        { "name": "Frost arrow", "text": "The arrow chills.", "element": "ice", "status": { "id": "chill", "stacks": 2 }, "tags": ["ice"] }
+    ]
 }

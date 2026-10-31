@@ -144,10 +144,19 @@ namespace arena
             }
         }
 
-        // A run's spell items, on every form of it
+        // A run's boosts (tag items, mastery, a branch), on every form of it; more projectiles: more of its first bolt
         const SpellTweak& t = recipe.tweak;
         if (not t.empty())
         {
+            for (auto& st : s.stages)
+            {
+                if (t.count != 0 and st.form.shape == "bolt")
+                {
+                    st.count = std::clamp(st.count + t.count, 1, MAX_COPIES);
+                    break;
+                }
+            }
+
             for (auto& st : s.stages)
             {
                 st.damage *= 1.0f + t.damage;

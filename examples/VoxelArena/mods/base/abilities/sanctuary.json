@@ -14,5 +14,11 @@
         "hitboxes": [],
         "healZone": { "radius": 3, "duration": 5, "perSecond": 3 },
         "swing": { "yaw": 0, "pitchFrom": 70, "pitchTo": -30 }
-    }
+    },
+    "tags": ["heal", "zone", "area"],
+    "levels": [{ "damage": 0.15 }, { "cooldown": 0.15 }, { "damage": 0.15, "area": 0.1 }],
+    "branches": [
+        { "name": "Haven", "text": "A wider circle that lasts longer.", "boost": { "area": 0.4, "duration": 0.5 } },
+        { "name": "Blessed ground", "text": "Heals much more.", "boost": { "damage": 0.6 } }
+    ]
 }

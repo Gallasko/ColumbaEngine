@@ -888,6 +888,17 @@ namespace arena
                         continue;
                     }
 
+                    // Then the presents (1-3 take one)
+                    const int presentPicks = me and me->presents > 0 ? static_cast<int>(me->presentOffer.size()) : 0;
+                    if (presentPicks > 0)
+                    {
+                        if (p.scancode >= SDL_SCANCODE_1 and p.scancode <= SDL_SCANCODE_9 and static_cast<int>(p.scancode - SDL_SCANCODE_1) < presentPicks)
+                            pendingPick = InputFrame::PRESENT + static_cast<int>(p.scancode - SDL_SCANCODE_1);
+                        else if (p.scancode == SDL_SCANCODE_ESCAPE)
+                            setOptionsOpen(true);
+                        continue;
+                    }
+
                     if (p.scancode >= SDL_SCANCODE_1 and p.scancode <= SDL_SCANCODE_4)
                         pendingPick = (shift ? InputFrame::LOCK : InputFrame::BUY) + static_cast<int>(p.scancode - SDL_SCANCODE_1);
                     else if (p.scancode == SDL_SCANCODE_R)
@@ -3675,6 +3686,22 @@ namespace arena
 
             for (const auto& pk : world.pickups)
             {
+                // A present: a gold box with a red ribbon, turning slowly, bigger than any shard
+                if (pk.present)
+                {
+                    const float bob = pk.target ? 0.0f : 0.1f * std::sin(simTime * 2.5f + static_cast<float>(pk.id));
+                    const glm::vec3 at = pk.position + pk.velocity * (alpha * STEP_SECONDS) + glm::vec3(0, 0.15f + bob, 0);
+                    const glm::mat4 turn = glm::translate(glm::mat4(1.0f), at) * rotY(simTime * 60.0f + static_cast<float>(pk.id) * 37.0f);
+                    const glm::mat4 box = turn * glm::scale(glm::mat4(1.0f), glm::vec3(0.5f)) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f));
+                    const glm::mat4 band = turn * glm::scale(glm::mat4(1.0f), glm::vec3(0.54f, 0.54f, 0.14f)) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f));
+                    const glm::mat4 band2 = turn * glm::scale(glm::mat4(1.0f), glm::vec3(0.14f, 0.54f, 0.54f)) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f));
+                    const float glow = 0.25f + 0.15f * std::sin(simTime * 5.0f);
+                    pushInstance(d, view, box, glm::vec4(1.0f, 0.8f, 0.25f, 1.0f), glm::vec4(1.0f, 0.85f, 0.4f, glow));
+                    pushInstance(d, view, band, glm::vec4(0.85f, 0.15f, 0.2f, 1.0f), glm::vec4(0.0f));
+                    pushInstance(d, view, band2, glm::vec4(0.85f, 0.15f, 0.2f, 1.0f), glm::vec4(0.0f));
+                    continue;
+                }
+
                 const float s = 0.16f + 0.04f * static_cast<float>(std::min(pk.value, 5));
                 const float bob = pk.target ? 0.0f : 0.08f * std::sin(simTime * 3.0f + static_cast<float>(pk.id));
                 const glm::vec3 at = pk.position + pk.velocity * (alpha * STEP_SECONDS) + glm::vec3(0, bob, 0);
@@ -3888,7 +3915,7 @@ namespace arena
             return "reload | tune <key> [value] | tunes [prefix] | spawn <enemy> [count] | clear | reset\n"
                    "place x y z <block|air> | fill x0 y0 z0 x1 y1 z1 <block|air>\n"
                    "view [first|third] | weapon <id> | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | map [arena] | training | wave <n> | duel | timeup | join <address> | leave | shards <n> | kill | options | mods | errors | warnings\n"
-                   "scripted input: mouse [on|off] | click <x> <y> | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
+                   "scripted input: mouse [on|off] | click <x> <y> | hover <x> <y> | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
         }
 
         if (cmd == "where" and p)
@@ -3974,6 +4001,15 @@ namespace arena
             uiClicks.emplace_back(static_cast<float>(std::atof(args[1].c_str())), static_cast<float>(std::atof(args[2].c_str())));
             mouseX = uiClicks.back().x;
             mouseY = uiClicks.back().y;
+            return "";
+        }
+
+        if (cmd == "hover" and args.size() > 2)
+        {
+            // The mouse over the UI at window pixels, no click (a tooltip shows)
+            std::lock_guard<std::mutex> lock(inputMutex);
+            mouseX = static_cast<float>(std::atof(args[1].c_str()));
+            mouseY = static_cast<float>(std::atof(args[2].c_str()));
             return "";
         }
 

@@ -691,6 +691,27 @@ TEST(arena_net, the_run_plays_for_every_client_and_each_has_their_own_shop)
     ASSERT_EQ(s.clientPlayer(a)->levelUps, 0);
     EXPECT_EQ(s.clientPlayer(a)->runSpells.size(), s.serverPlayer(a)->runSpells.size());
 
+    // Techniques, branches, presents and the interest reach the client as the server has them
+    Fighter* server = s.serverPlayer(a);
+    server->runSkills = {{"base:whirlwind", 5, 1}};
+    server->presents = 2;
+    server->presentOffer = {{"base:tough", 0, false, false, 2}};
+    server->banked = 40;
+    server->interest = 3;
+    s.run(10);
+    const Fighter* client = s.clientPlayer(a);
+    ASSERT_EQ(client->runSkills.size(), 1u);
+    EXPECT_EQ(client->runSkills[0].id, "base:whirlwind");
+    EXPECT_EQ(client->runSkills[0].level, 5);
+    EXPECT_EQ(client->runSkills[0].branch, 1);
+    EXPECT_EQ(client->presents, 2);
+    ASSERT_EQ(client->presentOffer.size(), 1u);
+    EXPECT_EQ(client->presentOffer[0].rarity, 2);
+    EXPECT_EQ(client->interest, 3);
+    server->presents = 0;
+    server->presentOffer.clear();
+    s.run(10);
+
     // a buys, and is ready; the wave waits for b
     const auto offer = s.clientPlayer(a)->shop[0];
     const int shards = s.clientPlayer(a)->shards;

@@ -49,7 +49,7 @@ namespace arena
         {
             auto it = content->upgrades.find(b.id);
 
-            if (it == content->upgrades.end() or it->second.forSpell)
+            if (it == content->upgrades.end() or it->second.forTag())
                 continue;
 
             // Its numbers times its rarity's power; whole ones (dash charges, stacks) as they are
@@ -100,27 +100,219 @@ namespace arena
         if (slot < 0 or slot >= static_cast<int>(f.runSpells.size()))
             return {};
 
-        const Fighter::RunSpell& rs = f.runSpells[static_cast<size_t>(slot)];
-        SpellRecipe r = spellAtLevel(rs.id, rs.level);
+        return spellAt(f.runSpells[static_cast<size_t>(slot)], &f);
+    }
 
-        // The spell items bought for it
+    // ---- Growing: levels, branches, tags --------------------------------------------------------
+
+    int ArenaWorld::branchAt(int writtenLevels) const
+    {
+        return std::max(content->run.branchLevel, 1 + writtenLevels + 1);
+    }
+
+    std::string ArenaWorld::offerTarget(const std::string& offer, int& branch)
+    {
+        const size_t hash = offer.rfind('#');
+        branch = -1;
+
+        if (hash == std::string::npos)
+            return offer;
+
+        branch = std::atoi(offer.c_str() + hash + 1);
+        return offer.substr(0, hash);
+    }
+
+    const Fighter::RunSpell* ArenaWorld::runSkill(const Fighter& f, const std::string& abilityId) const
+    {
+        for (const auto& rs : f.runSkills)
+            if (rs.id == abilityId)
+                return &rs;
+        return nullptr;
+    }
+
+    std::vector<std::string> ArenaWorld::spellTags(const SpellRecipe& recipe) const
+    {
+        std::vector<std::string> tags = {"spell", recipe.element};
+        auto add = [&](const std::string& t) {
+            if (std::find(tags.begin(), tags.end(), t) == tags.end())
+                tags.push_back(t);
+        };
+
+        for (const auto& id : recipe.keywords)
+        {
+            auto k = content->keywords.find(id);
+            if (k == content->keywords.end() or not k->second.form)
+                continue;
+
+            const std::string& shape = k->second.shape;
+            if (shape == "bolt")
+                add("projectile");
+            else if (shape == "nova")
+                add("area");
+            else if (shape == "zone")
+            {
+                add("zone");
+                add("area");
+            }
+            else if (shape == "beam")
+                add("beam");
+        }
+
+        return tags;
+    }
+
+    std::vector<std::string> ArenaWorld::techniqueTags(const AbilityDef& a, int branch) const
+    {
+        std::vector<std::string> tags = {"technique"};
+        auto add = [&](const std::string& t) {
+            if (not t.empty() and std::find(tags.begin(), tags.end(), t) == tags.end())
+                tags.push_back(t);
+        };
+
+        for (const auto& t : a.tags)
+            add(t);
+        if (a.attack.projectile.enabled)
+            add("projectile");
+        if (a.attack.element != Element::None)
+            add(elementName(a.attack.element));
+
+        if (branch >= 0 and branch < static_cast<int>(a.branches.size()))
+        {
+            const BranchDef& b = a.branches[static_cast<size_t>(branch)];
+            for (const auto& t : b.tags)
+                add(t);
+            if (b.element != Element::None)
+                add(elementName(b.element));
+        }
+
+        return tags;
+    }
+
+    SpellTweak ArenaWorld::tagBoost(const Fighter& f, const std::vector<std::string>& tags) const
+    {
+        SpellTweak t;
+
         for (const auto& b : f.boons)
         {
             auto it = content->upgrades.find(b.id);
-            if (b.spell != rs.id or it == content->upgrades.end() or not it->second.forSpell)
+            if (it == content->upgrades.end() or not it->second.forTag())
                 continue;
+            if (std::find(tags.begin(), tags.end(), it->second.tag) != tags.end())
+                t.add(it->second.boost, rarityPower(b.rarity));
+        }
 
-            const SpellTweak& t = it->second.spell;
-            const float k = rarityPower(b.rarity);
-            r.tweak.damage += t.damage * k;
-            r.tweak.area += t.area * k;
-            r.tweak.cooldown += t.cooldown * k;
-            r.tweak.cost += t.cost * k;
-            r.tweak.duration += t.duration * k;
-            r.tweak.speed += t.speed * k;
+        return t;
+    }
+
+    SpellRecipe ArenaWorld::spellAt(const Fighter::RunSpell& rs, const Fighter* f) const
+    {
+        auto it = content->spells.find(rs.id);
+        if (it == content->spells.end())
+            return {};
+
+        const SpellDef& def = it->second;
+        SpellRecipe r = spellAtLevel(rs.id, rs.level);
+        const BranchDef* branch = rs.branch >= 0 and rs.branch < static_cast<int>(def.branches.size()) ? &def.branches[static_cast<size_t>(rs.branch)] : nullptr;
+
+        // Past the written levels: the branch's keywords and boost, then a mastery boost for each other level
+        int beyond = std::max(0, rs.level - def.maxLevel());
+        if (branch)
+        {
+            r.keywords.insert(r.keywords.end(), branch->keywords.begin(), branch->keywords.end());
+            r.tweak.add(branch->boost);
+            beyond = std::max(0, beyond - 1);
+        }
+        r.tweak.add(content->run.mastery, static_cast<float>(beyond));
+
+        if (f)
+        {
+            std::vector<std::string> tags = spellTags(r);
+            if (branch)
+                for (const auto& t : branch->tags)
+                    if (std::find(tags.begin(), tags.end(), t) == tags.end())
+                        tags.push_back(t);
+            r.tweak.add(tagBoost(*f, tags));
         }
 
         return r;
+    }
+
+    SpellTweak ArenaWorld::techniqueBoost(const Fighter& f, const std::string& abilityId) const
+    {
+        SpellTweak t;
+        auto it = content->abilities.find(abilityId);
+
+        if (not inRun() or f.team != Team::Player or it == content->abilities.end())
+            return t;
+
+        const AbilityDef& a = it->second;
+        const Fighter::RunSpell* rs = runSkill(f, abilityId);
+        const int level = rs ? rs->level : 1;
+        const int branch = rs ? rs->branch : -1;
+
+        // Its written levels, the branch, a mastery boost for each level past those
+        const int written = std::min(level - 1, static_cast<int>(a.levels.size()));
+        for (int l = 0; l < written; ++l)
+            t.add(a.levels[static_cast<size_t>(l)]);
+
+        int beyond = std::max(0, level - 1 - static_cast<int>(a.levels.size()));
+        if (branch >= 0 and branch < static_cast<int>(a.branches.size()))
+        {
+            t.add(a.branches[static_cast<size_t>(branch)].boost);
+            beyond = std::max(0, beyond - 1);
+        }
+        t.add(content->run.mastery, static_cast<float>(beyond));
+
+        t.add(tagBoost(f, techniqueTags(a, branch)));
+        return t;
+    }
+
+    AttackDef ArenaWorld::boostedAttack(const AbilityDef& a, const SpellTweak& t, const BranchDef* branch) const
+    {
+        AttackDef out = a.attack;
+        const float damage = 1.0f + t.damage, area = 1.0f + t.area;
+
+        out.damage *= damage;
+        out.poiseDamage *= damage;
+        out.projectile.damage *= damage;
+        out.projectile.poiseDamage *= damage;
+        out.heal.amount *= damage;
+        out.healZone.perSecond *= damage;
+
+        for (auto& box : out.hitboxes)
+        {
+            box.size.x *= area;
+            box.size.z *= area;
+        }
+        out.heal.radius *= area;
+        out.healZone.radius *= area;
+        out.healZone.duration *= 1.0f + t.duration;
+        out.projectile.speed *= 1.0f + t.speed;
+        if (out.projectile.enabled)
+            out.projectile.count = std::clamp(out.projectile.count + t.count, 1, 16);
+
+        if (branch)
+        {
+            if (branch->element != Element::None)
+            {
+                out.element = branch->element;
+                out.projectile.element = branch->element;
+            }
+            if (not branch->status.status.empty())
+            {
+                out.status = branch->status;
+                out.projectile.status = branch->status;
+            }
+        }
+
+        return out;
+    }
+
+    float ArenaWorld::priceScale(int wave) const
+    {
+        const RunDef& def = content->run;
+        const float t = def.waves > 1 ? std::clamp(static_cast<float>(wave - 1) / static_cast<float>(def.waves - 1), 0.0f, 1.0f) : 0.0f;
+        return def.priceScale.x + (def.priceScale.y - def.priceScale.x) * t;
     }
 
     // ---- Starting, stopping ---------------------------------------------------------------------
@@ -167,6 +359,9 @@ namespace arena
             f.level = 1;
             f.shop.clear();
             f.levelOffer.clear();
+            f.runSkills.clear();
+            f.presents = f.banked = f.interest = 0;
+            f.presentOffer.clear();
             f.ready = false;
             sumBoons(f);
             respawn(f);
@@ -349,10 +544,13 @@ namespace arena
                 continue;
 
             f.ready = false;
+            f.banked = f.shards;   // what earns the interest at the next shop
 
             if (not f.alive())
                 respawn(f);
         }
+
+        run.presentsDropped = 0;
 
         // A boss wave: it comes first, from far off, and the wave lasts until it falls
         auto boss = def.bosses.find(wave);
@@ -393,7 +591,9 @@ namespace arena
                     nearest = &f;
                 }
 
-            if (nearest)
+            if (nearest and p.present)
+                ++nearest->presents;
+            else if (nearest)
                 collect(*nearest, p.value);
         }
 
@@ -429,8 +629,19 @@ namespace arena
 
             f.ready = false;
             f.rerolls = 0;
+
+            // Interest: the shards kept through the last shop grow as the prices did, so what could be bought then still can
+            f.interest = 0;
+            if (def.interest and f.banked > 0 and run.wave > 1)
+            {
+                const float growth = priceScale(run.wave) / std::max(0.01f, priceScale(run.wave - 1)) - 1.0f;
+                f.interest = std::max(0, static_cast<int>(std::ceil(static_cast<float>(f.banked) * growth - 1e-4f)));
+                f.shards += f.interest;
+            }
+
             rollShop(f);
             rollLevel(f);
+            rollPresent(f);
         }
 
         event("wave_clear", arena().centre, static_cast<float>(run.wave));
@@ -498,11 +709,15 @@ namespace arena
             pickups.push_back(p);
         }
 
-        // Too many lying about: the oldest go into the next one
+        // Too many lying about: the oldest shards go into the next ones (presents stay as they are)
         while (pickups.size() > 160)
         {
-            pickups[1].value += pickups[0].value;
-            pickups.erase(pickups.begin());
+            auto first = std::find_if(pickups.begin(), pickups.end(), [](const Pickup& p) { return not p.present; });
+            auto next = first == pickups.end() ? first : std::find_if(first + 1, pickups.end(), [](const Pickup& p) { return not p.present; });
+            if (next == pickups.end())
+                break;
+            next->value += first->value;
+            pickups.erase(first);
         }
     }
 
@@ -560,10 +775,20 @@ namespace arena
                 if (distance < 0.6f)
                 {
                     const int value = p.value;
+                    const bool present = p.present;
                     const glm::vec3 at = p.position;
                     pickups.erase(pickups.begin() + static_cast<std::ptrdiff_t>(i));
-                    collect(*to, value);
-                    event("pickup", at, static_cast<float>(value), to->id);
+
+                    if (present)
+                    {
+                        ++to->presents;
+                        event("present", at, 1.0f, to->id);
+                    }
+                    else
+                    {
+                        collect(*to, value);
+                        event("pickup", at, static_cast<float>(value), to->id);
+                    }
                     continue;
                 }
 
@@ -597,60 +822,61 @@ namespace arena
 
     // ---- The shop and level ups -----------------------------------------------------------------
 
-    void ArenaWorld::rollShop(Fighter& f)
+    std::vector<Fighter::ShopOffer> ArenaWorld::rollItems(const Fighter& f, int n, const std::vector<Fighter::ShopOffer>& kept, bool unlocks)
     {
         const RunDef& def = content->run;
-        const float growth = 1.0f + def.priceGrowth * static_cast<float>(std::max(0, run.wave - 1));
+        const float scale = priceScale(run.wave);
 
-        // Locked offers stay; the rest is rolled again
-        std::vector<Fighter::ShopOffer> kept;
-        for (const auto& o : f.shop)
-            if (o.locked and not o.bought)
-                kept.push_back(o);
-
-        auto offered = [&](const std::string& id, const std::string& spell) {
-            return std::any_of(kept.begin(), kept.end(), [&](const Fighter::ShopOffer& o) { return o.id == id and o.spell == spell; });
+        auto offered = [&](const std::string& id) {
+            return std::any_of(kept.begin(), kept.end(), [&](const Fighter::ShopOffer& o) { return o.id == id; });
         };
-        auto taken = [&](const std::string& id, const std::string& spell) {
-            return static_cast<int>(std::count_if(f.boons.begin(), f.boons.end(), [&](const Fighter::Boon& b) { return b.id == id and b.spell == spell; }));
+        auto taken = [&](const std::string& id) {
+            return static_cast<int>(std::count_if(f.boons.begin(), f.boons.end(), [&](const Fighter::Boon& b) { return b.id == id; }));
         };
 
-        // What can be offered: stat items not at their most, spell items for a spell the player has,
-        // unlocks (a mod's: the base run has none) not owned, nothing twice
-        struct Open { std::string id, spell; int price; bool item; };
+        // A tag item only when something of the player has its tag: it would do nothing otherwise
+        std::vector<std::string> tags;
+        for (const auto& rs : f.runSpells)
+            for (const auto& t : spellTags(spellAt(rs)))
+                tags.push_back(t);
+        for (const auto& rs : f.runSkills)
+            if (auto a = content->abilities.find(rs.id); a != content->abilities.end())
+                for (const auto& t : techniqueTags(a->second, rs.branch))
+                    tags.push_back(t);
+
+        // What can be offered: items not at their most, unlocks (a mod's: the base run has none) not owned, nothing twice
+        struct Open { std::string id; int price; bool item; };
         std::vector<Open> open;
 
         for (const auto& [id, u] : content->upgrades)
         {
-            if (not u.forSpell)
-            {
-                if (taken(id, "") < u.most and not offered(id, ""))
-                    open.push_back({id, "", u.price, true});
+            if (taken(id) >= u.most or offered(id))
                 continue;
-            }
-
-            for (const auto& rs : f.runSpells)
-                if (taken(id, rs.id) < u.most and not offered(id, rs.id))
-                    open.push_back({id, rs.id, u.price, true});
+            if (u.forTag() and std::find(tags.begin(), tags.end(), u.tag) == tags.end())
+                continue;
+            open.push_back({id, u.price, true});
         }
 
-        // The weapon was chosen at the start: no weapons, and only the skills of the one in hand
-        const auto weapon = content->weapons.find(f.weapon);
-        const std::string type = weapon != content->weapons.end() ? weapon->second.type : "";
+        if (unlocks)
+        {
+            // The weapon was chosen at the start: no weapons, and only the skills of the one in hand
+            const auto weapon = content->weapons.find(f.weapon);
+            const std::string type = weapon != content->weapons.end() ? weapon->second.type : "";
 
-        auto forSale = [&](const std::string& id) {
-            if (def.chooseWeapon and content->weapons.count(id))
-                return false;
+            auto forSale = [&](const std::string& id) {
+                if (def.chooseWeapon and content->weapons.count(id))
+                    return false;
 
-            if (auto a = content->abilities.find(id); a != content->abilities.end() and not a->second.weapons.empty())
-                return std::find(a->second.weapons.begin(), a->second.weapons.end(), type) != a->second.weapons.end();
+                if (auto a = content->abilities.find(id); a != content->abilities.end() and not a->second.weapons.empty())
+                    return std::find(a->second.weapons.begin(), a->second.weapons.end(), type) != a->second.weapons.end();
 
-            return true;
-        };
+                return true;
+            };
 
-        for (const auto& [id, price] : def.unlocks)
-            if (not owns(f, id) and not offered(id, "") and forSale(id))
-                open.push_back({id, "", price, false});
+            for (const auto& [id, price] : def.unlocks)
+                if (not owns(f, id) and not offered(id) and forSale(id))
+                    open.push_back({id, price, false});
+        }
 
         for (size_t i = open.size(); i > 1; --i)
             std::swap(open[i - 1], open[runRandom() % i]);
@@ -674,22 +900,50 @@ namespace arena
             return 0;
         };
 
-        f.shop = kept;
+        std::vector<Fighter::ShopOffer> out;
 
         for (const auto& o : open)
         {
-            if (static_cast<int>(f.shop.size()) >= def.shopSlots)
+            if (static_cast<int>(out.size()) >= n)
                 break;
 
             const int rarity = o.item ? rollRarity() : 0;
             const float rarityPrice = o.item and rarity < static_cast<int>(def.rarities.size()) ? def.rarities[static_cast<size_t>(rarity)].price : 1.0f;
             Fighter::ShopOffer offer;
             offer.id = o.id;
-            offer.price = static_cast<int>(std::lround(static_cast<float>(o.price) * rarityPrice * growth));
+            offer.price = std::max(1, static_cast<int>(std::lround(static_cast<float>(o.price) * rarityPrice * scale)));
             offer.rarity = rarity;
-            offer.spell = o.spell;
-            f.shop.push_back(offer);
+            out.push_back(offer);
         }
+
+        return out;
+    }
+
+    void ArenaWorld::rollShop(Fighter& f)
+    {
+        // Locked offers stay; the rest is rolled again
+        std::vector<Fighter::ShopOffer> kept;
+        for (const auto& o : f.shop)
+            if (o.locked and not o.bought)
+                kept.push_back(o);
+
+        f.shop = kept;
+        for (const auto& o : rollItems(f, content->run.shopSlots - static_cast<int>(kept.size()), kept, true))
+            f.shop.push_back(o);
+    }
+
+    void ArenaWorld::rollPresent(Fighter& f)
+    {
+        f.presentOffer.clear();
+
+        if (f.presents <= 0)
+            return;
+
+        f.presentOffer = rollItems(f, content->run.presentChoices, {}, false);
+
+        // Nothing left to give
+        if (f.presentOffer.empty())
+            f.presents = 0;
     }
 
     void ArenaWorld::rollLevel(Fighter& f)
@@ -699,16 +953,37 @@ namespace arena
         if (f.levelUps <= 0)
             return;
 
-        // A spell not had (while a key is free), a spell's next level, a weapon skill of the one in hand
+        // A spell not had (while a key is free), a technique of the weapon in hand not had, or the next level of
+        // one had: at its branch level, each of its branches
         std::vector<std::string> open;
+
+        auto grow = [&](const std::string& id, int level, int branch, int written, size_t branches) {
+            if (level + 1 == branchAt(written) and branches > 0 and branch < 0)
+            {
+                for (size_t b = 0; b < branches; ++b)
+                    open.push_back(id + "#" + std::to_string(b));
+            }
+            else
+            {
+                open.push_back(id);
+            }
+        };
 
         for (const auto& entry : content->spells)
         {
             const std::string& id = entry.first;
+            const SpellDef& sp = entry.second;
             auto has = std::find_if(f.runSpells.begin(), f.runSpells.end(), [&](const Fighter::RunSpell& r) { return r.id == id; });
 
-            if (has == f.runSpells.end() ? f.runSpells.size() < SPELL_SLOTS : has->level < entry.second.maxLevel())
-                open.push_back(id);
+            if (has == f.runSpells.end())
+            {
+                if (f.runSpells.size() < SPELL_SLOTS)
+                    open.push_back(id);
+            }
+            else
+            {
+                grow(id, has->level, has->branch, static_cast<int>(sp.levels.size()), sp.branches.size());
+            }
         }
 
         const auto weapon = content->weapons.find(f.weapon);
@@ -717,9 +992,14 @@ namespace arena
         for (const auto& id : content->run.levelSkills)
         {
             auto a = content->abilities.find(id);
-            if (a == content->abilities.end() or owns(f, id))
+            if (a == content->abilities.end())
                 continue;
-            if (a->second.weapons.empty() or std::find(a->second.weapons.begin(), a->second.weapons.end(), type) != a->second.weapons.end())
+            if (not a->second.weapons.empty() and std::find(a->second.weapons.begin(), a->second.weapons.end(), type) == a->second.weapons.end())
+                continue;
+
+            if (const Fighter::RunSpell* rs = runSkill(f, id))
+                grow(id, rs->level, rs->branch, static_cast<int>(a->second.levels.size()), a->second.branches.size());
+            else
                 open.push_back(id);
         }
 
@@ -733,24 +1013,73 @@ namespace arena
         for (size_t i = open.size(); i > 1; --i)
             std::swap(open[i - 1], open[runRandom() % i]);
 
-        open.resize(std::min(open.size(), static_cast<size_t>(content->run.levelChoices)));
-        f.levelOffer = open;
+        // A branch choice shows all its branches together
+        std::vector<std::string> picks;
+        for (const auto& o : open)
+        {
+            if (static_cast<int>(picks.size()) >= content->run.levelChoices)
+                break;
+
+            int branch = -1;
+            const std::string target = offerTarget(o, branch);
+
+            if (branch < 0)
+            {
+                picks.push_back(o);
+                continue;
+            }
+
+            if (std::any_of(picks.begin(), picks.end(), [&](const std::string& p) { int b; return offerTarget(p, b) == target; }))
+                continue;
+
+            for (const auto& other : open)
+            {
+                int b = -1;
+                if (offerTarget(other, b) == target and b >= 0)
+                    picks.push_back(other);
+            }
+        }
+
+        f.levelOffer = picks;
     }
 
-    void ArenaWorld::takeLevel(Fighter& f, const std::string& id)
+    void ArenaWorld::takeLevel(Fighter& f, const std::string& offer)
     {
+        int branch = -1;
+        const std::string id = offerTarget(offer, branch);
+
         if (content->spells.count(id))
         {
             auto has = std::find_if(f.runSpells.begin(), f.runSpells.end(), [&](const Fighter::RunSpell& r) { return r.id == id; });
 
             if (has != f.runSpells.end())
-                has->level = std::min(has->level + 1, content->spells.at(id).maxLevel());
+            {
+                ++has->level;
+                if (branch >= 0 and branch < static_cast<int>(content->spells.at(id).branches.size()))
+                    has->branch = branch;
+            }
             else if (f.runSpells.size() < SPELL_SLOTS)
+            {
                 f.runSpells.push_back({id, 1});
+            }
         }
-        else if (content->abilities.count(id) and not owns(f, id))
+        else if (content->abilities.count(id))
         {
-            f.owned.push_back(id);
+            auto has = std::find_if(f.runSkills.begin(), f.runSkills.end(), [&](const Fighter::RunSpell& r) { return r.id == id; });
+
+            if (has != f.runSkills.end())
+            {
+                ++has->level;
+                if (branch >= 0 and branch < static_cast<int>(content->abilities.at(id).branches.size()))
+                    has->branch = branch;
+            }
+            else
+            {
+                f.runSkills.push_back({id, 1});
+            }
+
+            if (not owns(f, id))
+                f.owned.push_back(id);
         }
     }
 
@@ -780,10 +1109,24 @@ namespace arena
         if (run.timer > 0.0f)
             return;
 
-        // The level ups come first: the shop waits for them
+        // The level ups come first, then the presents: the shop waits for them
         const bool levelling = f.levelUps > 0 and not f.levelOffer.empty();
         if (levelling and not (pick >= InputFrame::LEVEL and pick < InputFrame::LEVEL + static_cast<int>(f.levelOffer.size())))
             return;
+
+        const bool opening = not levelling and f.presents > 0 and not f.presentOffer.empty();
+        if (opening and not (pick >= InputFrame::PRESENT and pick < InputFrame::PRESENT + static_cast<int>(f.presentOffer.size())))
+            return;
+
+        if (opening)
+        {
+            const auto& o = f.presentOffer[static_cast<size_t>(pick - InputFrame::PRESENT)];
+            takeBoon(f, {o.id, o.rarity});
+            --f.presents;
+            rollPresent(f);
+            event("buy", chest(f), 1.0f, f.id);
+            return;
+        }
 
         if (pick >= InputFrame::BUY and pick < InputFrame::BUY + offers)
         {
@@ -798,7 +1141,7 @@ namespace arena
 
             if (content->upgrades.count(o.id))
             {
-                takeBoon(f, {o.id, o.rarity, o.spell});
+                takeBoon(f, {o.id, o.rarity});
             }
             else
             {
@@ -834,6 +1177,10 @@ namespace arena
             takeLevel(f, f.levelOffer[static_cast<size_t>(pick - InputFrame::LEVEL)]);
             --f.levelUps;
             rollLevel(f);
+
+            // Done levelling: the presents' picks next (their items may now reach what was just taken)
+            if (f.levelUps <= 0)
+                rollPresent(f);
             event("boon", chest(f), 1.0f, f.id);
         }
         else if (pick == InputFrame::START)
@@ -944,7 +1291,7 @@ namespace arena
 
                 // More of them all the while, faster as the run goes on and with more players; half as many with a boss
                 const float t = def.waves > 1 ? static_cast<float>(run.wave - 1) / static_cast<float>(def.waves - 1) : 0.0f;
-                const float coop = 1.0f + def.coopScale * static_cast<float>(std::max(0, players - 1));
+                const float coop = def.spawnScale * (1.0f + def.coopScale * static_cast<float>(std::max(0, players - 1)));
                 const float rate = (def.spawnRate.x + (def.spawnRate.y - def.spawnRate.x) * t) * coop * (run.bossWave ? 0.5f : 1.0f);
                 const int most = static_cast<int>(std::lround((static_cast<float>(def.maxAlive.x) + static_cast<float>(def.maxAlive.y - def.maxAlive.x) * t) * coop));
 
