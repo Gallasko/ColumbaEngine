@@ -1,7 +1,7 @@
 // Voxel Arena dedicated server: the same simulation and server as a host, with no window, no
 // player of its own and nothing drawn or played.
 //
-//   VoxelArenaServer [--port 7777] [--mods path] [--no-upnp]
+//   VoxelArenaServer [--port 7777] [--mods path] [--no-upnp] [--upnp-ports 7777,45000-45200]
 //
 // Players join with VoxelArena --join address[:port]; the run starts when everyone is ready.
 // It opens its ports on the router itself (UPnP) unless told not to. Stop it with Ctrl+C.
@@ -50,6 +50,7 @@ int main(int argc, char* argv[])
     std::string modsDir;
     uint16_t port = 7777;
     bool upnp = true;
+    std::string upnpPorts;   // the outside ports to try on the router ("": the server's, then 45000-45200)
 
     for (int i = 1; i < argc; ++i)
     {
@@ -61,6 +62,8 @@ int main(int argc, char* argv[])
             modsDir = argv[++i];
         else if (a == "--no-upnp")
             upnp = false;
+        else if (a == "--upnp-ports" and i + 1 < argc)
+            upnpPorts = argv[++i];
     }
 
     if (modsDir.empty())
@@ -105,7 +108,7 @@ int main(int argc, char* argv[])
     // The router's ports, opened for players from outside (said once it is known)
     arena::net::PortMapper portMapper;
     if (upnp)
-        portMapper.start(port, static_cast<uint16_t>(port + 1), "Voxel Arena server");
+        portMapper.start(port, static_cast<uint16_t>(port + 1), "Voxel Arena server", arena::net::PortMapper::parsePorts(upnpPorts));
     auto routerState = arena::net::PortMapper::State::Off;
 
     // 60 steps a second, on a fixed schedule (a late step is caught up, a far behind one skipped)
@@ -128,7 +131,8 @@ int main(int argc, char* argv[])
         {
             routerState = st.state;
             if (st.state == arena::net::PortMapper::State::Open)
-                std::cout << "Router ports opened: players join with " << (st.externalIp.empty() ? "your public address" : st.externalIp) << ":" << port << std::endl;
+                std::cout << "Router ports opened: players join with " << (st.externalIp.empty() ? "your public address" : st.externalIp) << ":"
+                          << (st.externalPort ? st.externalPort : port) << std::endl;
             else if (st.state == arena::net::PortMapper::State::NoRouter or st.state == arena::net::PortMapper::State::Failed)
                 std::cout << "Router ports not opened (" << st.error << "): forward TCP " << port << " and UDP " << port + 1 << " to this machine" << std::endl;
         }

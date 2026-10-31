@@ -6,6 +6,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 namespace arena::net
 {
@@ -26,6 +27,7 @@ namespace arena::net
         {
             State state = State::Off;
             std::string externalIp;   // the router's address on the internet, when it said
+            uint16_t externalPort = 0;   // the port others join with (TCP; UDP the next one): may differ from the game's
             std::string lanIp;        // this machine's address on the router's network
             std::string error;
         };
@@ -36,7 +38,16 @@ namespace arena::net
         PortMapper(const PortMapper&) = delete;
         PortMapper& operator=(const PortMapper&) = delete;
 
-        void start(uint16_t tcpPort, uint16_t udpPort, const std::string& description);
+        /**
+         * candidates: the outside ports to ask the router for, in order (TCP; UDP gets the next one), each
+         * pair led to the game's own tcpPort and udpPort. Some routers only open some (a Freebox: above
+         * 45000). Empty: the game's own port, then DEFAULT_RANGE.
+         */
+        void start(uint16_t tcpPort, uint16_t udpPort, const std::string& description, const std::vector<uint16_t>& candidates = {});
+
+        /** "7777,45000-45200": ports and ranges, in order (a range by twos: each takes a pair). */
+        static std::vector<uint16_t> parsePorts(const std::string& text);
+        static constexpr const char* DEFAULT_RANGE = "45000-45200";
         void stop();
 
         Status status() const;
@@ -49,6 +60,7 @@ namespace arena::net
         void set(State state, const std::string& error = "");
 
         uint16_t tcpPort = 0, udpPort = 0;
+        std::vector<uint16_t> candidates;
         std::string description;
 
         mutable std::mutex mutex;

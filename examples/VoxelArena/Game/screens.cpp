@@ -68,7 +68,7 @@ namespace arena::screens
         ui.raised(x, y, w, h, PANEL, 4.0f);
         ui.hit(x, y, w, h, -1);   // the panel itself takes the click (nothing happens)
 
-        ui.text(x + 28, y + 22, "Invite friends", Font::Display, 40, TEXT);
+        ui.text(x + 28, y + 22, v.hosting or v.joined ? "Invite friends" : "Multiplayer", Font::Display, 40, TEXT);
         {
             const float cw = 22.0f + 8.0f + ui.measure("Close", Font::Text600, 13) + 18.0f;
             const bool over = ui.hover(x + w - 28 - cw, y + 26, cw, 30);
@@ -104,27 +104,25 @@ namespace arena::screens
 
         if (not v.hosting and not v.joined)
         {
-            // Alone: this game becomes the host first, right here
-            ui.paragraph(x + 28, ry, w - 56, "Friends join a game someone hosts. Host this one and they can join you now, in the training "
-                         "ground or the arena: everyone needs the same mods.", Font::Text500, 14, TEXT_DIM, 20.0f);
-            ry += 70.0f;
+            // Alone: host this game (it becomes the host right here), or join a friend's
+            ui.paragraph(x + 28, ry, w - 56, "Play with friends: host a game here and they join you, or join the game a friend hosts. "
+                         "Everyone plays with the host's mods.", Font::Text500, 14, TEXT_DIM, 20.0f);
+            ry += 64.0f;
 
-            const bool over = ui.hover(x + 28, ry, w - 56, 64);
-            ui.raised(x + 28, ry, w - 56, 64, GOLD, 3.0f, 2.0f, over ? TEXT : INK);
-            const float kw = ui.measure("ENTER", Font::Display, 18) + 12.0f;
-            ui.box(x + 46, ry + 19, kw, 26, INK, 0.0f);
-            ui.text(x + 46 + kw * 0.5f, ry + 22, "ENTER", Font::Display, 18, GOLD, Align::Centre);
-            ui.text(x + 46 + kw + 14, ry + 12, "Host this game", Font::Display, 32, GOLD_INK);
-            ui.text(x + w - 44, ry + 25, "port " + std::to_string(v.port) + " and " + std::to_string(v.port + 1), Font::Text600, 12, hex(0x5A4718), Align::Right);
-            ui.hit(x + 28, ry, w - 56, 64, INVITE_HOST);
-            ry += 84.0f;
+            auto choice = [&](float by, const std::string& key, const std::string& name, const std::string& line, int action) {
+                const auto choiceScope = ui.scope(static_cast<uint64_t>(action));
+                const bool over = ui.hover(x + 28, by, w - 56, 84);
+                ui.raised(x + 28, by, w - 56, 84, GOLD, 3.0f, 2.0f, over ? TEXT : INK);
+                ui.keycap(x + 46, by + 26, 30, key, INK, GOLD, 22, 0.0f);
+                ui.text(x + 92, by + 14, name, Font::Display, 34, GOLD_INK);
+                ui.text(x + 92, by + 54, line, Font::Text600, 12, hex(0x5A4718));
+                ui.hit(x + 28, by, w - 56, 84, action);
+            };
 
-            const bool overJoin = ui.hover(x + 28, ry, w - 56, 44);
-            ui.box(x + 28, ry, w - 56, 44, CARD, 2.0f, overJoin ? GOLD : LINE);
-            ui.keycap(x + 40, ry + 10, 24, "J", GOLD, GOLD_INK, 18, 0.0f);
-            ui.text(x + 76, ry + 9, "Join a friend's game instead", Font::Display, 26, TEXT);
-            ui.hit(x + 28, ry, w - 56, 44, INVITE_JOIN);
-            ry += 54.0f;
+            choice(ry, "H", "Host a game", "your friends join you, on port " + std::to_string(v.port) + " and " + std::to_string(v.port + 1), INVITE_HOST);
+            ry += 98.0f;
+            choice(ry, "J", "Join a game", "a friend's, with the address their invite shows", INVITE_JOIN);
+            ry += 98.0f;
         }
         else if (v.joined)
         {
@@ -135,7 +133,10 @@ namespace arena::screens
             switch (v.router)
             {
                 case LobbyView::Router::Open:
-                    row("ONLINE", (v.externalAddress.empty() ? "?" : v.externalAddress) + port, "your router opened the ports", GOOD, v.externalAddress.empty() ? 0 : INVITE_COPY_ONLINE);
+                    row("ONLINE", (v.externalAddress.empty() ? "?" : v.externalAddress) + ":" + std::to_string(v.externalPort ? v.externalPort : v.port),
+                        v.externalPort and v.externalPort != v.port ? "your router opened " + std::to_string(v.externalPort) + " (to this game's " + std::to_string(v.port) + ")"
+                                                                  : std::string("your router opened the ports"),
+                        GOOD, v.externalAddress.empty() ? 0 : INVITE_COPY_ONLINE);
                     break;
                 case LobbyView::Router::Searching:
                     row("ONLINE", "", "looking for your router\xE2\x80\xA6", MUTED, 0);
@@ -368,7 +369,6 @@ namespace arena::screens
         ui.rectPx(ui.X(620), 0, ui.X(628), ui.height(), withAlpha(INK, 0.6f));
         ui.rectPx(ui.X(628), 0, ui.X(636), ui.height(), withAlpha(INK, 0.35f));
 
-        drawInviteButton(ui, v.time);
         ui.anchor(Anchor::Left);
 
         // The logo: a row of blocks in the game's colours, then the name
@@ -407,7 +407,7 @@ namespace arena::screens
         struct Item { std::string key, name, hint; int action; };
         const Item items[] = {
             {"T", "Training ground", "dummies, enemies that come back", TITLE_TRAINING},
-            {"J", "Join a game", "a friend's, by their address", TITLE_JOIN},
+            {"M", "Multiplayer", "host a game, or join a friend's", TITLE_MULTIPLAYER},
             {"B", "Spellbook", "build your spells", TITLE_SPELLBOOK},
             {"O", "Options", "mouse, view, sound", TITLE_OPTIONS},
         };
@@ -582,7 +582,7 @@ namespace arena::screens
                     break;
                 case LobbyView::Router::Open:
                 {
-                    const float aw = ui.text(130, 638, (v.externalAddress.empty() ? "your public address" : v.externalAddress) + port, Font::Display, 22, TEXT);
+                    const float aw = ui.text(130, 638, (v.externalAddress.empty() ? "your public address" : v.externalAddress) + ":" + std::to_string(v.externalPort ? v.externalPort : v.port), Font::Display, 22, TEXT);
                     ui.text(130 + aw + 10, 643, "ports opened on your router", Font::Text600, 11, GOOD);
                     break;
                 }

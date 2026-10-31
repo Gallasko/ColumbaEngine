@@ -308,21 +308,24 @@ no host: the run starts when everyone is ready. T goes to the training ground me
 L brings the lobby back outside a run, and it comes back by itself for those who joined when the host
 leaves the end of a run.
 
-**Inviting**: the + at the top left of the title and the lobby (or I). Playing alone, it offers to
-host the game right there (no restart: the training ground goes on, now open to others), then shows
-the addresses to share with a Copy button each (online when the router opened the ports, and on the
-same network) and the command a friend starts the game with. Someone who joined sees the address they
-joined, to pass on.
+**Multiplayer, from the title** (M): Host a game (H) makes this game the host right there (no restart:
+the training ground goes on, now open to others), then shows the addresses to share with a Copy button
+each (online when the router opened the ports, and on the same network) and the command a friend starts
+the game with; Join a game (J) asks for a friend's address. In the lobby, the + at the top left (or I)
+shows the addresses again; someone who joined sees the address they joined, to pass on.
 
 **Names**: the options' first row is the name the others see (click it, type, Enter); it is kept, the
 host's lobby shows it, and a player who joined tells the server when it changes. In a game with others
 every player has their name over them (an ally's health under it, yours in third person).
 
+**Back to the title**: To title, in the options while playing (alone, a run's end; hosting, the run ends for
+everyone, back to the lobby; a player who joined leaves). In a run it asks for a second click.
+
 **Quitting**: Quit game, at the bottom of the title and the lobby and in the options, asks for a second
 click within 3 s (a player who joined says goodbye to the host first). The menus (options, spellbook)
 pause the game when nobody else is in it, hosting with nobody joined included.
 
-**Joining from the game**: the title's J (or the invite panel's "Join a friend's game instead") asks
+**Joining from the game**: Join a game (the title's Multiplayer, or J) asks
 for the host's address (`address` or `address:port`, 7777 when none; Paste takes what their invite
 copied, the address or the whole command) and the name the others see. Both are kept for next time.
 This game becomes a client of theirs on the spot, in their lobby; Leave (Stop hosting, for a game that
@@ -331,7 +334,10 @@ started hosting from its title) makes it a game alone again. Console: `join <add
 **Over the internet** the host's router has to let the two ports in. The host shows how friends join:
 its address on the local network, and, when its router opened the ports by itself (UPnP), its public
 address. A router without UPnP (or with it off) says so, and the lobby says which ports to forward to
-which machine. `--no-upnp` (game or dedicated server) leaves the router alone. The ports are closed
+which machine. `--no-upnp` (game or dedicated server) leaves the router alone. Some routers only open some outside
+ports (a Freebox: above 45000): the game asks for its own first, then 45000, 45002... up to 45200 (each
+pair, TCP and the next for UDP, led to the game's 7777 and 7778), and the lobby and the invite show the one
+the router took (`81.2.3.4:45000`). `--upnp-ports 7777,45000-45200,50000` sets the ports tried, in order. The ports are closed
 again when the game quits; a mapping left by a crash runs out within an hour.
 
 **Everyone must have the same gameplay content**, and players get it from the server. The server

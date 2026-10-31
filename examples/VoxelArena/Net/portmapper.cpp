@@ -8,7 +8,9 @@
 
 #include "logger.h"
 
+#include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 
 #ifdef VOXELARENA_UPNP
@@ -43,7 +45,33 @@ namespace arena::net
         stop();
     }
 
-    void PortMapper::start(uint16_t tcp, uint16_t udp, const std::string& desc)
+    std::vector<uint16_t> PortMapper::parsePorts(const std::string& text)
+    {
+        std::vector<uint16_t> out;
+        size_t at = 0;
+
+        while (at < text.size() and out.size() < 256)
+        {
+            size_t comma = text.find(',', at);
+            if (comma == std::string::npos)
+                comma = text.size();
+            const std::string part = text.substr(at, comma - at);
+            at = comma + 1;
+
+            const size_t dash = part.find('-');
+            const long from = std::strtol(part.c_str(), nullptr, 10);
+            const long to = dash == std::string::npos ? from : std::strtol(part.c_str() + dash + 1, nullptr, 10);
+
+            // A range: every other port (each one taken goes with the next, for UDP)
+            for (long p = from; p <= to and p > 0 and p < 65535 and out.size() < 256; p += 2)
+                if (std::find(out.begin(), out.end(), static_cast<uint16_t>(p)) == out.end())
+                    out.push_back(static_cast<uint16_t>(p));
+        }
+
+        return out;
+    }
+
+    void PortMapper::start(uint16_t tcp, uint16_t udp, const std::string& desc, const std::vector<uint16_t>& tries)
     {
         stop();
 
@@ -51,6 +79,16 @@ namespace arena::net
         udpPort = udp;
         description = desc;
         stopping = false;
+
+        // The game's own port first, then the others (a router may only open some)
+        candidates = tries;
+        if (candidates.empty())
+        {
+            candidates.push_back(tcp);
+            for (uint16_t p : parsePorts(DEFAULT_RANGE))
+                if (p != tcp)
+                    candidates.push_back(p);
+        }
 
 #ifdef VOXELARENA_UPNP
         set(State::Searching);
@@ -89,7 +127,7 @@ namespace arena::net
 
         // The lobby shows this; the log keeps it for a host asking why nobody could join
         if (state == State::Open)
-            LOG_INFO(DOM, "Router opened TCP " << tcpPort << " and UDP " << udpPort << " (UPnP)");
+            LOG_INFO(DOM, "Router opened TCP " << current.externalPort << " and UDP " << current.externalPort + (udpPort - tcpPort) << " to this machine's " << tcpPort << " and " << udpPort << " (UPnP)");
         else if (not error.empty())
             LOG_INFO(DOM, "Router did not open the ports: " << error);
     }
@@ -132,49 +170,90 @@ namespace arena::net
             current.externalIp = external;
         }
 
-        const std::string tcp = std::to_string(tcpPort), udp = std::to_string(udpPort);
+        const std::string inTcp = std::to_string(tcpPort), inUdp = std::to_string(udpPort);
+        const int udpOffset = static_cast<int>(udpPort) - static_cast<int>(tcpPort);
 
-        auto add = [&](const std::string& port, const char* proto) {
+        // Outside port -> the game's port on this machine, for a while (renewed); 725: only permanent ones
+        auto add = [&](const std::string& outside, const std::string& inside, const char* proto) {
             const std::string lease = std::to_string(LEASE_SECONDS);
-            int r = UPNP_AddPortMapping(urls.controlURL, data.first.servicetype, port.c_str(), port.c_str(), lan, description.c_str(), proto, nullptr, lease.c_str());
-
-            // 725: OnlyPermanentLeasesSupported
+            int r = UPNP_AddPortMapping(urls.controlURL, data.first.servicetype, outside.c_str(), inside.c_str(), lan, description.c_str(), proto, nullptr, lease.c_str());
             if (r == 725)
-                r = UPNP_AddPortMapping(urls.controlURL, data.first.servicetype, port.c_str(), port.c_str(), lan, description.c_str(), proto, nullptr, "0");
-
+                r = UPNP_AddPortMapping(urls.controlURL, data.first.servicetype, outside.c_str(), inside.c_str(), lan, description.c_str(), proto, nullptr, "0");
             return r;
         };
 
-        bool open = false;
+        // The first pair of outside ports the router takes: the TCP one, and the next for UDP
+        std::string outTcp, outUdp;
+        int lastError = 0;
+        int tried = 0;
 
+        for (uint16_t candidate : candidates)
+        {
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                if (stopping)
+                    break;
+            }
+
+            const int udpOut = static_cast<int>(candidate) + udpOffset;
+            if (udpOut <= 0 or udpOut > 65535)
+                continue;
+
+            ++tried;
+            const std::string t = std::to_string(candidate), u = std::to_string(udpOut);
+            const int rt = add(t, inTcp, "TCP");
+
+            if (rt != UPNPCOMMAND_SUCCESS)
+            {
+                lastError = rt;
+                continue;
+            }
+
+            const int ru = add(u, inUdp, "UDP");
+
+            if (ru != UPNPCOMMAND_SUCCESS)
+            {
+                // Half open is no use: the TCP one closed again, on to the next pair
+                UPNP_DeletePortMapping(urls.controlURL, data.first.servicetype, t.c_str(), "TCP", nullptr);
+                lastError = ru;
+                continue;
+            }
+
+            outTcp = t;
+            outUdp = u;
+            break;
+        }
+
+        if (outTcp.empty())
+        {
+            FreeUPNPUrls(&urls);
+            set(State::Failed, "the router took none of the " + std::to_string(tried) + " ports tried" +
+                                   (lastError ? std::string(" (") + strupnperror(lastError) + ")" : std::string()));
+            return;
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            current.externalPort = static_cast<uint16_t>(std::stoi(outTcp));
+        }
+        set(State::Open);
+
+        // Kept open while the game runs: renewed before the lease runs out
         while (true)
         {
-            const int rt = add(tcp, "TCP");
-            const int ru = add(udp, "UDP");
-
-            if (rt == UPNPCOMMAND_SUCCESS and ru == UPNPCOMMAND_SUCCESS)
             {
-                open = true;
-                set(State::Open);
-            }
-            else if (not open)
-            {
-                const int r = rt != UPNPCOMMAND_SUCCESS ? rt : ru;
-                set(State::Failed, std::string("the router said no: ") + strupnperror(r));
-                break;
+                std::unique_lock<std::mutex> lock(mutex);
+                if (wake.wait_for(lock, RENEW_EVERY, [this]() { return stopping; }))
+                    break;
             }
 
-            std::unique_lock<std::mutex> lock(mutex);
-            if (wake.wait_for(lock, RENEW_EVERY, [this]() { return stopping; }))
-                break;
+            add(outTcp, inTcp, "TCP");
+            add(outUdp, inUdp, "UDP");
         }
 
         // On the way out: the ports closed again
-        if (open)
-        {
-            UPNP_DeletePortMapping(urls.controlURL, data.first.servicetype, tcp.c_str(), "TCP", nullptr);
-            UPNP_DeletePortMapping(urls.controlURL, data.first.servicetype, udp.c_str(), "UDP", nullptr);
-        }
+        UPNP_DeletePortMapping(urls.controlURL, data.first.servicetype, outTcp.c_str(), "TCP", nullptr);
+        UPNP_DeletePortMapping(urls.controlURL, data.first.servicetype, outUdp.c_str(), "UDP", nullptr);
 
         FreeUPNPUrls(&urls);
 #endif

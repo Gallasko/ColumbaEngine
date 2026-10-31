@@ -38,6 +38,8 @@ int main(int argc, char* argv[])
             options.name = argv[++i];
         else if (a == "--no-upnp")
             options.upnp = false;
+        else if (a == "--upnp-ports" and i + 1 < argc)
+            options.upnpPorts = argv[++i];
         else if (a == "--host")
         {
             options.net = LaunchOptions::Net::Host;

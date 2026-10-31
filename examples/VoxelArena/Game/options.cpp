@@ -186,7 +186,7 @@ namespace arena
         return first == std::string::npos ? "" : nameEdit.substr(first, last - first + 1);
     }
 
-    void OptionsScreen::draw(Ui& ui, const GameOptions& o, bool paused, bool inGame, bool quitArmed)
+    void OptionsScreen::draw(Ui& ui, const GameOptions& o, bool paused, bool inGame, bool quitArmed, bool titleArmed)
     {
         using namespace ui;
 
@@ -285,17 +285,30 @@ namespace arena
         ui.text(360 + kw + 10, 617, inGame ? "Resume" : "Back", Font::Display, 24, GOLD_INK);
         ui.hit(348, 610, 150, 42, BACK);
 
+        float bx = 512.0f;
         {
             const float cw = ui.measure("Controls", Font::Display, 22) + 28.0f;
-            const bool over = ui.hover(512, 610, cw, 42);
-            ui.box(512, 610, cw, 42, CARD, 2.0f, over ? GOLD : LINE);
-            ui.text(512 + cw * 0.5f, 618, "Controls", Font::Display, 22, TEXT, Align::Centre);
-            ui.hit(512, 610, cw, 42, CONTROLS);
+            const bool over = ui.hover(bx, 610, cw, 42);
+            ui.box(bx, 610, cw, 42, CARD, 2.0f, over ? GOLD : LINE);
+            ui.text(bx + cw * 0.5f, 618, "Controls", Font::Display, 22, TEXT, Align::Centre);
+            ui.hit(bx, 610, cw, 42, CONTROLS);
+            bx += cw + 12.0f;
+        }
+
+        // Back to the title (from playing): leaving a run asks twice
+        if (inGame)
+        {
+            const std::string label = titleArmed ? "Leave the run?" : "To title";
+            const float tw = ui.measure(label, Font::Display, 22) + 28.0f;
+            const bool over = ui.hover(bx, 610, tw, 42);
+            ui.box(bx, 610, tw, 42, titleArmed ? hex(0x2A2414) : CARD, 2.0f, titleArmed ? GOLD : (over ? GOLD : LINE));
+            ui.text(bx + tw * 0.5f, 618, label, Font::Display, 22, titleArmed ? GOLD : TEXT, Align::Centre);
+            ui.hit(bx, 610, tw, 42, TO_TITLE);
         }
 
         // Quit: a second click to be sure
         {
-            const std::string label = quitArmed ? "Click again to quit" : "Quit game";
+            const std::string label = quitArmed ? "Really quit?" : "Quit game";
             const float qw = ui.measure(label, Font::Display, 22) + 28.0f;
             const bool over = ui.hover(932 - qw, 610, qw, 42);
             ui.box(932 - qw, 610, qw, 42, quitArmed ? hex(0x3A1614) : CARD, 2.0f, quitArmed or over ? WARNING : LINE);

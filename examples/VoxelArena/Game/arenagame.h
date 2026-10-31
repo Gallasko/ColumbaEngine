@@ -67,6 +67,7 @@ namespace arena
         std::string address;                    // a client: where it joined
         uint16_t port = 7777;                   // TCP; UDP is the next one
         bool upnp = true;                       // a host opens its ports on the router
+        std::string upnpPorts;                  // the outside ports to try there ("" : the game's, then 45000-45200)
     };
 
     /** A key or a mouse button an action is bound to (from the "controls" section of the tuning). */
@@ -287,6 +288,11 @@ namespace arena
         float quitArmedUntil = -1.0f;
         bool quitArmed() const { return uiTime < quitArmedUntil; }
         void quitClicked();
+
+        // Back to the title from playing (the options' To title): leaving a run asks twice
+        float titleArmedUntil = -1.0f;
+        bool titleArmed() const { return uiTime < titleArmedUntil; }
+        void toTitleClicked();
 
         // The lobby: what a host shows its friends to join with, and what happened lately
         net::PortMapper portMapper;

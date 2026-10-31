@@ -45,7 +45,7 @@ namespace arena
          * paused: the game waits while it is open (alone); inGame: opened from playing (Esc), its button
          * resumes; quitArmed: Quit was clicked once, the next click quits.
          */
-        void draw(Ui& ui, const GameOptions& options, bool paused = false, bool inGame = false, bool quitArmed = false);
+        void draw(Ui& ui, const GameOptions& options, bool paused = false, bool inGame = false, bool quitArmed = false, bool titleArmed = false);
 
         /** A click's action (Ui::hitAt); returns true when an option changed (`closed` on Back). */
         bool act(int action, GameOptions& options, bool& closed);
@@ -53,7 +53,7 @@ namespace arena
         /** The keys: up and down pick a row, left and right change it. Returns true when an option changed. */
         bool key(int dx, int dy, GameOptions& options);
 
-        static constexpr int CONTROLS = 96, QUIT = 97, NAME = 98, BACK = 99, ROW = 100;   // ROW + row * 10 + (1 minus, 2 plus, 3 first choice, 4 second)
+        static constexpr int TO_TITLE = 95, CONTROLS = 96, QUIT = 97, NAME = 98, BACK = 99, ROW = 100;   // ROW + row * 10 + (1 minus, 2 plus, 3 first choice, 4 second)
 
         // The name the others see, edited in place: typed into while `naming`
         bool naming = false;

@@ -54,6 +54,7 @@ namespace arena
         // How to join: the host's addresses and its router; a client, where it joined
         std::string lanAddress, externalAddress, joined;
         int port = 7777;
+        int externalPort = 0;           // the router's outside port (0: the game's)
         enum class Router { Off, Searching, Open, Closed } router = Router::Off;
         std::string routerError;
 
@@ -71,6 +72,7 @@ namespace arena
         int players = 1;
         std::string lanAddress, externalAddress, routerError, message;
         int port = 7777;
+        int externalPort = 0;
         LobbyView::Router router = LobbyView::Router::Off;
     };
 
@@ -117,6 +119,7 @@ namespace arena
         constexpr int TITLE_ARENA = 1, TITLE_TRAINING = 2, TITLE_SPELLBOOK = 3, TITLE_OPTIONS = 4;
         constexpr int END_AGAIN = 11, END_TRAINING = 12;
         constexpr int LOBBY_READY = 5;   // the host's start is TITLE_ARENA
+        constexpr int TITLE_MULTIPLAYER = 10;
         constexpr int TITLE_INVITE = 6, TITLE_JOIN = 7, LOBBY_LEAVE = 8, TITLE_QUIT = 9;
 
         /** Quit game, at the bottom of the title and the lobby (a second click quits). */

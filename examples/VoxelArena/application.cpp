@@ -96,6 +96,7 @@ GameApp::GameApp(const std::string& appName, const LaunchOptions& opts) : engine
             arenaOptions.address = options.address;
             arenaOptions.port = options.port;
             arenaOptions.upnp = options.upnp;
+            arenaOptions.upnpPorts = options.upnpPorts;
 
             LOG_INFO(DOM, (net.isServer ? "Hosting on port " : "Joining ") << (net.isServer ? "" : options.address + ":") << options.port);
         }

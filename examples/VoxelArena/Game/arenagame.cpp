@@ -127,7 +127,7 @@ namespace arena
             {"freeCursor", {"Left Alt"}}, {"toggleView", {"F", "V"}},
             {"ability1", {"Q"}}, {"ability2", {"E"}}, {"ability3", {"G", "Mouse2"}}, {"ability4", {"R"}},
             {"ability5", {"1"}}, {"ability6", {"2"}}, {"ability7", {"3"}}, {"ability8", {"4"}},
-            {"crouch", {"Left Ctrl", "C"}}, {"nextWeapon", {"Tab"}}, {"spellbook", {"B"}}, {"options", {"O"}}, {"lobby", {"L"}}, {"invite", {"I"}}, {"join", {"J"}},
+            {"crouch", {"Left Ctrl", "C"}}, {"nextWeapon", {"Tab"}}, {"spellbook", {"B"}}, {"options", {"O"}}, {"lobby", {"L"}}, {"invite", {"I"}}, {"join", {"J"}}, {"multiplayer", {"M"}},
             // The spellbook's parts, while it is open: elements, forms, modifiers
             {"spellElement1", {"Z"}}, {"spellElement2", {"X"}}, {"spellElement3", {"C"}},
             {"spellForm1", {"A"}}, {"spellForm2", {"S"}}, {"spellForm3", {"D"}}, {"spellForm4", {"F"}},
@@ -241,7 +241,7 @@ namespace arena
                     // Friends join over the internet when the router opens the ports (UPnP)
                     lanAddress = net::PortMapper::localAddress();
                     if (options.upnp)
-                        portMapper.start(options.port, static_cast<uint16_t>(options.port + 1), "Voxel Arena");
+                        portMapper.start(options.port, static_cast<uint16_t>(options.port + 1), "Voxel Arena", net::PortMapper::parsePorts(options.upnpPorts));
                 }
             }
 
@@ -803,6 +803,13 @@ namespace arena
                 continue;
             }
 
+            if (titleOpen and not networked() and not inviteOpen and keyIs(p.scancode, "multiplayer"))
+            {
+                inviteOpen = true;
+                inviteMessage.clear();
+                continue;
+            }
+
             if (titleOpen and not networked() and keyIs(p.scancode, "join"))
             {
                 openJoin();
@@ -815,7 +822,7 @@ namespace arena
             {
                 if (p.scancode == SDL_SCANCODE_ESCAPE or keyIs(p.scancode, "invite"))
                     inviteOpen = false;
-                else if ((p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER) and not networked())
+                else if ((p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER or p.scancode == SDL_SCANCODE_H) and not networked())
                     hostNow();
                 else if (keyIs(p.scancode, "join") and not networked())
                 {
@@ -2273,6 +2280,31 @@ namespace arena
             client->setName(name);
     }
 
+    void ArenaGame::toTitleClicked()
+    {
+        // In a run: a second click to be sure (the run is lost; hosting, it ends for everyone)
+        if (world.inRun() and not client and not titleArmed())
+        {
+            titleArmedUntil = uiTime + 3.0f;
+            return;
+        }
+
+        setOptionsOpen(false);
+
+        // A player who joined leaves: back to its own title
+        if (client)
+        {
+            leaveGame();
+            return;
+        }
+
+        if (world.inRun())
+            world.stopRun();
+
+        titleOpen = true;
+        titleArmedUntil = -1.0f;
+    }
+
     void ArenaGame::quitClicked()
     {
         if (not quitArmed())
@@ -2539,6 +2571,12 @@ namespace arena
                     continue;
                 }
 
+                if (action == OptionsScreen::TO_TITLE)
+                {
+                    toTitleClicked();
+                    continue;
+                }
+
                 if (action == OptionsScreen::CONTROLS)
                 {
                     controlsOpen = true;
@@ -2602,6 +2640,7 @@ namespace arena
                 switch (action)
                 {
                     case screens::TITLE_INVITE:
+                    case screens::TITLE_MULTIPLAYER:
                         inviteOpen = true;
                         inviteMessage.clear();
                         break;
@@ -2686,7 +2725,7 @@ namespace arena
 
         lanAddress = net::PortMapper::localAddress();
         if (options.upnp)
-            portMapper.start(options.port, static_cast<uint16_t>(options.port + 1), "Voxel Arena");
+            portMapper.start(options.port, static_cast<uint16_t>(options.port + 1), "Voxel Arena", net::PortMapper::parsePorts(options.upnpPorts));
 
         inviteMessage.clear();
         print("hosting on port " + std::to_string(options.port) + " (TCP) and " + std::to_string(options.port + 1) + " (UDP)");
@@ -2936,15 +2975,18 @@ namespace arena
         const auto st = portMapper.status();
         const std::string lan = st.lanIp.empty() ? lanAddress : st.lanIp;
 
+        // Online, the port the router opened (it may not be the game's: a Freebox opens above 45000)
+        const bool online = st.state == net::PortMapper::State::Open and not st.externalIp.empty();
+        const std::string outside = st.externalIp + ":" + std::to_string(st.externalPort ? st.externalPort : options.port);
+
         switch (action)
         {
             case screens::INVITE_HOST: hostNow(); break;
-            case screens::INVITE_COPY_ONLINE: if (not st.externalIp.empty()) copy(st.externalIp + port); break;
+            case screens::INVITE_COPY_ONLINE: if (online) copy(outside); break;
             case screens::INVITE_COPY_LAN: copy((client ? options.address : lan) + port); break;
             case screens::INVITE_COPY_JOIN:
             {
-                const std::string address = client ? options.address : (st.state == net::PortMapper::State::Open and not st.externalIp.empty() ? st.externalIp : lan);
-                copy("VoxelArena --join " + address + port);
+                copy("VoxelArena --join " + (client ? options.address + port : (online ? outside : lan + port)));
                 break;
             }
             case screens::INVITE_CLOSE: inviteOpen = false; break;
@@ -2970,6 +3012,7 @@ namespace arena
             const auto st = portMapper.status();
             v.lanAddress = st.lanIp.empty() ? lanAddress : st.lanIp;
             v.externalAddress = st.externalIp;
+            v.externalPort = st.externalPort;
             v.routerError = st.error;
             switch (st.state)
             {
@@ -3039,6 +3082,7 @@ namespace arena
 
             const auto st = portMapper.status();
             v.externalAddress = st.externalIp;
+            v.externalPort = st.externalPort;
             v.routerError = st.error;
             if (st.lanIp.size())
                 v.lanAddress = st.lanIp;
@@ -3104,7 +3148,7 @@ namespace arena
         {
             if (world.inRun() and clientPhase == RunPhase::Off)
                 titleOpen = false;
-            if (phase == RunPhase::Off and (clientPhase == RunPhase::Victory or clientPhase == RunPhase::Defeat))
+            if (phase == RunPhase::Off and clientPhase != RunPhase::Off)
                 titleOpen = true;
             clientPhase = phase;
         }
@@ -3256,7 +3300,7 @@ namespace arena
         {
             if (controlsOpen)
                 ui.mouse(-1.0f, -1.0f);
-            optionsScreen.draw(ui, prefs, alone(), not (titleOpen or endOpen), quitArmed());
+            optionsScreen.draw(ui, prefs, alone(), not (titleOpen or endOpen), quitArmed(), titleArmed());
 
             if (controlsOpen)
             {

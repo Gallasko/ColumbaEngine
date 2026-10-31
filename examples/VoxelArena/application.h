@@ -20,6 +20,7 @@ struct LaunchOptions
     uint16_t port = 7777;              // TCP; UDP is the next port
     std::string name = "player";
     bool upnp = true;                  // a host opens its ports on the router (--no-upnp: not)
+    std::string upnpPorts;             // the outside ports to try on the router (--upnp-ports 7777,45000-45200)
 };
 
 class GameApp
