@@ -1192,3 +1192,24 @@ TEST(arena_net, an_aim_starts_near_its_player)
     in.aimDir = glm::vec3(0.0f);
     EXPECT_EQ(s.serverWorld.sanitized(*f, in).aimDir, glm::vec3(0.0f));
 }
+
+TEST(arena_net, broken_counts_do_not_wrap_into_small_sizes)
+{
+    // A count whose size wraps around 32 bits: 0x2AAAAAAB * 6 is 2. It allocated gigabytes
+    Writer w;
+    w.u8(static_cast<uint8_t>(Msg::TerrainDelta));
+    w.u32(0x2AAAAAABu);
+    w.u32(0);
+    TerrainDeltaMsg delta;
+    EXPECT_FALSE(decode(w.data, delta));
+    EXPECT_TRUE(delta.blocks.empty());
+
+    Writer d;
+    d.u8(static_cast<uint8_t>(Msg::TerrainDelta));
+    d.u32(0);
+    d.u32(0x33333334u);   // damage: * 5 is 4
+    d.u32(0);
+    TerrainDeltaMsg damage;
+    EXPECT_FALSE(decode(d.data, damage));
+    EXPECT_TRUE(damage.damage.empty());
+}

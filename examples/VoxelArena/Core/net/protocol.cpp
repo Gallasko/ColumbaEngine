@@ -57,7 +57,7 @@ namespace arena::net
             const uint32_t count = r.u32();
             const uint32_t runs = r.u32();
 
-            if (count != expected or runs > count or r.left() < runs * 4u)
+            if (count != expected or runs > count or r.left() / 4u < runs)
                 return false;
 
             cells.clear();
@@ -92,7 +92,8 @@ namespace arena::net
         {
             const uint32_t n = r.u32();
 
-            if (r.left() < n * 5u)
+            // Divided, not multiplied: a huge count must not wrap around to a small size
+            if (r.left() / 5u < n)
             {
                 r.failed = true;
                 return;
@@ -954,7 +955,7 @@ namespace arena::net
             return false;
 
         const uint32_t n = r.u32();
-        if (r.left() < n * 6u)
+        if (r.left() / 6u < n)
             return false;
 
         for (uint32_t k = 0; k < n; ++k)
