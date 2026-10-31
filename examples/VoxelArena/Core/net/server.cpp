@@ -1,5 +1,6 @@
 #include "server.h"
 
+#include "client.h"
 #include "modfiles.h"
 
 #include <algorithm>
@@ -165,7 +166,7 @@ namespace arena::net
                     return;
 
                 c.lastClientTimeMs = std::max(c.lastClientTimeMs, msg.clientTimeMs);
-                c.rttMs = msg.rttMs;
+                c.rttMs = msg.rttMs;   // only used when the transport cannot measure it (see rttOf)
 
                 // Several inputs per message (repeated against loss): keep the ones not played yet
                 for (const auto& s : msg.inputs)
@@ -238,6 +239,27 @@ namespace arena::net
         }
     }
 
+    float NetServer::rttOf(const Client& c) const
+    {
+        const float measured = transport.rttMs(c.peer);
+        return std::clamp(measured > 0.0f ? measured : static_cast<float>(c.rttMs), 0.0f, MAX_COMPENSATED_RTT_MS);
+    }
+
+    void NetServer::clampStamps(const Client& c, InputFrame& in) const
+    {
+        // What a client sees is INTERP_TICKS behind its estimate of the server, and its input then waits
+        // half a round trip and the buffer: older than that is a client claiming to see the past
+        const int rttSteps = static_cast<int>(std::ceil(rttOf(c) / (STEP_SECONDS * 1000.0f)));
+        const int now = static_cast<int>(world.steps);
+        const int oldest = now - (NetClient::INTERP_TICKS + rttSteps + static_cast<int>(MAX_BUFFER) + SNAPSHOT_EVERY + 4);
+
+        if (in.viewTick >= 0)
+            in.viewTick = std::clamp(in.viewTick, std::max(0, oldest), now);
+
+        if (in.stamp >= 0)
+            in.stamp = std::clamp(in.stamp, std::max(0, oldest), now);
+    }
+
     InputFrame NetServer::nextInput(Client& c)
     {
         // A client running a little fast fills the buffer: drop the oldest to keep the lag down
@@ -255,11 +277,13 @@ namespace arena::net
             c.lastSeq = it->first;
             c.last = it->second;
             c.inputs.erase(it);
+            clampStamps(c, c.last);
             return c.last;
         }
 
         // Nothing arrived in time: hold what was held, press nothing
         InputFrame held = c.last;
+        clampStamps(c, held);
         held.jumpPressed = held.dodgePressed = held.lightPressed = held.heavyPressed = false;
         held.equip = 0;
         held.pick = 0;
@@ -288,7 +312,7 @@ namespace arena::net
             inputs[c.playerId] = nextInput(c);
 
             // How long a hit on this player waits for a dodge already on its way: half the round trip
-            world.defenderGrace[peer] = dodgeGrace ? std::clamp(static_cast<int>(std::lround(c.rttMs * 0.5 / (STEP_SECONDS * 1000.0))), 0, 8) : 0;
+            world.defenderGrace[peer] = dodgeGrace ? std::clamp(static_cast<int>(std::lround(rttOf(c) * 0.5 / (STEP_SECONDS * 1000.0))), 0, 8) : 0;
         }
 
         const size_t eventsBefore = world.events.size();
@@ -348,7 +372,10 @@ namespace arena::net
         std::sort(joined.begin(), joined.end(), [](const Client* a, const Client* b) { return a->joinOrder < b->joinOrder; });
 
         for (const Client* c : joined)
-            m.players.push_back({c->playerId, c->name, false, c->ready, c->rttMs});
+        {
+            const float measured = transport.rttMs(c->peer);
+            m.players.push_back({c->playerId, c->name, false, c->ready, static_cast<uint16_t>(std::clamp(measured > 0.0f ? measured : static_cast<float>(c->rttMs), 0.0f, 65535.0f))});
+        }
 
         return m;
     }

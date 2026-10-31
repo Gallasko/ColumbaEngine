@@ -59,6 +59,9 @@ namespace arena::net
         /** Input buffered per client beyond the one used each step: more is dropped (lag), none repeats the last. */
         static constexpr size_t MAX_BUFFER = 4;
 
+        /** The round trip lag compensation and the dodge grace go by, at most (a slower link gets less). */
+        static constexpr float MAX_COMPENSATED_RTT_MS = 300.0f;
+
     private:
         std::vector<uint8_t> modBundle;    // encoded once, ready to send
 
@@ -77,6 +80,12 @@ namespace arena::net
             uint64_t joinOrder = 0;
             bool modsSent = false;   // once only: a client still different after them is refused
         };
+
+        /** The round trip of a client: the transport's measure when it has one, else what the client says. */
+        float rttOf(const Client& c) const;
+
+        /** An input's network stamps, kept within what the client's round trip makes possible. */
+        void clampStamps(const Client& c, InputFrame& in) const;
 
         void onMessage(Client& c, const std::vector<uint8_t>& data);
         InputFrame nextInput(Client& c);

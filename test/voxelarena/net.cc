@@ -1193,6 +1193,29 @@ TEST(arena_net, an_aim_starts_near_its_player)
     EXPECT_EQ(s.serverWorld.sanitized(*f, in).aimDir, glm::vec3(0.0f));
 }
 
+TEST(arena_net, a_client_cannot_claim_to_see_far_in_the_past)
+{
+    Session s;
+    RawPeer raw(s);
+    raw.hello(s);
+    pump(s, raw, 200);
+
+    InputFrame in;
+    in.viewTick = 0;
+    in.stamp = 0;
+    raw.input(in, 1);
+    pump(s, raw, 2);
+
+    const Fighter* f = nullptr;
+    for (const auto& g : s.serverWorld.fighters)
+        if (g.team == Team::Player)
+            f = &g;
+    ASSERT_TRUE(f);
+
+    // Lag compensation goes back by what the link explains (no lag here), not to the start of the game
+    EXPECT_GT(f->viewTick, static_cast<int>(s.serverWorld.steps) - 30);
+}
+
 TEST(arena_net, broken_counts_do_not_wrap_into_small_sizes)
 {
     // A count whose size wraps around 32 bits: 0x2AAAAAAB * 6 is 2. It allocated gigabytes
