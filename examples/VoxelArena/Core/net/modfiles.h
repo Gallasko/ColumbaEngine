@@ -16,7 +16,8 @@ namespace arena::net
 
     /**
      * A path a server may write to: relative, inside the folder, a .json or .pg file, plain characters
-     * only, and no name Windows keeps for itself. What comes from a server is never trusted.
+     * only, no ".pgc" (compiled scripts) in it, and no name Windows keeps for itself. What comes from
+     * a server is never trusted.
      */
     bool safeModPath(const std::string& path);
 

@@ -65,6 +65,9 @@ namespace arena
         /** The only modules a mod script gets. */
         void sandbox(VM& vm)
         {
+            // Mods are anyone's: their scripts import only what sits beside them, never bytecode
+            vm.sandboxedImports = true;
+
             vm.addNativeModule("math", MathModule{});
             vm.addNativeModule("algorithm", AlgorithmModule{});
             vm.addNativeModule("string", StringModule{});

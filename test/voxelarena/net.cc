@@ -1292,3 +1292,12 @@ TEST(arena_net, a_connection_that_never_joins_is_closed)
     pump(s, raw, 20);
     EXPECT_TRUE(raw.disconnected());
 }
+
+TEST(arena_net, a_server_cannot_ship_bytecode)
+{
+    // The script compiler loads anything with ".pgc" in its name as bytecode, unchecked
+    for (const char* bad : {"base/x.pgc", "base/x.pgc.json", "base/X.PGC.json", "base/scripts.pgc/a.json"})
+        EXPECT_FALSE(safeModPath(bad)) << bad;
+
+    EXPECT_TRUE(safeModPath("base/pgcore.json"));
+}
