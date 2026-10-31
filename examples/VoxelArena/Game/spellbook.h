@@ -59,9 +59,9 @@ namespace arena
         /** What may be built with (an arena run's: only what was bought); unset: everything. */
         std::function<bool(const std::string&)> owned;
 
-        // Click actions
+        // Click actions (ERASE rather than DELETE: windows.h defines DELETE as a macro)
         static constexpr int SLOT = 100, ELEMENT = 200, FORM = 300, MODIFIER = 400, REMOVE = 500, CLEAR = 501, NAME = 502, SAVE = 503, CLOSE = 504,
-                             PREV = 505, NEXT = 506, LOAD = 1000, DELETE = 2000;
+                             PREV = 505, NEXT = 506, LOAD = 1000, ERASE = 2000;
 
     private:
         /** The parts in the order shown (and keyed): elements, forms, modifiers. */

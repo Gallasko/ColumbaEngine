@@ -1,3 +1,9 @@
+// MinGW's ws2tcpip.h declares inet_pton/inet_ntop for Vista and later only, and the system headers
+// pick an older default: this has to come before the first include.
+#if defined(_WIN32) && !defined(_WIN32_WINNT)
+    #define _WIN32_WINNT 0x0600
+#endif
+
 #include "portmapper.h"
 
 #include <chrono>

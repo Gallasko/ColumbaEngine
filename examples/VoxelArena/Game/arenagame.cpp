@@ -1673,10 +1673,10 @@ namespace arena
             pan = glm::dot(to, right);
             behind = std::max(0.0f, -glm::dot(to, forward));
 
-            // Fades in over the first metres, so something close by does not jump from ear to ear
-            const float near = std::clamp((distance - 1.5f) / 2.5f, 0.0f, 1.0f);
-            pan *= near;
-            behind *= near;
+            // Fades in over the first metres, so something close by does not jump from ear to ear (fade, not near: a windows.h macro)
+            const float fade = std::clamp((distance - 1.5f) / 2.5f, 0.0f, 1.0f);
+            pan *= fade;
+            behind *= fade;
         }
 
         sounds.play(ecsRef, sound, distance, pan, behind);

@@ -139,6 +139,12 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 
     if(${CMAKE_HOST_SYSTEM} MATCHES "Windows")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pthread -Wa,-mbig-obj -s")
+        if(MINGW)
+            # Threads get the executable's stack reserve: 2 MB by default here, 8 MB on Linux. The script
+            # VM keeps its 2 MB value stack on the stack (ScriptRunnerSystem::execute), which overflowed
+            # every worker thread on Windows. Match Linux.
+            set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--stack,8388608")
+        endif()
     endif()
 endif()
 

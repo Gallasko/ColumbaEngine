@@ -32,8 +32,8 @@ namespace arena
                     continue;
                 }
 
-                v.near.push_back(r.file);
-                v.far.push_back(r.file);
+                v.nearFiles.push_back(r.file);
+                v.farFiles.push_back(r.file);
             }
             else
             {
@@ -43,8 +43,8 @@ namespace arena
 
                     if (writeWav(base + ".wav", synthesise(r, static_cast<uint32_t>(i + 1))) and writeWav(base + "_far.wav", synthesise(r, static_cast<uint32_t>(i + 1), 0.4f)))
                     {
-                        v.near.push_back(base + ".wav");
-                        v.far.push_back(base + "_far.wav");
+                        v.nearFiles.push_back(base + ".wav");
+                        v.farFiles.push_back(base + "_far.wav");
                     }
                     else
                     {
@@ -59,7 +59,7 @@ namespace arena
 
     void SoundBank::play(pg::EntitySystem* ecs, const std::string& name, float distance, float pan, float behind)
     {
-        if (not ecs or name.empty() or distance > FAR)
+        if (not ecs or name.empty() or distance > FAR_RANGE)
             return;
 
         auto it = sounds.find(name);
@@ -67,7 +67,7 @@ namespace arena
         if (it == sounds.end())
             return;
 
-        const auto& list = distance <= NEAR ? it->second.near : it->second.far;
+        const auto& list = distance <= NEAR_RANGE ? it->second.nearFiles : it->second.farFiles;
 
         if (list.empty())
             return;

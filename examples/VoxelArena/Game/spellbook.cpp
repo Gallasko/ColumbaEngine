@@ -669,7 +669,7 @@ namespace arena
             {
                 const bool overX = ui.hover(x + 216 - 22, y + 6, 16, 16);
                 ui.text(x + 216 - 14, y + 4, "x", Font::Display, 18, overX ? WARNING : FAINT, Align::Centre);
-                ui.hit(x + 216 - 22, y + 6, 16, 16, DELETE + e.saved);
+                ui.hit(x + 216 - 22, y + 6, 16, 16, ERASE + e.saved);
             }
         }
     }
@@ -726,9 +726,9 @@ namespace arena
             return false;
         }
 
-        if (action >= DELETE)
+        if (action >= ERASE)
         {
-            const int i = action - DELETE;
+            const int i = action - ERASE;
             if (i >= 0 and i < static_cast<int>(book.saved.size()))
             {
                 message = "removed \"" + book.saved[static_cast<size_t>(i)].first + "\" from the book";
