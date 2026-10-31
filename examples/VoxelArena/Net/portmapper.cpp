@@ -6,6 +6,8 @@
 
 #include "portmapper.h"
 
+#include "logger.h"
+
 #include <chrono>
 #include <cstring>
 
@@ -29,6 +31,8 @@ namespace arena::net
 {
     namespace
     {
+        constexpr const char* DOM = "Port Mapper";
+
         // Leases are renewed well before they run out; a router that only takes permanent ones gets 0
         constexpr int LEASE_SECONDS = 3600;
         constexpr auto RENEW_EVERY = std::chrono::minutes(20);
@@ -77,9 +81,17 @@ namespace arena::net
 
     void PortMapper::set(State state, const std::string& error)
     {
-        std::lock_guard<std::mutex> lock(mutex);
-        current.state = state;
-        current.error = error;
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            current.state = state;
+            current.error = error;
+        }
+
+        // The lobby shows this; the log keeps it for a host asking why nobody could join
+        if (state == State::Open)
+            LOG_INFO(DOM, "Router opened TCP " << tcpPort << " and UDP " << udpPort << " (UPnP)");
+        else if (not error.empty())
+            LOG_INFO(DOM, "Router did not open the ports: " << error);
     }
 
     void PortMapper::run()

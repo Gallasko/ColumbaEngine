@@ -13,22 +13,22 @@
     "staggerFrames": 35,
     "knockbackScale": 1.3,
 
-    "walkSpeed": 6.2,
+    "walkSpeed": 4.8,
     "turnSpeed": 600,
     "respawnSeconds": 5,
 
     "score": 10,
 
-    "drops": 1,
+    "drops": 2,
     "weakness": { "fire": 1.4 },
 
     "script": "skulker",
     "params": {
         "engageRange": 22,
         "attackRange": 1.9,
-        "behindAngle": 110,
-        "cooldown": 1.4,
-        "backOff": 0.7,
+        "behindAngle": 130,
+        "cooldown": 2.2,
+        "backOff": 1.0,
         "radius": 2.6,
         "waitRadius": 5.5
     },
@@ -36,12 +36,12 @@
     "moveset": {
         "attacks": {
             "bite": {
-                "startup": 13, "active": 4, "recovery": 22,
+                "startup": 18, "active": 4, "recovery": 22,
                 "damage": 10, "poiseDamage": 0,
                 "knockback": 3, "hitstop": 3, "shake": 0.25,
-                "turnRate": 8,
+                "turnRate": 5,
                 "hitboxes": [ { "offset": [0, 0.6, 0.9], "size": [1.0, 0.9, 1.4] } ],
-                "lunge": 9, "lungeFrom": 9, "lungeTo": 17,
+                "lunge": 9, "lungeFrom": 14, "lungeTo": 22,
                 "swing": { "pitchFrom": -12, "pitchTo": 14 }
             }
         }

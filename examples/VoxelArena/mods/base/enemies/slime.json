@@ -19,7 +19,7 @@
     "respawnSeconds": 4,
 
     "score": 5,
-    "drops": 1,
+    "drops": 2,
     "weakness": { "fire": 1.25 },
 
     "script": "slime",

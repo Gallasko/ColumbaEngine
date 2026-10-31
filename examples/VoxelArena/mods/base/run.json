@@ -50,7 +50,7 @@
     ],
     "bosses": { "10": "chieftain", "20": "warden" },
 
-    "xp": { "base": 10, "step": 6 },
+    "xp": { "base": 10, "step": 5 },
     "start": { "weapon": "sword", "owned": ["element:fire", "bolt"] },
     "shop": {
         "slots": 4,

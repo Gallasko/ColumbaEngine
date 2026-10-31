@@ -16,7 +16,7 @@ fun think(me)
     }
 
     var behind = me.targetFacing > p.behindAngle
-    var opening = behind or me.targetAttacking or me.targetStaggered
+    var opening = behind or me.targetStaggered
 
     if (me.distance > p.engageRange and me.hunting == false)
     {
@@ -49,7 +49,7 @@ fun think(me)
         // Alone and seen: circle at a distance, waiting
         me.move = "strafe"
         me.strafe = me.side
-        me.speed = 0.6
+        me.speed = 0.3
     }
     else
     {

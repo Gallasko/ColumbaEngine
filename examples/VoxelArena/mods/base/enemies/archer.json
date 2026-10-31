@@ -19,7 +19,7 @@
 
     "score": 15,
 
-    "drops": 2,
+    "drops": 3,
     "weakness": { "ice": 1.3 },
 
     "script": "archer",
