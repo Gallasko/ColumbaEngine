@@ -886,7 +886,9 @@ namespace arena
                 }
                 else if (f.queued and canPay and moveset)
                 {
+                    const int button = f.queued;
                     startAttack(f, attackFor(f, *moveset, f.queued), aimIdle, not in.faceCamera, aimPitch);
+                    chargeOn(f, button);
                 }
                 break;
             }
@@ -908,7 +910,11 @@ namespace arena
                     const std::string& next = f.queued == 2 ? attack->nextHeavy : attack->nextLight;
 
                     if (not next.empty() and canPay)
+                    {
+                        const int button = f.queued;
                         startAttack(f, next, aimChain, not in.faceCamera, aimPitch);
+                        chargeOn(f, button);
+                    }
                 }
 
                 if (f.action == Action::Attack and f.frame >= currentAttack(f)->total())
@@ -924,7 +930,10 @@ namespace arena
                 if (f.jumpBuffer > 0.0f and f.frame >= tuning.dodge.jumpFrom and f.coyote > 0.0f)
                     f.action = Action::Free;
                 else if (f.queued == 1 and f.frame >= tuning.dodge.attackFrom and moveset and not moveset->dodgeAttack.empty() and canPay)
+                {
                     startAttack(f, moveset->dodgeAttack, in.faceCamera ? camForward : (hasWish ? wish : f.dodgeDir), not in.faceCamera, aimPitch);
+                    chargeOn(f, 1);
+                }
                 else if (f.frame >= tuning.dodge.frames)
                     f.action = Action::Free;
 
@@ -965,7 +974,11 @@ namespace arena
         else if (f.action == Action::Free and f.dodgeQueuedAge >= 0.0f and canAirDash)
             startAirDash(f, hasWish ? wish : yawForward(f.yaw));
         else if (f.action == Action::Free and f.queued and canPay and moveset)
+        {
+            const int button = f.queued;
             startAttack(f, attackFor(f, *moveset, f.queued), aimIdle, not in.faceCamera, aimPitch);
+            chargeOn(f, button);
+        }
 
         useAbilities(f, in);
 
@@ -1179,11 +1192,19 @@ namespace arena
         const bool holding = f.action == Action::Attack and now and now->plungeSpeed > 0.0f and f.frame >= now->startup and not f.body.onGround;
 
         // A charge holds while its key is: up to its length
-        const bool charging = f.action == Action::Attack and now and now->charge.at >= 0 and f.frame == now->charge.at and f.chargeSlot >= 0 and
-                              f.chargeSlot < InputFrame::ABILITIES and in.abilityHeld[f.chargeSlot] and f.chargeFrames < now->charge.frames;
+        bool keyHeld = false;
+        if (f.chargeSlot >= 0 and f.chargeSlot < InputFrame::ABILITIES)
+            keyHeld = in.abilityHeld[f.chargeSlot];
+        else if (f.chargeSlot == Fighter::CHARGE_LIGHT)
+            keyHeld = in.lightHeld;
+        else if (f.chargeSlot == Fighter::CHARGE_HEAVY)
+            keyHeld = in.heavyHeld;
+
+        const bool charging = f.action == Action::Attack and now and now->charge.at >= 0 and f.frame == now->charge.at and keyHeld and
+                              (f.chargeFrames < now->charge.frames or now->charge.hold);
 
         if (charging)
-            ++f.chargeFrames;
+            f.chargeFrames = std::min(f.chargeFrames + 1, now->charge.frames);
 
         if (f.action != Action::Free and not holding and not charging)
             ++f.frame;
@@ -2744,6 +2765,16 @@ namespace arena
         events.push_back(std::move(e));
     }
 
+    void ArenaWorld::chargeOn(Fighter& f, int button)
+    {
+        // The attack just started by a light or heavy press: that button holds its charge, if it has one
+        if (f.action != Action::Attack)
+            return;
+
+        f.chargeSlot = button == 2 ? Fighter::CHARGE_HEAVY : Fighter::CHARGE_LIGHT;
+        f.chargeFrames = 0;
+    }
+
     void ArenaWorld::fireProjectiles()
     {
         for (auto& f : fighters)
@@ -2785,7 +2816,15 @@ namespace arena
                 continue;
             }
 
-            const ProjectileDef& def = a->projectile;
+            // Drawn (a bow's light held): harder and faster the longer, up to the charge's
+            ProjectileDef def = a->projectile;
+            if (const float charge = f.chargeRatio(a); a->charge.at >= 0)
+            {
+                def.damage *= 1.0f + charge * (a->charge.damage - 1.0f);
+                def.poiseDamage *= 1.0f + charge * (a->charge.damage - 1.0f);
+                def.speed *= 1.0f + charge * (a->charge.speed - 1.0f);
+            }
+
             Projectile p;
             p.id = nextProjectile++;
             p.owner = f.id;

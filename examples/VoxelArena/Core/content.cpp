@@ -1799,7 +1799,9 @@ namespace arena
 
         if (const Json* charge = j.find("charge"))
         {
-            checkKeys(*charge, {"at", "frames", "lunge", "damage"}, file, report, "the charge of " + name);
+            checkKeys(*charge, {"at", "frames", "lunge", "damage", "speed", "hold"}, file, report, "the charge of " + name);
+            readBool(*charge, "hold", a.charge.hold, file, report);
+            readNum(*charge, "speed", a.charge.speed, file, report);
             readInt(*charge, "at", a.charge.at, file, report);
             readInt(*charge, "frames", a.charge.frames, file, report);
             readNum(*charge, "lunge", a.charge.lunge, file, report);

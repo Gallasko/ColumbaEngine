@@ -358,6 +358,8 @@ namespace arena::net
             bits |= in.heavyPressed ? 1u << 5 : 0u;
             bits |= in.faceCamera ? 1u << 6 : 0u;
             bits |= in.crouchHeld ? 1u << 7 : 0u;
+            bits |= in.lightHeld ? 1u << 24 : 0u;
+            bits |= in.heavyHeld ? 1u << 25 : 0u;
             for (int i = 0; i < InputFrame::ABILITIES; ++i)
             {
                 bits |= in.abilityPressed[i] ? 1u << (8 + i) : 0u;
@@ -408,6 +410,8 @@ namespace arena::net
             in.heavyPressed = bits & (1u << 5);
             in.faceCamera = bits & (1u << 6);
             in.crouchHeld = bits & (1u << 7);
+            in.lightHeld = bits & (1u << 24);
+            in.heavyHeld = bits & (1u << 25);
             for (int i = 0; i < InputFrame::ABILITIES; ++i)
             {
                 in.abilityPressed[i] = bits & (1u << (8 + i));

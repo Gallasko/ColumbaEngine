@@ -4,15 +4,15 @@
     "name": "Radiance",
     "kind": "attack",
     "weapons": ["staff"],
-    "staminaCost": 22,
-    "cooldown": 9,
+    "staminaCost": 26,
+    "cooldown": 14,
     "attack": {
         "moveSpeed": 0.2, "armor": 15,
         "startup": 20, "active": 4, "recovery": 18,
-        "damage": 16, "poiseDamage": 25,
+        "damage": 9, "poiseDamage": 18,
         "knockback": 9, "knockup": 3, "hitstop": 4, "shake": 0.4,
-        "hitboxes": [ { "offset": [0, 1.0, 0.0], "size": [7.0, 2.5, 7.0] } ],
-        "heal": { "amount": 25, "radius": 8 },
+        "hitboxes": [ { "offset": [0, 1.0, 0.0], "size": [5.0, 2.5, 5.0] } ],
+        "heal": { "amount": 12, "radius": 6 },
         "swing": { "yaw": 0, "pitchFrom": 80, "pitchTo": -30 }
     }
 }

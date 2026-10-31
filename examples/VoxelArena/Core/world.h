@@ -37,6 +37,8 @@ namespace arena
         bool dodgePressed = false;
         bool lightPressed = false;
         bool heavyPressed = false;
+        bool lightHeld = false;             // held: a light or heavy attack with a charge (a bow's draw) charges while it is
+        bool heavyHeld = false;
         bool crouchHeld = false;            // in the air: fast fall
 
         /** First person: the body faces where the camera looks, and attacks go there. */
@@ -201,7 +203,9 @@ namespace arena
 
         bool attackIframes = false;   // in the invulnerable frames of its attack (AttackDef::iframeFrom), set each step
 
-        // A weapon skill's charge: the slot whose key holds it, and how long it has been held
+        // A charge: the key that holds it (a weapon skill's slot, or CHARGE_LIGHT / CHARGE_HEAVY for the
+        // light or heavy attack that started on that button), and how long it has been held
+        static constexpr int CHARGE_LIGHT = -2, CHARGE_HEAVY = -3;
         int chargeSlot = -1;
         int chargeFrames = 0;
         /** 0 (none) to 1 (full) of the current attack's charge. */
@@ -474,6 +478,8 @@ namespace arena
         bool hostile(Team team, int owner, const Fighter& target) const;
         /** The final duel: everyone revived, in a ring, the last one standing wins (run.json "duel"). */
         void beginDuel();
+        /** A light (1) or heavy (2) press started the current attack: that button holds its charge. */
+        void chargeOn(Fighter& f, int button);
         /** A player's weapon for the run (the armory, before the first wave). */
         void chooseWeapon(Fighter& f, const std::string& id);
         /** A player's START begins a run even outside one (a dedicated server: there is no title there). */

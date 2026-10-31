@@ -84,6 +84,7 @@ namespace arena
             std::vector<Skill> skills;
             std::vector<SpellKey> spells;
             bool crosshair = true;
+            float draw = -1.0f;      // a charge being held (a bow's draw), 0..1; < 0: none
 
             // The run
             bool run = false;

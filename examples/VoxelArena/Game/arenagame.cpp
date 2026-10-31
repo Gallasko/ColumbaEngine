@@ -1088,6 +1088,8 @@ namespace arena
                     in.dodgePressed = pressed("dodge");
                     in.lightPressed = pressed("light");
                     in.heavyPressed = pressed("heavy");
+                    in.lightHeld = held("light");
+                    in.heavyHeld = held("heavy");
                     in.crouchHeld = held("crouch");
 
                     for (int i = 0; i < InputFrame::ABILITIES; ++i)
@@ -1115,6 +1117,8 @@ namespace arena
             in.dodgePressed = in.dodgePressed or injectedPresses.count("dodge");
             in.lightPressed = in.lightPressed or injectedPresses.count("light");
             in.heavyPressed = in.heavyPressed or injectedPresses.count("heavy");
+            in.lightHeld = in.lightHeld or injected("light");
+            in.heavyHeld = in.heavyHeld or injected("heavy");
             in.crouchHeld = in.crouchHeld or injected("crouch");
 
             for (int i = 0; i < InputFrame::ABILITIES; ++i)
@@ -2097,6 +2101,11 @@ namespace arena
         v.maxDashes = world.maxDashes(p);
         v.nextWeaponKey = upper(keyName("nextWeapon"));
         v.statuses = statusesOf(p);
+
+        // A charge held (the bow's draw, a charged skill): how far it is
+        if (p.action == Action::Attack)
+            if (const AttackDef* a = world.currentAttack(p); a and a->charge.at >= 0 and a->charge.frames > 0 and p.chargeSlot != -1 and p.frame <= a->charge.at + 1)
+                v.draw = p.chargeRatio(a);
 
         // The mana dims when not even the cheapest spell is affordable
         float cheapest = 1e9f;

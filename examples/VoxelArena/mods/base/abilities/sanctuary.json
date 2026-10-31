@@ -5,14 +5,14 @@
     "name": "Sanctuary",
     "kind": "attack",
     "weapons": ["staff"],
-    "staminaCost": 25,
-    "cooldown": 12,
+    "staminaCost": 28,
+    "cooldown": 18,
     "attack": {
         "moveSpeed": 0.2,
         "startup": 16, "active": 2, "recovery": 16,
         "damage": 0, "poiseDamage": 0,
         "hitboxes": [],
-        "healZone": { "radius": 3.5, "duration": 6, "perSecond": 7 },
+        "healZone": { "radius": 3, "duration": 5, "perSecond": 3 },
         "swing": { "yaw": 0, "pitchFrom": 70, "pitchTo": -30 }
     }
 }

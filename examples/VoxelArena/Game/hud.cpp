@@ -122,7 +122,18 @@ namespace arena
 
         ui.section("hud");
         if (v.player and v.alive and v.crosshair)
+        {
             drawCrosshair(ui);
+
+            // A draw: five pips under the crosshair, filling, gold when full
+            if (v.draw >= 0.0f)
+            {
+                ui.anchor(Anchor::Centre);
+                const int full = static_cast<int>(std::floor(std::clamp(v.draw, 0.0f, 1.0f) * 5.0f + 0.001f));
+                for (int k = 0; k < 5; ++k)
+                    ui.box(624.0f + static_cast<float>(k) * 7.0f, 378, 6, 5, k < full ? (full == 5 ? GOLD : TEXT) : EMPTY_PIP, 1.0f);
+            }
+        }
 
         if (v.run)
             drawRun(ui, v);

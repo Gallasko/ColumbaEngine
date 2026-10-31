@@ -1,5 +1,5 @@
 // The healer's staff (support): light throws orbs that burst a little where they land, heavy is a
-// mending pulse, health back to you and every ally close by, pushing enemies off. In the final duel
+// mending pulse, a little health back to you and every ally close by, pushing enemies off. In the final duel
 // it only heals you (the others are rivals then).
 // "heal": on the first active frame, health back to the players within radius (the healer too).
 {
@@ -23,44 +23,44 @@
         "attacks": {
             "orb1": {
                 "moveSpeed": 0.7,
-                "startup": 10, "active": 1, "recovery": 14,
-                "damage": 0, "poiseDamage": 0, "staminaCost": 6,
+                "startup": 10, "active": 1, "recovery": 18,
+                "damage": 0, "poiseDamage": 0, "staminaCost": 8,
                 "hitboxes": [],
-                "chainFrom": 14, "bufferFrom": 5,
+                "chainFrom": 18, "bufferFrom": 6,
                 "next": { "light": "orb2" },
                 "dodgeCancelFrom": 10,
-                "projectile": { "speed": 26, "gravity": 0, "radius": 0.25, "lifetime": 1.6, "burst": 1.2,
-                                "damage": 9, "poiseDamage": 6, "knockback": 2, "terrainDamage": 4,
+                "projectile": { "speed": 26, "gravity": 0, "radius": 0.25, "lifetime": 1.6, "burst": 0.8,
+                                "damage": 5, "poiseDamage": 4, "knockback": 2, "terrainDamage": 4,
                                 "hitstop": 2, "shake": 0.1, "spawn": [0.25, 1.5, 0.6], "model": "volt_orb", "modelScale": 0.06 },
                 "swing": { "yaw": 0, "pitchFrom": 20, "pitchTo": -10 }
             },
             "orb2": {
                 "moveSpeed": 0.7,
-                "startup": 9, "active": 1, "recovery": 16,
-                "damage": 0, "poiseDamage": 0, "staminaCost": 6,
+                "startup": 9, "active": 1, "recovery": 20,
+                "damage": 0, "poiseDamage": 0, "staminaCost": 8,
                 "hitboxes": [],
-                "chainFrom": 15, "bufferFrom": 5,
+                "chainFrom": 19, "bufferFrom": 6,
                 "next": { "light": "orb1" },
                 "dodgeCancelFrom": 10,
-                "projectile": { "speed": 26, "gravity": 0, "radius": 0.25, "lifetime": 1.6, "burst": 1.2,
-                                "damage": 11, "poiseDamage": 8, "knockback": 2, "terrainDamage": 4,
+                "projectile": { "speed": 26, "gravity": 0, "radius": 0.25, "lifetime": 1.6, "burst": 0.8,
+                                "damage": 6, "poiseDamage": 5, "knockback": 2, "terrainDamage": 4,
                                 "hitstop": 2, "shake": 0.1, "spawn": [0.25, 1.5, 0.6], "model": "volt_orb", "modelScale": 0.06 },
                 "swing": { "yaw": 0, "pitchFrom": 20, "pitchTo": -10 }
             },
             "mending_pulse": {
                 "moveSpeed": 0.3, "armor": 10,
-                "startup": 18, "active": 4, "recovery": 20,
-                "damage": 6, "poiseDamage": 12, "staminaCost": 18,
+                "startup": 18, "active": 4, "recovery": 26,
+                "damage": 4, "poiseDamage": 10, "staminaCost": 24,
                 "knockback": 7, "hitstop": 3, "shake": 0.25,
                 "hitboxes": [ { "offset": [0, 1.0, 0.0], "size": [5.0, 2.0, 5.0] } ],
-                "heal": { "amount": 16, "radius": 7 },
+                "heal": { "amount": 9, "radius": 5 },
                 "dodgeCancelFrom": 26,
                 "swing": { "yaw": 0, "pitchFrom": 60, "pitchTo": -20 }
             },
             "sweep": {
                 "moveSpeed": 0,
                 "startup": 6, "active": 6, "recovery": 16,
-                "damage": 10, "poiseDamage": 14, "staminaCost": 10,
+                "damage": 7, "poiseDamage": 10, "staminaCost": 10,
                 "knockback": 6, "hitstop": 3, "shake": 0.2,
                 "hitboxes": [ { "offset": [0, 1.0, 1.0], "size": [2.4, 1.2, 2.0] } ],
                 "lunge": 10, "lungeFrom": 0, "lungeTo": 10, "dash": true,
@@ -72,18 +72,18 @@
                 "startup": 6, "active": 1, "recovery": 12,
                 "damage": 0, "poiseDamage": 0, "staminaCost": 6,
                 "hitboxes": [],
-                "projectile": { "speed": 26, "gravity": 0, "radius": 0.25, "lifetime": 1.6, "burst": 1.2,
-                                "damage": 9, "poiseDamage": 6, "knockback": 2, "terrainDamage": 4,
+                "projectile": { "speed": 26, "gravity": 0, "radius": 0.25, "lifetime": 1.6, "burst": 0.8,
+                                "damage": 5, "poiseDamage": 4, "knockback": 2, "terrainDamage": 4,
                                 "hitstop": 2, "shake": 0.1, "spawn": [0.25, 1.5, 0.6], "model": "volt_orb", "modelScale": 0.06 },
                 "swing": { "yaw": 0, "pitchFrom": 20, "pitchTo": -10 }
             },
             "air_pulse": {
                 "moveSpeed": 0.5, "gravityScale": 0.3,
                 "startup": 12, "active": 4, "recovery": 16,
-                "damage": 5, "poiseDamage": 10, "staminaCost": 14,
+                "damage": 3, "poiseDamage": 8, "staminaCost": 16,
                 "knockback": 6, "hitstop": 3, "shake": 0.2,
                 "hitboxes": [ { "offset": [0, 0.8, 0.0], "size": [4.0, 2.0, 4.0] } ],
-                "heal": { "amount": 10, "radius": 6 },
+                "heal": { "amount": 5, "radius": 5 },
                 "swing": { "yaw": 0, "pitchFrom": 60, "pitchTo": -20 }
             }
         }

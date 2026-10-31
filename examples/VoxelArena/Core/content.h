@@ -303,6 +303,8 @@ namespace arena
             int frames = 0;
             float lunge = 1.0f;
             float damage = 1.0f;
+            float speed = 1.0f;       // a projectile's speed at full charge, times its own
+            bool hold = false;        // full, it waits for the key to let go (a bow's draw) instead of going by itself
         } charge;
 
         /** Healing (a healer's): on the first active frame, the players this close (the attacker too) get this back. */

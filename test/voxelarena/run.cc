@@ -875,7 +875,41 @@ TEST(arena_run, sanctuary_heals_the_players_in_it_for_a_while_and_not_the_enemie
     ASSERT_EQ(r.world.zones.size(), 1u);
     EXPECT_GT(r.world.zones[0].heal, 0.0f);
 
+    // A little every half second: about 3 a second for the 3 s it has been there
     r.past(3.0f);
-    EXPECT_GT(r.player().health, 35.0f);
+    EXPECT_GT(r.player().health, 26.0f);
     EXPECT_FLOAT_EQ(r.world.find(enemy)->health, 10.0f);
+}
+
+TEST(arena_run, the_bows_light_is_drawn_a_tap_is_weak_a_held_shot_strong)
+{
+    auto shoot = [](int holdSteps) {
+        RunArena r;
+        r.player().weapon = "base:bow";
+        r.run(5);
+
+        InputFrame in;
+        in.lightPressed = true;
+        in.lightHeld = holdSteps > 0;
+        in.aimDir = glm::vec3(0, 0, 1);
+        r.world.step(in);
+
+        InputFrame keep;
+        keep.aimDir = in.aimDir;
+        for (int i = 0; i < 90 and r.world.projectiles.empty(); ++i)
+        {
+            keep.lightHeld = i < holdSteps;
+            r.world.step(keep);
+        }
+
+        return r.world.projectiles.empty() ? Projectile{} : r.world.projectiles.front();
+    };
+
+    const Projectile tap = shoot(0);
+    const Projectile drawn = shoot(60);
+    const auto& charge = RunArena().content.weapons.at("base:bow").moveset.attacks.at("shot1").charge;
+
+    ASSERT_GT(tap.def.damage, 0.0f);
+    EXPECT_NEAR(drawn.def.damage, tap.def.damage * charge.damage, 0.01f);
+    EXPECT_GT(glm::length(drawn.velocity), glm::length(tap.velocity) * 1.3f);
 }
