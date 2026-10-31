@@ -36,8 +36,11 @@ namespace arena
         void setOpen(bool open) { this->open = open; }
         bool isOpen() const { return open; }
 
-        /** paused: the game waits while it is open (alone); inGame: opened from playing (Esc), its button resumes. */
-        void draw(Ui& ui, const GameOptions& options, bool paused = false, bool inGame = false);
+        /**
+         * paused: the game waits while it is open (alone); inGame: opened from playing (Esc), its button
+         * resumes; quitArmed: Quit was clicked once, the next click quits.
+         */
+        void draw(Ui& ui, const GameOptions& options, bool paused = false, bool inGame = false, bool quitArmed = false);
 
         /** A click's action (Ui::hitAt); returns true when an option changed (`closed` on Back). */
         bool act(int action, GameOptions& options, bool& closed);
@@ -45,10 +48,20 @@ namespace arena
         /** The keys: up and down pick a row, left and right change it. Returns true when an option changed. */
         bool key(int dx, int dy, GameOptions& options);
 
-        static constexpr int BACK = 99, ROW = 100;   // ROW + row * 10 + (1 minus, 2 plus, 3 first choice, 4 second)
+        static constexpr int QUIT = 97, NAME = 98, BACK = 99, ROW = 100;   // ROW + row * 10 + (1 minus, 2 plus, 3 first choice, 4 second)
+
+        // The name the others see, edited in place: typed into while `naming`
+        bool naming = false;
+        void startNaming(const std::string& current) { naming = true; nameEdit = current; }
+        void type(const std::string& text);
+        void backspace() { if (not nameEdit.empty()) nameEdit.pop_back(); }
+        /** Done: the name typed (trimmed; "" when none). */
+        std::string commitName();
 
     private:
         bool open = false;
         int focus = 0;
+        std::string nameEdit;
+        float blink = 0.0f;
     };
 }

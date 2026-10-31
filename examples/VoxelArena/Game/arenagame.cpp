@@ -663,6 +663,38 @@ namespace arena
                 continue;
             }
 
+            // Joining, over the title: typing goes to the field, Tab the other one, Enter joins, Esc closes
+            if (titleOpen and joinOpen)
+            {
+                if (p.scancode == SDL_SCANCODE_ESCAPE)
+                    joinOpen = false;
+                else if (p.scancode == SDL_SCANCODE_TAB)
+                    joinFocus = 1 - joinFocus;
+                else if (p.scancode == SDL_SCANCODE_BACKSPACE)
+                {
+                    std::string& field = joinFocus == 0 ? joinAddress : joinName;
+                    if (not field.empty())
+                        field.pop_back();
+                }
+                else if (p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER)
+                    joinNow();
+                else if (p.scancode == SDL_SCANCODE_V and (p.mod & KMOD_CTRL))
+                    joinAction(screens::JOIN_PASTE);
+                continue;
+            }
+
+            // The options' name field has the keyboard: Enter keeps the name, Esc forgets the change
+            if (optionsOpen and optionsScreen.naming)
+            {
+                if (p.scancode == SDL_SCANCODE_BACKSPACE)
+                    optionsScreen.backspace();
+                else if (p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER)
+                    rename(optionsScreen.commitName());
+                else if (p.scancode == SDL_SCANCODE_ESCAPE)
+                    optionsScreen.naming = false;
+                continue;
+            }
+
             if (optionsOpen)
             {
                 if (p.scancode == SDL_SCANCODE_ESCAPE or (keyIs(p.scancode, "options") and not p.repeat))
@@ -716,26 +748,6 @@ namespace arena
             if (keyIs(p.scancode, "options"))
             {
                 setOptionsOpen(true);
-                continue;
-            }
-
-            // Joining, over the title: typing goes to the field, Tab the other one, Enter joins, Esc closes
-            if (titleOpen and joinOpen)
-            {
-                if (p.scancode == SDL_SCANCODE_ESCAPE)
-                    joinOpen = false;
-                else if (p.scancode == SDL_SCANCODE_TAB)
-                    joinFocus = 1 - joinFocus;
-                else if (p.scancode == SDL_SCANCODE_BACKSPACE)
-                {
-                    std::string& field = joinFocus == 0 ? joinAddress : joinName;
-                    if (not field.empty())
-                        field.pop_back();
-                }
-                else if (p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER)
-                    joinNow();
-                else if (p.scancode == SDL_SCANCODE_V and (p.mod & KMOD_CTRL))
-                    joinAction(screens::JOIN_PASTE);
                 continue;
             }
 
@@ -917,6 +929,9 @@ namespace arena
             mousePresses.clear();
         }
 
+        if (optionsOpen and optionsScreen.naming and not text.empty())
+            optionsScreen.type(text);
+
         if (joinOpen and not text.empty())
         {
             std::string& field = joinFocus == 0 ? joinAddress : joinName;
@@ -1058,7 +1073,7 @@ namespace arena
             ownNetwork->execute();
 
         // Paused while the spellbook is open, playing alone (a shared game goes on)
-        if (not paused and not ((bookOpen or titleOpen or optionsOpen) and not networked()))
+        if (not paused and not ((bookOpen or titleOpen or optionsOpen) and alone()))
             accumulator += static_cast<double>(frameSeconds) * timeScale;
 
         int steps = 0;
@@ -1471,6 +1486,9 @@ namespace arena
 
     void ArenaGame::setOptionsOpen(bool open)
     {
+        if (not open and optionsScreen.naming)
+            rename(optionsScreen.commitName());
+
         optionsOpen = open;
         optionsScreen.setOpen(open);
     }
@@ -2056,6 +2074,42 @@ namespace arena
         }
     }
 
+    bool ArenaGame::alone() const
+    {
+        return not networked() or (server and server->clientCount() == 0);
+    }
+
+    void ArenaGame::rename(const std::string& name)
+    {
+        if (name.empty() or name == prefs.name)
+            return;
+
+        prefs.name = name;
+        saveOptions(optionsPath(), prefs);
+        options.playerName = name;
+
+        if (server)
+            server->hostName = name;
+        if (client)
+            client->setName(name);
+    }
+
+    void ArenaGame::quitClicked()
+    {
+        if (not quitArmed())
+        {
+            quitArmedUntil = uiTime + 3.0f;
+            return;
+        }
+
+        // A client says goodbye first; the router's ports close as the game goes (PortMapper)
+        if (client)
+            leaveGame();
+
+        if (window)
+            window->receivedQuitRequest();
+    }
+
     bool ArenaGame::uiTakesClicks() const
     {
         return optionsOpen or bookOpen or shopOpen or titleOpen or endOpen or armoryOpen;
@@ -2194,14 +2248,18 @@ namespace arena
         const glm::mat4 proj = glm::perspective(fov() * DEG, aspect, 0.1f, 500.0f);
         const glm::mat4 view = glm::lookAt(camera.position, camera.position + camera.forward(), glm::vec3(0, 1, 0));
 
-        // In the final duel, the other players get bars (and names) too
+        // In the final duel, the other players get bars (and names) too; in any game with others, the
+        // players get their names over them (allies with their health, yours in third person)
         const Fighter* me = world.player();
         const bool duel = world.run.phase == RunPhase::Duel;
 
         for (const auto& f : world.fighters)
         {
-            const bool rival = duel and f.team == Team::Player and (not me or f.id != me->id);
-            if ((f.team != Team::Enemy and not rival) or not f.alive() or v.enemies.size() >= 32)
+            const bool mine = me and f.id == me->id;
+            const bool rival = duel and f.team == Team::Player and not mine;
+            const bool ally = networked() and not duel and f.team == Team::Player and not mine;
+            const bool self = networked() and mine and not firstPerson;
+            if ((f.team != Team::Enemy and not rival and not ally and not self) or not f.alive() or v.enemies.size() >= 32)
                 continue;
 
             const auto prev = previous.find(f.id);
@@ -2224,8 +2282,12 @@ namespace arena
             bar.elite = f.elite;
             bar.boss = f.team == Team::Enemy and f.id == world.run.bossId;
             bar.statuses = statusesOf(f);
-            if (rival)
+            if (rival or ally or self)
                 bar.name = playerNameOf(f.id);
+            if (self and bar.name.empty())
+                bar.name = options.playerName;
+            bar.ally = ally;
+            bar.self = self;
             v.enemies.push_back(bar);
         }
 
@@ -2247,8 +2309,33 @@ namespace arena
             if (action == 0)
                 continue;
 
+            // A screen's blank space (its blocker): nothing, but a name being typed in the options is kept
+            if (action < 0)
+            {
+                if (optionsOpen and optionsScreen.naming)
+                    rename(optionsScreen.commitName());
+                continue;
+            }
+
             if (optionsOpen)
             {
+                // A click away from the name field keeps what was typed
+                if (optionsScreen.naming and action != OptionsScreen::NAME)
+                    rename(optionsScreen.commitName());
+
+                if (action == OptionsScreen::NAME)
+                {
+                    if (not optionsScreen.naming)
+                        optionsScreen.startNaming(prefs.name);
+                    continue;
+                }
+
+                if (action == OptionsScreen::QUIT)
+                {
+                    quitClicked();
+                    continue;
+                }
+
                 bool closed = false;
                 if (optionsScreen.act(action, prefs, closed))
                 {
@@ -2314,6 +2401,9 @@ namespace arena
                         break;
                     case screens::LOBBY_LEAVE:
                         leaveGame();
+                        break;
+                    case screens::TITLE_QUIT:
+                        quitClicked();
                         break;
                     case screens::TITLE_ARENA:
                         if (not client)
@@ -2728,6 +2818,7 @@ namespace arena
         v.waves = content.run.waves;
         v.time = uiTime;
         v.log.assign(netLog.begin(), netLog.end());
+        v.quitArmed = quitArmed();
 
         net::LobbyMsg lobby;
 
@@ -2854,6 +2945,11 @@ namespace arena
 
         ui.begin();
 
+        // Under an open modal (options, spellbook, invite, join), nothing lights up under the mouse
+        const bool modal = optionsOpen or bookOpen or (titleOpen and (inviteOpen or joinOpen));
+        if (modal)
+            ui.mouse(-1.0f, -1.0f);
+
         if (not titleOpen)
             hud.draw(ui, v, frameSeconds);
 
@@ -2869,8 +2965,18 @@ namespace arena
             t.best = bestScore;
             t.waitingForHost = client != nullptr;
             t.time = uiTime;
+            t.quitArmed = quitArmed();
             screens::drawTitle(ui, t);
         }
+        // The modal on top gets the mouse back
+        auto mouseBack = [&]() {
+            std::lock_guard<std::mutex> lock(inputMutex);
+            ui.mouse(mouseX, mouseY);
+        };
+
+        if (titleOpen and (joinOpen or inviteOpen) and not optionsOpen and not bookOpen)
+            mouseBack();
+
         if (titleOpen and joinOpen)
         {
             JoinView jv;
@@ -2918,6 +3024,9 @@ namespace arena
         if (armoryOpen and p)
             drawArmory();
 
+        if (bookOpen or optionsOpen)
+            mouseBack();
+
         if (bookOpen)
         {
             // The spell keys' names, in the order of their slots
@@ -2926,7 +3035,7 @@ namespace arena
                 if (const int slot = world.spellSlotAt(i); slot >= 0 and slot < static_cast<int>(keys.size()))
                     keys[static_cast<size_t>(slot)] = upper(keyName("ability" + std::to_string(i + 1)));
 
-            spellbook.draw(ui, content, book, not networked(), keys, [this](int group, int index) {
+            spellbook.draw(ui, content, book, alone(), keys, [this](int group, int index) {
                 static const char* names[] = {"spellElement", "spellForm", "spellModifier"};
                 const std::string action = names[std::clamp(group, 0, 2)] + std::to_string(index + 1);
                 return controls.count(action) ? upper(keyName(action)) : std::string();
@@ -2934,7 +3043,7 @@ namespace arena
         }
 
         if (optionsOpen)
-            optionsScreen.draw(ui, prefs, not networked(), not (titleOpen or endOpen));
+            optionsScreen.draw(ui, prefs, alone(), not (titleOpen or endOpen), quitArmed());
 
         std::string banner;
         if (not content.report.errors.empty())

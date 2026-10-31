@@ -548,6 +548,17 @@ namespace arena::net
             me->spells = spells;
     }
 
+    void NetClient::setName(const std::string& n)
+    {
+        if (n.empty() or n == name)
+            return;
+
+        name = n;
+
+        if (state == State::Playing)
+            transport.send(0, encode(NameMsg{name}), true);
+    }
+
     void NetClient::setReady(bool r)
     {
         ready = r;

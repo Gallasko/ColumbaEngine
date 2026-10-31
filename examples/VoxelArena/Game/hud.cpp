@@ -550,6 +550,20 @@ namespace arena
             const float top = std::round(ui.baseY(e.head.y)) - 6.0f - 11.0f;
             const float x = cx - 33.0f;
 
+            // A player: the name over them; an ally's health under it, yours not at all (it is at the bottom)
+            if (e.self or e.ally)
+            {
+                ui.textShadow(cx, top - (e.self ? -2.0f : 15.0f), e.name, Font::Text700, 12, e.self ? TEXT_DIM : TEXT, 2.0f, Align::Centre);
+                if (e.ally)
+                {
+                    const int cubes = static_cast<int>(std::ceil(std::clamp(e.health, 0.0f, 1.0f) * 8.0f - 0.001f));
+                    ui.rect(x, top, 66, 8, INK);
+                    for (int k = 0; k < 8; ++k)
+                        ui.rect(x + 1 + static_cast<float>(k) * 8.0f, top + 1, 7, 6, k < cubes ? STAMINA : withAlpha(INK, 0.65f));
+                }
+                continue;
+            }
+
             ui.rect(x, top, 66, 8, e.elite ? GOLD : (e.boss ? BOSS : INK));
 
             const int cubes = static_cast<int>(std::ceil(std::clamp(e.health, 0.0f, 1.0f) * 8.0f - 0.001f));

@@ -200,6 +200,19 @@ namespace arena::net
                 break;
             }
 
+            case Msg::Name:
+            {
+                NameMsg msg;
+
+                if (not c.joined or not decode(data, msg) or msg.name.empty() or msg.name.substr(0, 32) == c.name)
+                    return;
+
+                log.push_back(c.name + " is now " + msg.name.substr(0, 32));
+                c.name = msg.name.substr(0, 32);
+                lobbyDirty = true;
+                break;
+            }
+
             case Msg::Bye:
             {
                 if (c.joined)

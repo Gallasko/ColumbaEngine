@@ -54,7 +54,9 @@ namespace arena
             float health = 1.0f, poise = 1.0f;
             bool staggered = false, elite = false, boss = false;
             std::vector<Status> statuses;
-            std::string name;        // a player's, in the final duel
+            std::string name;        // a player's (the others', yours in third person)
+            bool ally = false;       // a player on your side: their name and health, nothing else
+            bool self = false;       // you (third person): your name only
         };
 
         struct Marker

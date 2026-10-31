@@ -238,6 +238,7 @@ namespace arena
         ui.section("spellbook");
         ui.anchor(Anchor::TopLeft);
         ui.rectPx(0, 0, ui.width(), ui.height(), withAlpha(INK, 0.58f));
+        ui.hit(0, 0, ui.baseX(ui.width()), ui.baseY(ui.height()), -1);   // nothing under it takes a click
 
         ui.anchor(Anchor::Centre);
         ui.raised(64, 32, 1152, 656, PANEL, 4.0f);

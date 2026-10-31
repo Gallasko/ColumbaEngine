@@ -996,3 +996,18 @@ TEST(arena_net, a_listen_servers_lobby_has_its_host_first)
     }
     EXPECT_EQ(host.run.phase, RunPhase::Off);
 }
+
+TEST(arena_net, a_player_who_changes_name_is_shown_by_it_to_everyone)
+{
+    Session s(20.0);
+    auto& a = s.join("ann");
+    auto& b = s.join("bob");
+    s.run(30);
+
+    b.client->setName("bobby");
+    s.run(10);
+
+    ASSERT_EQ(a.client->lobby.players.size(), 2u);
+    EXPECT_EQ(a.client->nameOf(b.client->playerId), "bobby");
+    EXPECT_EQ(s.server->lobby().players[1].name, "bobby");
+}

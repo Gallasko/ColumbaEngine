@@ -265,6 +265,16 @@ namespace arena
         std::chrono::steady_clock::time_point netEpoch = std::chrono::steady_clock::now();
         double netNowMs() const { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - netEpoch).count(); }
         bool networked() const { return options.mode != ArenaOptions::Mode::Single; }
+        /** Nobody else in the game (alone, or hosting with nobody joined): the menus pause it. */
+        bool alone() const;
+
+        // The name the others see (the options' field, the join panel): kept, and told to the others
+        void rename(const std::string& name);
+
+        // Quitting: the first click arms it, a second within a few seconds quits
+        float quitArmedUntil = -1.0f;
+        bool quitArmed() const { return uiTime < quitArmedUntil; }
+        void quitClicked();
 
         // The lobby: what a host shows its friends to join with, and what happened lately
         net::PortMapper portMapper;

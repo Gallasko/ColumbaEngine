@@ -327,6 +327,23 @@ namespace arena::net
         return not r.failed;
     }
 
+    std::vector<uint8_t> encode(const NameMsg& m)
+    {
+        Writer w;
+        w.u8(static_cast<uint8_t>(Msg::Name));
+        w.str(m.name.substr(0, 32));
+        return w.data;
+    }
+
+    bool decode(const std::vector<uint8_t>& data, NameMsg& m)
+    {
+        Reader r(data);
+        if (r.u8() != static_cast<uint8_t>(Msg::Name))
+            return false;
+        m.name = r.str();
+        return not r.failed;
+    }
+
     // ---- Spells -----------------------------------------------------------------------------------
 
     std::vector<uint8_t> encode(const SpellsMsg& m, const Names& names)

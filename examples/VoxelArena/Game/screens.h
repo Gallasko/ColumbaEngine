@@ -15,6 +15,7 @@ namespace arena
         bool waitingForHost = false;    // a client: only the host starts the run
         int players = 1, maxPlayers = 8;
         float time = 0.0f;
+        bool quitArmed = false;         // Quit clicked once: the next click quits
     };
 
     /** The end of a run (section 9). */
@@ -59,6 +60,7 @@ namespace arena
         std::vector<std::string> log;   // the latest joins, leaves and refusals
         int waves = 20;
         float time = 0.0f;
+        bool quitArmed = false;
     };
 
     /** Inviting friends (the + of the title and the lobby): the address to share, or hosting first. */
@@ -101,7 +103,10 @@ namespace arena
         constexpr int TITLE_ARENA = 1, TITLE_TRAINING = 2, TITLE_SPELLBOOK = 3, TITLE_OPTIONS = 4;
         constexpr int END_AGAIN = 11, END_TRAINING = 12;
         constexpr int LOBBY_READY = 5;   // the host's start is TITLE_ARENA
-        constexpr int TITLE_INVITE = 6, TITLE_JOIN = 7, LOBBY_LEAVE = 8;
+        constexpr int TITLE_INVITE = 6, TITLE_JOIN = 7, LOBBY_LEAVE = 8, TITLE_QUIT = 9;
+
+        /** Quit game, at the bottom of the title and the lobby (a second click quits). */
+        void drawQuit(Ui& ui, float x, float y, bool armed);
         constexpr int INVITE_JOIN = 26;
         constexpr int ARMORY_PICK = 600;   // + the weapon's index
         void drawArmory(Ui& ui, const ArmoryView& v);

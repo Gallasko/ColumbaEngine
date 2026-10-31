@@ -309,6 +309,14 @@ the addresses to share with a Copy button each (online when the router opened th
 same network) and the command a friend starts the game with. Someone who joined sees the address they
 joined, to pass on.
 
+**Names**: the options' first row is the name the others see (click it, type, Enter); it is kept, the
+host's lobby shows it, and a player who joined tells the server when it changes. In a game with others
+every player has their name over them (an ally's health under it, yours in third person).
+
+**Quitting**: Quit game, at the bottom of the title and the lobby and in the options, asks for a second
+click within 3 s (a player who joined says goodbye to the host first). The menus (options, spellbook)
+pause the game when nobody else is in it, hosting with nobody joined included.
+
 **Joining from the game**: the title's J (or the invite panel's "Join a friend's game instead") asks
 for the host's address (`address` or `address:port`, 7777 when none; Paste takes what their invite
 copied, the address or the whole command) and the name the others see. Both are kept for next time.

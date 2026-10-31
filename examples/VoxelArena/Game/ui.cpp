@@ -393,8 +393,17 @@ namespace arena
 
         if (index >= pool->quads.size())
         {
+            // Placed as it is made: the engine draws a new entity before it can be looked up (next
+            // frame), and left at its default place it showed for a frame in the top left corner
             auto comp = makeUiSimple2DShape(ecs, Shape2D::Square, x1 - x0, y1 - y0, rgba(c));
             comp.get<ViewportComponent>()->setViewport(UI_VIEWPORT);
+            auto placed = comp.get<PositionComponent>();
+            placed->setX(x0);
+            placed->setY(y0);
+            placed->setZ(z);
+            placed->setWidth(x1 - x0);
+            placed->setHeight(y1 - y0);
+
             QuadSlot slot;
             slot.id = comp.entity.id;
             pool->quads.push_back(slot);

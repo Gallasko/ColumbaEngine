@@ -32,6 +32,16 @@ namespace arena::screens
         return (value < 0 ? "-" : "") + out;
     }
 
+    void drawQuit(Ui& ui, float x, float y, bool armed)
+    {
+        const std::string label = armed ? "Click again to quit" : "Quit game";
+        const float w = ui.measure(label, Font::Display, 20) + 24.0f;
+        const bool over = ui.hover(x, y, w, 32);
+        ui.box(x, y, w, 32, armed ? hex(0x3A1614) : CARD, 2.0f, armed or over ? WARNING : LINE);
+        ui.text(x + w * 0.5f, y + 6, label, Font::Display, 20, armed or over ? WARNING : TEXT_DIM, Align::Centre);
+        ui.hit(x, y, w, 32, TITLE_QUIT);
+    }
+
     void drawInviteButton(Ui& ui, float time)
     {
         (void)time;
@@ -366,7 +376,8 @@ namespace arena::screens
         const float bw = ui.text(72, 630, grouped(v.best), Font::Display, 40, TEXT);
         ui.text(72 + bw + 12, 648, v.best > 0 ? "your best run so far" : "no run yet", Font::Text500, 12, MUTED);
 
-        ui.text(72, 684, "F1 overlay \xC2\xB7 ` console \xC2\xB7 Esc options \xC2\xB7 hold Left Alt to free the mouse", Font::Text500, 11, FAINT);
+        drawQuit(ui, 72, 672, v.quitArmed);
+        ui.text(248, 682, "F1 overlay \xC2\xB7 ` console \xC2\xB7 Esc options", Font::Text500, 11, FAINT);
     }
 
     void drawLobby(Ui& ui, const LobbyView& v)
@@ -537,10 +548,13 @@ namespace arena::screens
             ui.text(72, 612, v.joined + port, Font::Display, 22, TEXT);
         }
 
+        ui.anchor(Anchor::Left);
+        drawQuit(ui, 72, 676, v.quitArmed);
+
         // The latest of what happened
-        float ly = 680.0f;
+        float ly = 676.0f;
         for (auto it = v.log.rbegin(); it != v.log.rend() and ly < 704.0f; ++it, ly += 14.0f)
-            ui.text(72, ly, ui.fit(*it, Font::Text500, 11, 472), Font::Text500, 11, FAINT);
+            ui.text(230, ly, ui.fit(*it, Font::Text500, 11, 314), Font::Text500, 11, FAINT);
     }
 
     void drawEnd(Ui& ui, const EndView& v)
