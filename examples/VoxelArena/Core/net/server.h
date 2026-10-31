@@ -59,6 +59,15 @@ namespace arena::net
         /** Input buffered per client beyond the one used each step: more is dropped (lag), none repeats the last. */
         static constexpr size_t MAX_BUFFER = 4;
 
+        /** A connection that has not joined after this many steps is closed (it holds a slot for nothing). */
+        static constexpr uint64_t JOIN_TIMEOUT = 30 * 60;
+
+        /** ... and after this many when it is getting the server's mods (a download, then loading them). */
+        static constexpr uint64_t MODS_TIMEOUT = 120 * 60;
+
+        /** A refused client is closed this many steps after its refusal (time for the refusal to reach it). */
+        static constexpr uint64_t REFUSED_LINGER = 60;
+
         /** The round trip lag compensation and the dodge grace go by, at most (a slower link gets less). */
         static constexpr float MAX_COMPENSATED_RTT_MS = 300.0f;
 
@@ -79,6 +88,8 @@ namespace arena::net
             bool ready = false;      // in the lobby: ready to start the run
             uint64_t joinOrder = 0;
             bool modsSent = false;   // once only: a client still different after them is refused
+            uint64_t since = 0;      // the step it connected (or got the mods) at
+            uint64_t closeAt = 0;    // refused: closed at this step (0: not refused)
         };
 
         /** The round trip of a client: the transport's measure when it has one, else what the client says. */
@@ -86,6 +97,9 @@ namespace arena::net
 
         /** An input's network stamps, kept within what the client's round trip makes possible. */
         void clampStamps(const Client& c, InputFrame& in) const;
+
+        void refuse(Client& c, const std::string& name, const std::string& reason);
+        void closeIdle();
 
         void onMessage(Client& c, const std::vector<uint8_t>& data);
         InputFrame nextInput(Client& c);
@@ -111,5 +125,6 @@ namespace arena::net
         int stepsSinceLobby = 0;
         uint64_t joins = 0;
         RunPhase lastPhase = RunPhase::Off;
+        uint64_t ticks = 0;   // steps of this server, for its timeouts
     };
 }

@@ -1262,3 +1262,33 @@ TEST(arena_net, names_from_the_network_are_made_safe)
     EXPECT_EQ(lobby.players[0].name.find('\x1b'), std::string::npos);
     EXPECT_EQ(lobby.players[0].name.find('\x07'), std::string::npos);
 }
+
+TEST(arena_net, a_refused_client_is_disconnected)
+{
+    Session s;
+    s.server->maxClients = 0;
+
+    RawPeer raw(s);
+    raw.hello(s);
+    pump(s, raw, static_cast<int>(NetServer::REFUSED_LINGER) + 10);
+
+    // The refusal first, then the connection closed
+    ASSERT_FALSE(raw.got.empty());
+    const auto refusal = std::find_if(raw.got.begin(), raw.got.end(), [](const NetEvent& e) { return e.type == NetEvent::Type::Message and peek(e.data) == Msg::Welcome; });
+    ASSERT_NE(refusal, raw.got.end());
+    Welcome w;
+    ASSERT_TRUE(decode(refusal->data, w));
+    EXPECT_FALSE(w.accepted);
+    EXPECT_TRUE(raw.disconnected());
+}
+
+TEST(arena_net, a_connection_that_never_joins_is_closed)
+{
+    Session s;
+    RawPeer raw(s);
+    pump(s, raw, static_cast<int>(NetServer::JOIN_TIMEOUT) - 10);
+    EXPECT_FALSE(raw.disconnected());
+
+    pump(s, raw, 20);
+    EXPECT_TRUE(raw.disconnected());
+}

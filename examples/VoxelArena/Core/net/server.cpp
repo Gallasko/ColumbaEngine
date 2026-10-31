@@ -31,6 +31,7 @@ namespace arena::net
             {
                 case NetEvent::Type::Connected:
                     clients[e.peer].peer = e.peer;
+                    clients[e.peer].since = ticks;
                     break;
 
                 case NetEvent::Type::Disconnected:
@@ -54,9 +55,19 @@ namespace arena::net
 
                 case NetEvent::Type::Message:
                 {
-                    Client& c = clients[e.peer];
-                    c.peer = e.peer;
-                    onMessage(c, e.data);
+                    auto it = clients.find(e.peer);
+
+                    // From a connection never announced, or one already refused: nothing to say to it
+                    if (it == clients.end())
+                    {
+                        Client& c = clients[e.peer];
+                        c.peer = e.peer;
+                        c.since = ticks;
+                        it = clients.find(e.peer);
+                    }
+
+                    if (it->second.closeAt == 0)
+                        onMessage(it->second, e.data);
                     break;
                 }
             }
@@ -111,6 +122,7 @@ namespace arena::net
                     if (not modBundle.empty() and not c.modsSent)
                     {
                         c.modsSent = true;
+                        c.since = ticks;
                         transport.send(c.peer, modBundle, true);
                         log.push_back((name.empty() ? "a player" : name) + " is getting the server's mods");
                         return;
@@ -122,7 +134,7 @@ namespace arena::net
                 if (not welcome.reason.empty())
                 {
                     transport.send(c.peer, encode(welcome), true);
-                    log.push_back((name.empty() ? "a player" : name) + " was refused: " + welcome.reason);
+                    refuse(c, name, welcome.reason);
                     return;
                 }
 
@@ -231,11 +243,40 @@ namespace arena::net
                 }
 
                 c.joined = false;
+                c.since = ticks;   // it may say hello again, in time
                 break;
             }
 
             default:
                 break;
+        }
+    }
+
+    void NetServer::refuse(Client& c, const std::string& name, const std::string& reason)
+    {
+        log.push_back((name.empty() ? "a player" : name) + " was refused: " + reason);
+        c.closeAt = ticks + REFUSED_LINGER;
+    }
+
+    void NetServer::closeIdle()
+    {
+        for (auto& [peer, c] : clients)
+        {
+            if (c.joined)
+                continue;
+
+            // Refused, its refusal sent: closed. Connected and never joined: closed after a while
+            const bool refused = c.closeAt != 0 and ticks >= c.closeAt;
+            const bool idle = c.closeAt == 0 and ticks - c.since > (c.modsSent ? MODS_TIMEOUT : JOIN_TIMEOUT);
+
+            if (refused or idle)
+            {
+                if (idle)
+                    log.push_back("closed a connection that never joined");
+
+                transport.disconnect(peer);
+                c.closeAt = ticks + MODS_TIMEOUT;   // asked once; the transport says when it is gone
+            }
         }
     }
 
@@ -294,6 +335,9 @@ namespace arena::net
 
     void NetServer::step(const InputFrame* localInput)
     {
+        ++ticks;
+        closeIdle();
+
         // The arena may have been rebuilt (a reset): keep listening to the current one
         world.grid.changeLog = &gridLog;
         world.terrain.damageLog = &damageLog;

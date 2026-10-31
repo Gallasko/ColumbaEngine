@@ -30,5 +30,8 @@ namespace arena::net
 
         /** Round trip to a peer in ms, when the transport knows it (else 0). */
         virtual float rttMs(int peer) const { (void)peer; return 0.0f; }
+
+        /** Server side: closes a peer's connection (what was sent before goes out first, if it can). */
+        virtual void disconnect(int peer) { (void)peer; }
     };
 }

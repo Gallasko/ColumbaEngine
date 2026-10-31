@@ -49,6 +49,36 @@ namespace arena::net
         }
     }
 
+    void LoopbackHub::kick(int peer)
+    {
+        Endpoint* c = peer == 0 ? nullptr : endpoint(peer);
+
+        if (not c or not c->connected)
+            return;
+
+        // What was already on its way still arrives: reliable traffic keeps its order
+        double& order = serverEnd->lastReliable;
+
+        NetEvent toServer;
+        toServer.type = NetEvent::Type::Disconnected;
+        toServer.peer = peer;
+        double ignored = 0.0;
+        deliver(0, toServer, true, ignored);
+
+        NetEvent toClient;
+        toClient.type = NetEvent::Type::Disconnected;
+        toClient.peer = 0;
+        deliver(peer, toClient, true, order);
+
+        c->connected = false;
+    }
+
+    void LoopbackHub::Endpoint::disconnect(int peer)
+    {
+        if (self == 0)
+            hub->kick(peer);
+    }
+
     LoopbackHub::Endpoint* LoopbackHub::endpoint(int id)
     {
         if (id == 0)
