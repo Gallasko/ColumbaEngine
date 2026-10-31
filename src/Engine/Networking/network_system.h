@@ -99,6 +99,10 @@ namespace pg
         /** Server: close a client's connection, after what was sent to it (as far as it goes at once). */
         void kick(uint32_t clientId);
 
+        /** Messages queued for the application from one client, at most: more are dropped (a flood). */
+        static constexpr size_t MAX_INBOX_PER_CLIENT = 1024;
+        static constexpr size_t MAX_INBOX = 4096;
+
         bool isServer() const { return netCfg.isServer; }
         float rttMs(uint32_t clientId) const;
 
@@ -178,6 +182,7 @@ namespace pg
 
         mutable std::mutex queueMutex;
         std::deque<NetIncoming> inbox;
+        std::unordered_map<uint32_t, size_t> inboxPerClient;   // messages in the inbox, by client
         std::deque<Outgoing> outbox;
         std::set<uint32_t> kicks;
     };

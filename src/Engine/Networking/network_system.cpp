@@ -67,11 +67,35 @@ namespace pg
         }
 
         std::lock_guard<std::mutex> lock(queueMutex);
+
+        // One client flooding: its own messages are dropped, not the others' (nor who came and went)
+        if (incoming.kind == NetIncoming::Kind::Message)
+        {
+            size_t& queued = inboxPerClient[incoming.clientId];
+
+            if (queued >= MAX_INBOX_PER_CLIENT)
+                return;
+
+            ++queued;
+        }
+
         inbox.push_back(std::move(incoming));
 
-        // Nobody reads the queue (an app using the events only): keep it from growing for ever
-        while (inbox.size() > 4096)
-            inbox.pop_front();
+        // Nobody reads the queue (an app using the events only): keep it from growing for ever, the
+        // oldest message going first
+        while (inbox.size() > MAX_INBOX)
+        {
+            auto it = std::find_if(inbox.begin(), inbox.end(), [](const NetIncoming& in) { return in.kind == NetIncoming::Kind::Message; });
+
+            if (it == inbox.end())
+                it = inbox.begin();
+
+            if (it->kind == NetIncoming::Kind::Message)
+                if (auto q = inboxPerClient.find(it->clientId); q != inboxPerClient.end() and q->second > 0)
+                    --q->second;
+
+            inbox.erase(it);
+        }
     }
 
     bool NetworkSystem::poll(NetIncoming& out)
@@ -83,6 +107,11 @@ namespace pg
 
         out = std::move(inbox.front());
         inbox.pop_front();
+
+        if (out.kind == NetIncoming::Kind::Message)
+            if (auto q = inboxPerClient.find(out.clientId); q != inboxPerClient.end() and q->second > 0 and --q->second == 0)
+                inboxPerClient.erase(q);
+
         return true;
     }
 
