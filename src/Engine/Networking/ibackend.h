@@ -36,6 +36,9 @@ namespace pg
 
         virtual void closeTcp(SocketHandle sock) = 0;
 
+        /** Sends what waits in the backend's queues, as far as it goes without blocking (called every frame). */
+        virtual void flush() {}
+
         // Send raw packet (header+payload)
         virtual bool sendUdp(const IpEndpoint& dest, const NetPayload& data) = 0;
         virtual bool sendTcp(SocketHandle sock, const NetPayload& data) = 0;

@@ -19,8 +19,11 @@ namespace pg
      *
      * TCP is a byte stream: every sendTcp is written as a 4-byte big-endian length then the bytes,
      * and each socket keeps a receive buffer, so receiveTcp hands back whole messages however the
-     * stream was cut. UDP sources are read as numeric addresses (no reverse lookup), and resolved
-     * destinations are kept. The client connects on a thread of its own (connecting can take seconds).
+     * stream was cut. Sending never blocks: what the system does not take at once waits in the
+     * socket's send queue (flush sends more of it), and a peer that lets more than MAX_SEND_QUEUE
+     * pile up is cut off, as one that stops reading would otherwise stall everyone.
+     * UDP sources are read as numeric addresses (no reverse lookup), and resolved destinations are
+     * kept. The client connects on a thread of its own (connecting can take seconds).
      */
     class SdlNetworkBackend : public INetworkBackend
     {
@@ -40,6 +43,7 @@ namespace pg
         virtual void disconnectFromServer() override;
 
         virtual void closeTcp(SocketHandle sock) override;
+        void flush() override;
 
         bool sendUdp(const IpEndpoint& dest, const NetPayload& data) override;
         bool sendTcp(SocketHandle sock, const NetPayload& data) override;
@@ -72,11 +76,25 @@ namespace pg
         /** The largest TCP message accepted: a bigger length means a broken or hostile peer, and the socket is closed. */
         static constexpr uint32_t MAX_FRAME = 16 * 1024 * 1024;
 
+        /** Bytes waiting to go to one peer, at most: more and the peer is not reading, and is cut off. */
+        static constexpr size_t MAX_SEND_QUEUE = 2 * MAX_FRAME + 1024 * 1024;
+
     private:
         /** Reads what a socket has and returns one whole frame if there is one; closed when the peer left or broke the framing. */
         bool readFrame(TCPsocket sock, NetPayload& out, bool& closed);
         bool openClientUdp();
         void joinConnectThread();
+
+        /** Sends what the socket's queue holds, as far as the system takes it now. False: the connection broke. */
+        bool flushSocket(TCPsocket sock);
+        void forget(TCPsocket sock);
+
+        struct SendQueue
+        {
+            NetPayload data;
+            size_t sent = 0;     // bytes of data already gone (dropped from the front now and then)
+            bool broken = false; // a send failed, or the peer let too much pile up: reads say it closed
+        };
 
         NetworkConfig   _cfg;
         bool            ready = false;
@@ -96,6 +114,7 @@ namespace pg
         int              socketsInSet = 0;
 
         std::unordered_map<TCPsocket, NetPayload> rxBuffers;
+        std::unordered_map<TCPsocket, SendQueue> txQueues;
         std::map<std::string, IPaddress> resolved;
 
         // Background connect

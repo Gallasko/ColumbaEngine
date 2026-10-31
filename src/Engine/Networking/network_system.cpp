@@ -184,6 +184,9 @@ namespace pg
         if (not backend or not backend->isReady())
             return;
 
+        // What waits to go out since the last frame (a peer slow to read)
+        backend->flush();
+
         if (netCfg.isServer)
             runServerFrame();
         else

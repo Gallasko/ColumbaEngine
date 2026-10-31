@@ -342,6 +342,67 @@ namespace pg
             EXPECT_TRUE(arrivesBy(false, 8000)) << "UDP never tried again";
         }
 
+        // ---- Hostile peers --------------------------------------------------------------------------
+
+        namespace
+        {
+            double msSince(std::chrono::steady_clock::time_point t)
+            {
+                return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t).count();
+            }
+        }
+
+        TEST(network_sockets, a_peer_that_stops_reading_is_cut_off_without_stalling_the_server)
+        {
+            const uint16_t tcp = static_cast<uint16_t>(basePort() + 70), udp = static_cast<uint16_t>(tcp + 1);
+
+            NetworkSystem server(new SdlNetworkBackend(serverConfig(tcp, udp)), serverConfig(tcp, udp));
+            server.init();
+
+            // A client that connects and never reads a byte
+            IPaddress addr{};
+            SDLNet_ResolveHost(&addr, "127.0.0.1", tcp);
+            TCPsocket mute = SDLNet_TCP_Open(&addr);
+            ASSERT_TRUE(mute);
+
+            uint32_t id = 0;
+            NetIncoming in;
+
+            for (int i = 0; i < 500 and id == 0; ++i)
+            {
+                server.execute();
+                while (server.poll(in))
+                    if (in.kind == NetIncoming::Kind::Connected)
+                        id = in.clientId;
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            }
+            ASSERT_NE(id, 0u);
+
+            // More than it may let pile up, a frame at a time: no frame waits on it
+            bool gone = false;
+            const auto start = std::chrono::steady_clock::now();
+
+            for (int i = 0; i < 400 and not gone; ++i)
+            {
+                if (i < 60)
+                    server.send(id, bytes(1024 * 1024, static_cast<uint8_t>(i)), true);
+
+                const auto frame = std::chrono::steady_clock::now();
+                server.execute();
+                EXPECT_LT(msSince(frame), 500.0);
+
+                while (server.poll(in))
+                    gone = gone or (in.kind == NetIncoming::Kind::Disconnected and in.clientId == id);
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            }
+
+            EXPECT_TRUE(gone);
+            // Cut off for not reading, before the silence timeout would have
+            EXPECT_LT(msSince(start), 5000.0);
+            SDLNet_TCP_Close(mute);
+        }
+
         TEST(network_sockets, a_client_with_nobody_to_talk_to_does_not_block)
         {
             const uint16_t tcp = static_cast<uint16_t>(basePort() + 2);
