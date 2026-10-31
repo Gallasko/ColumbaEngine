@@ -34,6 +34,7 @@ namespace pg
         uint64_t lastHeartbeatMs = 0;      // steady ms of the last message heard
         uint64_t lastPingSentMs  = 0;      // steady ms of the last ping sent
         float    rttMs           = 0;      // smoothed round trip
+        std::string tcpHost;               // the address it connected from
     };
 
     /** What the application gets from the network (NetworkSystem::poll), in arrival order. */
@@ -170,6 +171,7 @@ namespace pg
 
         /** Server: a message from this client is checked before it takes room for its fragments. */
         bool fromClient(const NetPayload& raw, const ClientInfo& ci) const;
+        void acceptClients(uint64_t now);
 
         mutable std::mutex queueMutex;
         std::deque<NetIncoming> inbox;

@@ -43,6 +43,7 @@ namespace pg
         virtual void disconnectFromServer() override;
 
         virtual void closeTcp(SocketHandle sock) override;
+        std::string tcpPeerHost(SocketHandle sock) override;
         void flush() override;
 
         bool sendUdp(const IpEndpoint& dest, const NetPayload& data) override;

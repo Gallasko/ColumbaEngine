@@ -209,11 +209,9 @@ namespace pg
         return h.clientId == ci.clientId and h.token == ci.token;
     }
 
-    void NetworkSystem::runServerFrame()
+    void NetworkSystem::acceptClients(uint64_t now)
     {
-        const uint64_t now = steadyMs();
-
-        // 1) New clients (a few a frame)
+        // A few a frame
         for (int i = 0; i < 4; ++i)
         {
             SocketHandle sock = backend->acceptTcpClient();
@@ -221,8 +219,24 @@ namespace pg
             if (not sock)
                 break;
 
+            // One machine taking every slot: only a few connections per address
+            const std::string host = backend->tcpPeerHost(sock);
+
+            if (netCfg.maxConnectionsPerIp > 0 and not host.empty())
+            {
+                const auto from = std::count_if(clients.begin(), clients.end(), [&](const auto& c) { return c.second.tcpHost == host; });
+
+                if (static_cast<uint32_t>(from) >= netCfg.maxConnectionsPerIp)
+                {
+                    LOG_WARNING(DOM, "Refused a connection from " << host << ": " << from << " already");
+                    backend->closeTcp(sock);
+                    continue;
+                }
+            }
+
             ClientInfo ci;
             ci.tcpSock = sock;
+            ci.tcpHost = host;
             ci.clientId = nextClientId++;
             ci.token = genToken();
             ci.state = ClientState::Connected;
@@ -243,6 +257,14 @@ namespace pg
             LOG_INFO(DOM, "Client " << ci.clientId << " connected");
             push({NetIncoming::Kind::Connected, ci.clientId, {}, true});
         }
+    }
+
+    void NetworkSystem::runServerFrame()
+    {
+        const uint64_t now = steadyMs();
+
+        // 1) New clients
+        acceptClients(now);
 
         // 2) What the application wants sent
         flushOutbox();

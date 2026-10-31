@@ -501,6 +501,40 @@ namespace pg
             SDLNet_TCP_Close(mute);
         }
 
+        TEST(network_sockets, one_address_gets_only_so_many_connections)
+        {
+            const uint16_t tcp = static_cast<uint16_t>(basePort() + 80), udp = static_cast<uint16_t>(tcp + 1);
+            NetworkConfig cfg = serverConfig(tcp, udp);
+            cfg.maxConnectionsPerIp = 2;
+
+            NetworkSystem server(new SdlNetworkBackend(cfg), cfg);
+            server.init();
+
+            IPaddress addr{};
+            SDLNet_ResolveHost(&addr, "127.0.0.1", tcp);
+            std::vector<TCPsocket> socks;
+            for (int i = 0; i < 4; ++i)
+                socks.push_back(SDLNet_TCP_Open(&addr));
+
+            int connected = 0;
+            NetIncoming in;
+
+            for (int i = 0; i < 100; ++i)
+            {
+                server.execute();
+                while (server.poll(in))
+                    connected += in.kind == NetIncoming::Kind::Connected;
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            }
+
+            EXPECT_EQ(connected, 2);
+            EXPECT_EQ(server.getClientIds().size(), 2u);
+
+            for (TCPsocket s : socks)
+                if (s)
+                    SDLNet_TCP_Close(s);
+        }
+
         TEST(network_sockets, a_client_with_nobody_to_talk_to_does_not_block)
         {
             const uint16_t tcp = static_cast<uint16_t>(basePort() + 2);

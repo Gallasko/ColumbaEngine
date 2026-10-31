@@ -273,6 +273,13 @@ namespace pg
         txQueues.erase(sock);
     }
 
+    std::string SdlNetworkBackend::tcpPeerHost(SocketHandle handle)
+    {
+        auto sock = static_cast<TCPsocket>(handle);
+        IPaddress* addr = sock ? SDLNet_TCP_GetPeerAddress(sock) : nullptr;
+        return addr ? numericHost(*addr) : "";
+    }
+
     // ---- Sending ---------------------------------------------------------------------------------
 
     bool SdlNetworkBackend::sendTcp(SocketHandle handle, const NetPayload& data)

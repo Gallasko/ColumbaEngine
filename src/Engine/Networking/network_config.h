@@ -26,6 +26,9 @@ namespace pg
 
         float       timeoutMs      = 6000.0f;       // a peer silent this long is dropped
 
+        // Server: connections from one address, at most (a few players behind one router). 0: no limit
+        uint32_t    maxConnectionsPerIp = 4;
+
         // Client, for a server that sends over UDP all the time: nothing for this long and both sides
         // go back to TCP, trying UDP again later. 0: off (a quiet UDP link means nothing).
         uint32_t    udpSilenceMs   = 0;
