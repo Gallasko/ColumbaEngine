@@ -14,6 +14,10 @@ namespace pg
 
         // How often a client repeats its UDP handshake until the server says it got it
         constexpr uint64_t HANDSHAKE_EVERY_MS = 250;
+
+        // After UDP went silent: how long a client stays on TCP before trying UDP again
+        constexpr uint64_t UDP_RETRY_FIRST_MS = 5000;
+        constexpr uint64_t UDP_RETRY_MOST_MS = 60000;
         constexpr uint64_t RETRY_CONNECT_MS = 1000;
     }
 
@@ -152,7 +156,7 @@ namespace pg
 
     bool NetworkSystem::sendUDPMessage(uint32_t clientId, uint32_t token, NetMsgType type, const NetPayload& payload, const IpEndpoint& udpDest)
     {
-        const auto frags = fragmentPayload(clientId, token, type, nextPacketNumber++, backend, payload);
+        const auto frags = fragmentPayload(clientId, token, type, nextPacketNumber++, backend, payload, MAX_UDP_DATAGRAM);
 
         for (const auto& pkt : frags)
             if (not backend->sendUdp(udpDest, pkt))
@@ -318,17 +322,24 @@ namespace pg
                 if (not udpFrom)
                     break;
 
-                // The client's UDP address, proven by the token it got over TCP
-                const bool changed = not ci.udpLinked or ci.udpAddr.host != udpFrom->host or ci.udpAddr.port != udpFrom->port;
+                // The client's UDP address, proven by the token it got over TCP. The answer goes over
+                // UDP: only the client can tell that this direction works, and until it does, TCP
                 ci.udpAddr = *udpFrom;
-                ci.udpLinked = true;
+                ci.udpLinked = false;
 
-                if (changed)
-                    LOG_INFO(DOM, "Client " << ci.clientId << " UDP linked at " << ipPortKey(ci.udpAddr));
-
-                sendTCPMessage(ci.clientId, ci.token, NetMsgType::Handshake, {}, ci.tcpSock);
+                sendUDPMessage(ci.clientId, ci.token, NetMsgType::Handshake, {}, ci.udpAddr);
                 break;
             }
+
+            case NetMsgType::UdpConfirm:
+                ci.udpLinked = true;
+                LOG_INFO(DOM, "Client " << ci.clientId << " UDP linked at " << ipPortKey(ci.udpAddr));
+                break;
+
+            case NetMsgType::UdpLost:
+                ci.udpLinked = false;
+                LOG_WARNING(DOM, "Client " << ci.clientId << " gets no UDP from here: back to TCP");
+                break;
 
             case NetMsgType::Pong:
             {
@@ -381,6 +392,8 @@ namespace pg
 
         backend->disconnectFromServer();
         udpAcked = false;
+        udpRetryAtMs = 0;
+        udpRetryDelayMs = 0;
         connecting = false;
         lastAttemptMs = steadyMs();
 
@@ -457,6 +470,10 @@ namespace pg
             if (parseAndReassemble(buf, reassembly, fragmentTimers, backend, msg))
             {
                 lastHeardMs = now;
+
+                if (not sock)
+                    lastUdpHeardMs = now;
+
                 handleClientMessage(msg.header, msg.payload, sock != nullptr);
             }
         }
@@ -467,8 +484,21 @@ namespace pg
             return;
         }
 
-        // Keep offering the UDP address until the server confirms it
-        if (currentClientState == ClientState::Connected and not udpAcked and now - lastHandshakeMs >= HANDSHAKE_EVERY_MS)
+        // UDP gone quiet (read after draining the socket, so a slow frame of ours does not count):
+        // TCP carries everything again, for a while
+        if (currentClientState == ClientState::Connected and udpAcked and netCfg.udpSilenceMs > 0 and now - lastUdpHeardMs > netCfg.udpSilenceMs)
+        {
+            LOG_WARNING(DOM, "No UDP from the server for " << netCfg.udpSilenceMs << " ms: back to TCP");
+
+            udpAcked = false;
+            udpRetryDelayMs = udpRetryDelayMs == 0 ? UDP_RETRY_FIRST_MS : std::min(udpRetryDelayMs * 2, UDP_RETRY_MOST_MS);
+            udpRetryAtMs = now + udpRetryDelayMs;
+
+            sendTCPMessage(_myClientId, _myToken, NetMsgType::UdpLost, {});
+        }
+
+        // Keep offering the UDP address until the server's answer arrives
+        if (currentClientState == ClientState::Connected and not udpAcked and now >= udpRetryAtMs and now - lastHandshakeMs >= HANDSHAKE_EVERY_MS)
         {
             sendUDPMessage(_myClientId, _myToken, NetMsgType::Handshake, {}, IpEndpoint{netCfg.peerAddress, netCfg.udpPeerPort});
             lastHandshakeMs = now;
@@ -502,7 +532,13 @@ namespace pg
             }
 
             case NetMsgType::Handshake:
+                // Over UDP only: this is what proves the server's datagrams reach us
+                if (reliable or udpAcked or currentClientState != ClientState::Connected or header.token != _myToken)
+                    break;
+
                 udpAcked = true;
+                lastUdpHeardMs = steadyMs();
+                sendTCPMessage(_myClientId, _myToken, NetMsgType::UdpConfirm, {});
                 break;
 
             case NetMsgType::Ping:

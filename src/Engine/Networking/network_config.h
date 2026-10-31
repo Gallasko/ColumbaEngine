@@ -25,6 +25,10 @@ namespace pg
         SystemFlags defaultSystemFlags;
 
         float       timeoutMs      = 6000.0f;       // a peer silent this long is dropped
+
+        // Client, for a server that sends over UDP all the time: nothing for this long and both sides
+        // go back to TCP, trying UDP again later. 0: off (a quiet UDP link means nothing).
+        uint32_t    udpSilenceMs   = 0;
         bool        autoReconnect  = true;          // client: try again after losing the server
         bool        emitEvents     = true;          // also send NetPeerConnected/Disconnected, NetMessageReceived as ECS events
 

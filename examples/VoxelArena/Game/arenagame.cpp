@@ -2489,6 +2489,7 @@ namespace arena
         net.udpPeerPort = static_cast<uint16_t>(port + 1);
         net.emitEvents = false;
         net.autoReconnect = false;
+        net.udpSilenceMs = 1000;     // snapshots come many times a second: silence means UDP is not getting through
 
         auto* backend = new SdlNetworkBackend(net);
         auto network = std::make_unique<NetworkSystem>(backend, net);

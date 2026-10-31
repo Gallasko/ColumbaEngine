@@ -1,0 +1,6 @@
+{
+    "equipped": [["fire", "base:bolt"], ["fire", "base:bolt", "base:chain"], ["volt", "base:beam", "base:chain"]],
+    "saved": [
+        { "name": "Fire > Bolt > Zone > Enlarge", "recipe": ["fire", "base:bolt", "base:zone", "base:enlarge"] }
+    ]
+}

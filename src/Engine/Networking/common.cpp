@@ -46,9 +46,10 @@ namespace pg
         NetMsgType type,
         uint32_t packetNumber,
         INetworkBackend* backend,
-        const NetPayload& payload)
+        const NetPayload& payload,
+        size_t maxPacket)
     {
-        size_t chunkMax = MAX_PAYLOAD - HEADER_SIZE;
+        size_t chunkMax = maxPacket - HEADER_SIZE;
 
         auto pSize = payload.size();
 

@@ -28,7 +28,7 @@ namespace pg
         SocketHandle tcpSock    = nullptr;
         uint32_t     clientId   = 0;
         uint32_t     token      = 0;
-        bool         udpLinked  = false;   // its UDP address is known (after a handshake with the right token)
+        bool         udpLinked  = false;   // UDP works both ways: the client confirmed getting the server's answer
         IpEndpoint   udpAddr{};
         ClientState  state = ClientState::Connecting;
         uint64_t lastHeartbeatMs = 0;      // steady ms of the last message heard
@@ -163,6 +163,9 @@ namespace pg
         uint64_t lastHeardMs = 0;
         bool     udpAcked = false;
         uint64_t lastHandshakeMs = 0;
+        uint64_t lastUdpHeardMs = 0;
+        uint64_t udpRetryAtMs = 0;         // no handshake before this, after UDP went silent
+        uint64_t udpRetryDelayMs = 0;      // doubles each time it goes silent again
         bool     leaving = false;
 
         mutable std::mutex queueMutex;

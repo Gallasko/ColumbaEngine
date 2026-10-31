@@ -88,6 +88,7 @@ GameApp::GameApp(const std::string& appName, const LaunchOptions& opts) : engine
             net.udpPeerPort = static_cast<uint16_t>(options.port + 1);
             net.emitEvents = false;      // the game polls
             net.autoReconnect = false;   // a lost client says so instead of rejoining a world it no longer knows
+            net.udpSilenceMs = 1000;     // snapshots come many times a second: silence means UDP is not getting through
 
             arenaOptions.network = ecs.createSystem<NetworkSystem>(new SdlNetworkBackend(net), net);
             arenaOptions.mode = net.isServer ? arena::ArenaOptions::Mode::Host : arena::ArenaOptions::Mode::Client;

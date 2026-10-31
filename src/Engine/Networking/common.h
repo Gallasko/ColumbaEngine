@@ -12,6 +12,12 @@ namespace pg
     // Maximum UDP payload
     constexpr int MAX_PAYLOAD = 4096;
 
+    /**
+     * Largest UDP datagram sent: bigger ones get split by IP on the way, and routers on the internet
+     * may drop those pieces (a home network never does). A longer message goes as several datagrams.
+     */
+    constexpr size_t MAX_UDP_DATAGRAM = 1200;
+
     enum class NetMsgType : uint8_t
     {
         Heartbeat   = 0x01,  // periodic keepalive
@@ -19,8 +25,10 @@ namespace pg
         Pong        = 0x03, // server → client echo timestamp
         Disconnect  = 0x04, // either side clean‐teardown
         Connect     = 0x05,
-        Handshake   = 0x06,
+        Handshake   = 0x06, // client -> server over UDP, the same back over UDP
         EntityData  = 0x07,
+        UdpConfirm  = 0x08, // client -> server over TCP: your UDP reached me, use it
+        UdpLost     = 0x09, // client -> server over TCP: your UDP stopped coming, back to TCP
         Custom      = 0xFE,
     };
 
@@ -86,14 +94,15 @@ namespace pg
     // Read header from buffer
     PacketHeader readHeader(const uint8_t* buf, INetworkBackend* backend);
 
-    // Fragment a payload into HEADER_SIZE + chunks of <= MAX_PAYLOAD
+    // Fragment a payload into packets of at most maxPacket bytes, header included
     NetFragmentedPayload fragmentPayload(
         uint32_t clientId,
         uint32_t token,
         NetMsgType type,
         uint32_t packetNumber,
         INetworkBackend* backend,
-        const NetPayload& payload);
+        const NetPayload& payload,
+        size_t maxPacket = MAX_PAYLOAD);
 
         // Parsed result
     struct ParsedPacket

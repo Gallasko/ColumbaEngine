@@ -1,0 +1,13 @@
+{
+    "sensitivity": 1,
+    "invertY": false,
+    "fovOffset": 0,
+    "volume": 0.5,
+    "shake": 1,
+    "hitFlash": 1,
+    "trails": true,
+    "firstPerson": true,
+    "overlay": false,
+    "name": "",
+    "lastJoin": "192.168.1.195:7777"
+}

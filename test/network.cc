@@ -56,6 +56,19 @@ namespace pg
                 return p;
             }
 
+            /** A server whose UDP may vanish on the way, as a router on the internet can make it. */
+            struct LossyBackend : public SdlNetworkBackend
+            {
+                using SdlNetworkBackend::SdlNetworkBackend;
+
+                bool dropUdp = false;
+
+                bool sendUdp(const IpEndpoint& dest, const NetPayload& data) override
+                {
+                    return dropUdp ? true : SdlNetworkBackend::sendUdp(dest, data);
+                }
+            };
+
             /** Steps both systems until pred is true or the time is up. */
             template <typename Pred>
             bool runUntil(NetworkSystem& a, NetworkSystem& b, Pred pred, int ms = 3000)
@@ -214,6 +227,119 @@ namespace pg
 
             EXPECT_EQ(client.getCurrentConnectingState(), ClientState::Disconnected);
             EXPECT_FALSE(server.clientExists(id));
+        }
+
+        TEST(network_fragments, a_udp_message_goes_in_datagrams_that_cross_the_internet_whole)
+        {
+            MockBackend backend;
+            const NetPayload big = bytes(5000, 5);
+
+            const auto frags = fragmentPayload(1, 2, NetMsgType::Custom, 3, &backend, big, MAX_UDP_DATAGRAM);
+            EXPECT_GT(frags.size(), 1u);
+
+            NetPacketBuffer buffer;
+            NetPacketTimers timers;
+            ParsedPacket out;
+            bool whole = false;
+
+            for (const auto& f : frags)
+            {
+                EXPECT_LE(f.size(), MAX_UDP_DATAGRAM);
+                whole = parseAndReassemble(f, buffer, timers, &backend, out);
+            }
+
+            ASSERT_TRUE(whole);
+            EXPECT_EQ(out.payload, big);
+        }
+
+        TEST(network_sockets, when_the_servers_udp_never_arrives_its_messages_come_over_tcp)
+        {
+            const uint16_t tcp = static_cast<uint16_t>(basePort() + 20), udp = static_cast<uint16_t>(tcp + 1);
+
+            auto* lossy = new LossyBackend(serverConfig(tcp, udp));
+            lossy->dropUdp = true;
+
+            NetworkSystem server(lossy, serverConfig(tcp, udp));
+            NetworkSystem client(new SdlNetworkBackend(clientConfig(tcp, udp)), clientConfig(tcp, udp));
+            server.init();
+            client.init();
+
+            uint32_t id = 0;
+            NetIncoming in;
+
+            ASSERT_TRUE(runUntil(server, client, [&] {
+                while (server.poll(in))
+                    if (in.kind == NetIncoming::Kind::Connected)
+                        id = in.clientId;
+                return id != 0;
+            }));
+
+            // Time for handshakes: the client's reach the server, and no answer comes back
+            runUntil(server, client, [] { return false; }, 700);
+
+            while (client.poll(in)) {}
+
+            int arrived = 0;
+
+            ASSERT_TRUE(runUntil(server, client, [&] {
+                server.send(id, bytes(100, 4), false);
+
+                while (client.poll(in))
+                    if (in.kind == NetIncoming::Kind::Message)
+                    {
+                        EXPECT_TRUE(in.reliable);
+                        ++arrived;
+                    }
+
+                return arrived >= 5;
+            }));
+        }
+
+        TEST(network_sockets, when_udp_goes_silent_tcp_takes_over_and_udp_comes_back_later)
+        {
+            const uint16_t tcp = static_cast<uint16_t>(basePort() + 40), udp = static_cast<uint16_t>(tcp + 1);
+
+            NetworkConfig clientCfg = clientConfig(tcp, udp);
+            clientCfg.udpSilenceMs = 200;
+
+            auto* lossy = new LossyBackend(serverConfig(tcp, udp));
+
+            NetworkSystem server(lossy, serverConfig(tcp, udp));
+            NetworkSystem client(new SdlNetworkBackend(clientCfg), clientCfg);
+            server.init();
+            client.init();
+
+            uint32_t id = 0;
+            NetIncoming in;
+
+            ASSERT_TRUE(runUntil(server, client, [&] {
+                while (server.poll(in))
+                    if (in.kind == NetIncoming::Kind::Connected)
+                        id = in.clientId;
+                return id != 0;
+            }));
+
+            // The server talks all the time; this waits for a message that came the given way
+            auto arrivesBy = [&](bool reliable, int ms) {
+                return runUntil(server, client, [&] {
+                    server.send(id, bytes(5000, 4), false);   // more than a datagram: it has to come back whole
+
+                    bool got = false;
+
+                    while (client.poll(in))
+                        got = got or (in.kind == NetIncoming::Kind::Message and in.reliable == reliable and in.data == bytes(5000, 4));
+
+                    return got;
+                }, ms);
+            };
+
+            ASSERT_TRUE(arrivesBy(false, 3000)) << "never linked over UDP";
+
+            lossy->dropUdp = true;
+            EXPECT_TRUE(arrivesBy(true, 2000)) << "no fallback to TCP";
+
+            lossy->dropUdp = false;
+            EXPECT_TRUE(arrivesBy(false, 8000)) << "UDP never tried again";
         }
 
         TEST(network_sockets, a_client_with_nobody_to_talk_to_does_not_block)
