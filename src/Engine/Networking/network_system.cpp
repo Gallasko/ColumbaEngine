@@ -104,6 +104,12 @@ namespace pg
         leaving = true;
     }
 
+    void NetworkSystem::kick(uint32_t clientId)
+    {
+        std::lock_guard<std::mutex> lock(queueMutex);
+        kicks.insert(clientId);
+    }
+
     void NetworkSystem::flushOutbox()
     {
         std::deque<Outgoing> pending;
@@ -266,8 +272,24 @@ namespace pg
         // 1) New clients
         acceptClients(now);
 
-        // 2) What the application wants sent
+        // 2) What the application wants sent, then who it closes
         flushOutbox();
+
+        std::set<uint32_t> kicked;
+        {
+            std::lock_guard<std::mutex> lock(queueMutex);
+            kicked.swap(kicks);
+        }
+
+        for (uint32_t id : kicked)
+        {
+            if (auto it = idToTcp.find(id); it != idToTcp.end())
+            {
+                const ClientInfo& ci = clients[it->second];
+                sendTCPMessage(ci.clientId, ci.token, NetMsgType::Disconnect, {}, ci.tcpSock);
+                leavingClients.insert(id);
+            }
+        }
 
         // 3) TCP from every client
         std::set<uint32_t> gone;

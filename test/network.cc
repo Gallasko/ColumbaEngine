@@ -535,6 +535,42 @@ namespace pg
                     SDLNet_TCP_Close(s);
         }
 
+        TEST(network_sockets, a_kicked_client_is_told_and_gone)
+        {
+            const uint16_t tcp = static_cast<uint16_t>(basePort() + 90), udp = static_cast<uint16_t>(tcp + 1);
+            NetworkConfig ccfg = clientConfig(tcp, udp);
+            ccfg.autoReconnect = false;
+
+            NetworkSystem server(new SdlNetworkBackend(serverConfig(tcp, udp)), serverConfig(tcp, udp));
+            NetworkSystem client(new SdlNetworkBackend(ccfg), ccfg);
+            server.init();
+            client.init();
+
+            uint32_t id = 0;
+            NetIncoming in;
+
+            ASSERT_TRUE(runUntil(server, client, [&] {
+                while (server.poll(in))
+                    if (in.kind == NetIncoming::Kind::Connected)
+                        id = in.clientId;
+                return id != 0 and client.getCurrentConnectingState() == ClientState::Connected;
+            }));
+
+            // What was sent before the kick still arrives
+            server.send(id, bytes(500, 1), true);
+            server.kick(id);
+
+            bool got = false;
+            ASSERT_TRUE(runUntil(server, client, [&] {
+                while (client.poll(in))
+                    got = got or (in.kind == NetIncoming::Kind::Message and in.data == bytes(500, 1));
+                return client.getCurrentConnectingState() == ClientState::Disconnected;
+            }));
+
+            EXPECT_TRUE(got);
+            EXPECT_FALSE(server.clientExists(id));
+        }
+
         TEST(network_sockets, a_client_with_nobody_to_talk_to_does_not_block)
         {
             const uint16_t tcp = static_cast<uint16_t>(basePort() + 2);

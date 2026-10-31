@@ -96,6 +96,9 @@ namespace pg
         /** Client: say goodbye and stop (no reconnect). */
         void disconnect();
 
+        /** Server: close a client's connection, after what was sent to it (as far as it goes at once). */
+        void kick(uint32_t clientId);
+
         bool isServer() const { return netCfg.isServer; }
         float rttMs(uint32_t clientId) const;
 
@@ -176,5 +179,6 @@ namespace pg
         mutable std::mutex queueMutex;
         std::deque<NetIncoming> inbox;
         std::deque<Outgoing> outbox;
+        std::set<uint32_t> kicks;
     };
 }
