@@ -41,6 +41,26 @@ namespace arena::net
         return lastSnapshotTick + (nowMs - lastSnapshotAt + rttMs * 0.5) / (STEP_SECONDS * 1000.0);
     }
 
+    void NetClient::sayHello()
+    {
+        Hello hello;
+        hello.fingerprint = content.fingerprint;
+        hello.name = name;
+        transport.send(0, encode(hello), true);
+        state = State::Joining;
+    }
+
+    void NetClient::rejoin()
+    {
+        sayHello();
+    }
+
+    void NetClient::refuse(const std::string& reason)
+    {
+        state = State::Refused;
+        refusal = reason;
+    }
+
     void NetClient::poll(double nowMs)
     {
         if (startedAt < 0.0)
@@ -52,11 +72,7 @@ namespace arena::net
         {
             if (e.type == NetEvent::Type::Connected)
             {
-                Hello hello;
-                hello.fingerprint = content.fingerprint;
-                hello.name = name;
-                transport.send(0, encode(hello), true);
-                state = State::Joining;
+                sayHello();
                 continue;
             }
 
@@ -69,6 +85,20 @@ namespace arena::net
 
             switch (peek(e.data))
             {
+                case Msg::ModBundle:
+                {
+                    if (state != State::Joining)
+                        break;
+
+                    mods = ModBundle{};
+
+                    if (decode(e.data, mods))
+                        state = State::ModsArrived;
+                    else
+                        refuse("the server's mods did not arrive whole");
+                    break;
+                }
+
                 case Msg::Welcome:
                 {
                     Welcome w;

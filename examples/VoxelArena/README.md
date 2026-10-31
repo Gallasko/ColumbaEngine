@@ -321,9 +321,13 @@ address. A router without UPnP (or with it off) says so, and the lobby says whic
 which machine. `--no-upnp` (game or dedicated server) leaves the router alone. The ports are closed
 again when the game quits; a mapping left by a crash runs out within an hour.
 
-**Everyone must have the same gameplay content.** The server compares a fingerprint of it and
-refuses a player whose content differs: the tuning, the arena, the scripts, and blocks, weapons,
-enemies and abilities. What only looks is left out, so each player may have their own: models,
+**Everyone must have the same gameplay content**, and players get it from the server. The server
+compares a fingerprint of it (the tuning, the arena, the scripts, and blocks, weapons, enemies and
+abilities). A player whose content differs is sent the server's mods (`.json` and `.pg` files, 8 MB at
+most) and plays on them until leaving, when their own come back. They are checked before anything is
+written, kept in a folder of their own, and their scripts are not run: only a server runs scripts. A
+different version of the game cannot be fixed that way: it is refused, and needs the same build.
+What only looks is left out of the fingerprint, so each player may have their own: models,
 `effects.json`, `sounds.json`, block colours, names, swing poses, camera shake, and the camera,
 first-person and controls settings (a texture pack or a sound mod on one machine only is fine). For
 the same reason the host cannot reload (F5) while others are connected.

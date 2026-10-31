@@ -907,7 +907,8 @@ TEST(arena_run, the_bows_light_is_drawn_a_tap_is_weak_a_held_shot_strong)
 
     const Projectile tap = shoot(0);
     const Projectile drawn = shoot(60);
-    const auto& charge = RunArena().content.weapons.at("base:bow").moveset.attacks.at("shot1").charge;
+    RunArena arena;
+    const auto& charge = arena.content.weapons.at("base:bow").moveset.attacks.at("shot1").charge;
 
     ASSERT_GT(tap.def.damage, 0.0f);
     EXPECT_NEAR(drawn.def.damage, tap.def.damage * charge.damage, 0.01f);

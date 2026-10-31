@@ -1735,6 +1735,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelArena/Core/spells.cpp
             examples/VoxelArena/Core/run.cpp
             examples/VoxelArena/Core/net/protocol.cpp
+            examples/VoxelArena/Core/net/modfiles.cpp
             examples/VoxelArena/Core/net/loopback.cpp
             examples/VoxelArena/Core/net/server.cpp
             examples/VoxelArena/Core/net/client.cpp

@@ -17,6 +17,7 @@
 #include "Input/input.h"
 #include "Audio/audiosystem.h"
 
+#include "Core/net/modfiles.h"
 #include "Core/net/client.h"
 #include "Core/net/server.h"
 #include "Net/enginetransport.h"
@@ -211,7 +212,8 @@ namespace arena
 
         content = loadContent(options.modsDir);
         tuning = readTuning(content.tuning, content.tuningFile, content.report);
-        brain.load(content, content.report);
+        if (not serverMods)
+            brain.load(content, content.report);
         readControls();
 
         const std::string newArena = toJsonString(content.arena.shapes) + toJsonString(Json::makeNumber(content.arena.size.x * 10000 + content.arena.size.y * 100 + content.arena.size.z));
@@ -234,6 +236,7 @@ namespace arena
                     transport = std::make_unique<net::EngineTransport>(options.network);
                     server = std::make_unique<net::NetServer>(world, content, *transport, false);
                     server->hostName = options.playerName;
+                    server->offerMods(options.modsDir);
 
                     // Friends join over the internet when the router opens the ports (UPnP)
                     lanAddress = net::PortMapper::localAddress();
@@ -1174,7 +1177,7 @@ namespace arena
             }
             else if (client)
             {
-                client->poll(netNowMs());
+                pollClient();
                 client->step(in, netNowMs());
             }
             else
@@ -1203,7 +1206,7 @@ namespace arena
         // A client draws the others where the snapshots put them (already smooth): no step-to-step blend for them
         if (client)
         {
-            client->poll(netNowMs());
+            pollClient();
             client->updateDisplay(netNowMs());
 
             for (const auto& f : world.fighters)
@@ -2379,6 +2382,7 @@ namespace arena
         transport = std::make_unique<net::EngineTransport>(options.network);
         server = std::make_unique<net::NetServer>(world, content, *transport, false);
         server->hostName = options.playerName;
+        server->offerMods(options.modsDir);
 
         lanAddress = net::PortMapper::localAddress();
         if (options.upnp)
@@ -2529,6 +2533,61 @@ namespace arena
         return true;
     }
 
+    void ArenaGame::pollClient()
+    {
+        client->poll(netNowMs());
+
+        if (client->state == net::NetClient::State::ModsArrived)
+            applyServerMods();
+    }
+
+    void ArenaGame::applyServerMods()
+    {
+        const net::ModBundle bundle = std::move(client->mods);
+        const std::string dir = (std::filesystem::temp_directory_path() / "voxelarena-servermods").string();
+
+        std::string error;
+
+        if (not net::writeModFiles(bundle.files, dir, error))
+        {
+            client->refuse("the server's mods were refused: " + error);
+            return;
+        }
+
+        print("loading the server's mods (" + std::to_string(bundle.files.size()) + " files)");
+
+        ownModsDir = options.modsDir;
+        options.modsDir = dir;
+        serverMods = true;
+        world.setBrain(nullptr);    // the scripts of this game's own mods no longer fit its content
+
+        loadAll(false);
+
+        if (content.fingerprint != bundle.fingerprint or not content.report.errors.empty())
+        {
+            restoreOwnMods();
+            world.setBrain(&brain);
+            client->refuse("the server's mods do not load here (is this game up to date?)");
+            return;
+        }
+
+        // A client takes its names and tuning from the content when it is made: a new one, same connection
+        resetLocalState();
+        client = std::make_unique<net::NetClient>(world, content, tuning, *transport, options.playerName);
+        client->rejoin();
+        applySpells();
+    }
+
+    void ArenaGame::restoreOwnMods()
+    {
+        if (not serverMods)
+            return;
+
+        serverMods = false;
+        options.modsDir = ownModsDir;
+        loadAll(false);
+    }
+
     void ArenaGame::leaveGame()
     {
         if (not networked())
@@ -2550,6 +2609,7 @@ namespace arena
         options.network = nullptr;
         options.mode = ArenaOptions::Mode::Single;
         netLog.clear();
+        restoreOwnMods();
 
         // A game alone again, in the training ground, from its title
         resetLocalState();
@@ -2700,6 +2760,7 @@ namespace arena
             {
                 case net::NetClient::State::Connecting: v.status = "Connecting to " + options.address + "\xE2\x80\xA6"; break;
                 case net::NetClient::State::Joining: v.status = "Joining\xE2\x80\xA6"; break;
+                case net::NetClient::State::ModsArrived: v.status = "Loading the server's mods\xE2\x80\xA6"; break;
                 case net::NetClient::State::Refused: v.status = "Refused: " + client->refusal; v.statusBad = true; break;
                 case net::NetClient::State::Lost: v.status = "Connection lost"; v.statusBad = true; break;
                 case net::NetClient::State::Playing: break;
@@ -2782,6 +2843,7 @@ namespace arena
             {
                 case net::NetClient::State::Connecting: v.message = "Connecting..."; break;
                 case net::NetClient::State::Joining: v.message = "Joining..."; break;
+                case net::NetClient::State::ModsArrived: v.message = "Loading the server's mods..."; break;
                 case net::NetClient::State::Refused: v.message = "Refused: " + client->refusal; break;
                 case net::NetClient::State::Lost: v.message = "Connection lost"; break;
                 case net::NetClient::State::Playing: break;

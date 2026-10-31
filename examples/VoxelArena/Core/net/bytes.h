@@ -27,6 +27,7 @@ namespace arena::net
         void boolean(bool v) { u8(v ? 1 : 0); }
         void vec3(const glm::vec3& v) { f32(v.x); f32(v.y); f32(v.z); }
         void str(const std::string& s) { u16(static_cast<uint16_t>(s.size())); data.insert(data.end(), s.begin(), s.end()); }
+        void blob(const std::string& s) { u32(static_cast<uint32_t>(s.size())); data.insert(data.end(), s.begin(), s.end()); }
 
         /** A unit direction in 6 bytes. */
         void dir(const glm::vec3& v)
@@ -59,6 +60,22 @@ namespace arena::net
         float f32() { uint32_t u = u32(); float v; std::memcpy(&v, &u, 4); return std::isfinite(v) ? v : (failed = true, 0.0f); }
         bool boolean() { return u8() != 0; }
         glm::vec3 vec3() { float x = f32(), y = f32(); return glm::vec3(x, y, f32()); }
+
+        /** str, for what may be longer than 64 KB. */
+        std::string blob()
+        {
+            const uint32_t n = u32();
+
+            if (left() < n)
+            {
+                failed = true;
+                return "";
+            }
+
+            std::string s(reinterpret_cast<const char*>(p), n);
+            p += n;
+            return s;
+        }
 
         std::string str()
         {

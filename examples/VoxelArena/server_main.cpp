@@ -91,6 +91,7 @@ int main(int argc, char* argv[])
     arena::net::EngineTransport transport(&network);
     arena::net::NetServer server(world, content, transport, true);
     server.maxClients = 8;
+    server.offerMods(modsDir);
 
     std::signal(SIGINT, stop);
     std::signal(SIGTERM, stop);

@@ -1,5 +1,7 @@
 #include "server.h"
 
+#include "modfiles.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -60,6 +62,27 @@ namespace arena::net
         }
     }
 
+    void NetServer::offerMods(const std::string& modsDir)
+    {
+        ModBundle bundle;
+        bundle.fingerprint = content.fingerprint;
+        bundle.files = readModFiles(modsDir);
+
+        size_t total = 0;
+        for (const auto& f : bundle.files)
+            total += f.data.size();
+
+        // More than a client takes: better a clear refusal than a long download for nothing
+        if (bundle.files.empty() or bundle.files.size() > MAX_MOD_FILES or total > MAX_MOD_BYTES)
+        {
+            modBundle.clear();
+            log.push_back("the mods are too big to send to players");
+            return;
+        }
+
+        modBundle = encode(bundle);
+    }
+
     void NetServer::onMessage(Client& c, const std::vector<uint8_t>& data)
     {
         switch (peek(data))
@@ -77,10 +100,21 @@ namespace arena::net
 
                 if (hello.version != PROTOCOL_VERSION)
                     welcome.reason = "protocol " + std::to_string(hello.version) + ", the server runs " + std::to_string(PROTOCOL_VERSION);
-                else if (hello.fingerprint != content.fingerprint)
-                    welcome.reason = "different mods or content than the server (load the same mods)";
                 else if (clientCount() >= static_cast<size_t>(std::max(0, maxClients)))
                     welcome.reason = "the server is full";
+                else if (hello.fingerprint != content.fingerprint)
+                {
+                    // Same game, other content: it gets the server's mods and says hello again
+                    if (not modBundle.empty() and not c.modsSent)
+                    {
+                        c.modsSent = true;
+                        transport.send(c.peer, modBundle, true);
+                        log.push_back(hello.name + " is getting the server's mods");
+                        return;
+                    }
+
+                    welcome.reason = "different mods or content than the server (load the same mods)";
+                }
 
                 if (not welcome.reason.empty())
                 {

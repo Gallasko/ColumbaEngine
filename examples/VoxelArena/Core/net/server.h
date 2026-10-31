@@ -41,6 +41,12 @@ namespace arena::net
         /** How many may join: 7 next to a host's own player, 8 on a dedicated server. */
         int maxClients = 7;
 
+        /**
+         * The mods this server offers to a client whose content differs, read from modsDir, instead of
+         * refusing it. Not called (or too much to send): such a client is refused.
+         */
+        void offerMods(const std::string& modsDir);
+
         /** The host's own name, for the lobby (a listen server). */
         std::string hostName = "host";
 
@@ -54,6 +60,8 @@ namespace arena::net
         static constexpr size_t MAX_BUFFER = 4;
 
     private:
+        std::vector<uint8_t> modBundle;    // encoded once, ready to send
+
         struct Client
         {
             int peer = 0;
@@ -67,6 +75,7 @@ namespace arena::net
             uint16_t rttMs = 0;
             bool ready = false;      // in the lobby: ready to start the run
             uint64_t joinOrder = 0;
+            bool modsSent = false;   // once only: a client still different after them is refused
         };
 
         void onMessage(Client& c, const std::vector<uint8_t>& data);

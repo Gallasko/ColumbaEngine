@@ -59,9 +59,18 @@ namespace arena::net
         /** A player's name from the lobby, or "" when not known. */
         std::string nameOf(int playerId) const;
 
-        enum class State { Connecting, Joining, Playing, Refused, Lost };
+        enum class State { Connecting, Joining, ModsArrived, Playing, Refused, Lost };
         State state = State::Connecting;
         std::string refusal;
+
+        /** The server's mods, in state ModsArrived. Nothing of them is checked yet: see writeModFiles. */
+        ModBundle mods;
+
+        /** Says hello on a connection already open: a new client, made once the server's mods are loaded. */
+        void rejoin();
+
+        /** Gives up joining, for a reason found outside (the server's mods would not load). */
+        void refuse(const std::string& reason);
 
         int playerId = 0;
         float rttMs = 0.0f;
@@ -85,6 +94,7 @@ namespace arena::net
         size_t pendingInputs() const { return pending.size(); }
 
     private:
+        void sayHello();
         void onSnapshot(SnapshotMsg& m, double nowMs);
         void reconcile(const Fighter& server, uint32_t ackSeq);
 

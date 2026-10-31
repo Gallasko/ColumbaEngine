@@ -1,3 +1,5 @@
+#include <filesystem>
+#include <fstream>
 #include "stdafx.h"
 
 #include <gtest/gtest.h>
@@ -6,6 +8,7 @@
 #include <set>
 
 #include "Core/content.h"
+#include "Core/net/modfiles.h"
 #include "Core/net/client.h"
 #include "Core/net/loopback.h"
 #include "Core/net/protocol.h"
@@ -237,6 +240,123 @@ TEST(arena_net, a_client_with_different_content_is_refused)
     EXPECT_EQ(c.state, NetClient::State::Refused);
     EXPECT_NE(c.refusal.find("mods"), std::string::npos);
     EXPECT_EQ(s.server->clientCount(), 0u);
+}
+
+TEST(arena_net, a_client_with_different_content_gets_the_servers_mods_and_joins)
+{
+    Session s(20.0);
+    s.server->offerMods(VOXELARENA_MODS_DIR);
+
+    Content other = s.content;
+    other.fingerprint ^= 0xdeadbeef;
+
+    auto run = [&](NetClient& c, int steps) {
+        for (int i = 0; i < steps; ++i)
+        {
+            c.poll(s.hub.time());
+            s.server->poll();
+            s.server->step(nullptr);
+            s.hub.advance(STEP_MS);
+        }
+    };
+
+    ArenaWorld w;
+    Transport& t = s.hub.addClient();
+    NetClient c(w, other, s.tuning, t, "bob");
+
+    run(c, 20);
+    ASSERT_EQ(c.state, NetClient::State::ModsArrived);
+    EXPECT_EQ(c.mods.fingerprint, s.content.fingerprint);
+    EXPECT_EQ(c.mods.files.size(), readModFiles(VOXELARENA_MODS_DIR).size());
+    EXPECT_EQ(s.server->clientCount(), 0u);
+
+    // Saved and loaded, they give the content the server runs
+    const std::string dir = (std::filesystem::temp_directory_path() / "voxelarena-test-mods").string();
+    std::string error;
+    ASSERT_TRUE(writeModFiles(c.mods.files, dir, error)) << error;
+    EXPECT_EQ(loadContent(dir).fingerprint, loadContent(VOXELARENA_MODS_DIR).fingerprint);
+    std::filesystem::remove_all(dir);
+
+    // A new client on the same connection, now with the same content
+    NetClient joined(w, s.content, s.tuning, t, "bob");
+    joined.rejoin();
+    run(joined, 20);
+    EXPECT_EQ(joined.state, NetClient::State::Playing);
+    EXPECT_EQ(s.server->clientCount(), 1u);
+}
+
+TEST(arena_net, a_client_still_different_after_the_mods_is_refused)
+{
+    Session s(20.0);
+    s.server->offerMods(VOXELARENA_MODS_DIR);
+
+    Content other = s.content;
+    other.fingerprint ^= 0xdeadbeef;
+
+    auto run = [&](NetClient& c) {
+        for (int i = 0; i < 20; ++i)
+        {
+            c.poll(s.hub.time());
+            s.server->poll();
+            s.server->step(nullptr);
+            s.hub.advance(STEP_MS);
+        }
+    };
+
+    ArenaWorld w;
+    Transport& t = s.hub.addClient();
+    NetClient c(w, other, s.tuning, t, "bob");
+
+    run(c);
+    ASSERT_EQ(c.state, NetClient::State::ModsArrived);
+
+    c.rejoin();
+    run(c);
+    EXPECT_EQ(c.state, NetClient::State::Refused);
+    EXPECT_EQ(s.server->clientCount(), 0u);
+}
+
+TEST(arena_net, mods_read_back_and_a_cut_bundle_does_not)
+{
+    ModBundle m;
+    m.fingerprint = 1234;
+    m.files = {{"base/mod.json", "{}"}, {"base/big.json", std::string(100000, 'x')}};
+
+    ModBundle back;
+    auto bytes = encode(m);
+    ASSERT_TRUE(decode(bytes, back));
+    EXPECT_EQ(back.fingerprint, 1234u);
+    ASSERT_EQ(back.files.size(), 2u);
+    EXPECT_EQ(back.files[1].data, m.files[1].data);
+
+    bytes.resize(bytes.size() / 2);
+    ModBundle cut;
+    EXPECT_FALSE(decode(bytes, cut));
+}
+
+TEST(arena_net, a_server_cannot_write_outside_the_mods_folder)
+{
+    EXPECT_TRUE(safeModPath("base/weapons/sword.json"));
+    EXPECT_TRUE(safeModPath("base/scripts/slime.pg"));
+
+    for (const char* bad : {"", "../evil.json", "base/../../evil.json", "/etc/evil.json", "C:/evil.json", "base\\evil.json",
+                            "base/evil.exe", "base/evil.dll", "base/evil.json.exe", "base/.hidden.json", "base//evil.json",
+                            "base/con.json", "base/COM1.pg", "base/evil .json", "base/evil."})
+        EXPECT_FALSE(safeModPath(bad)) << bad;
+
+    // One bad path and nothing is touched
+    const auto dir = std::filesystem::temp_directory_path() / "voxelarena-test-refused";
+    std::filesystem::create_directories(dir);
+    std::ofstream(dir / "kept.json") << "{}";
+
+    std::string error;
+    EXPECT_FALSE(writeModFiles({{"base/mod.json", "{}"}, {"../evil.json", "{}"}}, dir.string(), error));
+    EXPECT_TRUE(std::filesystem::exists(dir / "kept.json"));
+    EXPECT_FALSE(std::filesystem::exists(dir / "base"));
+    std::filesystem::remove_all(dir);
+
+    error.clear();
+    EXPECT_FALSE(writeModFiles({{"base/big.json", std::string(MAX_MOD_BYTES + 1, 'x')}}, dir.string(), error));
 }
 
 TEST(arena_net, your_own_player_moves_at_once_and_agrees_with_the_server)

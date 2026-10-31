@@ -11,7 +11,7 @@
 namespace arena::net
 {
     /** Bumped when messages change shape: a client and server of different versions refuse each other. */
-    constexpr uint16_t PROTOCOL_VERSION = 14;
+    constexpr uint16_t PROTOCOL_VERSION = 15;
 
     /** The server sends a snapshot every this many steps (60 / 2 = 30 per second). */
     constexpr int SNAPSHOT_EVERY = 2;
@@ -29,6 +29,7 @@ namespace arena::net
         Spells,          // client -> server, reliable: the recipes on its spell keys
         Lobby,           // server -> client, reliable: who is in the game, ready or not, their ping
         Ready,           // client -> server, reliable: ready (or not) to start the run
+        ModBundle,       // server -> client, reliable: the server's mods, for a client whose content differs
     };
 
     /**
@@ -63,6 +64,20 @@ namespace arena::net
         int peer = 0;
         int playerId = 0;
         uint32_t tick = 0;
+    };
+
+    /** One file of a mod, by its path inside the mods folder. */
+    struct ModFile
+    {
+        std::string path;
+        std::string data;
+    };
+
+    /** The server's mods, and the fingerprint they have to give once loaded. */
+    struct ModBundle
+    {
+        uint64_t fingerprint = 0;
+        std::vector<ModFile> files;
     };
 
     /** One step of input with its sequence number and network stamps. */
@@ -171,6 +186,7 @@ namespace arena::net
 
     std::vector<uint8_t> encode(const Hello& m);
     std::vector<uint8_t> encode(const Welcome& m);
+    std::vector<uint8_t> encode(const ModBundle& m);
     std::vector<uint8_t> encode(const InputMsg& m);
     std::vector<uint8_t> encode(const SnapshotMsg& m, const Names& names);
     std::vector<uint8_t> encode(const TerrainDeltaMsg& m);
@@ -187,6 +203,7 @@ namespace arena::net
     // Decoders return false for a message that does not read cleanly (it is then ignored)
     bool decode(const std::vector<uint8_t>& data, Hello& m);
     bool decode(const std::vector<uint8_t>& data, Welcome& m);
+    bool decode(const std::vector<uint8_t>& data, ModBundle& m);
     bool decode(const std::vector<uint8_t>& data, InputMsg& m);
     bool decode(const std::vector<uint8_t>& data, SnapshotMsg& m, const Names& names);
     bool decode(const std::vector<uint8_t>& data, TerrainDeltaMsg& m);

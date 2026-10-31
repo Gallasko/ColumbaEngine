@@ -197,6 +197,43 @@ namespace arena::net
         return not r.failed;
     }
 
+    std::vector<uint8_t> encode(const ModBundle& m)
+    {
+        Writer w;
+        w.u8(static_cast<uint8_t>(Msg::ModBundle));
+        w.u64(m.fingerprint);
+        w.u32(static_cast<uint32_t>(m.files.size()));
+
+        for (const auto& f : m.files)
+        {
+            w.str(f.path);
+            w.blob(f.data);
+        }
+
+        return w.data;
+    }
+
+    bool decode(const std::vector<uint8_t>& data, ModBundle& m)
+    {
+        Reader r(data);
+        if (r.u8() != static_cast<uint8_t>(Msg::ModBundle))
+            return false;
+        m.fingerprint = r.u64();
+
+        const uint32_t count = r.u32();
+
+        // Each file takes 6 bytes at least: a count that cannot be true reserves nothing
+        for (uint32_t i = 0; i < count and not r.failed; ++i)
+        {
+            ModFile f;
+            f.path = r.str();
+            f.data = r.blob();
+            m.files.push_back(std::move(f));
+        }
+
+        return not r.failed;
+    }
+
     std::vector<uint8_t> encode(const Welcome& m)
     {
         Writer w;

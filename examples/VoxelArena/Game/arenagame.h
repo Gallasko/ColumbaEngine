@@ -288,6 +288,16 @@ namespace arena
         int joinFocus = 0;
         bool joinNow();
         void leaveGame();
+
+        /** Reads the network as a client, and takes on the server's mods if they came. */
+        void pollClient();
+        void applyServerMods();
+        void restoreOwnMods();
+
+        // On a server's mods: where this game's own are. Their scripts stay unloaded: only a server
+        // runs scripts, and what a server sends is not run here
+        bool serverMods = false;
+        std::string ownModsDir;
         void openJoin();
         void joinAction(int action);
         void resetLocalState();
