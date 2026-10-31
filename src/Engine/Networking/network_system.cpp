@@ -375,7 +375,9 @@ namespace pg
             }
 
             case NetMsgType::Disconnect:
-                leavingClients.insert(ci.clientId);
+                // Over TCP only: a datagram's address can be anyone's
+                if (not udpFrom)
+                    leavingClients.insert(ci.clientId);
                 break;
 
             case NetMsgType::Custom:
@@ -482,6 +484,19 @@ namespace pg
 
         while (backend->receive(sock, udpSrc, buf))
         {
+            // A datagram can come from anyone: only one carrying our id and token, once we have them,
+            // is the server's (checked before its fragments take any room)
+            if (not sock)
+            {
+                if (currentClientState != ClientState::Connected or buf.size() < HEADER_SIZE)
+                    continue;
+
+                const PacketHeader h = readHeader(buf.data(), backend);
+
+                if (h.clientId != _myClientId or h.token != _myToken)
+                    continue;
+            }
+
             ParsedPacket msg;
 
             if (parseAndReassemble(buf, reassembly, fragmentTimers, backend, msg))
@@ -560,6 +575,10 @@ namespace pg
 
             case NetMsgType::Ping:
             {
+                // The server pings over TCP
+                if (not reliable)
+                    break;
+
                 uint8_t buf[8];
                 backend->writeU64BE(buf, header.timestamp);
                 sendTCPMessage(_myClientId, _myToken, NetMsgType::Pong, NetPayload(buf, buf + 8));
@@ -567,7 +586,9 @@ namespace pg
             }
 
             case NetMsgType::Disconnect:
-                lostServer();
+                // Over TCP only: a forged datagram must not cut us off
+                if (reliable)
+                    lostServer();
                 break;
 
             case NetMsgType::Custom:
