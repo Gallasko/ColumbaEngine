@@ -1286,6 +1286,11 @@ namespace arena
         if (ownNetwork)
             ownNetwork->execute();
 
+        // Every frame, steps or not: a host alone in its lobby does not step, and a friend joining is
+        // only heard here
+        if (server)
+            pollServer();
+
         // Paused while the spellbook is open, playing alone (a shared game goes on)
         if (not paused and not ((bookOpen or titleOpen or optionsOpen) and alone()))
             accumulator += static_cast<double>(frameSeconds) * timeScale;
@@ -1391,18 +1396,8 @@ namespace arena
             // Who steps the world: the server (host), the prediction (client), or nobody else (single)
             if (server)
             {
-                server->poll();
+                pollServer();
                 server->step(&in);
-
-                for (const auto& line : server->log)
-                {
-                    print(line);
-                    netLog.push_back(line);
-                }
-                server->log.clear();
-
-                while (netLog.size() > 2)
-                    netLog.pop_front();
             }
             else if (client)
             {
@@ -2455,7 +2450,7 @@ namespace arena
 
     bool ArenaGame::alone() const
     {
-        return not networked() or (server and server->clientCount() == 0);
+        return not networked() or (server and server->peerCount() == 0);
     }
 
     void ArenaGame::rename(const std::string& name)
@@ -3100,6 +3095,21 @@ namespace arena
 
         if (client->state == net::NetClient::State::ModsArrived)
             applyServerMods();
+    }
+
+    void ArenaGame::pollServer()
+    {
+        server->poll();
+
+        for (const auto& line : server->log)
+        {
+            print(line);
+            netLog.push_back(line);
+        }
+        server->log.clear();
+
+        while (netLog.size() > 2)
+            netLog.pop_front();
     }
 
     void ArenaGame::applyServerMods()

@@ -288,7 +288,7 @@ namespace arena
         std::chrono::steady_clock::time_point netEpoch = std::chrono::steady_clock::now();
         double netNowMs() const { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - netEpoch).count(); }
         bool networked() const { return options.mode != ArenaOptions::Mode::Single; }
-        /** Nobody else in the game (alone, or hosting with nobody joined): the menus pause it. */
+        /** Nobody else in the game (alone, or hosting with nobody connected): the menus pause it. */
         bool alone() const;
 
         // The name the others see (the options' field, the join panel): kept, and told to the others
@@ -332,6 +332,7 @@ namespace arena
 
         /** Reads the network as a client, and takes on the server's mods if they came. */
         void pollClient();
+        void pollServer();
         void applyServerMods();
         void restoreOwnMods();
 

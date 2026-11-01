@@ -1316,6 +1316,28 @@ TEST(arena_net, a_connection_that_never_joins_is_closed)
     EXPECT_TRUE(raw.disconnected());
 }
 
+TEST(arena_net, a_host_that_is_not_stepping_still_lets_someone_in)
+{
+    // A host alone in its lobby holds its world: until someone is there it polls, and that is all
+    Session s;
+    RawPeer raw(s);
+
+    s.hub.advance(STEP_MS);
+    s.server->poll();
+    EXPECT_EQ(s.server->peerCount(), 1u);    // what wakes the world up, joined or not
+    EXPECT_EQ(s.server->clientCount(), 0u);
+
+    raw.hello(s);
+
+    for (int i = 0; i < 5; ++i)
+    {
+        s.hub.advance(STEP_MS);
+        s.server->poll();
+    }
+
+    EXPECT_EQ(s.server->clientCount(), 1u);
+}
+
 TEST(arena_net, a_server_cannot_ship_bytecode)
 {
     // The script compiler loads anything with ".pgc" in its name as bytecode, unchecked

@@ -32,6 +32,9 @@ namespace arena::net
 
         size_t clientCount() const;
 
+        /** Every connection, joined or not (yet): someone refused or getting the mods is one too. */
+        size_t peerCount() const { return clients.size(); }
+
         /** What happened (joins, leaves, refusals), for the console. Drained by the caller. */
         std::vector<std::string> log;
 
