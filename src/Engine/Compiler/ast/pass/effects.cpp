@@ -486,6 +486,24 @@ namespace pg
             fileJoins.resize(programFiles.size());
             undecidedFiles.insert(sameShape.begin(), sameShape.end());
 
+            // A var of a file that runs more than once: each run of the file makes it anew, which only
+            // shows when it holds an object (its identity). A scalar is as good as a const all the same
+            std::set<std::string> newTableEachImport;
+
+            for (size_t f = 0; f < programFiles.size(); ++f)
+            {
+                if (not runTwice[f])
+                    continue;
+
+                for (const auto& s : programFiles[f])
+                {
+                    const std::string name = s->kind() == AstKind::VariableStatement ? declaredBy(s) : "";
+
+                    if (not name.empty() and holds.count(locs.global(name)))
+                        newTableEachImport.insert(name);
+                }
+            }
+
             bool lost = true;
 
             while (lost)
@@ -513,7 +531,7 @@ namespace pg
                         if (facts == topLevel.end() or not onlyMakes(effectsFrom(facts->second), {name}))
                             continue;
 
-                        if (writtenElsewhere(name))
+                        if (writtenElsewhere(name) or newTableEachImport.count(name))
                             continue;
 
                         inferred.insert(name);
@@ -630,9 +648,9 @@ namespace pg
         {
             const std::vector<StatementPtr>& file = programFiles[index];
 
-            // A file the run reaches more than once (a module imported twice) runs its statements at each
-            // import: a statement that reads what it writes would give its first value only, joined. Its
-            // constant entries are set the same at each import, those join as ever
+            // A file that runs more than once (a module imported twice, or imported by one) runs its
+            // statements at each import: a statement that reads what it writes would give its first value
+            // only, joined. Its constant entries are set the same at each import, those join as ever
             const bool twice = index < runTwice.size() and runTwice[index];
 
             // A constant entry joins its const on the same terms as any other statement: the const must
@@ -684,6 +702,33 @@ namespace pg
             {
                 if (not ran[f])
                     run(f);
+            }
+
+            // A file that runs again runs all it imports again: only the first reach walks them
+            std::vector<size_t> todo;
+
+            for (size_t f = 0; f < programFiles.size(); ++f)
+            {
+                if (runTwice[f])
+                    todo.push_back(f);
+            }
+
+            while (not todo.empty())
+            {
+                const size_t f = todo.back();
+                todo.pop_back();
+
+                if (f >= imports.size())
+                    continue;
+
+                for (const auto& [statement, imported] : imports[f])
+                {
+                    if (not runTwice[imported])
+                    {
+                        runTwice[imported] = true;
+                        todo.push_back(imported);
+                    }
+                }
             }
         }
 

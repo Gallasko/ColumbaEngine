@@ -808,6 +808,25 @@ TEST(RunOncePass, KeepsAFunctionDefinedOnceAndNeverWritten)
                       lines({"out=3 ", "out=5 ", "out=7 "}));
         }
 
+        TEST(ProgramConstsPass, WhatAModuleImportedTwiceImportsRunsTwiceAsWell)
+        {
+            // n imports m a second time, so m runs twice, and h with it though it is imported once
+            EXPECT_EQ(sameBothWays({{"main.pg", "import \"m\"\nimport \"n\"\nvar out = 0\nout = c0.n\n"},
+                                    {"m.pg", "import \"h\"\n"},
+                                    {"n.pg", "import \"m\"\n"},
+                                    {"h.pg", "const c0 = {n: 1}\nc0.n = c0.n + 1\n"}}, {"out"}),
+                      lines({"out=3 ", "out=5 ", "out=7 "}));
+        }
+
+        TEST(ProgramConstsPass, ATableVarOfAModuleImportedTwiceIsNotAConst)
+        {
+            // Each import makes a new table: `a` holds the first of them, `t` the last
+            EXPECT_EQ(sameBothWays({{"main.pg", "import \"m\"\nvar a = t\nimport \"h\"\nvar out = 0\nif (a == t)\n{\n    out = 1\n}\nelse\n{\n    out = 2\n}\n"},
+                                    {"m.pg", "import \"h\"\n"},
+                                    {"h.pg", "var t = {n: 1}\n"}}, {"out"}),
+                      lines({"out=2 ", "out=2 ", "out=2 "}));
+        }
+
         TEST(ProgramConstsPass, AModuleCompiledAsPgPgcIsNotReadEither)
         {
             // The compiler takes `m.pg.pgc` as it takes `m.pgc`

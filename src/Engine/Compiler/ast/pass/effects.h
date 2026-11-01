@@ -94,7 +94,9 @@ namespace pg
             const std::set<std::string>& inferredConsts() const { return inferred; }
 
             // What the program decided for a file: one Join per statement of it (ast::walkConsts, the
-            // parser's empty statements left aside). Nothing joins in a file another could be taken for
+            // parser's empty statements left aside). Nothing joins in a file another could be taken for,
+            // and only constant fills in a file that runs more than once (a module imported twice, or
+            // imported by one)
             const std::vector<Join>& joinsInFile(size_t file) const { return fileJoins[file]; }
 
             // Whether anything was decided for a file: nothing is for one another file of the program
@@ -140,7 +142,7 @@ namespace pg
             std::vector<std::vector<StatementPtr>> programFiles;  // What the sites and `topLevel` are keyed by, kept alive
             std::vector<std::vector<Join>> fileJoins;             // By file, by statement
             std::set<size_t> undecidedFiles;                      // Files another could be taken for
-            std::vector<bool> runTwice;                           // By file: reached by the run order more than once
+            std::vector<bool> runTwice;                           // By file: runs more than once in a run of the program
 
             // The order the program runs in, an import where it stands
             std::unordered_map<const Statement*, size_t> ranAt;
