@@ -1,0 +1,6 @@
+// An int past the 47-bit range must fail identically with and without opts.
+import "algorithm"
+var x = toInt("70368744177663")
+print("before");
+print(x + 1);
+print("unreachable");

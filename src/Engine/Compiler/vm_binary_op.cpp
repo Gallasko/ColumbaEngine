@@ -6,6 +6,10 @@
 
 namespace pg
 {
+    void throwIntOverflow()
+    {
+        throw std::runtime_error("Integer overflow: the result is past the int range (-70368744177664 to 70368744177663), use floats for larger values");
+    }
 
     // ------------------------------------------------------------------
     // *ValuesTail — handwritten non-numeric fallbacks. The numeric kernel
@@ -86,7 +90,7 @@ namespace pg
     {
         // Fast path for integers
         if (IS_INT(val))
-            return INT_VAL(-AS_INT(val));
+            return INT_VAL(checkedInt(-AS_INT(val)));
 
         // Fast path for floats
         if (IS_FLOAT(val))
@@ -716,7 +720,7 @@ namespace pg
 
         if (IS_INT(val))
         {
-            vm->currentFrame->slots[slot] = INT_VAL(AS_INT(val) + 1);
+            vm->currentFrame->slots[slot] = INT_VAL(checkedInt(AS_INT(val) + 1));
         }
         else if (IS_FLOAT(val))
         {

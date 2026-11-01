@@ -17,7 +17,17 @@ namespace pg
 {
     void intNumber(CParser& parser, bool)
     {
-        auto n = std::stoi(parser.previousToken.text);
+        int n = 0;
+
+        try
+        {
+            n = std::stoi(parser.previousToken.text);
+        }
+        catch (const std::out_of_range&)
+        {
+            parser.error("Integer literal " + parser.previousToken.text + " is past 32 bits, use toInt on a string");
+        }
+
         parser.writeConstant(n);
     }
 

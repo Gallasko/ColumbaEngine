@@ -540,7 +540,18 @@ namespace pg
         if (match(TokenType::KEYFALSE)) return std::make_shared<Atom>(false);
         if (match(TokenType::KEYNONE)) return std::make_shared<NoneAtom>();
 
-        if (match(TokenType::NUMBER)) return std::make_shared<Atom>(std::stoi(previousToken.text));
+        if (match(TokenType::NUMBER))
+        {
+            try
+            {
+                return std::make_shared<Atom>(std::stoi(previousToken.text));
+            }
+            catch (const std::out_of_range&)
+            {
+                throw ParseException(previousToken, "Integer literal " + previousToken.text + " is past 32 bits, use toInt on a string");
+            }
+        }
+
         if (match(TokenType::FLOAT)) return std::make_shared<Atom>(std::stof(previousToken.text));
         if (match(TokenType::STRING)) return std::make_shared<Atom>(previousToken.text);
 

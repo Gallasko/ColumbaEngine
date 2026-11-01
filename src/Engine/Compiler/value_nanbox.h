@@ -303,6 +303,61 @@ namespace pg
         return NEG_TAG_BASE | (static_cast<uint64_t>(TAG_INT) << TAG_SHIFT) | index;
     }
 
+    /** Bounds of an int value: makeIntValue wraps anything past them */
+    static constexpr int64_t INT_VALUE_MAX = (int64_t{1} << 46) - 1;
+    static constexpr int64_t INT_VALUE_MIN = -(int64_t{1} << 46);
+
+    inline bool fitsIntValue(int64_t i)
+    {
+        return static_cast<uint64_t>(i) + (uint64_t{1} << 46) < (uint64_t{1} << 47);
+    }
+
+    /** For a double already rounded to a whole number. A NaN does not fit */
+    inline bool doubleFitsInt(double d)
+    {
+        return d >= static_cast<double>(INT_VALUE_MIN) and d < -static_cast<double>(INT_VALUE_MIN);
+    }
+
+    /** False when a * b does not fit an int value. Two ints can overflow 64 bits, so the product is checked as it is made */
+    inline bool multiplyFitsInt(int64_t a, int64_t b, int64_t& out)
+    {
+    #if defined(__GNUC__) or defined(__clang__)
+        if (__builtin_mul_overflow(a, b, &out))
+            return false;
+    #else
+        const double approximate = static_cast<double>(a) * static_cast<double>(b);
+
+        if (approximate >= 9e18 or approximate <= -9e18)
+            return false;
+
+        out = a * b;
+    #endif
+
+        return fitsIntValue(out);
+    }
+
+    /** Raises the script error for an int result past the bounds (in vm_binary_op.cpp, off the hot path) */
+    [[noreturn]] void throwIntOverflow();
+
+    /** A computed int: stops the script rather than let makeIntValue wrap it */
+    inline int64_t checkedInt(int64_t i)
+    {
+        if (not fitsIntValue(i))
+            throwIntOverflow();
+
+        return i;
+    }
+
+    inline int64_t checkedMultiply(int64_t a, int64_t b)
+    {
+        int64_t out = 0;
+
+        if (not multiplyFitsInt(a, b, out))
+            throwIntOverflow();
+
+        return out;
+    }
+
     /**
      * Create the none value (non-refcounted, sign bit = 1)
      */

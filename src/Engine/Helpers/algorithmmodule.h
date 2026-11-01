@@ -2,6 +2,9 @@
 
 #include "Compiler/native_module.h"
 
+#include <cmath>
+#include <stdexcept>
+
 namespace pg
 {
     /**
@@ -369,10 +372,17 @@ namespace pg
                 {
                     res = std::stoll(str);
                 }
+                catch (const std::out_of_range&)
+                {
+                    throw std::runtime_error("toInt: " + str + " is past the int range, use toFloat for larger values");
+                }
                 catch (const std::exception&)
                 {
                     throw std::runtime_error("toInt could not convert the string " + str + " to an integer");
                 }
+
+                if (not fitsIntValue(res))
+                    throw std::runtime_error("toInt: " + str + " is past the int range, use toFloat for larger values");
 
                 // Use makeIntValue directly to create a 47-bit integer Value
                 // This avoids ElementType conversion which would truncate to 32-bit int
@@ -384,7 +394,14 @@ namespace pg
                 return args[0];  // Already an integer
 
             if (IS_DOUBLE(args[0]))
-                return makeIntValue(static_cast<int64_t>(AS_DOUBLE(args[0])));
+            {
+                const double whole = std::trunc(AS_DOUBLE(args[0]));
+
+                if (not doubleFitsInt(whole))
+                    throw std::runtime_error("toInt: the float is past the int range");
+
+                return makeIntValue(static_cast<int64_t>(whole));
+            }
 
             // Fallback to ElementType conversion
             auto value = vm->valueToElement(args[0]);

@@ -6,7 +6,7 @@ import "math"
 var path = "test/pgcompiler/examples/adventofcode2025/day3/"
 var files = ["aoc3small", "aoc3full"]
 
-// for aoc3full we should get 173,685,428,989,126 but as our int only support up to 47b this get overflow and wrap all the way around to 32,947,940,633,798 (max is: 140,737,488,355,328)
+// aoc3full sums to 173,685,428,989,126, past the int range (max is 70,368,744,177,663), so the total is a float
 
 fun findHighestNumber(startPos, endPos, str)
 {
@@ -39,7 +39,7 @@ for (var file : files)
 
     var lines = splitLines(f)
 
-    var res = 0
+    var res = 0.0
 
     for (var line : lines)
     {

@@ -5,7 +5,7 @@
     Value VM::addValues(const Value& a, const Value& b)
     {
         if (IS_INT(a) and IS_INT(b))
-            return INT_VAL(AS_INT(a) + AS_INT(b));
+            return INT_VAL(checkedInt(AS_INT(a) + AS_INT(b)));
         if (IS_DOUBLE(a) and IS_DOUBLE(b))
             return FLOAT_VAL(AS_DOUBLE(a) + AS_DOUBLE(b));
         if (IS_INT(a) and IS_DOUBLE(b))
@@ -18,7 +18,7 @@
     Value VM::subtractValues(const Value& a, const Value& b)
     {
         if (IS_INT(a) and IS_INT(b))
-            return INT_VAL(AS_INT(a) - AS_INT(b));
+            return INT_VAL(checkedInt(AS_INT(a) - AS_INT(b)));
         if (IS_DOUBLE(a) and IS_DOUBLE(b))
             return FLOAT_VAL(AS_DOUBLE(a) - AS_DOUBLE(b));
         if (IS_INT(a) and IS_DOUBLE(b))
@@ -31,7 +31,7 @@
     Value VM::multiplyValues(const Value& a, const Value& b)
     {
         if (IS_INT(a) and IS_INT(b))
-            return INT_VAL(AS_INT(a) * AS_INT(b));
+            return INT_VAL(checkedMultiply(AS_INT(a), AS_INT(b)));
         if (IS_DOUBLE(a) and IS_DOUBLE(b))
             return FLOAT_VAL(AS_DOUBLE(a) * AS_DOUBLE(b));
         if (IS_INT(a) and IS_DOUBLE(b))
@@ -44,7 +44,7 @@
     Value VM::divideValues(const Value& a, const Value& b)
     {
         if (IS_INT(a) and IS_INT(b) and (AS_INT(b) != 0))
-            return INT_VAL(AS_INT(a) / AS_INT(b));
+            return INT_VAL(checkedInt(AS_INT(a) / AS_INT(b)));
         if (IS_DOUBLE(a) and IS_INT(b) and (AS_INT(b) != 0))
             return FLOAT_VAL(AS_DOUBLE(a) / static_cast<double>(AS_INT(b)));
         if (IS_DOUBLE(a) and IS_DOUBLE(b) and (areNotAlmostEqual(static_cast<float>(AS_DOUBLE(b)), 0.0f)))

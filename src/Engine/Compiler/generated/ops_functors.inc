@@ -8,7 +8,7 @@
         PG_FUSION_INLINE static Value apply(VM* vm, const Value& a, const Value& b)
         {
             if (IS_INT(a) and IS_INT(b))
-                return INT_VAL(AS_INT(a) + AS_INT(b));
+                return INT_VAL(checkedInt(AS_INT(a) + AS_INT(b)));
             if (IS_DOUBLE(a) and IS_DOUBLE(b))
                 return FLOAT_VAL(AS_DOUBLE(a) + AS_DOUBLE(b));
             if (IS_INT(a) and IS_DOUBLE(b))
@@ -31,7 +31,7 @@
         PG_FUSION_INLINE static Value apply(VM* vm, const Value& a, const Value& b)
         {
             if (IS_INT(a) and IS_INT(b))
-                return INT_VAL(AS_INT(a) - AS_INT(b));
+                return INT_VAL(checkedInt(AS_INT(a) - AS_INT(b)));
             if (IS_DOUBLE(a) and IS_DOUBLE(b))
                 return FLOAT_VAL(AS_DOUBLE(a) - AS_DOUBLE(b));
             if (IS_INT(a) and IS_DOUBLE(b))
@@ -48,7 +48,7 @@
         PG_FUSION_INLINE static Value apply(VM* vm, const Value& a, const Value& b)
         {
             if (IS_INT(a) and IS_INT(b))
-                return INT_VAL(AS_INT(a) * AS_INT(b));
+                return INT_VAL(checkedMultiply(AS_INT(a), AS_INT(b)));
             if (IS_DOUBLE(a) and IS_DOUBLE(b))
                 return FLOAT_VAL(AS_DOUBLE(a) * AS_DOUBLE(b));
             if (IS_INT(a) and IS_DOUBLE(b))
@@ -65,7 +65,7 @@
         PG_FUSION_INLINE static Value apply(VM* vm, const Value& a, const Value& b)
         {
             if (IS_INT(a) and IS_INT(b) and (AS_INT(b) != 0))
-                return INT_VAL(AS_INT(a) / AS_INT(b));
+                return INT_VAL(checkedInt(AS_INT(a) / AS_INT(b)));
             if (IS_DOUBLE(a) and IS_INT(b) and (AS_INT(b) != 0))
                 return FLOAT_VAL(AS_DOUBLE(a) / static_cast<double>(AS_INT(b)));
             return vm->divideValues(a, b);

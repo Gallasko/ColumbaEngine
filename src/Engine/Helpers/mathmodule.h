@@ -66,7 +66,7 @@ namespace pg
 
             if (IS_INT(args[0]))
             {
-                return makeIntValue(std::abs(AS_INT(args[0])));
+                return makeIntValue(checkedInt(std::abs(AS_INT(args[0]))));
             }
             else if (IS_DOUBLE(args[0]))
             {
@@ -118,7 +118,12 @@ namespace pg
             }
             else if (IS_DOUBLE(args[0]))
             {
-                return makeIntValue(static_cast<int64_t>(std::floor(AS_DOUBLE(args[0]))));
+                const double whole = std::floor(AS_DOUBLE(args[0]));
+
+                if (not doubleFitsInt(whole))
+                    throw std::runtime_error("floor: the float is past the int range");
+
+                return makeIntValue(static_cast<int64_t>(whole));
             }
 
             throw std::runtime_error("floor expects a number");
@@ -138,7 +143,12 @@ namespace pg
             }
             else if (IS_DOUBLE(args[0]))
             {
-                return makeIntValue(static_cast<int64_t>(std::ceil(AS_DOUBLE(args[0]))));
+                const double whole = std::ceil(AS_DOUBLE(args[0]));
+
+                if (not doubleFitsInt(whole))
+                    throw std::runtime_error("ceil: the float is past the int range");
+
+                return makeIntValue(static_cast<int64_t>(whole));
             }
 
             throw std::runtime_error("ceil expects a number");

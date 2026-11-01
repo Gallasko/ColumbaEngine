@@ -4,6 +4,8 @@
 
 #include "ast_analysis.h"
 
+#include "Compiler/value_nanbox.h"
+
 #include "Interpreter/expression.h"
 #include "Interpreter/statement.h"
 
@@ -81,6 +83,18 @@ namespace pg
 
             void fail() { failed = true; }
 
+            /** A result past the int range is the VM's overflow error: the loop stays so that it raises it */
+            std::optional<CVal> intResult(int64_t v)
+            {
+                if (not fitsIntValue(v))
+                {
+                    fail();
+                    return std::nullopt;
+                }
+
+                return CVal::makeInt(v);
+            }
+
             bool tick()
             {
                 if (++steps > kMaxSteps)
@@ -138,7 +152,7 @@ namespace pg
                         return std::nullopt;
 
                     if (u->op.type == TokenType::MINUS and v->type == CVal::T::Int)
-                        return CVal::makeInt(-v->i);
+                        return intResult(-v->i);
 
                     if (u->op.type == TokenType::NOT)
                         return CVal::makeBool(not v->isTrue());
@@ -183,13 +197,19 @@ namespace pg
 
                     switch (bin->op.type)
                     {
-                        case TokenType::PLUS:     return CVal::makeInt(l->i + r->i);
-                        case TokenType::MINUS:    return CVal::makeInt(l->i - r->i);
-                        case TokenType::STAR:     return CVal::makeInt(l->i * r->i);
+                        case TokenType::PLUS:     return intResult(l->i + r->i);
+                        case TokenType::MINUS:    return intResult(l->i - r->i);
+
+                        case TokenType::STAR:
+                        {
+                            int64_t product = 0;
+                            if (not multiplyFitsInt(l->i, r->i, product)) { fail(); return std::nullopt; } // stays a runtime error
+                            return CVal::makeInt(product);
+                        }
 
                         case TokenType::SLASH:
                             if (r->i == 0) { fail(); return std::nullopt; } // stays a runtime error
-                            return CVal::makeInt(l->i / r->i);
+                            return intResult(l->i / r->i);
 
                         case TokenType::MOD:
                             if (r->i == 0) { fail(); return std::nullopt; }
@@ -267,7 +287,12 @@ namespace pg
                     }
 
                     int64_t old = slot->i;
-                    slot->i += op.type == TokenType::INCREMENT ? 1 : -1;
+
+                    auto next = intResult(old + (op.type == TokenType::INCREMENT ? 1 : -1));
+                    if (not next)
+                        return std::nullopt;
+
+                    slot->i = next->i;
 
                     return CVal::makeInt(prefix ? slot->i : old);
                 }

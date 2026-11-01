@@ -19,6 +19,7 @@
 //               left when it holds and runs swapped otherwise
 //   op          shorthand: derives the 4 numeric kernels
 //               (int/int, dbl/dbl, int/dbl promote, dbl/int promote), inline
+//   intExpr     only with `op`: replaces the int/int kernel's expr
 //   kernels     explicit list, mutually exclusive with `op`
 //   tail        handwritten fallback function for the generated helper body
 //               (step 5); tailExpr = verbatim return expression instead
@@ -36,17 +37,23 @@ fun binaryOps()
 {
     var ops = []
 
+    // An int result past the 47-bit range stops the script (checkedInt): the
+    // box would wrap it. Comparisons and modulo cannot leave the range.
+
     // Commutative on numbers; on strings `+` concatenates and keeps its order.
     push(ops, { name: "add", opcode: "OP_Add", kind: "arith", op: "+",
+                intExpr: "checkedInt($a + $b)",
                 helper: "addValues", commutative: true,
                 orderedIf: "IS_STRING(a) and IS_STRING(b)",
                 tail: "addValuesTail" })
 
     push(ops, { name: "subtract", opcode: "OP_Subtract", kind: "arith", op: "-",
+                intExpr: "checkedInt($a - $b)",
                 helper: "subtractValues", commutative: false,
                 tail: "subtractValuesTail" })
 
     push(ops, { name: "multiply", opcode: "OP_Multiply", kind: "arith", op: "*",
+                intExpr: "checkedMultiply($a, $b)",
                 helper: "multiplyValues", commutative: true,
                 tail: "multiplyValuesTail" })
 
@@ -55,7 +62,7 @@ fun binaryOps()
     push(ops, { name: "divide", opcode: "OP_Divide", kind: "arith",
                 helper: "divideValues", commutative: false,
                 kernels: [
-                    ["int", "int", "$a / $b", "$b != 0", "inline"],
+                    ["int", "int", "checkedInt($a / $b)", "$b != 0", "inline"],
                     ["dbl", "int", "$a / static_cast<double>($b)", "$b != 0", "inline"],
                     ["dbl", "dbl", "$a / $b", "areNotAlmostEqual(static_cast<float>($b), 0.0f)", "helper"],
                     ["int", "dbl", "static_cast<double>($a) / $b", "areNotAlmostEqual(static_cast<float>($b), 0.0f)", "helper"]],

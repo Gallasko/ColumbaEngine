@@ -31,7 +31,12 @@ fun expandKernels(op)
 
     var sym = op["op"]
     var kernels = []
-    push(kernels, ["int", "int", "$a " + sym + " $b", "", "inline"])
+    var intExpr = "$a " + sym + " $b"
+    if (contain(op, "intExpr"))
+    {
+        intExpr = op["intExpr"]
+    }
+    push(kernels, ["int", "int", intExpr, "", "inline"])
     push(kernels, ["dbl", "dbl", "$a " + sym + " $b", "", "inline"])
     push(kernels, ["int", "dbl", "static_cast<double>($a) " + sym + " $b", "", "inline"])
     push(kernels, ["dbl", "int", "$a " + sym + " static_cast<double>($b)", "", "inline"])

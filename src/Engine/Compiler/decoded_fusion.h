@@ -530,7 +530,7 @@ namespace fusion
         // dominant case never leaves this function.
         if (IS_INT(val))
         {
-            val = INT_VAL(AS_INT(val) + (Increment ? 1 : -1));
+            val = INT_VAL(checkedInt(AS_INT(val) + (Increment ? 1 : -1)));
             return &instr + 1;
         }
 
