@@ -23,6 +23,7 @@
 #include "Net/enginetransport.h"
 #include "Networking/backend_sdl.h"
 #include "Networking/network_system.h"
+#include "Loaders/stb_image.h"
 #include "Renderer/camera.h"
 #include "logger.h"
 #include "window.h"
@@ -162,6 +163,7 @@ namespace arena
             m.nbTextures = 0;
             m.nbAttributes = GpuMesh::INSTANCE_FLOATS;
             m.uniformMap["uMode"] = UniformValue(mode);
+            m.uniformMap["uBlocks"] = UniformValue(0);
             return masterRenderer->registerMaterial(name, m);
         };
 
@@ -185,7 +187,9 @@ namespace arena
             boxMesh->setData(buildMesh(cube, table, opt));
         }
 
+        blockTextures = std::make_shared<GpuTextureArray>();
         worldMesh = std::make_shared<GpuMesh>();
+        worldMesh->textures = blockTextures;
 
         ui.init(ecsRef, masterRenderer, screenW, screenH);
 
@@ -310,6 +314,8 @@ namespace arena
                     modelMesh(id + "#" + part.name)->setData(buildMesh(part.grid, model->table, opt));
         }
 
+        loadBlockLooks();
+
         // Sounds and effects: synthesised into a cache folder (the engine's audio plays files)
         const auto recipes = readSounds(content.sounds, content.report);
         effects = readEffects(content.effects, recipes, content.report);
@@ -331,6 +337,95 @@ namespace arena
             print("\\c{255,120,110,255}error: " + content.report.errors[i].str() + "\\c{236,238,242,255}");
         for (size_t i = 0; i < content.report.warnings.size() and i < 4; ++i)
             print("\\c{240,200,110,255}warning: " + content.report.warnings[i].str() + "\\c{236,238,242,255}");
+    }
+
+    void ArenaGame::loadBlockLooks()
+    {
+        // Model shaped blocks: their model fitted to one cell (its widest side across it), feet on the floor
+        blockModels.assign(content.blocks.size(), MeshData{});
+
+        for (const auto& b : content.blocks)
+        {
+            auto it = content.models.find(b.model);
+
+            if (b.model.empty() or it == content.models.end())
+                continue;
+
+            const VoxelModel& model = *it->second;
+            MeshOptions opt;
+            opt.origin = model.pivot;
+            opt.cellSize = 1.0f / static_cast<float>(std::max(model.grid.width(), model.grid.depth()));
+            opt.aoStrength = 0.45f;
+            blockModels[b.runtimeId] = buildMesh(model.grid, model.table, opt);
+        }
+
+        // Textures: one layer per png, all at the size of the biggest (the smaller ones scaled up, pixels kept)
+        struct Image
+        {
+            int w = 0, h = 0;
+            std::vector<uint8_t> rgba;
+        };
+
+        std::vector<Image> images;
+        int size = 1;
+
+        for (const auto& path : content.blockTextures)
+        {
+            Image img;
+            int channels = 0;
+
+            if (unsigned char* data = stbi_load(path.c_str(), &img.w, &img.h, &channels, STBI_rgb_alpha))
+            {
+                img.rgba.assign(data, data + static_cast<size_t>(img.w) * img.h * 4);
+                stbi_image_free(data);
+                size = std::max({size, img.w, img.h});
+            }
+            else
+            {
+                content.report.error(path, 0, std::string("cannot read this texture: ") + (stbi_failure_reason() ? stbi_failure_reason() : "unknown error"));
+            }
+
+            images.push_back(std::move(img));
+        }
+
+        size = std::min(size, 256);
+        std::vector<uint8_t> layers(static_cast<size_t>(size) * size * 4 * images.size());
+
+        for (size_t i = 0; i < images.size(); ++i)
+        {
+            const Image& img = images[i];
+            uint8_t* out = &layers[static_cast<size_t>(size) * size * 4 * i];
+
+            for (int y = 0; y < size; ++y)
+            for (int x = 0; x < size; ++x)
+            {
+                uint8_t* px = out + (static_cast<size_t>(y) * size + x) * 4;
+
+                // A png that did not load: a magenta and black checker, so it is seen
+                if (img.rgba.empty())
+                {
+                    const uint8_t on = ((x * 4 / size) + (y * 4 / size)) % 2 == 0 ? 255 : 0;
+                    px[0] = on;
+                    px[1] = 0;
+                    px[2] = on;
+                    px[3] = 255;
+                    continue;
+                }
+
+                const uint8_t* src = &img.rgba[(static_cast<size_t>(y * img.h / size) * img.w + x * img.w / size) * 4];
+                std::copy(src, src + 4, px);
+            }
+        }
+
+        blockTextures->setData(size, static_cast<int>(images.size()), std::move(layers));
+    }
+
+    MeshOptions ArenaGame::blockMeshOptions() const
+    {
+        MeshOptions opt;
+        opt.edges = 0.15f;
+        opt.blockModels = &blockModels;
+        return opt;
     }
 
     std::string ArenaGame::contentSummary() const
@@ -2122,7 +2217,8 @@ namespace arena
                 freePieceMeshes.pop_back();
             }
 
-            mesh->setData(buildMesh(piece.cells, content.blockTable));
+            mesh->textures = blockTextures;
+            mesh->setData(buildMesh(piece.cells, content.blockTable, blockMeshOptions()));
             pieceMeshes[piece.id] = mesh;
         }
     }
@@ -3414,7 +3510,7 @@ namespace arena
             return;
 
         // Damaged blocks darken as they get closer to breaking
-        MeshOptions opt;
+        MeshOptions opt = blockMeshOptions();
         opt.brightness = [this](int x, int y, int z) { return 1.0f - 0.45f * world.terrain.damageRatio(x, y, z); };
 
         worldMesh->setData(buildMesh(world.grid, content.blockTable, opt));

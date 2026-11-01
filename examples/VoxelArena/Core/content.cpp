@@ -29,7 +29,7 @@ namespace arena
         };
 
         const std::map<std::string, std::vector<std::string>> DEF_LOOKS = {
-            {"block", {"color", "colorNoise", "visible"}},
+            {"block", {"color", "colorNoise", "visible", "texture", "model"}},
             {"weapon", {"name", "text", "lightText", "heavyText", "model", "modelScale", "grip", "rest",
                         "moveset.attacks.*.swing", "moveset.attacks.*.shake", "moveset.attacks.*.turn", "moveset.attacks.*.tell",
                         "moveset.attacks.*.projectile.model", "moveset.attacks.*.projectile.modelScale", "moveset.attacks.*.projectile.shake"}},
@@ -866,6 +866,9 @@ namespace arena
             for (const auto& path : filesIn(dir / "models", ".vxl.json"))
                 addRaw(content, "model", resolveId(stem(path, ".vxl.json"), mod.id), mod, path.string(), Json{});
 
+            for (const auto& path : filesIn(dir / "textures", ".png"))
+                content.textureFiles[resolveId(stem(path, ".png"), mod.id)] = path.string();
+
             for (const auto& path : filesIn(dir / "scripts", ".pg"))
                 content.scripts[resolveId(stem(path, ".pg"), mod.id)] = path.string();
 
@@ -980,10 +983,77 @@ namespace arena
                     continue;
                 }
 
-                checkKeys(j, {"color", "solid", "colorNoise", "name", "hardness", "breakable", "flammable", "weakness"}, raw.file, report, "block " + id);
+                checkKeys(j, {"color", "solid", "colorNoise", "name", "hardness", "breakable", "flammable", "weakness", "shape", "texture", "model"}, raw.file, report, "block " + id);
 
                 BlockDef def;
                 def.id = id;
+
+                // A decoration is walked through and breaks at a touch, unless it says otherwise
+                std::string shape = "cube";
+                readStr(j, "shape", shape, raw.file, report);
+
+                if (shape == "cross")
+                    def.look.shape = BlockShape::Cross;
+                else if (shape == "model")
+                    def.look.shape = BlockShape::Model;
+                else if (shape != "cube")
+                    report.error(raw.file, j.find("shape")->line, "block " + id + ": \"shape\" is \"cube\", \"cross\" or \"model\"");
+
+                if (def.look.decoration())
+                {
+                    def.look.solid = false;
+                    def.look.hardness = 1.0f;
+                }
+
+                // "texture": "planks" for every face, or { "top": ..., "side": ..., "bottom": ... }
+                if (const Json* tex = j.find("texture"))
+                {
+                    if (tex->isString())
+                    {
+                        for (auto& t : def.textures)
+                            t = resolveId(tex->string, raw.mod);
+                    }
+                    else if (tex->isObject())
+                    {
+                        checkKeys(*tex, {"top", "side", "bottom"}, raw.file, report, "the texture of block " + id);
+
+                        const char* faces[3] = {"top", "side", "bottom"};
+                        for (int f = 0; f < 3; ++f)
+                            if (tex->has(faces[f]))
+                                def.textures[f] = resolveId(tex->str(faces[f], ""), raw.mod);
+
+                        // A face left out looks like the sides (or, with no sides, like the top)
+                        const std::string fallback = not def.textures[FACE_SIDE].empty() ? def.textures[FACE_SIDE] : def.textures[FACE_TOP];
+                        for (auto& t : def.textures)
+                            if (t.empty())
+                                t = fallback;
+                    }
+                    else
+                    {
+                        report.error(raw.file, tex->line, "block " + id + ": \"texture\" is a name or { \"top\", \"side\", \"bottom\" }");
+                    }
+
+                    std::set<std::string> missing;
+
+                    for (auto& t : def.textures)
+                    {
+                        if (t.empty() or content.textureFiles.count(t))
+                            continue;
+
+                        if (missing.insert(t).second)
+                            report.error(raw.file, tex->line, "block " + id + ": unknown texture \"" + t + "\" (expected a file textures/" + splitId(t).second + ".png in mod " + splitId(t).first + ")");
+                        t.clear();
+                    }
+                }
+
+                if (def.look.shape == BlockShape::Model)
+                {
+                    readStr(j, "model", def.model, raw.file, report);
+                    def.model = def.model.empty() ? "" : resolveId(def.model, raw.mod);
+
+                    if (def.model.empty())
+                        report.error(raw.file, j.line, "block " + id + ": a \"model\" shaped block needs a \"model\"");
+                }
 
                 glm::vec3 color(200.0f);
                 readVec3(j, "color", color, raw.file, report);
@@ -1016,6 +1086,24 @@ namespace arena
                 def.runtimeId = static_cast<BlockId>(content.blocks.size());
                 content.blockIds[id] = def.runtimeId;
                 content.blocks.push_back(def);
+            }
+
+            // One texture layer per png a block uses, in a stable order
+            std::map<std::string, int> layers;
+
+            for (auto& b : content.blocks)
+            {
+                for (int f = 0; f < 3; ++f)
+                {
+                    if (b.textures[f].empty())
+                        continue;
+
+                    auto [it, added] = layers.emplace(b.textures[f], static_cast<int>(content.blockTextures.size()));
+                    if (added)
+                        content.blockTextures.push_back(content.textureFiles[b.textures[f]]);
+
+                    b.look.texture[f] = it->second;
+                }
             }
 
             content.blockTable.clear();
@@ -1325,7 +1413,7 @@ namespace arena
             a.file = raw.file;
             a.mod = raw.mod;
 
-            checkKeys(j, {"id", "name", "size", "playerSpawn", "centre", "spawnRadius", "shapes", "spawns"}, raw.file, report, what);
+            checkKeys(j, {"id", "name", "size", "playerSpawn", "centre", "spawnRadius", "shapes", "spawns", "scatter"}, raw.file, report, what);
 
             readStr(j, "name", a.name, raw.file, report);
             readIVec3(j, "size", a.size, raw.file, report);
@@ -1359,6 +1447,26 @@ namespace arena
 
                 if (blockRef != "air" and content.block(id) == AIR)
                     report.error(raw.file, s.line, "unknown block \"" + blockRef + "\"");
+            }
+
+            // "scatter": [{ "block": "tall_grass", "on": "grass", "chance": 0.2 }]
+            if (const Json* scatter = j.find("scatter"))
+            {
+                for (const auto& s : scatter->array)
+                {
+                    checkKeys(s, {"block", "on", "chance"}, raw.file, report, "an arena scatter");
+
+                    ArenaScatter sc;
+                    sc.block = resolveId(s.str("block", ""), raw.mod);
+                    sc.on = resolveId(s.str("on", ""), raw.mod);
+                    readNum(s, "chance", sc.chance, raw.file, report);
+                    sc.chance = std::clamp(sc.chance, 0.0f, 1.0f);
+
+                    if (content.block(sc.block) == AIR or content.block(sc.on) == AIR)
+                        report.error(raw.file, s.line, "an arena scatter needs a \"block\" and an \"on\" that are known blocks");
+                    else
+                        a.scatter.push_back(sc);
+                }
             }
 
             if (const Json* spawns = j.find("spawns"))
@@ -1989,6 +2097,16 @@ namespace arena
 
                 if (loadVoxelModel(raw.file, *model, content.report))
                     content.models[id] = model;
+            }
+
+            // Blocks drawn as a model: known only now
+            for (const auto& b : content.blocks)
+            {
+                if (b.model.empty() or content.models.count(b.model))
+                    continue;
+
+                const auto& raw = content.raw["block"][b.id];
+                requireModel(content, b.model, raw.file, raw.data.line);
             }
         }
     }

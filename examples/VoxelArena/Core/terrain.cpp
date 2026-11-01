@@ -213,6 +213,29 @@ namespace arena
         return c.y == 0 or not breakable(grid->get(c.x, c.y, c.z));
     }
 
+    bool Terrain::decorationAt(const glm::ivec3& c) const
+    {
+        const BlockId id = grid->get(c.x, c.y, c.z);
+        return id != AIR and table and id < table->size() and (*table)[id].decoration();
+    }
+
+    bool Terrain::holds(const glm::ivec3& c) const
+    {
+        return grid->inBounds(c.x, c.y, c.z) and grid->get(c.x, c.y, c.z) != AIR and not decorationAt(c);
+    }
+
+    void Terrain::breakOff(const glm::ivec3& c)
+    {
+        const BlockId id = grid->get(c.x, c.y, c.z);
+
+        if (id == AIR)
+            return;
+
+        remove(c);
+        brokenSinceStep.push_back(c);
+        brokenBlocksSinceStep.push_back(id);
+    }
+
     void Terrain::checkSupport(TerrainEvents& events)
     {
         if (removedSinceCheck.empty())
@@ -220,13 +243,20 @@ namespace arena
 
         std::set<size_t> settled;   // cells already found held up (or turned into a piece) this check
 
-        for (const auto& removed : removedSinceCheck)
+        // By index: a decoration that loses its ground breaks, and is one more removed cell
+        for (size_t r = 0; r < removedSinceCheck.size(); ++r)
         {
+            const glm::ivec3 removed = removedSinceCheck[r];
+
+            // Decorations stand on the block under them, nothing else holds them
+            if (const glm::ivec3 above = removed + glm::ivec3(0, 1, 0); decorationAt(above) and not holds(removed))
+                breakOff(above);
+
             for (const auto& n : NEIGHBOURS)
             {
                 const glm::ivec3 seed = removed + n;
 
-                if (not grid->inBounds(seed.x, seed.y, seed.z) or grid->get(seed.x, seed.y, seed.z) == AIR)
+                if (not holds(seed))
                     continue;
 
                 if (settled.count(grid->index(seed.x, seed.y, seed.z)))
@@ -255,7 +285,7 @@ namespace arena
                     {
                         const glm::ivec3 m = c + d;
 
-                        if (not grid->inBounds(m.x, m.y, m.z) or grid->get(m.x, m.y, m.z) == AIR)
+                        if (not holds(m))
                             continue;
 
                         if (seen.insert(grid->index(m.x, m.y, m.z)).second)
@@ -291,6 +321,11 @@ namespace arena
                     grid->set(c.x, c.y, c.z, AIR);
                     forget(grid->index(c.x, c.y, c.z));
                 }
+
+                // What grew on the piece does not ride it down
+                for (const auto& c : group)
+                    if (decorationAt(c + glm::ivec3(0, 1, 0)))
+                        breakOff(c + glm::ivec3(0, 1, 0));
 
                 // A temporary block that fell is not coming back where it was
                 temporary.erase(std::remove_if(temporary.begin(), temporary.end(), [&](const Temporary& t) {

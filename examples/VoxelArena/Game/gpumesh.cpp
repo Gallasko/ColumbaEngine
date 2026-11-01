@@ -6,6 +6,46 @@
 
 namespace arena
 {
+    void GpuTextureArray::setData(int size, int layers, std::vector<uint8_t> rgba)
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        pending = std::move(rgba);
+        pendingSize = size;
+        pendingLayers = layers;
+        hasPending = true;
+    }
+
+    void GpuTextureArray::bind()
+    {
+        glActiveTexture(GL_TEXTURE0);
+
+        if (hasPending.exchange(false))
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+
+            if (pendingLayers > 0 and pending.size() >= static_cast<size_t>(pendingSize) * pendingSize * pendingLayers * 4)
+            {
+                if (id == 0)
+                    glGenTextures(1, &id);
+
+                glBindTexture(GL_TEXTURE_2D_ARRAY, id);
+                glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+                glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, pendingSize, pendingSize, pendingLayers, 0, GL_RGBA, GL_UNSIGNED_BYTE, pending.data());
+                glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                // Crisp pixels up close, mipmaps far away so the ground does not shimmer
+                glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
+                glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+            }
+
+            pending = {};
+        }
+
+        if (id != 0)
+            glBindTexture(GL_TEXTURE_2D_ARRAY, id);
+    }
+
     void GpuMesh::setData(MeshData data)
     {
         const size_t faces = data.faceCount();
@@ -40,18 +80,20 @@ namespace arena
             glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, stride, (void*)(6 * sizeof(float)));
             glEnableVertexAttribArray(3);
             glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, stride, (void*)(9 * sizeof(float)));
+            glEnableVertexAttribArray(4);
+            glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, stride, (void*)(10 * sizeof(float)));
 
             openGLMesh.instanceVBO->setUsagePattern(OpenGLBuffer::DynamicDraw);
             openGLMesh.instanceVBO->bind();
 
             const GLsizei istride = INSTANCE_FLOATS * sizeof(float);
 
-            // Model matrix then view * model: eight vec4 columns, locations 4 to 11; tint 12, flash 13
+            // Model matrix then view * model: eight vec4 columns, locations 5 to 12; tint 13, flash 14
             for (int i = 0; i < 10; ++i)
             {
-                glEnableVertexAttribArray(4 + i);
-                glVertexAttribPointer(4 + i, 4, GL_FLOAT, GL_FALSE, istride, (void*)(i * 4 * sizeof(float)));
-                glVertexAttribDivisor(4 + i, 1);
+                glEnableVertexAttribArray(5 + i);
+                glVertexAttribPointer(5 + i, 4, GL_FLOAT, GL_FALSE, istride, (void*)(i * 4 * sizeof(float)));
+                glVertexAttribDivisor(5 + i, 1);
             }
 
             glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -78,5 +120,8 @@ namespace arena
 
             pending = MeshData{};
         }
+
+        if (textures)
+            textures->bind();
     }
 }

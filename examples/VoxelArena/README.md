@@ -502,7 +502,7 @@ content API version the mod was written for. The API is unstable: a mismatch is 
 
 | File | Defines | ID |
 |---|---|---|
-| `blocks.json` | blocks: `color`, `solid`, `colorNoise`, `hardness`, `breakable`, `flammable`, `weakness` | `mymod:<key>` |
+| `blocks.json` | blocks: `color`, `solid`, `colorNoise`, `hardness`, `breakable`, `flammable`, `weakness`, `texture` (one name, or `{ "top", "side", "bottom" }`), `shape` (`cube`, `cross` for grass and flowers, `model` with a `model` for a small voxel model) | `mymod:<key>` |
 | `statuses.json` | statuses: `duration`, `damagePerSecond`, `slow`, `maxStacks`, `atMax`, `stagger`, `heavy` | `mymod:<key>` |
 | `abilities/<name>.json` | an ability: terrain (`kind`: wall, pit, mine) or a weapon skill (attack); a run's technique also has `tags`, `levels` (a boost each: `[{ "damage": 0.15 }]`) and `branches` (`name`, `text`, `element`, `status`, `tags`, `boost`) | `mymod:<name>` |
 | `elements.json` | the elements of spells: `name`, `status`, `mana` (fire, ice, volt) | `mymod:<key>` |
@@ -510,10 +510,11 @@ content API version the mod was written for. The API is unstable: a mismatch is 
 | `spells/<name>.json` | a ready-made spell: `name`, `text`, `recipe` (`["fire", "bolt", "zone"]`), `levels` (what each level after the first adds: `[["enlarge"], ["extend"]]`), `branches` (`name`, `text`, `keywords` added to the recipe, `tags`, `boost`) | `mymod:<name>` |
 | `upgrades.json` | the items of a run's shop: what a stat item adds (`maxHealth`, `damage`, `armor`, `crit`, `regen`, `pickupRange`, `dashCharges`...) or a tag item does to everything of the player with its `tag` (`"boost": { "damage", "area", "cooldown", "cost", "duration", "speed", "count" }`), its `price`, how many one can have (`most`) | `mymod:<key>` |
 | `run.json` | the arena run: waves, spawn pools and `spawnScale`, elites, bosses, XP, the start kit and spells, `levelSkills`, `branchLevel`, `mastery`, `presents`, `intermission`, the shop (`priceScale`, `interest`, `rarities`), score, the `arenas` by wave and the duel's (the last mod with one wins) | |
-| `arenas/<name>.json` | an arena for the run: `name`, `size`, `shapes`, `playerSpawn`, `centre`, `spawnRadius` | `mymod:<name>` |
+| `arenas/<name>.json` | an arena for the run: `name`, `size`, `shapes`, `scatter` (decorations sown by chance: `[{ "block", "on", "chance" }]`), `playerSpawn`, `centre`, `spawnRadius` | `mymod:<name>` |
 | `weapons/<name>.json` | a weapon and its moveset | `mymod:<name>` |
 | `enemies/<name>.json` | an enemy: stats, moveset, script, params | `mymod:<name>` |
 | `models/<name>.vxl.json` | a voxel model (saved by the VoxelTest editor) | `mymod:<name>` |
+| `textures/<name>.png` | a block texture (16 x 16 pixel art, any square size works); see-through pixels are not drawn | `mymod:<name>` |
 | `scripts/<name>.pg` | an enemy brain | `mymod:<name>` |
 | `tuning.json` | numbers merged over the tuning of earlier mods | |
 | `arena.json` | the training arena (the last mod with one wins) | |

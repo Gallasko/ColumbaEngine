@@ -12,11 +12,12 @@ namespace arena
      * CPU side of a voxel mesh, ready to upload.
      *
      * Vertex layout (FLOATS_PER_VERTEX floats):
-     *   position (3), normal (3), color rgb 0..1 (3), ambient occlusion 0..1 (1)
+     *   position (3), normal (3), color rgb 0..1 (3), ambient occlusion 0..1 (1),
+     *   surface (4): u, v across the face (0..1, v up the sides), texture layer (-1: none), edge darkening 0..1
      */
     struct MeshData
     {
-        static constexpr int FLOATS_PER_VERTEX = 10;
+        static constexpr int FLOATS_PER_VERTEX = 14;
 
         std::vector<float> vertices;
         std::vector<uint32_t> indices;
@@ -35,12 +36,17 @@ namespace arena
         float aoStrength = 0.6f;
         /** Optional brightness per cell (1 = as is), e.g. to darken damaged blocks. */
         std::function<float(int, int, int)> brightness;
+        /** How much the rim of each block face darkens, so blocks side by side read apart (0 = off). */
+        float edges = 0.0f;
+        /** Geometry of "model" shaped blocks by BlockId, in cell units: x, z in -0.5..0.5, y from 0. */
+        const std::vector<MeshData>* blockModels = nullptr;
     };
 
     /**
      * Builds one mesh for the whole grid. A face is emitted only when the neighbouring
      * cell is not a visible block (face culling); cells outside the grid count as empty,
-     * so the arena's outer faces are drawn.
+     * so the arena's outer faces are drawn. Decorations (BlockShape) hide nothing: cross ones
+     * become two crossed pictures, model ones a copy of their model, each a little different.
      */
     MeshData buildMesh(const VoxelGrid& grid, const BlockTable& table, const MeshOptions& options = {});
 }

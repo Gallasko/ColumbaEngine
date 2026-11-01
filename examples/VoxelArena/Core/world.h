@@ -717,6 +717,8 @@ namespace arena
         void terrainFromAttacks();
         void stepTerrain();
         bool cellOccupied(const glm::ivec3& cell) const;
+        /** Air, or a decoration a block put there pushes aside. */
+        bool replaceable(const glm::ivec3& cell) const;
         void liftOut(const glm::ivec3& cell);
         void respawn(Fighter& f);
         void spendStamina(Fighter& f, float amount);

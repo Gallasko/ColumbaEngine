@@ -20,7 +20,8 @@ namespace arena::net
 
         bool modFile(const std::string& path)
         {
-            return endsWith(path, ".json") or endsWith(path, ".pg");
+            // Textures too: without them a client would see the host's blocks in flat colours
+            return endsWith(path, ".json") or endsWith(path, ".pg") or endsWith(path, ".png");
         }
 
         // CON, NUL, COM1... are devices on Windows, whatever the extension
@@ -87,7 +88,7 @@ namespace arena::net
             if (not safePart(part))
                 return false;
 
-        // getline leaves a trailing slash unseen, but such a path has no .json or .pg at its end
+        // getline leaves a trailing slash unseen, but such a path has no .json, .pg or .png at its end
         return path.front() != '/';
     }
 

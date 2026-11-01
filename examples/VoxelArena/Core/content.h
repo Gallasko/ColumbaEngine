@@ -76,6 +76,8 @@ namespace arena
         std::string id;
         BlockId runtimeId = 0;
         BlockLook look;
+        std::string model;                       // the voxel model of a "model" shaped block ("base:mushroom")
+        std::string textures[3];                 // texture ids by BlockFace ("base:grass_top"); "" = none
     };
 
     /** An axis-aligned box in a fighter's local space: x right, y up, z forward. */
@@ -495,6 +497,14 @@ namespace arena
         float yaw = 0.0f;
     };
 
+    /** Sows a decoration (tall grass, flowers) over the arena: on each "on" block with air above, by chance. */
+    struct ArenaScatter
+    {
+        std::string block;           // full ids
+        std::string on;
+        float chance = 0.1f;         // 0..1, per block
+    };
+
     struct ArenaDef
     {
         std::string id;              // "base:gorge" (arenas/gorge.json); "" for the training arena
@@ -506,6 +516,7 @@ namespace arena
         float spawnRadius = 12.0f;   // m from the centre enemies come in at
         bool hasCentre = false, hasSpawnRadius = false;   // given (else made from the size)
         std::vector<ArenaSpawn> spawns;
+        std::vector<ArenaScatter> scatter;   // decorations sown once the shapes are built
         std::string file;
         std::string mod;             // block names without a namespace are this mod's
     };
@@ -692,6 +703,11 @@ namespace arena
         RunDef run;                                  // run.json (the last mod with one)
 
         std::map<std::string, std::shared_ptr<VoxelModel>> models;
+
+        /** Texture id ("base:grass_top") -> path of its textures/*.png */
+        std::map<std::string, std::string> textureFiles;
+        /** The png of each layer of the block textures (BlockLook::texture), only those a block uses. */
+        std::vector<std::string> blockTextures;
 
         /** Script id -> path of its .pg file */
         std::map<std::string, std::string> scripts;

@@ -196,6 +196,47 @@ TEST(arena_content, a_later_mod_replaces_or_patches_a_definition)
     EXPECT_FLOAT_EQ(c.blockTable[c.block("base:stone")].color.r, 1.0f);
 }
 
+TEST(arena_content, blocks_take_textures_by_face_and_decorations_are_walked_through)
+{
+    TempMods mods;
+    mods.minimalBase();
+    mods.write("base/textures/top.png", "never read by the content");
+    mods.write("base/textures/side.png", "never read by the content");
+    mods.write("base/models/cap.vxl.json", R"({ "canvas": { "w": 2, "h": 2, "d": 2 }, "palette": [[255, 0, 0, 255]], "cells": [{ "x": 0, "y": 0, "z": 0, "c": 0 }] })");
+    mods.write("base/blocks.json", R"({
+        "stone": { "color": [100, 100, 100] },
+        "turf":  { "texture": { "top": "top", "side": "side" } },
+        "weed":  { "shape": "cross", "texture": "side" },
+        "cap":   { "shape": "model", "model": "cap" },
+        "bad":   { "shape": "blob", "texture": "nope" }
+    })");
+
+    const Content c = loadContent(mods.str());
+
+    // A layer per png used, the bottom looking like the sides when left out
+    ASSERT_EQ(c.blockTextures.size(), 2u);
+    const auto& turf = c.blockTable[c.block("base:turf")];
+    EXPECT_EQ(c.blockTextures[turf.texture[FACE_TOP]], (fs::path(mods.str()) / "base" / "textures" / "top.png").string());
+    EXPECT_EQ(turf.texture[FACE_SIDE], turf.texture[FACE_BOTTOM]);
+    EXPECT_NE(turf.texture[FACE_TOP], turf.texture[FACE_SIDE]);
+    EXPECT_TRUE(turf.solid);
+
+    const auto& weed = c.blockTable[c.block("base:weed")];
+    EXPECT_EQ(weed.shape, BlockShape::Cross);
+    EXPECT_FALSE(weed.solid);
+    EXPECT_FLOAT_EQ(weed.hardness, 1.0f);
+    EXPECT_EQ(weed.texture[FACE_SIDE], turf.texture[FACE_SIDE]);
+
+    EXPECT_EQ(c.blockTable[c.block("base:cap")].shape, BlockShape::Model);
+    EXPECT_EQ(c.blocks[c.block("base:cap")].model, "base:cap");
+
+    // The bad one: a shape that is not one, a texture no mod has
+    EXPECT_EQ(c.report.errors.size(), 2u) << allMessages(c.report);
+    EXPECT_NE(allMessages(c.report).find("\"shape\""), std::string::npos);
+    EXPECT_NE(allMessages(c.report).find("unknown texture \"base:nope\""), std::string::npos);
+    EXPECT_EQ(c.blockTable[c.block("base:bad")].texture[FACE_TOP], -1);
+}
+
 TEST(arena_content, errors_name_the_file_and_line)
 {
     TempMods mods;

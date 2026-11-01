@@ -243,6 +243,40 @@ namespace arena
                 grid.fill(lo, hi, block);
             }
         }
+
+        // Decorations: on each "on" block with air above, by chance. The same arena grows the same way every time
+        uint32_t seed = 2166136261u;
+        for (unsigned char ch : a.id)
+            seed = (seed ^ ch) * 16777619u;
+
+        for (size_t k = 0; k < a.scatter.size(); ++k)
+        {
+            const ArenaScatter& sc = a.scatter[k];
+            const BlockId block = content->block(sc.block);
+            const BlockId on = content->block(sc.on);
+
+            for (int y = 0; y + 1 < grid.height(); ++y)
+            for (int z = 0; z < grid.depth(); ++z)
+            for (int x = 0; x < grid.width(); ++x)
+            {
+                if (grid.get(x, y, z) != on or grid.get(x, y + 1, z) != AIR)
+                    continue;
+
+                uint32_t h = seed ^ (static_cast<uint32_t>(x) * 73856093u) ^ (static_cast<uint32_t>(y) * 19349663u) ^ (static_cast<uint32_t>(z) * 83492791u) ^ (static_cast<uint32_t>(k + 1) * 2654435761u);
+                h ^= h >> 13;
+                h *= 0x5bd1e995u;
+                h ^= h >> 15;
+
+                if (static_cast<float>(h & 0xFFFF) / 65536.0f < sc.chance)
+                    grid.set(x, y + 1, z, block);
+            }
+        }
+    }
+
+    bool ArenaWorld::replaceable(const glm::ivec3& cell) const
+    {
+        const BlockId id = grid.get(cell.x, cell.y, cell.z);
+        return id == AIR or (id < content->blockTable.size() and content->blockTable[id].decoration());
     }
 
     void ArenaWorld::showArena(const std::string& id)
@@ -2056,7 +2090,7 @@ namespace arena
                     {
                         const glm::ivec3 cell(column.x, base + h, column.z);
 
-                        if (grid.inBounds(cell.x, cell.y, cell.z) and grid.get(cell.x, cell.y, cell.z) == AIR and not cellOccupied(cell))
+                        if (grid.inBounds(cell.x, cell.y, cell.z) and replaceable(cell) and not cellOccupied(cell))
                         {
                             terrain.placeFor(cell, block, a->lifetime);
                             used = true;
@@ -2697,7 +2731,7 @@ namespace arena
                             continue;
 
                         // The pit's top cell: frozen already, or about to fill anyway, the column is done
-                        if (grid.get(cell.x, cell.y, cell.z) != AIR or left <= 0.2f)
+                        if (not replaceable(cell) or left <= 0.2f)
                             break;
 
                         if (not cellOccupied(cell))

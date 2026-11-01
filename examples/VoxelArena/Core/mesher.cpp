@@ -1,5 +1,6 @@
 #include "mesher.h"
 
+#include <cmath>
 #include <cstdint>
 
 namespace arena
@@ -31,7 +32,7 @@ namespace arena
             if (id == AIR)
                 return false;
 
-            return id < table.size() ? table[id].visible : true;
+            return id < table.size() ? table[id].visible and not table[id].decoration() : true;
         }
 
         // Stable per-cell hash in 0..1, so a block's jitter does not change when its neighbours are edited
@@ -42,6 +43,76 @@ namespace arena
             h *= 0x5bd1e995u;
             h ^= h >> 15;
             return static_cast<float>(h & 0xFFFF) / 65535.0f;
+        }
+
+        void pushVertex(MeshData& mesh, const glm::vec3& pos, const glm::vec3& normal, const glm::vec3& color, float ao, const glm::vec4& surface)
+        {
+            mesh.vertices.insert(mesh.vertices.end(), {
+                pos.x, pos.y, pos.z,
+                normal.x, normal.y, normal.z,
+                color.r, color.g, color.b,
+                ao,
+                surface.x, surface.y, surface.z, surface.w
+            });
+        }
+
+        // Two pictures crossed along the cell's diagonals, each seen from both sides. Lit as the
+        // ground under it, so a field of grass takes the light of the ground it grows on.
+        void addCross(MeshData& mesh, const glm::ivec3& p, const glm::vec3& color, int layer, const MeshOptions& options)
+        {
+            // Moved, turned and sized a little per cell, so a field of them does not stand in rows
+            const float h1 = cellHash(p.x, p.y, p.z);
+            const float h2 = cellHash(p.z + 31, p.y + 7, p.x - 13);
+            const float h3 = cellHash(p.y - 3, p.x + 11, p.z + 5);
+
+            const glm::vec3 foot = glm::vec3(p) + glm::vec3(0.5f + (h1 - 0.5f) * 0.3f, 0.0f, 0.5f + (h2 - 0.5f) * 0.3f);
+            const float height = 0.55f + 0.25f * h3;
+            const float turn = (h1 - 0.5f) * 0.6f;
+            const float bottomAo = 1.0f - options.aoStrength * 0.5f;
+            const glm::vec3 up(0.0f, 1.0f, 0.0f);
+
+            for (const float diagonal : {0.785398f, -0.785398f})
+            {
+                const glm::vec3 half = glm::vec3(std::cos(diagonal + turn), 0.0f, std::sin(diagonal + turn)) * 0.5f;
+                const glm::vec3 corners[4] = { foot - half, foot + half, foot + half + up * height, foot - half + up * height };
+                const glm::vec2 uv[4] = { {0, 0}, {1, 0}, {1, 1}, {0, 1} };
+
+                const uint32_t base = static_cast<uint32_t>(mesh.vertexCount());
+
+                for (int c = 0; c < 4; ++c)
+                    pushVertex(mesh, (corners[c] - options.origin) * options.cellSize, up, color, c < 2 ? bottomAo : 1.0f, glm::vec4(uv[c], static_cast<float>(layer), 0.0f));
+
+                mesh.indices.insert(mesh.indices.end(), { base, base + 1, base + 2, base, base + 2, base + 3 });
+                mesh.indices.insert(mesh.indices.end(), { base, base + 2, base + 1, base, base + 3, base + 2 });
+            }
+        }
+
+        // A copy of the block's model, turned a quarter turn at random per cell
+        void addModel(MeshData& mesh, const glm::ivec3& p, const MeshData& model, float brightness, const MeshOptions& options)
+        {
+            const int turns = static_cast<int>(cellHash(p.x, p.y, p.z) * 4.0f) & 3;
+            const glm::vec3 centre = glm::vec3(p) + glm::vec3(0.5f, 0.0f, 0.5f);
+
+            auto turn = [turns](glm::vec3 v) {
+                for (int k = 0; k < turns; ++k)
+                    v = glm::vec3(-v.z, v.y, v.x);
+                return v;
+            };
+
+            const uint32_t base = static_cast<uint32_t>(mesh.vertexCount());
+            const size_t n = model.vertexCount();
+
+            for (size_t i = 0; i < n; ++i)
+            {
+                const float* v = &model.vertices[i * MeshData::FLOATS_PER_VERTEX];
+                const glm::vec3 pos = centre + turn(glm::vec3(v[0], v[1], v[2]));
+
+                pushVertex(mesh, (pos - options.origin) * options.cellSize, turn(glm::vec3(v[3], v[4], v[5])),
+                           glm::vec3(v[6], v[7], v[8]) * brightness, v[9], glm::vec4(v[10], v[11], v[12], v[13]));
+            }
+
+            for (uint32_t index : model.indices)
+                mesh.indices.push_back(base + index);
         }
     }
 
@@ -71,15 +142,30 @@ namespace arena
             if (not look.visible)
                 continue;
 
-            glm::vec3 color = look.color;
+            const glm::ivec3 p(x, y, z);
+
+            // A textured block shows its texture as painted: the colour is for the debris and the fallback
+            const bool textured = look.texture[FACE_TOP] >= 0 or look.texture[FACE_SIDE] >= 0 or look.texture[FACE_BOTTOM] >= 0;
+            glm::vec3 color = textured ? glm::vec3(1.0f) : look.color;
+            float brightness = options.brightness ? options.brightness(x, y, z) : 1.0f;
 
             if (look.colorNoise > 0.0f)
                 color *= 1.0f + (cellHash(x, y, z) - 0.5f) * look.colorNoise;
 
-            if (options.brightness)
-                color *= options.brightness(x, y, z);
+            color *= brightness;
 
-            const glm::ivec3 p(x, y, z);
+            if (look.shape == BlockShape::Cross)
+            {
+                addCross(mesh, p, color, look.texture[FACE_SIDE], options);
+                continue;
+            }
+
+            if (look.shape == BlockShape::Model)
+            {
+                if (options.blockModels and id < options.blockModels->size())
+                    addModel(mesh, p, (*options.blockModels)[id], brightness, options);
+                continue;
+            }
 
             for (const auto& face : FACES)
             {
@@ -95,6 +181,7 @@ namespace arena
 
                 float ao[4];
                 const uint32_t base = static_cast<uint32_t>(mesh.vertexCount());
+                const int layer = look.texture[face.normal.y > 0 ? FACE_TOP : (face.normal.y < 0 ? FACE_BOTTOM : FACE_SIDE)];
 
                 for (int c = 0; c < 4; ++c)
                 {
@@ -112,12 +199,8 @@ namespace arena
                     const glm::vec3 corner3 = centre + glm::vec3(face.u) * (0.5f * su) + glm::vec3(face.v) * (0.5f * sv);
                     const glm::vec3 pos = (corner3 - options.origin) * options.cellSize;
 
-                    mesh.vertices.insert(mesh.vertices.end(), {
-                        pos.x, pos.y, pos.z,
-                        static_cast<float>(face.normal.x), static_cast<float>(face.normal.y), static_cast<float>(face.normal.z),
-                        color.r, color.g, color.b,
-                        ao[c]
-                    });
+                    const glm::vec4 surface((su + 1) * 0.5f, (sv + 1) * 0.5f, static_cast<float>(layer), options.edges);
+                    pushVertex(mesh, pos, glm::vec3(face.normal), color, ao[c], surface);
                 }
 
                 // Split the quad along the diagonal that keeps AO gradients smooth

@@ -112,6 +112,11 @@ namespace arena
         };
 
         bool anchored(const glm::ivec3& cell) const;
+        /** A block that takes part in holding blocks up: not air, not a decoration. */
+        bool holds(const glm::ivec3& cell) const;
+        bool decorationAt(const glm::ivec3& cell) const;
+        /** Breaks the block at cell as if it was hit to pieces (debris and all). */
+        void breakOff(const glm::ivec3& cell);
         void checkSupport(TerrainEvents& events);
         void forget(size_t index);
 

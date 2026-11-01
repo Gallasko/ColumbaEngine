@@ -12,6 +12,14 @@
     "playerSpawn": [20, 4, 8],
     "centre": [20, 4, 21],
     "spawnRadius": 16,
+    // Decorations sown over the grass, by chance per block (see blocks.json)
+    "scatter": [
+        { "block": "tall_grass",    "on": "grass", "chance": 0.10 },
+        { "block": "flower_red",    "on": "grass", "chance": 0.02 },
+        { "block": "flower_yellow", "on": "grass", "chance": 0.025 },
+        { "block": "mushroom",      "on": "grass", "chance": 0.008 }
+    ],
+
     "shapes": [
         { "block": "bedrock", "from": [0, 0, 0], "to": [39, 0, 39] },
         { "block": "dirt",    "from": [1, 1, 1], "to": [38, 2, 38] },

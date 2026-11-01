@@ -5,8 +5,10 @@ in vec4 vTint;
 in vec4 vFlash;
 in float vDepth;
 in vec3 vLocal;
+in vec4 vSurface;    // u, v across the face, texture layer (-1: none), edge darkening
 
 uniform int uMode;   // 0 lit voxels, 1 sky, 2 unlit (debug boxes)
+uniform highp sampler2DArray uBlocks;   // the block textures (unit 0)
 
 out vec4 FragColor;
 
@@ -30,6 +32,29 @@ void main()
     }
 
     vec3 base = vColor * vTint.rgb;
+
+    // Textured: the picture as painted; its see-through pixels (grass, flowers) are not drawn
+    if (vSurface.z >= 0.0)
+    {
+        vec4 texel = texture(uBlocks, vec3(vSurface.x, 1.0 - vSurface.y, floor(vSurface.z + 0.5)));
+
+        if (texel.a < 0.5)
+            discard;
+
+        base *= texel.rgb;
+    }
+
+    // A thin dark rim round each block face, so blocks side by side read apart; it fades with
+    // distance, where it would only be a shimmering grid
+    if (vSurface.w > 0.0)
+    {
+        vec2 fromEdge = min(vSurface.xy, 1.0 - vSurface.xy);
+        float e = min(fromEdge.x, fromEdge.y);
+        float px = fwidth(e);
+        float rim = 1.0 - smoothstep(0.045 - px, 0.045 + px, e);
+        rim *= 1.0 - smoothstep(25.0, 60.0, vDepth);
+        base *= 1.0 - vSurface.w * rim;
+    }
 
     if (uMode == 2)
     {

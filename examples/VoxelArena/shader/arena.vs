@@ -1,22 +1,23 @@
 // Voxel meshes of the arena: the world, the fighters, the weapons, the sky and the debug boxes.
-// Per vertex: position, normal, colour, ambient occlusion.
+// Per vertex: position, normal, colour, ambient occlusion, surface (u, v, texture layer, edge darkening).
 // Per instance: model matrix, view * model (the camera of the frame this instance was built for), tint, flash.
 
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aNormal;
 layout (location = 2) in vec3 aColor;
 layout (location = 3) in float aAo;
+layout (location = 4) in vec4 aSurface;
 
-layout (location = 4) in vec4 iModel0;
-layout (location = 5) in vec4 iModel1;
-layout (location = 6) in vec4 iModel2;
-layout (location = 7) in vec4 iModel3;
-layout (location = 8) in vec4 iEye0;
-layout (location = 9) in vec4 iEye1;
-layout (location = 10) in vec4 iEye2;
-layout (location = 11) in vec4 iEye3;
-layout (location = 12) in vec4 iTint;   // rgb multiplies the colour, a is the opacity
-layout (location = 13) in vec4 iFlash;  // rgb is mixed in by a (hit flash, wind-up glow)
+layout (location = 5) in vec4 iModel0;
+layout (location = 6) in vec4 iModel1;
+layout (location = 7) in vec4 iModel2;
+layout (location = 8) in vec4 iModel3;
+layout (location = 9) in vec4 iEye0;
+layout (location = 10) in vec4 iEye1;
+layout (location = 11) in vec4 iEye2;
+layout (location = 12) in vec4 iEye3;
+layout (location = 13) in vec4 iTint;   // rgb multiplies the colour, a is the opacity
+layout (location = 14) in vec4 iFlash;  // rgb is mixed in by a (hit flash, wind-up glow)
 
 uniform mat4 projection;
 
@@ -27,6 +28,7 @@ out vec4 vTint;
 out vec4 vFlash;
 out float vDepth;
 out vec3 vLocal;
+out vec4 vSurface;
 
 void main()
 {
@@ -40,6 +42,7 @@ void main()
     vFlash = iFlash;
     vDepth = -eye.z;
     vLocal = aPos;
+    vSurface = aSurface;
 
     gl_Position = projection * eye;
 }

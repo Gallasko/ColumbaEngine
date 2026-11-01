@@ -12,6 +12,16 @@ namespace arena
     /** Block 0 is always air. */
     constexpr BlockId AIR = 0;
 
+    /**
+     * Cube: a full block. Cross: two pictures crossed in the cell (tall grass, flowers).
+     * Model: a small voxel model in the cell (a mushroom). Cross and model blocks are decorations:
+     * they hide nothing, hold nothing up and break when the block under them goes.
+     */
+    enum class BlockShape : uint8_t { Cube, Cross, Model };
+
+    /** Faces of a block that can have their own texture. */
+    enum BlockFace { FACE_TOP = 0, FACE_SIDE = 1, FACE_BOTTOM = 2 };
+
     /** What the mesher and the physics need to know about a block, indexed by runtime BlockId. */
     struct BlockLook
     {
@@ -23,6 +33,10 @@ namespace arena
         bool breakable = true;               // false: nothing breaks it, and it anchors what rests on it
         bool flammable = false;              // fire sets it alight: it burns away, setting its neighbours alight
         float weakness[4] = {1, 1, 1, 1};    // terrain damage scale by element (none, fire, ice, volt)
+        BlockShape shape = BlockShape::Cube;
+        int texture[3] = {-1, -1, -1};       // layer in the block textures by BlockFace; -1 = the flat colour
+
+        bool decoration() const { return shape != BlockShape::Cube; }
     };
 
     using BlockTable = std::vector<BlockLook>;

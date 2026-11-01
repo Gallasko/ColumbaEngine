@@ -114,6 +114,7 @@ namespace arena
     private:
         // ---- Content ----
         void loadAll(bool first);
+        void loadBlockLooks();
         void readControls();
         std::string contentSummary() const;
 
@@ -155,6 +156,11 @@ namespace arena
         std::map<std::string, std::shared_ptr<GpuMesh>> modelMeshes;   // kept for the whole run, see GpuMesh
         uint64_t meshedRevision = ~0ull;
         uint64_t meshedTerrainRevision = ~0ull;
+
+        // Blocks: their textures, and the geometry of the ones drawn as a model (by BlockId)
+        std::shared_ptr<GpuTextureArray> blockTextures;
+        std::vector<MeshData> blockModels;
+        MeshOptions blockMeshOptions() const;
 
         // Falling pieces of the arena: a mesh each while they fall, taken from and given back to a pool
         std::map<int, std::shared_ptr<GpuMesh>> pieceMeshes;

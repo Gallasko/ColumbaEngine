@@ -69,6 +69,35 @@ namespace
     };
 }
 
+TEST(arena_world, scatter_sows_decorations_only_on_their_block)
+{
+    Arena a;
+    a.content.arena.shapes = parseJson(R"([
+        { "block": "stone", "from": [0, 0, 0], "to": [31, 0, 31] },
+        { "block": "grass", "from": [0, 1, 0], "to": [9, 1, 31] }
+    ])").value;
+    a.content.arena.scatter = { ArenaScatter{"base:tall_grass", "base:grass", 1.0f} };
+    a.world.setContent(a.content, a.tuning, true);
+
+    const BlockId grass = a.content.block("base:grass");
+    const BlockId tall = a.content.block("base:tall_grass");
+    int sown = 0;
+
+    for (int z = 0; z < 32; ++z)
+        for (int x = 0; x < 32; ++x)
+        {
+            EXPECT_EQ(a.world.grid.get(x, 2, z) == tall, x < 10) << x << " " << z;
+            sown += a.world.grid.get(x, 2, z) == tall;
+            EXPECT_NE(a.world.grid.get(x, 1, z), tall);
+        }
+
+    EXPECT_EQ(sown, 10 * 32);
+    EXPECT_EQ(a.world.grid.get(0, 1, 0), grass);
+
+    // Walked through: the player falls past it to the grass
+    EXPECT_FALSE(a.world.grid.isSolid(a.content.blockTable, 3, 2, 3));
+}
+
 TEST(arena_world, the_player_lands_on_the_floor)
 {
     Arena a;

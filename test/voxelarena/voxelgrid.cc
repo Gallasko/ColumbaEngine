@@ -136,3 +136,43 @@ TEST(arena_grid, raycast_finds_the_first_solid_cell_and_its_face)
 
     EXPECT_FALSE(raycast(g, t, glm::vec3(0.5f, 5.5f, 2.5f), glm::vec3(1, 0, 0), 3.0f).hit);
 }
+
+TEST(arena_mesher, textures_go_by_face_and_a_cross_hides_nothing)
+{
+    VoxelGrid g(3, 4, 3);
+    auto t = twoBlocks();
+    t[1].texture[FACE_TOP] = 0;
+    t[1].texture[FACE_SIDE] = 1;
+    t[2].shape = BlockShape::Cross;
+    t[2].texture[FACE_SIDE] = 2;
+    g.set(1, 1, 1, 1);
+    g.set(1, 2, 1, 2);   // grass on the block
+
+    const auto mesh = buildMesh(g, t);
+
+    // The block keeps its top under the cross; the cross is two pictures, both sides
+    EXPECT_EQ(mesh.faceCount(), 6u + 4u);
+
+    int tops = 0, sides = 0, crosses = 0, plain = 0;
+
+    for (size_t v = 0; v < mesh.vertexCount(); ++v)
+    {
+        const float* p = &mesh.vertices[v * MeshData::FLOATS_PER_VERTEX];
+        const int layer = static_cast<int>(p[12]);
+
+        EXPECT_GE(p[10], 0.0f);
+        EXPECT_LE(p[10], 1.0f);
+        EXPECT_GE(p[11], 0.0f);
+        EXPECT_LE(p[11], 1.0f);
+
+        tops += layer == 0;
+        sides += layer == 1;
+        crosses += layer == 2;
+        plain += layer < 0;
+    }
+
+    EXPECT_EQ(tops, 4);
+    EXPECT_EQ(sides, 16);
+    EXPECT_EQ(crosses, 8);
+    EXPECT_EQ(plain, 4);   // the bottom: no texture of its own
+}

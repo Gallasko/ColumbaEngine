@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+
 #include "Core/terrain.h"
 
 using namespace arena;
@@ -146,4 +148,41 @@ TEST(arena_terrain, raised_blocks_crumble_and_dug_cells_fill_back_in)
     t.placeFor({1, 2, 1}, 3, 0.0f);   // built over, for good
     run(t, 1.0f, time, events);
     EXPECT_EQ(g.get(1, 2, 1), 3);
+}
+
+TEST(arena_terrain, a_decoration_breaks_with_its_ground_and_holds_nothing_up)
+{
+    VoxelGrid g(8, 8, 8);
+    auto tab = table();
+    tab.emplace_back();                       // 4: a flower
+    tab[4].shape = BlockShape::Cross;
+    tab[4].solid = false;
+    tab[4].hardness = 1.0f;
+
+    g.fill({0, 0, 0}, {7, 0, 7}, 2);          // bedrock floor
+    g.set(1, 1, 1, 1);                        // a stone with a flower on it
+    g.set(1, 2, 1, 4);
+    g.set(4, 1, 4, 1);                        // a stone, a flower, and a beam over the flower
+    g.set(4, 2, 4, 4);
+    g.fill({4, 3, 4}, {6, 3, 4}, 1);
+    g.fill({6, 1, 4}, {6, 2, 4}, 1);          // the beam's only pillar
+
+    Terrain t;
+    t.reset(&g, &tab);
+    TerrainEvents events;
+    float time = 0.0f;
+
+    // The flower's ground goes: the flower breaks too, and is reported broken
+    EXPECT_TRUE(t.damage({1, 1, 1}, 1e9f));
+    run(t, 0.1f, time, events);
+    EXPECT_EQ(g.get(1, 2, 1), AIR);
+    EXPECT_NE(std::find(events.broken.begin(), events.broken.end(), glm::ivec3(1, 2, 1)), events.broken.end());
+    EXPECT_TRUE(t.falling.empty());
+
+    // The pillar goes: the beam is not held up through the flower under it
+    EXPECT_TRUE(t.damage({6, 1, 4}, 1e9f));
+    run(t, 0.05f, time, events);
+    ASSERT_EQ(t.falling.size(), 1u);
+    EXPECT_EQ(t.falling[0].occupied.size(), 4u);   // the beam and the pillar's top
+    EXPECT_EQ(g.get(4, 2, 4), 4);                   // the flower is still on its stone
 }
