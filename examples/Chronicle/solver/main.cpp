@@ -1714,6 +1714,7 @@ int main(int argc, char* argv[])
     if (argc < 3)
     {
         std::fprintf(stderr, "usage: ChronicleSolver <rules dir> <solver.pg> [args...] [threads=N]\n");
+        std::fprintf(stderr, "       CHRONICLE_SOLVER_ANALYSIS=1 compiles the rules and <solver.pg> with the whole-program analysis\n");
         return 2;
     }
 

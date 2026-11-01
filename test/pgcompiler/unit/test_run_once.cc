@@ -286,18 +286,18 @@ namespace pg
         }
 
         TEST(RunOncePass, InfersNoConstWhenTheAnalysisIsOff)
-{
-    auto statements = runOnce("var x = 1\nfun f() \n{\n    return x\n}\n");
-    EXPECT_FALSE(variable(statements, "x")->isConst);
-}
+        {
+            auto statements = runOnce("var x = 1\nfun f() \n{\n    return x\n}\n");
+            EXPECT_FALSE(variable(statements, "x")->isConst);
+        }
 
-TEST(RunOncePass, InfersAConstWhenTheAnalysisIsOn)
-{
-    auto statements = runOnce("var x = 1\nfun f() \n{\n    return x\n}\n", true);
-    EXPECT_TRUE(variable(statements, "x")->isConst);
-}
+        TEST(RunOncePass, InfersAConstWhenTheAnalysisIsOn)
+        {
+            auto statements = runOnce("var x = 1\nfun f() \n{\n    return x\n}\n", true);
+            EXPECT_TRUE(variable(statements, "x")->isConst);
+        }
 
-TEST(RunOncePass, KeepsAFunctionDefinedOnceAndNeverWritten)
+        TEST(RunOncePass, KeepsAFunctionDefinedOnceAndNeverWritten)
         {
             auto statements = runOnce(
                 "fun once(x) \n{\n    return x\n}\n"
@@ -878,6 +878,127 @@ TEST(RunOncePass, KeepsAFunctionDefinedOnceAndNeverWritten)
 
             for (int i = 0; i < 3; ++i)
                 EXPECT_EQ(script.run("r"), 1) << "run " << i;
+        }
+
+        TEST(ProgramConstsPass, AJoinedStatementThatFailsFailsEveryRun)
+        {
+            // t.b is made with t: a run that fails on it leaves no half-made t for the next to skip
+            const std::string source =
+                "import \"algorithm\"\n"
+                "var rows = [{x: 1}, {x: 2}]\n"
+                "const t = {a: 1}\n"
+                "t.b = rows[2].x\n"
+                "var out = 0\n"
+                "out = lookup(t, \"b\", 9)\n";
+
+            EXPECT_EQ(variable(runOnce(source, true), "t")->keptFills.size(), 1u);
+            EXPECT_EQ(sameBothWays({{"main.pg", source}}, {"out"}), lines({"failed", "failed", "failed"}));
+        }
+
+        TEST(RunOncePass, AFailedRunKeepsNoConst)
+        {
+            // `index` and `made` are the host's: made counts how often t is made
+            Prepared script(
+                "fun make() \n{\n    made = made + 1\n    return {a: 1}\n}\n"
+                "const t = make()\n"
+                "var rows = [{x: 1}]\n"
+                "var out = rows[index].x + t.a\n");
+
+            script.vm.defineGlobal("made", makeIntValue(0));
+
+            auto runWith = [&](int64_t index)
+            {
+                script.vm.defineGlobal("index", makeIntValue(index));
+                return script.vm.runPreparedFunction(script.fn, 0, "runonce");
+            };
+
+            auto made = [&]() { return AS_INT(script.vm.findGlobal("made")); };
+
+            EXPECT_EQ(runWith(0), InterpretResult::OK);
+            EXPECT_EQ(runWith(0), InterpretResult::OK);
+            EXPECT_EQ(made(), 1);
+
+            EXPECT_EQ(runWith(5), InterpretResult::RUNTIME_ERROR);
+            EXPECT_TRUE(IS_UNDEFINED(script.vm.findGlobal("t")));
+
+            EXPECT_EQ(runWith(0), InterpretResult::OK);
+            EXPECT_EQ(made(), 2);
+            EXPECT_EQ(AS_INT(script.vm.findGlobal("out")), 2);
+        }
+
+        TEST(RunOncePass, RunsFailedInACallLeaveNoFrames)
+        {
+            // Each failed run stops 5 calls deep, for more runs than the VM has frames, inside a
+            // function kept from run to run
+            Prepared script(
+                "var rows = [{x: 1}]\n"
+                "fun deep(i, n) \n{\n    if (n == 0)\n    {\n        return rows[i].x\n    }\n\n    return deep(i, n - 1)\n}\n"
+                "var out = deep(index, 4)\n");
+
+            auto runWith = [&](int64_t index)
+            {
+                script.vm.defineGlobal("index", makeIntValue(index));
+                return script.vm.runPreparedFunction(script.fn, 0, "runonce");
+            };
+
+            for (int i = 0; i < 40; ++i)
+                EXPECT_EQ(runWith(5), InterpretResult::RUNTIME_ERROR) << "run " << i;
+
+            EXPECT_EQ(runWith(0), InterpretResult::OK);
+            EXPECT_EQ(AS_INT(script.vm.findGlobal("out")), 1);
+        }
+
+        TEST(RunOncePass, ChunksFailedInACallLeaveNoFrames)
+        {
+            Prepared script(
+                "var rows = [{x: 1}]\n"
+                "fun deep(i, n) \n{\n    if (n == 0)\n    {\n        return rows[i].x\n    }\n\n    return deep(i, n - 1)\n}\n"
+                "var out = deep(index, 4)\n");
+
+            VM vm;
+            script.ecs.setupVm(vm);
+
+            auto runWith = [&](int64_t index)
+            {
+                vm.defineGlobal("index", makeIntValue(index));
+                return vm.interpretFromCachedBytecode(script.bytes, 0, "runonce");
+            };
+
+            for (int i = 0; i < 40; ++i)
+                EXPECT_EQ(runWith(5), InterpretResult::RUNTIME_ERROR) << "run " << i;
+
+            EXPECT_EQ(runWith(0), InterpretResult::OK);
+            EXPECT_EQ(AS_INT(vm.findGlobal("out")), 1);
+        }
+
+        TEST(ProgramConstsPass, AnImportCyclingBackLeavesTheProgramNotComplete)
+        {
+            namespace fs = std::filesystem;
+            const fs::path dir = fs::temp_directory_path() / ("pg_run_once_cycle_" + std::to_string(counter.fetch_add(1)));
+            fs::remove_all(dir);
+            fs::create_directories(dir);
+
+            auto completeWith = [&](const std::map<std::string, std::string>& files)
+            {
+                for (const auto& [name, text] : files)
+                    std::ofstream((dir / name).string()) << text;
+
+                VM vm;
+                vm.currentFileName = (dir / "main.pg").string();
+
+                return ast::readProgramFiles(&vm, parsedQueue(files.at("main.pg"))).complete;
+            };
+
+            // One file imported by two is no cycle
+            EXPECT_TRUE(completeWith({{"main.pg", "import \"a\"\nimport \"b\"\n"}, {"a.pg", "import \"c\"\n"}, {"b.pg", "import \"c\"\n"}, {"c.pg", "var x = 1\n"}}));
+
+            // Back to a module, back to a module's own file, back to the script
+            EXPECT_FALSE(completeWith({{"main.pg", "import \"a\"\n"}, {"a.pg", "import \"b\"\n"}, {"b.pg", "import \"a\"\n"}}));
+            EXPECT_FALSE(completeWith({{"main.pg", "import \"a\"\n"}, {"a.pg", "import \"a\"\n"}}));
+            EXPECT_FALSE(completeWith({{"main.pg", "import \"a\"\n"}, {"a.pg", "import \"main\"\n"}}));
+
+            std::error_code ec;
+            fs::remove_all(dir, ec);
         }
     }
 }

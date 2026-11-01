@@ -403,15 +403,8 @@ namespace pg
                                         break;
                                     }
 
-                                    case NativeKind::Lookup:
-                                    {
-                                        for (auto l : argument(n, 0))
-                                            out.push_back(childOf(l, Locations::AnyKey));
-
-                                        const auto fallback = argument(n, 2);
-                                        out.insert(out.end(), fallback.begin(), fallback.end());
+                                    case NativeKind::Lookup:  // The builder makes a phi of it: never a node
                                         break;
-                                    }
 
                                     case NativeKind::Entry:
                                     case NativeKind::Take:

@@ -52,7 +52,6 @@ namespace pg
         {
             std::set<std::string> reads;
             std::vector<analysis::LocId> writes;
-            std::vector<analysis::Edge> edges;
             std::set<std::string> rebinds;
             bool unknown = false;
         };
@@ -137,6 +136,13 @@ namespace pg
             // A function followed; nullptr for any other name
             const analysis::Summary* summaryOf(const std::string& function) const;
 
+            // The IR the analysis read, for a pass to build on: BodyIR::valueOf maps an expression of the
+            // body to its value. Of a function (nullptr for any other name, and for one defined more than
+            // once: which of them a call runs is not known); of a top-level statement of the program but
+            // a function or an import (nullptr for any other)
+            const analysis::BodyIR* bodyOf(const std::string& function) const;
+            const analysis::BodyIR* bodyOf(const StatementPtr& statement) const;
+
             // The locations a statement writes, as written and as slots of the objects they name, as
             // sorted texts
             std::vector<std::string> writtenTexts(const StatementPtr& statement) const;
@@ -182,6 +188,10 @@ namespace pg
             std::vector<std::string> decidedText;                 // By file: fileFacts
 
             std::set<std::string> followed;      // The functions summed up
+            std::map<std::string, analysis::BodyIR> followedBodies;
+            std::vector<std::pair<std::string, analysis::BodyIR>> otherBodies;         // Of the functions not followed
+            std::vector<std::pair<const Statement*, analysis::BodyIR>> statementBodies;
+            std::unordered_map<const Statement*, size_t> statementBodyAt;              // Where in statementBodies
             std::map<std::string, analysis::Summary> summaries;
             std::unordered_map<const Statement*, analysis::Summary> topLevel;
 

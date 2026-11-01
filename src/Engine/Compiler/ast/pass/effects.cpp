@@ -118,6 +118,37 @@ namespace pg
             return out;
         }
 
+        const BodyIR* ProgramEffects::bodyOf(const std::string& function) const
+        {
+            const auto it = followedBodies.find(function);
+
+            if (it != followedBodies.end())
+                return &it->second;
+
+            const BodyIR* found = nullptr;
+
+            for (const auto& [name, body] : otherBodies)
+            {
+                if (name != function)
+                    continue;
+
+                // Which of them a call runs is not known
+                if (found)
+                    return nullptr;
+
+                found = &body;
+            }
+
+            return found;
+        }
+
+        const BodyIR* ProgramEffects::bodyOf(const StatementPtr& statement) const
+        {
+            const auto it = statementBodyAt.find(statement.get());
+
+            return it == statementBodyAt.end() ? nullptr : &statementBodies[it->second].second;
+        }
+
         Summary ProgramEffects::summaryOfStatement(const StatementPtr& statement) const
         {
             if (not statement)
@@ -139,7 +170,6 @@ namespace pg
         {
             StatementEffects effects;
             effects.reads = summary.reads;
-            effects.edges = summary.edges;
             effects.rebinds = summary.rebinds;
             effects.unknown = summary.unknown;
 
@@ -887,7 +917,6 @@ namespace pg
 
             // Every body and every statement: what they assign decides which functions are followed
             std::vector<std::pair<std::string, BodyIR>> functionBodies;
-            std::vector<std::pair<const Statement*, BodyIR>> statementBodies;
 
             auto buildBodies = [&]()
             {
@@ -947,16 +976,16 @@ namespace pg
                     followed.insert(name);
             }
 
-            std::map<std::string, BodyIR> followedBodies;
-            std::vector<BodyIR> otherBodies;
-
             for (auto& [name, body] : functionBodies)
             {
                 if (followed.count(name))
                     followedBodies.emplace(name, std::move(body));
                 else
-                    otherBodies.push_back(std::move(body));
+                    otherBodies.emplace_back(name, std::move(body));
             }
+
+            for (size_t i = 0; i < statementBodies.size(); ++i)
+                statementBodyAt[statementBodies[i].first] = i;
 
             summaries = summarize(followedBodies, locs, [this](const std::string& name) { return followed.count(name) > 0; }, isDefined, collapsedValues);
 
@@ -1005,7 +1034,7 @@ namespace pg
             for (const auto& [name, summary] : summaries)
                 addFunction(summary);
 
-            for (const auto& body : otherBodies)
+            for (const auto& [name, body] : otherBodies)
                 addFunction(evaluate(body, collapsedValues));
 
             resolveEdges(edges);

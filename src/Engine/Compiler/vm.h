@@ -672,6 +672,16 @@ namespace pg
             keptConstSlots.clear();
         }
 
+        // A run that failed stopped where it stood: what its `const`s made may be half made (what
+        // is joined to them did not all run), so nothing is kept and the next run makes them anew;
+        // its frames are dropped, their closures may go with those consts. `framesBefore`: those
+        // that stood before the run
+        inline void forgetFailedRun(int framesBefore)
+        {
+            frameCount = framesBefore;
+            forgetKeptConsts();
+        }
+
         // Value of a global, UndefinedValue if it was never declared or not assigned yet.
         // The value is borrowed: retainValue(...) it to keep it past the next write of that global.
         // To write a global in place, index globalCells with globalSlot(name) instead.

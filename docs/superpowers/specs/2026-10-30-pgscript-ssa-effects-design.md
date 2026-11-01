@@ -279,7 +279,21 @@ The beam costs more with the analysis on because the switch also analyzes the so
 `solver.pg`, about 15 s of that run (25% of its samples). The search times cannot be told apart:
 they are whole seconds, from two runs side by side.
 
-`test_compiler` (431) and `test_chronicle` (762) pass with the switch off.
+`test_compiler` (440) and `test_chronicle` (762) pass with the switch off.
+
+### A failed run keeps no const
+
+This is a change to the VM, so it applies with the switch off too. When `runPreparedFunction` or
+`executeChunk` ends in a runtime error, the consts and kept functions of that VM are forgotten, and
+the next run makes them again. Before, a joined statement that failed left a half-made const kept,
+so with the switch on the later runs skipped the failure, where the off build failed every run.
+
+- **Inputs:** a const made from a value the host gives is kept from the first run that succeeds
+  after the failure, not from the first run of all.
+- **Frames:** the frames of the failed run are dropped with it. They used to stay, which crashed a
+  persistent VM after a dozen failures inside a call, and they would have held closures now freed.
+- **Not covered:** `interpret`, the compile and run of a source, does not go through these two
+  paths and is unchanged.
 
 ### Departures from this design during the build
 

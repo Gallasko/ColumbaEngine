@@ -426,14 +426,16 @@ namespace pg
 
         namespace
         {
-            // The files by path, each the index it has in `out`, negative while it is read or when it
-            // is none of them
             std::string originOf(const std::string& path, const std::string& source)
             {
                 return path + "#" + std::to_string(source.size()) + "." + std::to_string(std::hash<std::string>{}(source));
             }
 
-            using Visited = std::map<std::string, int>;
+            struct Visited
+            {
+                std::map<std::string, int> files;  // By path: the index it has in `out`, negative when it is none of them
+                std::set<std::string> reading;     // By path: those whose imports are being followed
+            };
 
             void filesOfStatements(const std::string& baseDir, const std::vector<StatementPtr>& statements, size_t file, Visited& visited, ProgramFiles& out);
 
@@ -450,12 +452,18 @@ namespace pg
 
                 const std::string fullPath = baseDir + fileName;
 
-                const auto seen = visited.find(fullPath);
+                const auto seen = visited.files.find(fullPath);
 
-                if (seen != visited.end())
+                if (seen != visited.files.end())
+                {
+                    // An import cycling back: what runs is what the compiler makes of it
+                    if (visited.reading.count(fullPath))
+                        out.complete = false;
+
                     return seen->second;
+                }
 
-                visited[fullPath] = -1;
+                visited.files[fullPath] = -1;
 
                 // The spellings the compiler takes bytecode from (CParser::parseImportFile): a name
                 // given as one, `m.pgc`, or `m.pg.pgc`
@@ -477,13 +485,15 @@ namespace pg
                 }
 
                 const size_t file = out.files.size();
-                visited[fullPath] = static_cast<int>(file);
+                visited.files[fullPath] = static_cast<int>(file);
 
                 out.files.push_back(summary->statements);
                 out.origins.push_back(originOf(fullPath, summary->source));
                 out.imports.emplace_back();
 
+                visited.reading.insert(fullPath);
                 filesOfStatements(baseDir, summary->statements, file, visited, out);
+                visited.reading.erase(fullPath);
 
                 return static_cast<int>(file);
             }
@@ -579,7 +589,8 @@ namespace pg
 
             if (not mainFile.empty())
             {
-                visited[mainFile] = 0;
+                visited.files[mainFile] = 0;
+                visited.reading.insert(mainFile);
 
                 const size_t slash = mainFile.find_last_of("/\\");
 

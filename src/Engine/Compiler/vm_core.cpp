@@ -431,6 +431,7 @@ namespace pg
         Closure* closure = asClosure(closureValue);
         push(closureValue);
 
+        const int framesBefore = frameCount;
         call(closure, argCount);
 
         // Execute with error handling
@@ -453,6 +454,9 @@ namespace pg
             LOG_ERROR("VM", "Execution error: " << e.what());
             result = InterpretResult::RUNTIME_ERROR;
         }
+
+        if (result == InterpretResult::RUNTIME_ERROR)
+            forgetFailedRun(framesBefore);
 
         return result;
     }
@@ -670,6 +674,8 @@ namespace pg
         auto closureValue = createClosure(funcObj);
         Closure* closure = asClosure(closureValue);
         push(closureValue);
+
+        const int framesBefore = frameCount;
         call(closure, argCount);
 
         InterpretResult result;
@@ -690,6 +696,9 @@ namespace pg
             resetStack();
             result = InterpretResult::RUNTIME_ERROR;
         }
+
+        if (result == InterpretResult::RUNTIME_ERROR)
+            forgetFailedRun(framesBefore);
 
         return result;
     }

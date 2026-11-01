@@ -318,7 +318,7 @@ namespace pg
             EXPECT_EQ(ir.nodes[ir.returns[0]].op, Op::Call);
             EXPECT_EQ(ir.nodes[ir.returns[0]].name, "");
         }
-            TEST(EffectSsa, ThisIsUnknown)
+        TEST(EffectSsa, ThisIsUnknown)
         {
             Locations locs;
             auto ir = firstFunction("fun s()\n{\n    var a = this\n    return a\n}\n", locs);
@@ -1918,11 +1918,63 @@ namespace pg
             EXPECT_TRUE(store.reads.count("rows"));
             EXPECT_TRUE(store.reads.count("index"));
             ASSERT_EQ(store.writes.size(), 1u);
-            ASSERT_EQ(store.edges.size(), 1u);
             EXPECT_TRUE(store.rebinds.empty());
             EXPECT_FALSE(store.unknown);
 
             EXPECT_TRUE(p.effects.effectsOf(p.statements[4]).rebinds.count("age"));
+        }
+
+        TEST(ProgramEffects, TheBodiesAreKeptAndMappedBackToTheAst)
+        {
+            Analyzed p("var rows = {x: 0}\n"
+                       "var age = 1\n"
+                       "fun followed(t)\n{\n    return t.x\n}\n"
+                       "fun rebound(t)\n{\n    return t\n}\n"
+                       "fun twice()\n{\n    return 1\n}\n"
+                       "fun twice()\n{\n    return 2\n}\n"
+                       "rebound = followed\n"
+                       "age = followed(rows)\n");
+            ASSERT_TRUE(p.usable);
+
+            // The value of a function's return expression is one of its kept body, and the one it returns
+            const auto function = std::static_pointer_cast<FunctionStatement>(p.statements[2]);
+            const auto block = std::static_pointer_cast<BlockStatement>(function->body);
+            const auto returned = std::static_pointer_cast<ReturnStatement>(block->statements.front());
+
+            const BodyIR* body = p.effects.bodyOf("followed");
+            ASSERT_NE(body, nullptr);
+
+            const auto value = body->valueOf.find(returned->value.get());
+            ASSERT_NE(value, body->valueOf.end());
+            ASSERT_LT(value->second, body->nodes.size());
+            EXPECT_EQ(body->nodes[value->second].op, Op::Field);
+            ASSERT_EQ(body->returns.size(), 1u);
+            EXPECT_EQ(body->returns[0], value->second);
+
+            // Not followed, it still has its body
+            EXPECT_NE(p.effects.bodyOf("rebound"), nullptr);
+
+            // Which definition a call runs is not known; no function of that name
+            EXPECT_EQ(p.effects.bodyOf("twice"), nullptr);
+            EXPECT_EQ(p.effects.bodyOf("nothing"), nullptr);
+
+            // A statement's, whose assignment is what the program's top level does
+            const BodyIR* statement = p.effects.bodyOf(p.statements[7]);
+            ASSERT_NE(statement, nullptr);
+            ASSERT_EQ(statement->rebinds.size(), 1u);
+            EXPECT_EQ(statement->rebinds[0].first, "age");
+
+            EXPECT_EQ(p.effects.bodyOf(p.statements[2]), nullptr);  // A function's is by its name
+            EXPECT_EQ(p.effects.bodyOf(parsed("var other = 1\n")[0]), nullptr);
+            EXPECT_EQ(p.effects.bodyOf(StatementPtr()), nullptr);
+        }
+
+        TEST(ProgramEffects, NoBodiesWhenNothingIsUsable)
+        {
+            Analyzed p("fun f()\n{\n    return 1\n}\nclass Box\n{\n    size()\n    {\n        return 1\n    }\n}\n");
+            EXPECT_FALSE(p.usable);
+            EXPECT_EQ(p.effects.bodyOf("f"), nullptr);
+            EXPECT_EQ(p.effects.bodyOf(p.statements[0]), nullptr);
         }
     }
 }
