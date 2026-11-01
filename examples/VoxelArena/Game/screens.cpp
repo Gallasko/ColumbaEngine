@@ -523,8 +523,31 @@ namespace arena::screens
             ui.box(90, 332, kw, 26, INK, 0.0f);
             ui.text(90 + kw * 0.5f, 335, "ENTER", Font::Display, 18, GOLD, Align::Centre);
             ui.text(90 + kw + 14, 326, "The Arena", Font::Display, 34, GOLD_INK);
-            ui.text(90, 368, std::to_string(v.waves) + " timed waves, a shop between them, bosses midway and at the end", Font::Text500, 13, ARENA_LINE);
+            ui.text(90, 368, v.arenaLine, Font::Text500, 13, ARENA_LINE);
             ui.hit(72, 318, 472, 78, TITLE_ARENA);
+        }
+
+        // The difficulty: < and > (or the arrow keys) go through the levels open
+        if (v.levels > 1 and not v.waitingForHost)
+        {
+            const float y = 562.0f;
+            ui.box(72, y, 472, 44, CARD, 2.0f, LINE);
+
+            auto arrow = [&](float x, const std::string& key, bool can, int action) {
+                const auto arrowScope = ui.scope(static_cast<uint64_t>(action));
+                if (can and ui.hover(x, y + 9, 26, 26))
+                    ui.box(x - 2, y + 7, 30, 30, CARD, 2.0f, GOLD);
+                ui.keycap(x, y + 9, 26, key, can ? GOLD : LINE, can ? GOLD_INK : FAINT, 20, 0.0f);
+                if (can)
+                    ui.hit(x, y + 9, 26, 26, action);
+            };
+
+            arrow(84, "<", v.easier, TITLE_EASIER);
+            ui.text(184, y + 8, ui.fit(v.level, Font::Display, 28, 128), Font::Display, 28, TEXT, Align::Centre);
+            arrow(258, ">", v.harder, TITLE_HARDER);
+
+            ui.text(530, y + 7, ui.fit(v.levelText, Font::Text600, 12, 230), Font::Text600, 12, TEXT_DIM, Align::Right);
+            ui.text(530, y + 24, ui.fit(v.locked.empty() ? "difficulty" : v.locked, Font::Text500, 11, 230), Font::Text500, 11, v.locked.empty() ? FAINT : MUTED, Align::Right);
         }
 
         struct Item { std::string key, name, hint; int action; };
@@ -685,6 +708,32 @@ namespace arena::screens
             ui.hit(x, 542, 152, 40, items[k].action);
         }
 
+        // The difficulty: the host picks it (< and >, or the arrow keys), the others see it
+        if (v.levels > 1 and v.status.empty())
+        {
+            const float x = 392.0f;
+            ui.box(x, 542, 152, 40, CARD, 2.0f, LINE);
+            const bool picks = v.isHost or v.easier or v.harder;
+
+            if (picks)
+            {
+                auto arrow = [&](float ax, const std::string& key, bool can, int action) {
+                    const auto arrowScope = ui.scope(static_cast<uint64_t>(action));
+                    ui.keycap(ax, 549, 24, key, can ? GOLD : LINE, can ? GOLD_INK : FAINT, 18, 0.0f);
+                    if (can)
+                        ui.hit(ax, 549, 24, 24, action);
+                };
+                arrow(x + 6, "<", v.easier, TITLE_EASIER);
+                arrow(x + 122, ">", v.harder, TITLE_HARDER);
+                ui.text(x + 76, 550, ui.fit(v.level, Font::Display, 22, 84), Font::Display, 22, TEXT, Align::Centre);
+            }
+            else
+            {
+                ui.text(x + 10, 546, "DIFFICULTY", Font::Text700, 9, MUTED, Align::Left, 1.2f);
+                ui.text(x + 10, 557, ui.fit(v.level, Font::Display, 22, 132), Font::Display, 22, TEXT);
+            }
+        }
+
         // ---- How friends join
         ui.text(72, 598, v.isHost ? "FRIENDS JOIN WITH" : "JOINED", Font::Text700, 11, MUTED, Align::Left, 1.5f);
         const std::string port = ":" + std::to_string(v.port);
@@ -756,6 +805,15 @@ namespace arena::screens
                                      : "At wave " + std::to_string(v.wave) + " of " + std::to_string(v.waves) + ".";
         if (v.won and not v.champion.empty())
             subtitle = "All " + std::to_string(v.waves) + " waves, then " + (v.youChampion ? std::string("you won") : v.champion + " won") + " the final duel.";
+        if (not v.difficulty.empty())
+            subtitle = v.difficulty + " \xC2\xB7 " + subtitle;
+
+        // A win that opened the next level
+        if (not v.opened.empty())
+        {
+            ui.text(926, 192, "NOW OPEN", Font::Text700, 11, MUTED, Align::Right, 1.5f);
+            ui.text(926, 208, ui.fit(v.opened, Font::Display, 30, 220), Font::Display, 30, GOLD, Align::Right);
+        }
         ui.text(354, 262, ui.fit(subtitle, Font::Text600, 16, 572), Font::Text600, 16, SUBTITLE);
 
         // The waves: reached, the one it ended on, the rest

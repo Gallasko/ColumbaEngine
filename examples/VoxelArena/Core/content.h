@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <string>
@@ -543,6 +544,9 @@ namespace arena
         float pickupRange = 0.0f;     // m more that shards fly to you from
         float regen = 0.0f;           // health a second
         float attackSpeed = 0.0f;     // the weapon's light and heavy attacks this much quicker (0.1: 10%)
+        float horde = 0.0f;           // this much more enemies come (0.15: 15%), for everyone in the run
+        float xpGain = 0.0f;          // this much more XP from each shard picked up (0.15: 15%)
+        float shardChance = 0.0f;     // the chance each shard of a kill comes with one more, for everyone in the run
 
         // A tag item: its boost goes to every spell and technique of the player with the tag ("fire",
         // "projectile", "area", "spell", "technique"...)
@@ -563,6 +567,22 @@ namespace arena
         glm::vec2 weight = glm::vec2(1.0f);   // how often, at the first wave and at the last
     };
 
+    /**
+     * A difficulty level of the run (run.json "difficulties"): the first is open, each next one opens
+     * once the one before it is won. On top of the run as written.
+     */
+    struct DifficultyDef
+    {
+        std::string name = "Normal";
+        int waves = 0;                // the run's first this many waves (0: all of them)
+        float health = 1.0f;          // enemies' health times this
+        float damage = 1.0f;          // the damage enemies do times this
+        float healthGrowth = 0.0f;    // enemies' health grows this much more each wave (on top of the run's)
+        float damageGrowth = 0.0f;    // their damage grows this much each wave
+        float spawn = 1.0f;           // the spawn rate and the most at once times this
+        float eliteChance = 0.0f;     // added to the run's
+    };
+
     /** Who comes in during the waves of a run, from which wave on, how often (weight). */
     struct SpawnPool
     {
@@ -578,6 +598,14 @@ namespace arena
         float rarityWeight(int rarity, int wave) const;
         /** The same as a chance, 0..1, out of all the rarities. */
         float rarityChance(int rarity, int wave) const;
+
+        /** Difficulty levels, the easiest first. None: one level, the run as written. */
+        std::vector<DifficultyDef> difficulties;
+        int levels() const { return std::max(1, static_cast<int>(difficulties.size())); }
+        /** A level (clamped to the ones there are). */
+        const DifficultyDef& difficulty(int level) const;
+        /** The waves a run at a level lasts. */
+        int wavesAt(int level) const;
 
         int waves = 20;
         glm::vec2 duration = glm::vec2(20, 60);   // s a wave lasts, the first to the last

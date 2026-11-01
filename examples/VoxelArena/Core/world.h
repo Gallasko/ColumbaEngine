@@ -142,12 +142,14 @@ namespace arena
         {
             float maxHealth = 0.0f, damage = 0.0f, manaCost = 0.0f, manaRegen = 0.0f, staminaRegen = 0.0f;
             float speed = 0.0f, cooldown = 0.0f, lifeOnHit = 0.0f, armor = 0.0f, crit = 0.0f, pickupRange = 0.0f, regen = 0.0f, attackSpeed = 0.0f;
+            float horde = 0.0f, xpGain = 0.0f, shardChance = 0.0f;
             int dashCharges = 0, statusStacks = 0;
         } boon;
 
         // ... shards (money and XP), the level, what is owned (weapons, skills, keywords, "element:fire"),
         // the shop between waves, and the free stat items of a level up
         int shards = 0, xp = 0, level = 1, levelUps = 0;
+        float xpCarry = 0.0f;         // XP short of a whole one (more XP per shard comes in parts)
         std::vector<std::string> owned;
         struct ShopOffer
         {
@@ -324,6 +326,7 @@ namespace arena
         RunPhase phase = RunPhase::Off;
         int wave = 0;                 // 1-based, the current or last one
         int waves = 0;
+        int difficulty = 0;           // the level (RunDef::difficulties) of this run; outside one, the next run's
         float timer = 0.0f;           // s left in the wave (a boss wave: until the boss falls)
         float elapsed = 0.0f;         // s of the run so far
         int score = 0;
@@ -591,6 +594,14 @@ namespace arena
         const Fighter::RunSpell* runSkill(const Fighter& f, const std::string& abilityId) const;
         /** Shop prices at a wave, times this (run.json shop.priceScale). */
         float priceScale(int wave) const;
+        /** The difficulty level of the run (outside one: of the next). */
+        const DifficultyDef& difficulty() const { return content->run.difficulty(run.difficulty); }
+        /** Enemies' health and damage at a wave, times these: the difficulty level's. */
+        float enemyHealthScale(int wave) const;
+        float enemyDamageScale(int wave) const;
+        /** What the players' items add for everyone: more enemies, more shards from each kill. */
+        float teamHorde() const;
+        float teamShardChance() const;
         int maxDashes(const Fighter& f) const { return tuning.dash.charges + f.boon.dashCharges; }
         /** Health a second a fighter gets back: its regen items and its weapon's mending. */
         float healthRegen(const Fighter& f) const;

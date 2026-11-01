@@ -397,6 +397,14 @@ namespace arena
         RunPhase lastPhase = RunPhase::Off;
         int bestScore = 0;
         void startArena();
+
+        // The difficulty levels: the highest open (each opens once the one before is won), the one picked
+        int levelOpen = 0, levelPicked = 0;
+        std::string levelJustOpened;       // a win just opened it: the end screen says so
+        void pickLevel(int level);
+        void saveLevels() const;
+        std::string levelText(int level) const;   // what a level changes, in words
+        std::string arenaLine(int level) const;   // "10 timed waves, a shop between them, a boss at the end"
         void runHud(Hud::View& v);
         struct SpawnMark
         {

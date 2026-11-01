@@ -866,6 +866,7 @@ namespace arena::net
         w.u8(static_cast<uint8_t>(m.run.phase));
         w.u8(static_cast<uint8_t>(std::clamp(m.run.wave, 0, 255)));
         w.u8(static_cast<uint8_t>(std::clamp(m.run.waves, 0, 255)));
+        w.u8(static_cast<uint8_t>(std::clamp(m.run.difficulty, 0, 255)));
         w.f32(m.run.timer);
         w.f32(m.run.elapsed);
         w.u32(static_cast<uint32_t>(std::max(0, m.run.score)));
@@ -964,6 +965,7 @@ namespace arena::net
         m.run.phase = static_cast<RunPhase>(std::min<uint8_t>(r.u8(), static_cast<uint8_t>(RunPhase::Armory)));
         m.run.wave = r.u8();
         m.run.waves = r.u8();
+        m.run.difficulty = r.u8();
         m.run.timer = r.f32();
         m.run.elapsed = r.f32();
         m.run.score = static_cast<int>(r.u32());

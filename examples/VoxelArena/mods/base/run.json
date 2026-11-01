@@ -36,6 +36,11 @@
 // duel: in multiplayer, after the last wave, a final duel: the arena anew, everyone back up and in a
 // ring `radius` m from the centre of its arena (duel.arena: "" fights it in the last wave's), `countdown` s with no harm done, then everyone for themselves, one life
 // each. The last one standing wins; after `duration` s, the one with the most of their health left.
+// difficulties: the levels a run is played at, the easiest first. The first is open; winning one opens
+// the next. waves: the run's first this many waves (the run still ramps up over all 20, so a short level
+// stops partway up). health, damage: enemies' times this. healthGrowth: their health grows this much more
+// each wave (on top of the run's), damageGrowth: their damage grows this much each wave. spawn: the spawn
+// rate and the most at once times this. eliteChance: added to the run's.
 {
     "waves": 20,
     "duration": [45, 90],
@@ -85,6 +90,15 @@
             { "name": "Legendary", "power": 3.0, "price": 2.6, "weight": [1, 10] }
         ]
     },
+
+    "difficulties": [
+        { "name": "Normal",    "waves": 10 },
+        { "name": "Hard",      "waves": 13, "health": 1.15, "damage": 1.1,  "healthGrowth": 0.01, "spawn": 1.05, "eliteChance": 0.02 },
+        { "name": "Very hard", "waves": 16, "health": 1.3,  "damage": 1.2,  "healthGrowth": 0.02, "damageGrowth": 0.01, "spawn": 1.1, "eliteChance": 0.04 },
+        { "name": "Nightmare", "waves": 20, "health": 1.5,  "damage": 1.3,  "healthGrowth": 0.03, "damageGrowth": 0.015, "spawn": 1.15, "eliteChance": 0.06 },
+        { "name": "Torment",   "waves": 20, "health": 1.8,  "damage": 1.45, "healthGrowth": 0.04, "damageGrowth": 0.02, "spawn": 1.25, "eliteChance": 0.09 },
+        { "name": "Hell",      "waves": 20, "health": 2.2,  "damage": 1.6,  "healthGrowth": 0.05, "damageGrowth": 0.025, "spawn": 1.35, "eliteChance": 0.12 }
+    ],
 
     "waveScore": 50,
     "victoryScore": 2000,

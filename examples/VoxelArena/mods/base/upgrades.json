@@ -4,7 +4,9 @@
 // spells, cooldown 0.2 is 20% shorter skill and spell cooldowns, speed 0.08 is 8% faster, armor 0.06
 // takes 6% off the damage taken (70% at most), crit 0.06 is a 6% chance of a hit doing twice the
 // damage, pickupRange in metres, regen in health a second, attackSpeed 0.1 makes the weapon's light and
-// heavy attacks 10% quicker (their frames fewer, their lunges as far).
+// heavy attacks 10% quicker (their frames fewer, their lunges as far). horde 0.15 brings 15% more enemies,
+// xpGain 0.15 gives 15% more XP from each shard, shardChance 0.1 gives each shard a kill drops a 10% chance
+// of one more. horde and shardChance are for everyone in the run (they add up across the players).
 {
     "tough":      { "name": "Tough",        "text": "+25 max health",                       "maxHealth": 25,     "most": 5, "price": 10 },
     "keen":       { "name": "Keen edge",    "text": "+15% damage",                           "damage": 0.15,      "most": 5, "price": 14 },
@@ -21,6 +23,11 @@
     "magnet":     { "name": "Magnet",       "text": "Pick up shards 1.5 m further",          "pickupRange": 1.5,  "most": 3, "price": 6 },
     "mending":    { "name": "Mending",      "text": "Regenerate 0.6 health a second",        "regen": 0.6,        "most": 4, "price": 12 },
     "frenzy":     { "name": "Frenzy",       "text": "+10% attack speed",                     "attackSpeed": 0.1,  "most": 4, "price": 14 },
+
+    // More risk, more reward: more enemies, and more out of each one
+    "horde":      { "name": "Horde",        "text": "15% more enemies come",                 "horde": 0.15,       "most": 3, "price": 8 },
+    "scholar":    { "name": "Scholar",      "text": "+15% XP from each shard",               "xpGain": 0.15,      "most": 4, "price": 12 },
+    "greed":      { "name": "Greed",        "text": "Enemies drop 10% more shards",          "shardChance": 0.1,  "most": 4, "price": 12 },
 
     // Tag items: a boost for every spell and technique of yours with the tag. Spells have "spell", their
     // element and their shapes' ("projectile" for a bolt, "area" for a nova or a zone, "zone", "beam");

@@ -243,6 +243,7 @@ namespace arena
                 {"Pickup m", content.run.pickupRange + b.pickupRange}, {"Spell cost -%", b.manaCost * 100.0f}, {"Mana regen %", b.manaRegen * 100.0f},
                 {"Stamina regen %", b.staminaRegen * 100.0f}, {"Cooldowns -%", b.cooldown * 100.0f}, {"Life on hit", b.lifeOnHit},
                 {"Status stacks", static_cast<float>(b.statusStacks)}, {"Attack speed %", b.attackSpeed * 100.0f},
+                {"More enemies %", b.horde * 100.0f}, {"XP per shard %", b.xpGain * 100.0f}, {"Extra shards %", b.shardChance * 100.0f},
             };
         }
     }
@@ -307,19 +308,9 @@ namespace arena
         auto pc = [&](float v) { return std::to_string(static_cast<int>(std::lround(v * k * 100.0f))) + "%"; };
         auto num = [&](float v) { return oneDecimal(v * k); };
 
+        // A tag item: just what it does ("-15% cooldown"); what it reaches is on the card's kind row
         if (u.forTag())
-        {
-            static const std::map<std::string, std::string> who = {
-                {"fire", "fire spells and attacks"}, {"ice", "ice spells and attacks"}, {"volt", "lightning spells and attacks"},
-                {"projectile", "everything that shoots"}, {"area", "area spells and techniques"}, {"zone", "spells that leave an area"},
-                {"beam", "beams"}, {"spell", "all your spells"}, {"technique", "all your techniques"}, {"attack", "your weapon attacks"},
-                {"melee", "melee attacks and techniques"}, {"dash", "dash techniques"}, {"heal", "healing"},
-            };
-            auto it = who.find(u.tag);
-            std::string out = boostText(u.boost, k) + " for " + (it != who.end() ? it->second : "everything tagged " + tagLabel(u.tag)) + ".";
-            out[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(out[0])));
-            return out;
-        }
+            return boostText(u.boost, k);
         else
         {
             if (u.maxHealth != 0.0f) parts.push_back("+" + std::to_string(static_cast<int>(std::lround(u.maxHealth * k))) + " max health");
@@ -337,6 +328,9 @@ namespace arena
             if (u.pickupRange != 0.0f) parts.push_back("Pick up shards " + num(u.pickupRange) + " m further");
             if (u.regen != 0.0f) parts.push_back("Regenerate " + num(u.regen) + " health a second");
             if (u.attackSpeed != 0.0f) parts.push_back("+" + pc(u.attackSpeed) + " attack speed (your weapon's light and heavy attacks)");
+            if (u.horde != 0.0f) parts.push_back(pc(u.horde) + " more enemies come (more shards to pick up)");
+            if (u.xpGain != 0.0f) parts.push_back("+" + pc(u.xpGain) + " XP from each shard");
+            if (u.shardChance != 0.0f) parts.push_back("Enemies drop " + pc(u.shardChance) + " more shards (by chance)");
         }
 
         if (parts.empty())
@@ -549,7 +543,7 @@ namespace arena
             if (o.bought)
                 ui.raised(x, y, CARD_W, CARD_H, CARD_DIM, 0.0f, 2.0f, INK);
             else
-                ui.raised(x, y, CARD_W, CARD_H, CARD, 3.0f, 2.0f, o.locked ? GOLD : (rated ? kind : INK));
+                ui.raised(x, y, CARD_W, CARD_H, CARD, 3.0f, 2.0f, rated ? kind : INK);   // locked: its rarity still (the Lock button says it)
 
             const Colour main = o.bought ? MUTED : TEXT;
             float cy = y + 14.0f;
@@ -629,7 +623,7 @@ namespace arena
 
             const auto& b = me.boon;
             struct Row { std::string label, value, faint; };
-            const std::vector<Row> rows = {
+            std::vector<Row> rows = {
                 {"Health", std::to_string(static_cast<int>(me.maxHealth)), ""},
                 {"Damage", "+" + percent(b.damage), ""},
                 {"Armor", percent(std::min(b.armor, 0.7f)), " / 70"},
@@ -640,6 +634,14 @@ namespace arena
                 {"Dashes", std::to_string(world.maxDashes(me)), ""},
                 {"Pickup", oneDecimal(content.run.pickupRange + b.pickupRange) + " m", ""},
             };
+
+            // The run's own: only once taken (more enemies and more shards are for everyone)
+            if (world.teamHorde() > 0.0f)
+                rows.push_back({"More enemies", "+" + percent(world.teamHorde()), ""});
+            if (b.xpGain > 0.0f)
+                rows.push_back({"XP per shard", "+" + percent(b.xpGain), ""});
+            if (world.teamShardChance() > 0.0f)
+                rows.push_back({"Extra shards", "+" + percent(world.teamShardChance()), ""});
 
             float ry = y + 34.0f;
             for (const auto& row : rows)

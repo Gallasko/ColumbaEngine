@@ -10,8 +10,14 @@ namespace arena
     /** The title screen (UI_SPEC.md section 8): the game's name, what to play, the best score. */
     struct TitleView
     {
-        int waves = 20;
+        std::string arenaLine;          // "10 timed waves, a shop between them, a boss at the end"
         int best = 0;
+
+        // The difficulty picked (when there is more than one level), what it does, the ones around it
+        int levels = 1;
+        std::string level, levelText;
+        bool easier = false, harder = false;
+        std::string locked;             // the next level is not open yet: how to open it
         bool waitingForHost = false;    // a client: only the host starts the run
         int players = 1, maxPlayers = 8;
         float time = 0.0f;
@@ -24,6 +30,8 @@ namespace arena
         bool won = false;
         int wave = 1, waves = 20;
         int score = 0, best = 0, kills = 0, level = 1;
+        std::string difficulty;         // the run's level ("" when there is only one)
+        std::string opened;             // the level this win opened ("" none)
         float time = 0.0f;              // s the run lasted
         bool solo = true;               // the training ground is offered alone only
         std::string boss = "the Stone Warden";
@@ -61,6 +69,9 @@ namespace arena
 
         std::vector<std::string> log;   // the latest joins, leaves and refusals
         int waves = 20;
+        std::string level;              // the run's difficulty level (the host picks it)
+        int levels = 1;
+        bool easier = false, harder = false;   // this game picks it, and can go that way
         float time = 0.0f;
         bool quitArmed = false;
     };
@@ -135,6 +146,7 @@ namespace arena
         // Click actions
         constexpr int TITLE_ARENA = 1, TITLE_TRAINING = 2, TITLE_SPELLBOOK = 3, TITLE_OPTIONS = 4;
         constexpr int END_AGAIN = 11, END_TRAINING = 12;
+        constexpr int TITLE_EASIER = 13, TITLE_HARDER = 14;   // the difficulty level (the title, the host's lobby)
         constexpr int LOBBY_READY = 5;   // the host's start is TITLE_ARENA
         constexpr int TITLE_MULTIPLAYER = 10;
         constexpr int TITLE_INVITE = 6, TITLE_JOIN = 7, LOBBY_LEAVE = 8, TITLE_QUIT = 9;

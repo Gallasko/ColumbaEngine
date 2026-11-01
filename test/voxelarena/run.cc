@@ -33,6 +33,7 @@ namespace
             content.run.intermission = 0.0f;
             content.run.startSpells = {"base:firebolt"};   // no first spell to pick either (its own test)
             content.run.startChoices.clear();
+            content.run.difficulties.clear();   // the run as written: the difficulty levels have their own tests
 
             // Training: a bare floor (the run has its own arena, run.json's)
             content.arena.size = glm::ivec3(32, 16, 32);
@@ -1512,4 +1513,118 @@ TEST(arena_run, attack_speed_makes_the_weapons_attacks_quicker)
     // Outside a run: as written
     r.world.stopRun();
     EXPECT_EQ(r.world.attackDef(r.player(), m->light)->total(), before.total());
+}
+
+// ---- Difficulty levels, and the items that bring more enemies and more out of them -------------
+
+TEST(arena_run, the_shipped_levels_start_short_and_open_one_by_one_in_length)
+{
+    const Content c = loadContent(VOXELARENA_MODS_DIR);
+    const RunDef& run = c.run;
+
+    ASSERT_GE(run.levels(), 4);
+    EXPECT_EQ(run.wavesAt(0), 10);
+    EXPECT_EQ(run.wavesAt(3), run.waves);
+    for (int k = 1; k < run.levels(); ++k)
+    {
+        EXPECT_GE(run.wavesAt(k), run.wavesAt(k - 1));
+        EXPECT_GT(run.difficulty(k).health, run.difficulty(k - 1).health);
+    }
+
+    // Past the last one: the last one
+    EXPECT_EQ(run.difficulty(99).name, run.difficulty(run.levels() - 1).name);
+}
+
+TEST(arena_run, a_harder_level_is_shorter_or_longer_and_its_enemies_tougher)
+{
+    RunArena r;
+    r.content.run.difficulties = {
+        DifficultyDef{},
+        DifficultyDef{"Hard", 13, 1.5f, 1.25f, 0.02f, 0.01f, 2.0f, 0.1f},
+    };
+
+    // The level picked outside a run is the next run's; it stays for the one after
+    r.world.run.difficulty = 1;
+    r.world.startRun(5);
+    EXPECT_EQ(r.world.run.difficulty, 1);
+    EXPECT_EQ(r.world.run.waves, 13);
+
+    // Health: the level's, and it grows faster each wave; damage too
+    r.world.skipToWave(5);
+    const float growth = r.content.run.healthGrowth + 0.02f;
+    EXPECT_FLOAT_EQ(r.world.enemyHealthScale(5), 1.5f * (1.0f + growth * 4.0f));
+    EXPECT_FLOAT_EQ(r.world.enemyDamageScale(5), 1.25f * (1.0f + 0.01f * 4.0f));
+
+    r.world.run.pending.push_back({"base:slime", r.player().body.position + glm::vec3(0, 0, 5), 0.0f, false, false});
+    r.run(1);
+    const Fighter* slime = nullptr;
+    for (const auto& f : r.world.fighters)
+        if (f.team == Team::Enemy and f.type == "base:slime")
+            slime = &f;
+    ASSERT_TRUE(slime);
+    EXPECT_NEAR(slime->maxHealth, r.content.enemies.at("base:slime").health * r.world.enemyHealthScale(5), 0.01f);
+
+    // Its last wave won is a victory
+    r.world.skipToWave(13);
+    r.timeUp();
+    EXPECT_EQ(r.world.run.phase, RunPhase::Victory);
+
+    // Back out: still the level picked
+    r.world.stopRun();
+    EXPECT_EQ(r.world.run.difficulty, 1);
+}
+
+TEST(arena_run, scholar_gives_more_xp_per_shard_and_greed_more_shards)
+{
+    RunArena r;
+    r.world.startRun(9);
+    Fighter& p = r.player();
+
+    // Half again as much XP: the half waits for the next shard
+    p.boons.push_back({"base:scholar"});
+    p.boons.push_back({"base:scholar"});
+    r.content.upgrades["base:scholar"].xpGain = 0.25f;
+    r.world.sumBoons(p);
+    EXPECT_FLOAT_EQ(p.boon.xpGain, 0.5f);
+
+    r.world.collect(p, 1);
+    EXPECT_EQ(p.xp, 1);
+    r.world.collect(p, 1);
+    EXPECT_EQ(p.xp, 3);
+    EXPECT_EQ(p.shards, 2);   // shards are not more: only the XP
+
+    // Greed past 100%: every shard of a kill comes with one more
+    p.boons.push_back({"base:greed"});
+    r.content.upgrades["base:greed"].shardChance = 1.0f;
+    r.world.sumBoons(p);
+    EXPECT_FLOAT_EQ(r.world.teamShardChance(), 1.0f);
+
+    const int drops = r.content.enemies.at("base:brute").drops;
+    r.near("base:brute");
+    r.killAll();
+    int lying = 0;
+    for (const auto& pk : r.world.pickups)
+        lying += pk.value;
+    EXPECT_EQ(lying, 2 * drops);
+}
+
+TEST(arena_run, horde_brings_more_enemies_for_everyone)
+{
+    RunArena plain, horde;
+    plain.world.startRun(11);
+    horde.world.startRun(11);
+
+    horde.player().boons.push_back({"base:horde"});
+    horde.player().boons.push_back({"base:horde"});
+    horde.content.upgrades["base:horde"].horde = 0.5f;
+    horde.world.sumBoons(horde.player());
+    EXPECT_FLOAT_EQ(horde.world.teamHorde(), 1.0f);
+
+    // Twice the spawn rate: about twice the enemies after a while (none die: no AI, nobody fights)
+    plain.past(20.0f);
+    horde.past(20.0f);
+    const int few = plain.enemies() + static_cast<int>(plain.world.run.pending.size());
+    const int many = horde.enemies() + static_cast<int>(horde.world.run.pending.size());
+    EXPECT_GT(few, 0);
+    EXPECT_GE(many, few * 3 / 2);
 }

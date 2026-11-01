@@ -290,6 +290,11 @@ namespace arena
             std::ifstream bestFile(std::filesystem::path(spellbookPath()).parent_path() / "best.txt");
             bestFile >> bestScore;
 
+            // The difficulty levels opened so far, and the one picked last
+            std::ifstream levelsFile(std::filesystem::path(spellbookPath()).parent_path() / "levels.txt");
+            levelsFile >> levelOpen >> levelPicked;
+            pickLevel(levelPicked);
+
             // First person starts looking ahead, not down at the feet as the orbit camera does
             if (firstPerson)
                 camera.pitch = 5.0f;
@@ -956,6 +961,8 @@ namespace arena
                 }
                 else if (p.scancode == SDL_SCANCODE_T)
                     titleOpen = false;
+                else if ((p.scancode == SDL_SCANCODE_LEFT or p.scancode == SDL_SCANCODE_RIGHT) and not client)
+                    pickLevel(levelPicked + (p.scancode == SDL_SCANCODE_LEFT ? -1 : 1));
                 else if (p.scancode == SDL_SCANCODE_ESCAPE)
                     setOptionsOpen(true);
                 continue;
@@ -1458,6 +1465,61 @@ namespace arena
         }
     }
 
+    void ArenaGame::pickLevel(int level)
+    {
+        levelOpen = std::clamp(levelOpen, 0, content.run.levels() - 1);
+        levelPicked = std::clamp(level, 0, levelOpen);
+        saveLevels();
+    }
+
+    void ArenaGame::saveLevels() const
+    {
+        std::error_code ec;
+        std::filesystem::create_directories(std::filesystem::path(spellbookPath()).parent_path(), ec);
+        std::ofstream(std::filesystem::path(spellbookPath()).parent_path() / "levels.txt") << levelOpen << " " << levelPicked;
+    }
+
+    std::string ArenaGame::levelText(int level) const
+    {
+        const DifficultyDef& d = content.run.difficulty(level);
+        auto pc = [](float v) { return std::to_string(static_cast<int>(std::lround(v * 100.0f))) + "%"; };
+
+        std::vector<std::string> parts;
+        if (d.health != 1.0f) parts.push_back((d.health > 1.0f ? "+" : "-") + pc(std::fabs(d.health - 1.0f)) + " health");
+        if (d.damage != 1.0f) parts.push_back((d.damage > 1.0f ? "+" : "-") + pc(std::fabs(d.damage - 1.0f)) + " damage");
+        if (d.spawn != 1.0f) parts.push_back(pc(std::fabs(d.spawn - 1.0f)) + (d.spawn > 1.0f ? " more" : " fewer"));
+        if (d.healthGrowth > 0.0f or d.damageGrowth > 0.0f) parts.push_back("stronger each wave");
+        if (d.eliteChance > 0.0f) parts.push_back("more elites");
+
+        if (parts.empty())
+            return "enemies as they come";
+
+        std::string out = "enemies ";
+        for (size_t i = 0; i < parts.size(); ++i)
+            out += (i ? ", " : "") + parts[i];
+        return out;
+    }
+
+    std::string ArenaGame::arenaLine(int level) const
+    {
+        const int waves = content.run.wavesAt(level);
+        int bosses = 0;
+        for (const auto& [wave, id] : content.run.bosses)
+            bosses += wave <= waves ? 1 : 0;
+
+        const bool last = content.run.bosses.count(waves) > 0;
+        std::string out = std::to_string(waves) + " timed waves, a shop between them";
+
+        if (bosses > 1 and last)
+            out += ", bosses midway and at the end";
+        else if (bosses == 1 and last)
+            out += ", a boss at the end";
+        else if (bosses > 0)
+            out += bosses == 1 ? ", a boss on the way" : ", bosses on the way";
+
+        return out;
+    }
+
     void ArenaGame::startArena()
     {
         titleOpen = false;
@@ -1471,6 +1533,23 @@ namespace arena
     {
         const RunState& r = world.run;
         const Fighter* me = world.player();
+
+        // Outside a run, the next run is at the level picked here (a client's is the host's)
+        if (not client and not world.inRun())
+            world.run.difficulty = levelPicked;
+
+        // A win opens the next level, and picks it
+        if (r.phase != lastPhase)
+        {
+            levelJustOpened.clear();
+
+            if (r.phase == RunPhase::Victory and r.difficulty + 1 < content.run.levels() and r.difficulty + 1 > levelOpen)
+            {
+                levelOpen = r.difficulty + 1;
+                levelJustOpened = content.run.difficulty(levelOpen).name;
+                pickLevel(levelOpen);
+            }
+        }
 
         // A run just ended: the best score
         if (r.phase != lastPhase and (r.phase == RunPhase::Victory or r.phase == RunPhase::Defeat) and r.score > bestScore)
@@ -2778,6 +2857,11 @@ namespace arena
                         if (not client)
                             startArena();
                         break;
+                    case screens::TITLE_EASIER:
+                    case screens::TITLE_HARDER:
+                        if (not client)
+                            pickLevel(levelPicked + (action == screens::TITLE_EASIER ? -1 : 1));
+                        break;
                     case screens::LOBBY_READY:
                         if (client)
                         {
@@ -3247,7 +3331,11 @@ namespace arena
         v.canLeave = client != nullptr or (server != nullptr and ownNetwork != nullptr);
         v.port = options.port;
         v.manualPort = manualPort;
-        v.waves = content.run.waves;
+        v.waves = content.run.wavesAt(world.run.difficulty);
+        v.level = content.run.difficulty(world.run.difficulty).name;
+        v.levels = content.run.levels();
+        v.easier = server and levelPicked > 0;
+        v.harder = server and levelPicked < levelOpen;
         v.time = uiTime;
         v.log.assign(netLog.begin(), netLog.end());
         v.quitArmed = quitArmed();
@@ -3394,7 +3482,14 @@ namespace arena
         else if (titleOpen)
         {
             TitleView t;
-            t.waves = content.run.waves;
+            t.arenaLine = arenaLine(levelPicked);
+            t.levels = content.run.levels();
+            t.level = content.run.difficulty(levelPicked).name;
+            t.levelText = levelText(levelPicked);
+            t.easier = levelPicked > 0;
+            t.harder = levelPicked < levelOpen;
+            if (levelPicked == levelOpen and levelOpen + 1 < content.run.levels())
+                t.locked = "win " + t.level + " to open " + content.run.difficulty(levelOpen + 1).name;
             t.best = bestScore;
             t.waitingForHost = client != nullptr;
             t.time = uiTime;
@@ -3438,6 +3533,8 @@ namespace arena
             e.level = p->level;
             e.time = r.elapsed;
             e.solo = not networked();
+            e.difficulty = content.run.levels() > 1 ? content.run.difficulty(r.difficulty).name : "";
+            e.opened = levelJustOpened;
             if (r.champion != 0)
             {
                 e.youChampion = r.champion == p->id;
@@ -4101,7 +4198,7 @@ namespace arena
         {
             return "reload | tune <key> [value] | tunes [prefix] | spawn <enemy> [count] | clear | reset\n"
                    "place x y z <block|air> | fill x0 y0 z0 x1 y1 z1 <block|air>\n"
-                   "view [first|third] | weapon <id> | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | map [arena] | training | wave <n> | duel | timeup | join <address> | leave | shards <n> | kill | options | mods | errors | warnings\n"
+                   "view [first|third] | weapon <id> | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | map [arena] | training | difficulty <n> | wave <n> | duel | timeup | join <address> | leave | shards <n> | kill | options | mods | errors | warnings\n"
                    "scripted input: mouse [on|off] | click <x> <y> | hover <x> <y> | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
         }
 
@@ -4230,6 +4327,23 @@ namespace arena
 
             startArena();
             return "the arena: wave 1";
+        }
+
+        if (cmd == "difficulty")
+        {
+            std::string out;
+            for (int k = 0; k < content.run.levels(); ++k)
+                out += std::string(k ? ", " : "") + std::to_string(k) + " " + content.run.difficulty(k).name + (k > levelOpen ? " (locked)" : "");
+
+            if (args.size() < 2)
+                return "difficulty <n>: open and pick a level (" + out + ")";
+            if (client or world.inRun())
+                return "difficulty: only the host, outside a run";
+
+            levelOpen = std::max(levelOpen, std::atoi(args[1].c_str()));
+            pickLevel(std::atoi(args[1].c_str()));
+            world.run.difficulty = levelPicked;
+            return "difficulty " + content.run.difficulty(levelPicked).name + ": " + arenaLine(levelPicked);
         }
 
         if (cmd == "wave")

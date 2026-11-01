@@ -3277,9 +3277,11 @@ namespace arena
             damage *= crit ? 2.0f : 1.0f;
         }
 
-        // An elite hits harder; armor takes some off
+        // An elite hits harder, every enemy at the harder levels; armor takes some off
         if (attacker.elite)
             damage *= 1.4f;
+        if (inRun() and attacker.team == Team::Enemy)
+            damage *= enemyDamageScale(run.wave);
         damage *= 1.0f - std::clamp(target.boon.armor, 0.0f, 0.7f);
 
         if (target.team == Team::Enemy)
@@ -3378,7 +3380,15 @@ namespace arena
             if (auto def = content->enemies.find(target.type); def != content->enemies.end())
             {
                 run.score += def->second.score * (target.elite ? 2 : 1);
-                spawnShards(target, def->second.drops * (target.elite ? 3 : 1));
+
+                // The players' greed items: each shard may come with one more (past 100%, one more for sure)
+                const int drops = def->second.drops * (target.elite ? 3 : 1);
+                const float chance = teamShardChance();
+                int extra = 0;
+                for (int k = 0; k < drops and chance > 0.0f; ++k)
+                    extra += static_cast<int>(chance) + (static_cast<float>(runRandom() % 1000) / 1000.0f < chance - std::floor(chance) ? 1 : 0);
+
+                spawnShards(target, drops + extra);
             }
 
             // An elite may leave a present: a free item to pick in the shop (a few a wave at most)

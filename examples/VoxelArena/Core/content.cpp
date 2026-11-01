@@ -194,6 +194,22 @@ namespace arena
         return total > 0.0f ? rarityWeight(rarity, wave) / total : 0.0f;
     }
 
+    const DifficultyDef& RunDef::difficulty(int level) const
+    {
+        static const DifficultyDef asWritten;
+
+        if (difficulties.empty())
+            return asWritten;
+
+        return difficulties[static_cast<size_t>(std::clamp(level, 0, static_cast<int>(difficulties.size()) - 1))];
+    }
+
+    int RunDef::wavesAt(int level) const
+    {
+        const int w = difficulty(level).waves;
+        return w > 0 ? std::min(w, waves) : waves;
+    }
+
     std::string Content::runArenaId(int wave, bool duel) const
     {
         if (duel and not run.duel.arena.empty() and arenas.count(run.duel.arena))
@@ -1517,7 +1533,8 @@ namespace arena
             {
                 const Json& j = raw.data;
                 checkKeys(j, {"name", "text", "maxHealth", "damage", "dashCharges", "manaCost", "manaRegen", "staminaRegen", "speed", "cooldown", "lifeOnHit",
-                              "statusStacks", "most", "armor", "crit", "pickupRange", "regen", "attackSpeed", "price", "tag", "boost"},
+                              "statusStacks", "most", "armor", "crit", "pickupRange", "regen", "attackSpeed", "horde", "xpGain", "shardChance",
+                              "price", "tag", "boost"},
                           raw.file, report, "boon " + id);
 
                 UpgradeDef u;
@@ -1541,6 +1558,9 @@ namespace arena
                 readNum(j, "pickupRange", u.pickupRange, raw.file, report);
                 readNum(j, "regen", u.regen, raw.file, report);
                 readNum(j, "attackSpeed", u.attackSpeed, raw.file, report);
+                readNum(j, "horde", u.horde, raw.file, report);
+                readNum(j, "xpGain", u.xpGain, raw.file, report);
+                readNum(j, "shardChance", u.shardChance, raw.file, report);
                 readInt(j, "price", u.price, raw.file, report);
 
                 // A tag item: "tag": "fire", "boost": { "damage": 0.2 }: for everything of the player with the tag
@@ -1569,7 +1589,7 @@ namespace arena
 
             checkKeys(j, {"waves", "duration", "spawnRate", "maxAlive", "eliteFrom", "eliteChance", "healthGrowth", "pools", "bosses", "warn", "centre", "spawnRadius", "coopScale",
                           "waveScore", "victoryScore", "pickupRange", "xp", "start", "shop", "arena", "arenas", "resetEachWave", "duel", "chooseWeapon",
-                          "levelSkills", "intermission", "spawnScale", "branchLevel", "mastery", "presents"},
+                          "levelSkills", "intermission", "spawnScale", "branchLevel", "mastery", "presents", "difficulties"},
                       raw.file, report, "the run");
 
             readInt(j, "waves", r.waves, raw.file, report);
@@ -1608,6 +1628,36 @@ namespace arena
                 readInt(*presents, "choices", r.presentChoices, raw.file, report);
                 r.presentChoices = std::clamp(r.presentChoices, 1, 4);
             }
+            // "difficulties": [{ "name": "Hard", "waves": 13, "health": 1.15, ... }], the easiest first
+            if (const Json* levels = j.find("difficulties"))
+            {
+                for (const auto& l : levels->array)
+                {
+                    checkKeys(l, {"name", "waves", "health", "damage", "healthGrowth", "damageGrowth", "spawn", "eliteChance"}, raw.file, report, "a difficulty");
+
+                    DifficultyDef d;
+                    readStr(l, "name", d.name, raw.file, report);
+                    readInt(l, "waves", d.waves, raw.file, report);
+                    readNum(l, "health", d.health, raw.file, report);
+                    readNum(l, "damage", d.damage, raw.file, report);
+                    readNum(l, "healthGrowth", d.healthGrowth, raw.file, report);
+                    readNum(l, "damageGrowth", d.damageGrowth, raw.file, report);
+                    readNum(l, "spawn", d.spawn, raw.file, report);
+                    readNum(l, "eliteChance", d.eliteChance, raw.file, report);
+                    d.waves = std::max(0, d.waves);
+                    d.health = std::max(0.05f, d.health);
+                    d.damage = std::max(0.0f, d.damage);
+                    d.spawn = std::max(0.0f, d.spawn);
+                    r.difficulties.push_back(d);
+                }
+
+                if (r.difficulties.size() > 32)
+                {
+                    report.error(raw.file, levels->line, "at most 32 difficulty levels");
+                    r.difficulties.resize(32);
+                }
+            }
+
             readInt(j, "waveScore", r.waveScore, raw.file, report);
             readInt(j, "victoryScore", r.victoryScore, raw.file, report);
             readNum(j, "pickupRange", r.pickupRange, raw.file, report);

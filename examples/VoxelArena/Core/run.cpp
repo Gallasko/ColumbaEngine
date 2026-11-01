@@ -70,6 +70,9 @@ namespace arena
             f.boon.pickupRange += u.pickupRange * k;
             f.boon.regen += u.regen * k;
             f.boon.attackSpeed += u.attackSpeed * k;
+            f.boon.horde += u.horde * k;
+            f.boon.xpGain += u.xpGain * k;
+            f.boon.shardChance += u.shardChance * k;
         }
     }
 
@@ -368,14 +371,46 @@ namespace arena
         return def.priceScale.x + (def.priceScale.y - def.priceScale.x) * t;
     }
 
+    float ArenaWorld::enemyHealthScale(int wave) const
+    {
+        const DifficultyDef& d = difficulty();
+        return d.health * (1.0f + (content->run.healthGrowth + d.healthGrowth) * static_cast<float>(std::max(0, wave - 1)));
+    }
+
+    float ArenaWorld::enemyDamageScale(int wave) const
+    {
+        const DifficultyDef& d = difficulty();
+        return d.damage * (1.0f + d.damageGrowth * static_cast<float>(std::max(0, wave - 1)));
+    }
+
+    float ArenaWorld::teamHorde() const
+    {
+        float sum = 0.0f;
+        for (const auto& f : fighters)
+            if (f.team == Team::Player)
+                sum += f.boon.horde;
+        return sum;
+    }
+
+    float ArenaWorld::teamShardChance() const
+    {
+        float sum = 0.0f;
+        for (const auto& f : fighters)
+            if (f.team == Team::Player)
+                sum += f.boon.shardChance;
+        return sum;
+    }
+
     // ---- Starting, stopping ---------------------------------------------------------------------
 
     void ArenaWorld::startRun(uint32_t seed)
     {
         const RunDef& def = content->run;
+        const int level = std::clamp(run.difficulty, 0, def.levels() - 1);
         run = RunState{};
         run.seed = seed ? seed : 1u;
-        run.waves = def.waves;
+        run.difficulty = level;
+        run.waves = def.wavesAt(level);
 
         // A fresh arena (the run's own), nobody in it but the players, as new, with what a run starts with
         useRunArena = true;
@@ -409,6 +444,7 @@ namespace arena
             }
 
             f.shards = f.xp = f.levelUps = f.rerolls = 0;
+            f.xpCarry = 0.0f;
             f.level = 1;
             f.shop.clear();
             f.levelOffer.clear();
@@ -469,7 +505,9 @@ namespace arena
 
     void ArenaWorld::stopRun()
     {
+        const int level = run.difficulty;
         run = RunState{};
+        run.difficulty = level;
         pickups.clear();
 
         for (auto& f : fighters)
@@ -572,7 +610,7 @@ namespace arena
     {
         const RunDef& def = content->run;
 
-        if (wave < 1 or wave > def.waves)
+        if (wave < 1 or wave > run.waves)
             return;
 
         run.wave = wave;
@@ -798,7 +836,12 @@ namespace arena
     void ArenaWorld::collect(Fighter& f, int value)
     {
         f.shards += value;
-        f.xp += value;
+
+        // More XP per shard comes in parts: what is short of a whole one waits for the next shard
+        f.xpCarry += static_cast<float>(value) * (1.0f + std::max(0.0f, f.boon.xpGain));
+        const int whole = static_cast<int>(f.xpCarry + 1e-4f);
+        f.xpCarry = std::max(0.0f, f.xpCarry - static_cast<float>(whole));
+        f.xp += whole;
 
         while (f.xp >= xpFor(f.level))
         {
@@ -1344,8 +1387,8 @@ namespace arena
                         if (s.boss)
                             run.bossId = id;
 
-                        // Tougher as the run goes on
-                        e->maxHealth *= 1.0f + def.healthGrowth * static_cast<float>(run.wave - 1);
+                        // Tougher as the run goes on, and at the harder levels
+                        e->maxHealth *= enemyHealthScale(run.wave);
                         e->health = e->maxHealth;
 
                         // An elite: tougher, harder hitting (applyHit), worth more
@@ -1367,9 +1410,11 @@ namespace arena
                 for (const auto& f : fighters)
                     run.enemiesLeft += f.team == Team::Enemy and f.alive() and not f.gone ? 1 : 0;
 
-                // More of them all the while, faster as the run goes on and with more players; half as many with a boss
+                // More of them all the while, faster as the run goes on, with more players, at the harder levels
+                // and with the players' horde items; half as many with a boss. The run ramps up over all its
+                // written waves: a shorter level stops partway up
                 const float t = def.waves > 1 ? static_cast<float>(run.wave - 1) / static_cast<float>(def.waves - 1) : 0.0f;
-                const float coop = def.spawnScale * (1.0f + def.coopScale * static_cast<float>(std::max(0, players - 1)));
+                const float coop = def.spawnScale * (1.0f + def.coopScale * static_cast<float>(std::max(0, players - 1))) * difficulty().spawn * (1.0f + teamHorde());
                 const float rate = (def.spawnRate.x + (def.spawnRate.y - def.spawnRate.x) * t) * coop * (run.bossWave ? 0.5f : 1.0f);
                 const int most = static_cast<int>(std::lround((static_cast<float>(def.maxAlive.x) + static_cast<float>(def.maxAlive.y - def.maxAlive.x) * t) * coop));
 
@@ -1407,7 +1452,7 @@ namespace arena
                             break;
                     }
 
-                    const bool elite = static_cast<float>(run.wave) >= def.eliteFrom and static_cast<float>(runRandom() % 1000) / 1000.0f < def.eliteChance;
+                    const bool elite = static_cast<float>(run.wave) >= def.eliteFrom and static_cast<float>(runRandom() % 1000) / 1000.0f < def.eliteChance + difficulty().eliteChance;
                     run.pending.push_back({enemy, edgePoint(6.0f), def.warn, false, elite});
                     event(elite ? "elite_warn" : "spawn_warn", run.pending.back().position, def.warn);
                 }
