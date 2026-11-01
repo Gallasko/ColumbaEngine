@@ -1773,6 +1773,12 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_compile_definitions(VoxelArenaServer PRIVATE VOXELARENA_UPNP)
         target_compile_definitions(VoxelArenaServer PRIVATE VOXELARENA_MODS_DIR="${CMAKE_SOURCE_DIR}/examples/VoxelArena/mods")
 
+        # Publisher and version, for Properties > Details and for antivirus reputation checks
+        if(WIN32)
+            target_sources(VoxelArena PRIVATE examples/VoxelArena/version_game.rc)
+            target_sources(VoxelArenaServer PRIVATE examples/VoxelArena/version_server.rc)
+        endif()
+
         add_executable(test_voxelarena test/voxelarena/maintest.cc)
         target_include_directories(test_voxelarena PUBLIC examples/VoxelArena examples/VoxelArena/Core examples/VoxelTest)
         target_sources(test_voxelarena PRIVATE

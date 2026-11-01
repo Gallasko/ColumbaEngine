@@ -1,0 +1,3 @@
+#define VA_DESCRIPTION "Voxel Arena"
+#define VA_FILE "VoxelArena.exe"
+#include "version.rc.inc"
