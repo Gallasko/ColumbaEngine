@@ -261,6 +261,8 @@ namespace arena
         std::string keyLabel(int scancode, int mouseButton) const;
         void drawArmory();
         bool armoryBack = false;             // the first spell's step, back to the weapons
+        int armoryHover = -1;                // the weapon card under the mouse, and since when (its tooltip)
+        std::chrono::steady_clock::time_point armoryHoverSince;
         bool armoryChoosingSpell() const;
         bool uiTakesClicks() const;         // a screen is up that the mouse clicks on
         void handleUiClicks();

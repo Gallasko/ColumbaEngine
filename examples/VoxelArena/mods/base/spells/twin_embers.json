@@ -3,11 +3,11 @@
 // adds to the recipe (keywords, as in keywords.json).
 {
     "name": "Twin embers",
-    "text": "Two bolts, each leaving a long-lasting burning patch.",
+    "text": "Shoots two fire bolts. The ground where each lands burns for a while.",
     "recipe": ["fire", "bolt", "multiply", "zone", "extend"],
     "levels": [["enlarge"], ["empower"], ["extend"]],
     "branches": [
-        { "name": "Wildfire", "text": "The burning patches burst as they end.", "keywords": ["nova"] },
-        { "name": "Embers", "text": "One more bolt each cast.", "boost": { "count": 1 } }
+        { "name": "Wildfire", "text": "The burning ground explodes when it ends.", "keywords": ["nova"] },
+        { "name": "Embers", "text": "Shoots one more bolt.", "boost": { "count": 1 } }
     ]
 }

@@ -3092,7 +3092,10 @@ namespace arena
             ArmoryView::Weapon card;
             card.name = w.name;
             card.role = w.role;
-            card.text = w.text + (w.regen > 0.0f ? " Mends " + std::to_string(w.regen).substr(0, 3) + " health a second while in hand." : "");
+            card.text = w.text;
+            card.regen = w.regen;
+            card.light = w.lightText;
+            card.heavy = w.heavyText;
             card.icon = offerIcon(content, id);
             card.chosen = me and me->armed and me->weapon == id;
 
@@ -3115,15 +3118,23 @@ namespace arena
             ArmoryView::Spell card;
             card.name = sp.name;
             card.element = sp.recipe.element;
-            std::string what = describe(content, compileSpell(content, sp.recipe));
-            if (not what.empty())
-                what[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(what[0])));
-            card.text = (sp.text.empty() ? "" : sp.text + " ") + what + ".";
+            card.text = (sp.text.empty() ? "" : sp.text + " ") + describe(content, compileSpell(content, sp.recipe));
             card.chosen = me and not me->runSpells.empty() and me->runSpells.front().id == id;
             v.spells.push_back(card);
         }
 
-        screens::drawArmory(ui, v);
+        // The hovered card's attacks: after a second, fading in (as the shop's tooltips)
+        const auto now = std::chrono::steady_clock::now();
+        const float hoveredFor = std::chrono::duration<float>(now - armoryHoverSince).count();
+        v.tipCard = armoryHover;
+        v.tipAlpha = armoryHover >= 0 ? std::clamp((hoveredFor - 1.0f) / 0.2f, 0.0f, 1.0f) : 0.0f;
+
+        const int hovered = screens::drawArmory(ui, v);
+        if (hovered != armoryHover)
+        {
+            armoryHover = hovered;
+            armoryHoverSince = now;
+        }
     }
 
     bool ArenaGame::armoryChoosingSpell() const

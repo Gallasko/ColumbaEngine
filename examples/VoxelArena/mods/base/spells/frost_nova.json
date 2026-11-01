@@ -3,11 +3,11 @@
 // adds to the recipe (keywords, as in keywords.json).
 {
     "name": "Frost nova",
-    "text": "A burst of cold all around you.",
+    "text": "An icy explosion around you that slows enemies.",
     "recipe": ["ice", "nova", "enlarge"],
     "levels": [["empower"], ["enlarge"], ["multiply"]],
     "branches": [
-        { "name": "Permafrost", "text": "Leaves a field of cold where it burst.", "keywords": ["zone"] },
-        { "name": "Shatter", "text": "Much harder, and wider.", "boost": { "damage": 0.4, "area": 0.2 } }
+        { "name": "Permafrost", "text": "Leaves an icy area behind.", "keywords": ["zone"] },
+        { "name": "Shatter", "text": "More damage and a bigger explosion.", "boost": { "damage": 0.4, "area": 0.2 } }
     ]
 }

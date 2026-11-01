@@ -2,6 +2,7 @@
 // thrown back, allies further out (you too) get health back.
 {
     "name": "Radiance",
+    "text": "A burst of light that pushes enemies back and heals your allies.",
     "kind": "attack",
     "weapons": ["staff"],
     "staminaCost": 26,
@@ -18,7 +19,7 @@
     "tags": ["heal", "area"],
     "levels": [{ "damage": 0.15 }, { "cooldown": 0.15 }, { "damage": 0.15, "area": 0.1 }],
     "branches": [
-        { "name": "Solar flare", "text": "The burst sets enemies on fire.", "element": "fire", "status": "burn", "tags": ["fire"] },
-        { "name": "Benediction", "text": "Heals and hurts much more.", "boost": { "damage": 0.5 } }
+        { "name": "Solar flare", "text": "Sets enemies on fire.", "element": "fire", "status": "burn", "tags": ["fire"] },
+        { "name": "Benediction", "text": "Heals and damages much more.", "boost": { "damage": 0.5 } }
     ]
 }

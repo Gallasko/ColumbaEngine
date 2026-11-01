@@ -2,6 +2,7 @@
 // you land.
 {
     "name": "Leap slam",
+    "text": "Leap forward and slam down, hitting everything where you land.",
     "kind": "attack",
     "weapons": ["sword"],
     "staminaCost": 18,
@@ -19,7 +20,7 @@
     "tags": ["melee", "area"],
     "levels": [{ "damage": 0.15 }, { "cooldown": 0.15 }, { "damage": 0.15, "area": 0.1 }],
     "branches": [
-        { "name": "Quake", "text": "A much wider, harder landing.", "boost": { "area": 0.5, "damage": 0.2 } },
-        { "name": "Frost landing", "text": "The landing chills all it hits.", "element": "ice", "status": { "id": "chill", "stacks": 2 }, "tags": ["ice"] }
+        { "name": "Quake", "text": "A bigger, stronger landing.", "boost": { "area": 0.5, "damage": 0.2 } },
+        { "name": "Frost landing", "text": "The landing slows enemies.", "element": "ice", "status": { "id": "chill", "stacks": 2 }, "tags": ["ice"] }
     ]
 }

@@ -3,11 +3,11 @@
 // adds to the recipe (keywords, as in keywords.json).
 {
     "name": "Ice shards",
-    "text": "Four shards in a fan; each one chills.",
+    "text": "Shoots four ice shards in a fan. Each one slows.",
     "recipe": ["ice", "bolt", "multiply", "multiply"],
     "levels": [["chain"], ["empower"], ["multiply"]],
     "branches": [
-        { "name": "Splinter", "text": "Each shard bursts where it lands.", "keywords": ["nova"], "tags": ["area"] },
-        { "name": "Frost lance", "text": "Harder, faster shards.", "boost": { "damage": 0.35, "speed": 0.3 } }
+        { "name": "Splinter", "text": "Each shard explodes where it lands.", "keywords": ["nova"], "tags": ["area"] },
+        { "name": "Frost lance", "text": "More damage and faster shards.", "boost": { "damage": 0.35, "speed": 0.3 } }
     ]
 }

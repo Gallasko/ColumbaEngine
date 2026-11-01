@@ -3,6 +3,7 @@
 // "healZone": radius (m), duration (s), perSecond (health).
 {
     "name": "Sanctuary",
+    "text": "Make a circle on the ground that heals you and your allies.",
     "kind": "attack",
     "weapons": ["staff"],
     "staminaCost": 28,
@@ -18,7 +19,7 @@
     "tags": ["heal", "zone", "area"],
     "levels": [{ "damage": 0.15 }, { "cooldown": 0.15 }, { "damage": 0.15, "area": 0.1 }],
     "branches": [
-        { "name": "Haven", "text": "A wider circle that lasts longer.", "boost": { "area": 0.4, "duration": 0.5 } },
+        { "name": "Haven", "text": "A bigger circle that lasts longer.", "boost": { "area": 0.4, "duration": 0.5 } },
         { "name": "Blessed ground", "text": "Heals much more.", "boost": { "damage": 0.6 } }
     ]
 }

@@ -3,11 +3,11 @@
 // adds to the recipe (keywords, as in keywords.json).
 {
     "name": "Glacier",
-    "text": "A field of cold where you aim, slowing all in it.",
+    "text": "Creates an icy area that slows enemies inside it.",
     "recipe": ["ice", "zone", "enlarge", "extend"],
     "levels": [["empower"], ["enlarge"], ["extend"]],
     "branches": [
-        { "name": "Avalanche", "text": "The field bursts as it ends.", "keywords": ["nova"] },
-        { "name": "Tundra", "text": "A wider field that lasts longer.", "boost": { "area": 0.3, "duration": 0.4 } }
+        { "name": "Avalanche", "text": "The icy area explodes when it ends.", "keywords": ["nova"] },
+        { "name": "Tundra", "text": "A bigger area that lasts longer.", "boost": { "area": 0.3, "duration": 0.4 } }
     ]
 }

@@ -405,6 +405,7 @@ namespace arena
         std::string role;        // "melee", "ranged", "support": the weapon choice shows it
         float regen = 0.0f;      // health a second while it is in hand (a melee weapon's mending)
         std::string text;        // a line on how it plays, for the weapon choice
+        std::string lightText, heavyText;   // what its light and heavy attacks do, a line each
         std::string model;       // model id, "base:sword"
         float modelScale = 0.0625f;
         glm::vec3 grip = glm::vec3(0.0f);    // model-space point held in the hand (in model voxels)
@@ -459,6 +460,7 @@ namespace arena
     {
         std::string id;
         std::string name;
+        std::string text;          // what it does, in a line (the level up's card)
         std::string kind;          // wall, pit, mine; weapon skills: attack
         std::string block;
         float staminaCost = 0.0f;

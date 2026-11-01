@@ -69,6 +69,13 @@ namespace arena
             return rarity >= 0 and rarity < static_cast<int>(r.size()) ? r[static_cast<size_t>(rarity)].power : 1.0f;
         }
 
+        std::string upperFirst(std::string t)
+        {
+            if (not t.empty())
+                t[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(t[0])));
+            return t;
+        }
+
         std::string upper(std::string t)
         {
             for (auto& c : t)
@@ -121,9 +128,9 @@ namespace arena
         if (t.count != 0) parts.push_back("+" + std::to_string(t.count) + (t.count == 1 ? " projectile" : " projectiles"));
         if (t.damage != 0.0f) parts.push_back("+" + pc(t.damage) + " damage");
         if (t.area != 0.0f) parts.push_back("+" + pc(t.area) + " area");
-        if (t.cooldown != 0.0f) parts.push_back("recharges " + pc(t.cooldown) + " faster");
-        if (t.cost != 0.0f) parts.push_back("costs " + pc(t.cost) + " less");
-        if (t.duration != 0.0f) parts.push_back("lasts " + pc(t.duration) + " longer");
+        if (t.cooldown != 0.0f) parts.push_back("-" + pc(t.cooldown) + " cooldown");
+        if (t.cost != 0.0f) parts.push_back("-" + pc(t.cost) + " cost");
+        if (t.duration != 0.0f) parts.push_back("+" + pc(t.duration) + " duration");
         if (t.speed != 0.0f) parts.push_back("+" + pc(t.speed) + " projectile speed");
 
         std::string out;
@@ -157,7 +164,7 @@ namespace arena
             {
                 damage = std::max(damage, st.damage);
                 if (st.form.shape == "nova" or st.form.shape == "zone")
-                    radius = std::max(radius, st.radius);
+                    radius = std::max(radius, st.radius * 2.0f);   // how wide, as the spell's text says
                 if (st.form.shape == "zone")
                     lasts = std::max(lasts, st.duration);
                 if (st.form.shape == "bolt" and count == 0)
@@ -302,11 +309,16 @@ namespace arena
 
         if (u.forTag())
         {
-            const std::string who = u.tag == "spell"       ? "every spell of yours"
-                                    : u.tag == "technique" ? "every technique of yours"
-                                    : u.tag == "attack"    ? "your weapon's light and heavy attacks"
-                                                           : "every spell, technique and weapon attack of yours tagged " + tagLabel(u.tag);
-            return tagLabel(u.tag) + ": " + boostText(u.boost, k) + ". For " + who + ".";
+            static const std::map<std::string, std::string> who = {
+                {"fire", "fire spells and attacks"}, {"ice", "ice spells and attacks"}, {"volt", "lightning spells and attacks"},
+                {"projectile", "everything that shoots"}, {"area", "area spells and techniques"}, {"zone", "spells that leave an area"},
+                {"beam", "beams"}, {"spell", "all your spells"}, {"technique", "all your techniques"}, {"attack", "your weapon attacks"},
+                {"melee", "melee attacks and techniques"}, {"dash", "dash techniques"}, {"heal", "healing"},
+            };
+            auto it = who.find(u.tag);
+            std::string out = boostText(u.boost, k) + " for " + (it != who.end() ? it->second : "everything tagged " + tagLabel(u.tag)) + ".";
+            out[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(out[0])));
+            return out;
         }
         else
         {
@@ -345,21 +357,23 @@ namespace arena
             return {"Spell", sp->second.name, sp->second.text.empty() ? describe(content, compileSpell(content, sp->second.recipe)) : sp->second.text};
 
         if (auto w = content.weapons.find(id); w != content.weapons.end())
-            return {"Weapon", w->second.name, "A " + w->second.type + ", with its own combos and skills. Tab switches weapons."};
+            return {"Weapon", w->second.name, w->second.text.empty() ? "A " + w->second.type + "." : w->second.text};
 
         if (auto a = content.abilities.find(id); a != content.abilities.end())
         {
             std::string with;
             for (const auto& t : a->second.weapons)
                 with += (with.empty() ? "" : " or ") + t;
-            return {"Skill", a->second.name, "A weapon skill" + (with.empty() ? std::string() : ", with a " + with) + ". Stamina and a cooldown, no mana."};
+            if (not a->second.text.empty())
+                return {"Skill", a->second.name, a->second.text};
+            return {"Skill", a->second.name, "A weapon skill" + (with.empty() ? std::string() : " for the " + with) + ". It uses stamina, not mana."};
         }
 
         if (auto k = content.keywords.find(id); k != content.keywords.end())
         {
             if (k->second.form)
-                return {"Spell form", k->second.name, "Spells can take the " + k->second.name + " form (the spellbook)."};
-            return {"Modifier", k->second.name, "Spells can use " + k->second.name + ": it changes the form before it (the spellbook)."};
+                return {"Spell form", k->second.name, "Unlocks the " + k->second.name + " form for your spells."};
+            return {"Modifier", k->second.name, "Unlocks the " + k->second.name + " modifier for your spells."};
         }
 
         if (id.rfind("element:", 0) == 0)
@@ -367,7 +381,7 @@ namespace arena
             Element e = Element::None;
             const std::string name = id.substr(8);
             const std::string shown = elementFromName(name, e) and content.elements.count(e) ? content.elements.at(e).name : name;
-            return {"Element", shown, "Spells of " + shown + " (the spellbook)."};
+            return {"Element", shown, "Unlocks " + shown + " spells."};
         }
 
         return {"", id, ""};
@@ -489,12 +503,12 @@ namespace arena
 
             // The interest the kept shards earned
             if (me.interest > 0)
-                ui.text(x + shardW, 98, "+" + std::to_string(me.interest) + " interest on the " + std::to_string(me.banked) + " kept", Font::Text600, 11, GOOD, Align::Right);
+                ui.text(x + shardW, 98, "+" + std::to_string(me.interest) + " interest (on " + std::to_string(me.banked) + " saved shards)", Font::Text600, 11, GOOD, Align::Right);
         }
 
         // What is sold, by rarity
         {
-            float lx = 66.0f + ui.text(66, 124, "Stat items, and boosts for all your spells and techniques of a tag. Rarer ones do more:", Font::Text500, 13, TEXT_DIM) + 10.0f;
+            float lx = 66.0f + ui.text(66, 124, "Rarer items are stronger:", Font::Text500, 13, TEXT_DIM) + 10.0f;
             for (int k = 0; k < static_cast<int>(content.run.rarities.size()); ++k)
             {
                 const auto itemScope = ui.scope(static_cast<uint64_t>(100 + k));
@@ -786,7 +800,7 @@ namespace arena
             ui.text(x + 14, y + 12, "IF YOU BUY IT", Font::Text700, 11, faded(GOLD), Align::Left, 1.5f);
 
             if (changes.empty())
-                ui.text(x + 14, y + 36, "Nothing of yours changes yet", Font::Text500, 13, faded(MUTED));
+                ui.text(x + 14, y + 36, "No effect on your build yet", Font::Text500, 13, faded(MUTED));
 
             float ly = y + 36.0f;
             for (size_t k = 0; k < changes.size() and k < 14; ++k)
@@ -845,10 +859,7 @@ namespace arena
                 if (isNew)
                 {
                     card.kind = "NEW SPELL";
-                    std::string what = describe(content, *world.spellOf(world.spellAt(next, &after)));
-                    if (not what.empty())
-                        what[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(what[0])));
-                    card.text = (def.text.empty() ? "" : def.text + " ") + what + ".";
+                    card.text = (def.text.empty() ? "" : def.text + " ") + describe(content, *world.spellOf(world.spellAt(next, &after)));
                     return card;
                 }
 
@@ -861,15 +872,12 @@ namespace arena
                 else if (next.level <= def.maxLevel())
                 {
                     card.kind = "SPELL LEVEL " + std::to_string(next.level);
-                    std::string adds;
-                    for (const auto& k : def.levels[static_cast<size_t>(next.level - 2)])
-                        adds += (adds.empty() ? "" : " and ") + (content.keywords.count(k) ? content.keywords.at(k).name : localName(k));
-                    card.text = "Adds " + adds + ".";
+                    card.text = describe(content, *world.spellOf(world.spellAt(next, &after)));
                 }
                 else
                 {
                     card.kind = "MASTERY \xC2\xB7 LEVEL " + std::to_string(next.level);
-                    card.text = "Mastery: " + boostText(content.run.mastery) + ".";
+                    card.text = upperFirst(boostText(content.run.mastery)) + ".";
                 }
             }
             else if (auto a = content.abilities.find(id); a != content.abilities.end())
@@ -896,12 +904,12 @@ namespace arena
                 else if (next.level - 2 < static_cast<int>(def.levels.size()))
                 {
                     card.kind = "TECHNIQUE LEVEL " + std::to_string(next.level);
-                    card.text = boostText(def.levels[static_cast<size_t>(next.level - 2)]) + ".";
+                    card.text = upperFirst(boostText(def.levels[static_cast<size_t>(next.level - 2)])) + ".";
                 }
                 else
                 {
                     card.kind = "MASTERY \xC2\xB7 LEVEL " + std::to_string(next.level);
-                    card.text = "Mastery: " + boostText(content.run.mastery) + ".";
+                    card.text = upperFirst(boostText(content.run.mastery)) + ".";
                 }
             }
 
@@ -978,7 +986,7 @@ namespace arena
             pickCard(ui, levelCard(content, world, me, me.levelOffer[i]), x, y, w, h, static_cast<int>(i), InputFrame::LEVEL + static_cast<int>(i));
         }
 
-        ui.text(640, 640, "1-" + std::to_string(n) + " or click to take one \xC2\xB7 " + (me.presents > 0 ? "your presents" : "the shop") + " comes next", Font::Text500, 12, FAINT,
+        ui.text(640, 640, "Press 1-" + std::to_string(n) + " or click to choose. " + (me.presents > 0 ? "Your presents" : "The shop") + " is next.", Font::Text500, 12, FAINT,
                 Align::Centre);
     }
 
@@ -990,7 +998,7 @@ namespace arena
 
         ui.anchor(Anchor::Centre);
         ui.text(640, 72, "A PRESENT", Font::Display, 64, GOLD, Align::Centre, 2.0f);
-        ui.text(640, 148, std::string("an elite left it \xC2\xB7 one item, free") + (me.presents > 1 ? "  \xC2\xB7  " + std::to_string(me.presents) + " to open" : ""),
+        ui.text(640, 148, std::string("From an elite. Pick one item for free.") + (me.presents > 1 ? "  \xC2\xB7  " + std::to_string(me.presents) + " to open" : ""),
                 Font::Text700, 14, TEXT_DIM, Align::Centre, 1.5f);
 
         const size_t n = me.presentOffer.size();
@@ -1021,6 +1029,6 @@ namespace arena
             pickCard(ui, card, x, y, w, h, static_cast<int>(i), InputFrame::PRESENT + static_cast<int>(i));
         }
 
-        ui.text(640, 640, "1-" + std::to_string(n) + " or click to take one \xC2\xB7 the shop comes next", Font::Text500, 12, FAINT, Align::Centre);
+        ui.text(640, 640, "Press 1-" + std::to_string(n) + " or click to choose. The shop is next.", Font::Text500, 12, FAINT, Align::Centre);
     }
 }

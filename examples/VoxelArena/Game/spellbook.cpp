@@ -252,7 +252,7 @@ namespace arena
             ui.text(hx + 6, 63, "PAUSED", Font::Display, 16, TEXT, Align::Left, 1.0f);
             hx += tw + 14.0f;
         }
-        ui.text(hx, 66, "Pick a key, then an element, forms and modifiers. A modifier changes the form before it.", Font::Text500, 12, MUTED);
+        ui.text(hx, 66, "Pick a key and an element, then add forms and modifiers. A modifier changes the form right before it.", Font::Text500, 12, MUTED);
 
         {
             const float cw = 22.0f + 8.0f + ui.measure("Close", Font::Text600, 13) + 20.0f;
@@ -732,7 +732,7 @@ namespace arena
             const int i = action - ERASE;
             if (i >= 0 and i < static_cast<int>(book.saved.size()))
             {
-                message = "removed \"" + book.saved[static_cast<size_t>(i)].first + "\" from the book";
+                message = "Removed \"" + book.saved[static_cast<size_t>(i)].first + "\" from the book.";
                 book.saved.erase(book.saved.begin() + i);
             }
             return false;
@@ -809,7 +809,7 @@ namespace arena
 
         if (not compileSpell(content, r).valid())
         {
-            message = "not a spell yet: " + compileSpell(content, r).error;
+            message = "Not a spell yet. " + compileSpell(content, r).error;
             return false;
         }
 
@@ -821,7 +821,7 @@ namespace arena
             if (saved == n)
             {
                 recipe = r;
-                message = "\"" + n + "\" updated in the book";
+                message = "Updated \"" + n + "\" in the book.";
                 name.clear();
                 naming = false;
                 return false;
@@ -829,7 +829,7 @@ namespace arena
         }
 
         book.saved.emplace_back(n, r);
-        message = "\"" + n + "\" saved to the book";
+        message = "Saved \"" + n + "\" to the book.";
         name.clear();
         naming = false;
         return false;

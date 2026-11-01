@@ -2,6 +2,7 @@
 // around you; a little armor while it spins.
 {
     "name": "Whirlwind",
+    "text": "Spin with your blade out, hitting everything around you.",
     "kind": "attack",
     "weapons": ["sword"],
     "staminaCost": 20,
@@ -18,7 +19,7 @@
     "tags": ["melee", "area"],
     "levels": [{ "damage": 0.15 }, { "cooldown": 0.15 }, { "damage": 0.15, "area": 0.1 }],
     "branches": [
-        { "name": "Firestorm", "text": "The blade burns: its hits set enemies on fire.", "element": "fire", "status": "burn", "tags": ["fire"] },
-        { "name": "Cyclone", "text": "A far wider spin.", "boost": { "area": 0.4 } }
+        { "name": "Firestorm", "text": "Your hits set enemies on fire.", "element": "fire", "status": "burn", "tags": ["fire"] },
+        { "name": "Cyclone", "text": "A much bigger spin.", "boost": { "area": 0.4 } }
     ]
 }

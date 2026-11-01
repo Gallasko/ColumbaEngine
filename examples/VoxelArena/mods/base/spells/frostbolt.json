@@ -2,11 +2,11 @@
 // Levels: a wider blast, harder, two blasts. Branches: a cold field left behind, or a far harder blast.
 {
     "name": "Frostbolt",
-    "text": "A bolt that bursts into a chilling blast where it lands.",
+    "text": "Shoots an ice bolt that explodes where it lands and slows enemies.",
     "recipe": ["ice", "bolt", "nova"],
     "levels": [["enlarge"], ["empower"], ["multiply"]],
     "branches": [
-        { "name": "Blizzard", "text": "Each blast leaves a field of cold.", "keywords": ["zone"] },
-        { "name": "Shatter", "text": "A much harder, wider blast.", "boost": { "damage": 0.4, "area": 0.2 } }
+        { "name": "Blizzard", "text": "The explosion leaves an icy area.", "keywords": ["zone"] },
+        { "name": "Shatter", "text": "More damage and a bigger explosion.", "boost": { "damage": 0.4, "area": 0.2 } }
     ]
 }

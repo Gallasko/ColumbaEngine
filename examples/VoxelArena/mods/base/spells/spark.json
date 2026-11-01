@@ -2,11 +2,11 @@
 // Levels: more jumps, harder, two bolts. Branches: a burst at each hit, or one more bolt.
 {
     "name": "Spark",
-    "text": "A bolt of lightning that jumps on to the enemies near the one it hits.",
+    "text": "Shoots a lightning bolt that jumps to nearby enemies.",
     "recipe": ["volt", "bolt", "chain"],
     "levels": [["chain"], ["empower"], ["multiply"]],
     "branches": [
-        { "name": "Storm bolt", "text": "Each hit bursts around it.", "keywords": ["nova"], "tags": ["area"] },
-        { "name": "Fork", "text": "One more bolt each cast.", "boost": { "count": 1 } }
+        { "name": "Storm bolt", "text": "Each hit also explodes.", "keywords": ["nova"], "tags": ["area"] },
+        { "name": "Fork", "text": "Shoots one more bolt.", "boost": { "count": 1 } }
     ]
 }

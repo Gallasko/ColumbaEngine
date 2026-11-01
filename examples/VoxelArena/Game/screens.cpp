@@ -236,7 +236,7 @@ namespace arena::screens
         void drawFirstSpell(Ui& ui, const ArmoryView& v)
         {
             ui.text(66, 84, "CHOOSE YOUR FIRST SPELL", Font::Display, 40, TEXT, Align::Left, 1.0f);
-            ui.text(66, 128, "On key 1 for the whole run: level ups grow it, and bring more.", Font::Text500, 13, TEXT_DIM);
+            ui.text(66, 128, "This spell stays on key 1 for the whole run. Level ups make it stronger.", Font::Text500, 13, TEXT_DIM);
 
             // The weapon taken, to change it
             {
@@ -296,13 +296,14 @@ namespace arena::screens
                 ui.hit(x, y, cw, h, ARMORY_SPELL + static_cast<int>(i));
             }
 
-            ui.text(66, 640, v.picked and v.players > 1 ? "Waiting for the others\xE2\x80\xA6 (you can still change your mind)"
-                                                      : "1-" + std::to_string(n) + " or a click to take one \xC2\xB7 Backspace: back to the weapons", Font::Text500, 12, FAINT);
+            ui.text(66, 640, v.picked and v.players > 1 ? "Waiting for the other players\xE2\x80\xA6 You can still change your choice."
+                                                      : "Press 1-" + std::to_string(n) + " or click to choose. Backspace: back to weapons.", Font::Text500, 12, FAINT);
         }
     }
 
-    void drawArmory(Ui& ui, const ArmoryView& v)
+    int drawArmory(Ui& ui, const ArmoryView& v)
     {
+        int hovered = -1;
         ui.section("armory");
         ui.anchor(Anchor::TopLeft);
         ui.rectPx(0, 0, ui.width(), ui.height(), withAlpha(INK, 0.58f));
@@ -313,11 +314,11 @@ namespace arena::screens
         if (v.choosingSpell)
         {
             drawFirstSpell(ui, v);
-            return;
+            return -1;
         }
 
         ui.text(66, 84, "CHOOSE YOUR WEAPON", Font::Display, 40, TEXT, Align::Left, 1.0f);
-        ui.text(66, 128, "It is yours for the whole run: level ups offer its skills, with your spells.", Font::Text500, 13, TEXT_DIM);
+        ui.text(66, 128, "You keep this weapon for the whole run. Level ups unlock its techniques.", Font::Text500, 13, TEXT_DIM);
 
         if (v.players > 1)
             ui.text(1214, 98, std::to_string(v.ready) + " / " + std::to_string(v.players) + " chose", Font::Display, 26, v.picked ? GOOD : TEXT_DIM, Align::Right);
@@ -332,6 +333,8 @@ namespace arena::screens
             const auto& w = v.weapons[i];
             const float x = 66.0f + static_cast<float>(i) * (cw + gap), y = 160.0f, h = 470.0f;
             const bool over = ui.hover(x, y, cw, h);
+            if (over)
+                hovered = static_cast<int>(i);
 
             Colour role = KIND_WEAPON;
             if (w.role == "ranged") role = KIND_STAT;
@@ -352,18 +355,20 @@ namespace arena::screens
             ui.text(x + 14, cy, ui.fit(w.name, Font::Display, 30, cw - 28), Font::Display, 30, TEXT);
             cy += 40.0f;
 
-            cy += ui.paragraph(x + 14, cy, cw - 28, w.text, Font::Text500, 13, TEXT_DIM, 18.0f, 6) + 12.0f;
-
-            ui.text(x + 14, cy, "ITS SKILLS, BY LEVEL UPS", Font::Text700, 10, MUTED, Align::Left, 1.5f);
-            cy += 18.0f;
-            if (w.skills.empty())
-                ui.text(x + 14, cy, "none", Font::Text600, 12, FAINT);
-            for (size_t k = 0; k < w.skills.size() and k < 4; ++k)
+            cy += ui.paragraph(x + 14, cy, cw - 28, w.text, Font::Text500, 13, TEXT_DIM, 18.0f, 2) + 6.0f;
+            if (w.regen > 0.0f)
             {
-                ui.rect(x + 14, cy + 5, 6, 6, KIND_SKILL);
-                ui.text(x + 26, cy, w.skills[k], Font::Text600, 12, TEXT);
-                cy += 18.0f;
+                ui.text(x + 14, cy, "+" + std::to_string(w.regen).substr(0, 3) + " health per second", Font::Text600, 12, GOOD);
+                cy += 20.0f;
             }
+            cy += 8.0f;
+
+            ui.text(x + 14, cy, "TECHNIQUES (FROM LEVEL UPS)", Font::Text700, 10, MUTED, Align::Left, 1.5f);
+            cy += 16.0f;
+            std::string skills;
+            for (const auto& name : w.skills)
+                skills += (skills.empty() ? "" : ", ") + name;
+            ui.paragraph(x + 14, cy, cw - 28, skills.empty() ? "None" : skills, Font::Text600, 12, skills.empty() ? FAINT : TEXT, 16.0f, 2);
 
             // Take it (or taken)
             const float by = y + h - 14 - 44;
@@ -382,8 +387,35 @@ namespace arena::screens
             ui.hit(x, y, cw, h, ARMORY_PICK + static_cast<int>(i));
         }
 
-        ui.text(66, 640, v.picked and v.players > 1 ? "Waiting for the others to choose\xE2\x80\xA6 (you can still change your mind)"
-                                                  : "1-" + std::to_string(n) + " or a click to take one", Font::Text500, 12, FAINT);
+        ui.text(66, 640, v.picked and v.players > 1 ? "Waiting for the other players\xE2\x80\xA6 You can still change your choice."
+                                                  : "Press 1-" + std::to_string(n) + " or click to choose. Hover a weapon to see its attacks.", Font::Text500, 12, FAINT);
+
+        // The hovered weapon's attacks, on top of the cards (after a moment, fading in)
+        if (v.tipCard >= 0 and v.tipCard < static_cast<int>(v.weapons.size()) and v.tipAlpha > 0.0f)
+        {
+            const auto& w = v.weapons[static_cast<size_t>(v.tipCard)];
+            auto faded = [&](const Colour& c) { return withAlpha(c, v.tipAlpha * c.a / 255.0f); };
+            const auto tipScope = ui.scope(900);
+
+            const float tw = 280.0f;
+            const float x = std::clamp(66.0f + static_cast<float>(v.tipCard) * (cw + gap) + cw * 0.5f - tw * 0.5f, 50.0f, 1230.0f - tw);
+            const float y = 420.0f;   // under the cards' techniques
+            const auto light = ui.wrap(w.light, Font::Text500, 13, tw - 28.0f);
+            const auto heavy = ui.wrap(w.heavy, Font::Text500, 13, tw - 28.0f);
+            const float th = 14.0f + 16.0f + 18.0f * static_cast<float>(light.size()) + 10.0f + 16.0f + 18.0f * static_cast<float>(heavy.size()) + 14.0f;
+
+            ui.rect(x + 3, y + 3, tw, th, faded(INK));
+            ui.box(x, y, tw, th, faded(PANEL), 2.0f, faded(GOLD));
+            float ty = y + 14.0f;
+            ui.text(x + 14, ty, "LIGHT ATTACK", Font::Text700, 10, faded(GOLD), Align::Left, 1.5f);
+            ty += 16.0f;
+            ty += ui.paragraph(x + 14, ty, tw - 28.0f, w.light, Font::Text500, 13, faded(TEXT), 18.0f) + 10.0f;
+            ui.text(x + 14, ty, "HEAVY ATTACK", Font::Text700, 10, faded(GOLD), Align::Left, 1.5f);
+            ty += 16.0f;
+            ui.paragraph(x + 14, ty, tw - 28.0f, w.heavy, Font::Text500, 13, faded(TEXT), 18.0f);
+        }
+
+        return hovered;
     }
 
     void drawJoin(Ui& ui, const JoinView& v)

@@ -3,11 +3,11 @@
 // adds to the recipe (keywords, as in keywords.json).
 {
     "name": "Fireball",
-    "text": "A bolt that bursts where it lands.",
+    "text": "Shoots a fireball that explodes where it lands.",
     "recipe": ["fire", "bolt", "nova"],
     "levels": [["enlarge"], ["empower"], ["multiply"]],
     "branches": [
-        { "name": "Meteor", "text": "Its burst leaves a burning patch.", "keywords": ["zone"] },
-        { "name": "Cluster", "text": "One more fireball each cast.", "boost": { "count": 1 } }
+        { "name": "Meteor", "text": "The explosion leaves burning ground.", "keywords": ["zone"] },
+        { "name": "Cluster", "text": "Shoots one more fireball.", "boost": { "count": 1 } }
     ]
 }

@@ -93,7 +93,8 @@ namespace arena
     {
         struct Weapon
         {
-            std::string name, role, text, icon;
+            std::string name, role, text, icon, light, heavy;
+            float regen = 0.0f;             // health a second while in hand
             std::vector<std::string> skills;
             bool chosen = false;
         };
@@ -110,6 +111,8 @@ namespace arena
         };
         std::vector<Spell> spells;
         bool choosingSpell = false;     // the weapon was taken: its spell now
+        int tipCard = -1;               // the card whose light and heavy attacks show in a tooltip
+        float tipAlpha = 0.0f;          // ... faded in this much
         std::string weapon;             // the weapon taken (to change it)
     };
 
@@ -144,7 +147,8 @@ namespace arena
         constexpr int ARMORY_BACK = 690;   // back to the weapons
         constexpr int CONTROLS_RESET = 698, CONTROLS_BACK = 699, CONTROLS_ROW = 700;   // + the row's index
         void drawControls(Ui& ui, const ControlsView& v);
-        void drawArmory(Ui& ui, const ArmoryView& v);
+        /** Returns the weapon card under the mouse (-1: none), for its tooltip. */
+        int drawArmory(Ui& ui, const ArmoryView& v);
 
         constexpr int JOIN_ADDRESS = 31, JOIN_NAME = 32, JOIN_PASTE = 33, JOIN_GO = 34, JOIN_CLOSE = 35;
 

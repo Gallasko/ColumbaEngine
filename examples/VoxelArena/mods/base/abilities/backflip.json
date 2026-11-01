@@ -2,6 +2,7 @@
 // you up and back; you cannot be hit for most of it.
 {
     "name": "Backflip",
+    "text": "Kick, then flip backwards out of danger.",
     "kind": "attack",
     "weapons": ["dagger"],
     "staminaCost": 9,
@@ -19,7 +20,7 @@
     "tags": ["melee", "dash"],
     "levels": [{ "damage": 0.15 }, { "cooldown": 0.15 }, { "damage": 0.15, "area": 0.1 }],
     "branches": [
-        { "name": "Flip kick", "text": "The kick hits far harder.", "boost": { "damage": 0.6 } },
-        { "name": "Frost flip", "text": "The kick chills.", "element": "ice", "status": { "id": "chill", "stacks": 2 }, "tags": ["ice"] }
+        { "name": "Flip kick", "text": "The kick does much more damage.", "boost": { "damage": 0.6 } },
+        { "name": "Frost flip", "text": "The kick slows enemies.", "element": "ice", "status": { "id": "chill", "stacks": 2 }, "tags": ["ice"] }
     ]
 }

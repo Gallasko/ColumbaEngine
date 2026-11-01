@@ -42,7 +42,7 @@ namespace arena
 
         if (not elementFromName(recipe.element, s.element) or s.element == Element::None or not content.elements.count(s.element))
         {
-            s.error = "a spell starts with an element: fire, ice or volt";
+            s.error = "Start with an element: fire, ice or volt.";
             return s;
         }
 
@@ -53,13 +53,13 @@ namespace arena
 
         if (recipe.keywords.empty())
         {
-            s.error = "add a form: bolt, zone, nova or beam";
+            s.error = "Add a form: Bolt, Zone, Nova or Beam.";
             return s;
         }
 
         if (recipe.keywords.size() > MAX_KEYWORDS)
         {
-            s.error = "at most " + std::to_string(MAX_KEYWORDS) + " keywords";
+            s.error = "At most " + std::to_string(MAX_KEYWORDS) + " keywords.";
             return s;
         }
 
@@ -72,7 +72,7 @@ namespace arena
 
             if (not k)
             {
-                s.error = "no keyword \"" + id + "\"";
+                s.error = "Unknown keyword \"" + id + "\".";
                 return s;
             }
 
@@ -100,7 +100,7 @@ namespace arena
             // A modifier: on the last form before it
             if (s.stages.empty())
             {
-                s.error = k->name + " needs a form before it to change";
+                s.error = k->name + " needs a form before it.";
                 return s;
             }
 
@@ -108,7 +108,7 @@ namespace arena
 
             if (not k->forms.empty() and std::find(k->forms.begin(), k->forms.end(), st.form.shape) == k->forms.end())
             {
-                s.error = k->name + " does not go on a " + st.form.name;
+                s.error = k->name + " can't be used on " + st.form.name + ".";
                 return s;
             }
 
@@ -124,7 +124,7 @@ namespace arena
 
             if (st.count > MAX_COPIES)
             {
-                s.error = "at most " + std::to_string(MAX_COPIES) + " of a " + st.form.name;
+                s.error = "At most " + std::to_string(MAX_COPIES) + " of one form.";
                 return s;
             }
         }
@@ -139,7 +139,7 @@ namespace arena
 
             if (copies > MAX_COPIES * 2)
             {
-                s.error = "too many copies in all (" + std::to_string(copies) + ")";
+                s.error = "Too many copies (" + std::to_string(copies) + ").";
                 return s;
             }
         }
@@ -204,31 +204,32 @@ namespace arena
         if (not spell.valid())
             return spell.error;
 
+        // One plain sentence a part: "Bolt: 12 damage. Area: 6 damage per second for 4 s, 2.2 m wide."
         std::string out;
 
-        for (size_t i = 0; i < spell.stages.size(); ++i)
+        for (const SpellStage& st : spell.stages)
         {
-            const SpellStage& st = spell.stages[i];
             const std::string& shape = st.form.shape;
-            const std::string many = st.count > 1 ? std::to_string(st.count) + " " : "";
-            const std::string s = st.count > 1 ? "s" : "";
-
-            if (i > 0)
-                out += shape == "zone" ? ", leaving " : (shape == "nova" ? ", bursting into " : ", then ");
+            const bool many = st.count > 1;
+            const std::string each = many ? " each" : "";
+            std::string part;
 
             if (shape == "bolt")
-                out += (many.empty() ? "a bolt" : many + "bolts") + " (" + number(st.damage) + " damage)";
+                part = (many ? std::to_string(st.count) + " bolts: " : "Bolt: ") + number(st.damage) + " damage" + each;
             else if (shape == "zone")
-                out += (many.empty() ? "a zone" : many + "zones") + " (" + number(st.radius) + " m, " + number(st.duration) + " s, " + number(st.damage) + "/s)";
+                part = (many ? std::to_string(st.count) + " areas: " : "Area: ") + number(st.damage) + " damage per second for " + number(st.duration) + " s, " +
+                       number(st.radius * 2.0f) + " m wide";
             else if (shape == "nova")
-                out += (many.empty() ? "a nova" : many + "novas") + " (" + number(st.radius) + " m, " + number(st.damage) + " damage)";
+                part = (many ? std::to_string(st.count) + " explosions: " : "Explosion: ") + number(st.damage) + " damage" + each + ", " + number(st.radius * 2.0f) + " m wide";
             else if (shape == "beam")
-                out += (many.empty() ? "a beam" : many + "beams") + " (" + number(st.range, 0) + " m, " + number(st.damage) + " damage)";
+                part = (many ? std::to_string(st.count) + " beams: " : "Beam: ") + number(st.damage) + " damage" + each + ", " + number(st.range, 0) + " m long";
             else
-                out += many + st.form.name + s;
+                part = st.form.name;
 
             if (st.chains > 0)
-                out += " that jumps to " + std::to_string(st.chains) + " more";
+                part += ", jumps to " + std::to_string(st.chains) + (st.chains == 1 ? " more enemy" : " more enemies");
+
+            out += (out.empty() ? "" : " ") + part + ".";
         }
 
         return out;
@@ -240,7 +241,7 @@ namespace arena
 
         if (words.empty())
         {
-            error = "an element first: fire, ice or volt";
+            error = "Start with an element: fire, ice or volt.";
             return false;
         }
 

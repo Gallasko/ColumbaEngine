@@ -30,7 +30,7 @@ namespace arena
 
         const std::map<std::string, std::vector<std::string>> DEF_LOOKS = {
             {"block", {"color", "colorNoise", "visible"}},
-            {"weapon", {"name", "model", "modelScale", "grip", "rest",
+            {"weapon", {"name", "text", "lightText", "heavyText", "model", "modelScale", "grip", "rest",
                         "moveset.attacks.*.swing", "moveset.attacks.*.shake", "moveset.attacks.*.turn", "moveset.attacks.*.tell",
                         "moveset.attacks.*.projectile.model", "moveset.attacks.*.projectile.modelScale", "moveset.attacks.*.projectile.shake"}},
             {"enemy", {"name", "model", "modelScale",
@@ -38,9 +38,9 @@ namespace arena
                        "moveset.attacks.*.projectile.model", "moveset.attacks.*.projectile.modelScale", "moveset.attacks.*.projectile.shake"}},
             {"keyword", {"name", "model", "modelScale"}},
             {"element", {"name"}},
-            {"spell", {"name"}},
+            {"spell", {"name", "text"}},
             {"upgrade", {"name", "text"}},
-            {"ability", {"name", "attack.swing", "attack.shake", "attack.turn"}},
+            {"ability", {"name", "text", "attack.swing", "attack.shake", "attack.turn"}},
         };
 
         void dropPath(Json& j, const std::vector<std::string>& parts, size_t at)
@@ -1745,7 +1745,7 @@ namespace arena
             {
                 const Json& j = raw.data;
 
-                checkKeys(j, {"id", "name", "type", "role", "text", "regen", "model", "modelScale", "grip", "rest", "moveset"}, raw.file, report, "weapon " + id);
+                checkKeys(j, {"id", "name", "type", "role", "text", "lightText", "heavyText", "regen", "model", "modelScale", "grip", "rest", "moveset"}, raw.file, report, "weapon " + id);
 
                 WeaponDef w;
                 w.id = id;
@@ -1755,6 +1755,8 @@ namespace arena
                 readStr(j, "type", w.type, raw.file, report);
                 readStr(j, "role", w.role, raw.file, report);
                 readNum(j, "regen", w.regen, raw.file, report);
+                readStr(j, "lightText", w.lightText, raw.file, report);
+                readStr(j, "heavyText", w.heavyText, raw.file, report);
                 readStr(j, "text", w.text, raw.file, report);
                 readStr(j, "model", w.model, raw.file, report);
                 w.model = w.model.empty() ? "" : resolveId(w.model, raw.mod);
@@ -1902,7 +1904,7 @@ namespace arena
                 const Json& j = raw.data;
 
                 checkKeys(j, {"id", "name", "kind", "block", "staminaCost", "cooldown", "range", "distance", "lifetime", "damage", "rate", "width", "height", "depth",
-                              "weapons", "attack", "tags", "levels", "branches"},
+                              "weapons", "attack", "tags", "levels", "branches", "text"},
                           raw.file, report, "ability " + id);
 
                 AbilityDef a;
@@ -1910,6 +1912,7 @@ namespace arena
                 a.file = raw.file;
                 a.name = splitId(id).second;
                 readStr(j, "name", a.name, raw.file, report);
+                readStr(j, "text", a.text, raw.file, report);
                 readStr(j, "kind", a.kind, raw.file, report);
                 readStr(j, "block", a.block, raw.file, report);
                 readNum(j, "staminaCost", a.staminaCost, raw.file, report);

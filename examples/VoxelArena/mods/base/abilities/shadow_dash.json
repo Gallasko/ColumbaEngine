@@ -3,6 +3,7 @@
 // A weapon skill costs stamina and a cooldown, no mana. "weapons" lists the weapon types it works with.
 {
     "name": "Shadow dash",
+    "text": "Dash forward through enemies, hitting them on the way. Hold to charge it.",
     "kind": "attack",
     "weapons": ["dagger"],
     "staminaCost": 11,
@@ -21,7 +22,7 @@
     "tags": ["melee", "dash"],
     "levels": [{ "damage": 0.15 }, { "cooldown": 0.15 }, { "damage": 0.15, "area": 0.1 }],
     "branches": [
-        { "name": "Shock step", "text": "The dash crackles: its hits shock.", "element": "volt", "status": "shock", "tags": ["volt"] },
-        { "name": "Phantom", "text": "Back much sooner.", "boost": { "cooldown": 0.4 } }
+        { "name": "Shock step", "text": "Your hits stun enemies for a moment.", "element": "volt", "status": "shock", "tags": ["volt"] },
+        { "name": "Phantom", "text": "A much shorter cooldown.", "boost": { "cooldown": 0.4 } }
     ]
 }
