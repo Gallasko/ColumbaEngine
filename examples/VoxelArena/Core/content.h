@@ -574,6 +574,11 @@ namespace arena
     /** The arena run (run.json): timed waves, the enemies, the bosses, the shop between waves. */
     struct RunDef
     {
+        /** How often a rarity comes up in the shop after a wave: its weight, from the first wave's to the last's. */
+        float rarityWeight(int rarity, int wave) const;
+        /** The same as a chance, 0..1, out of all the rarities. */
+        float rarityChance(int rarity, int wave) const;
+
         int waves = 20;
         glm::vec2 duration = glm::vec2(20, 60);   // s a wave lasts, the first to the last
         glm::vec2 spawnRate = glm::vec2(0.6f, 2.4f);   // enemies a second, the first wave to the last

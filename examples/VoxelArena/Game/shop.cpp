@@ -21,7 +21,7 @@ namespace arena
         const Colour BOUGHT_FILL = hex(0x16261C);
         const Colour WAITING = hex(0x3A3E4A);
 
-        constexpr float TIP_DELAY = 1.0f, TIP_FADE = 0.2f;   // s hovering before a card's tooltip shows, s it fades in over
+        constexpr float TIP_DELAY = 0.35f, TIP_FADE = 0.12f;   // s hovering before a card's tooltip shows, s it fades in over
 
         constexpr int CARDS = 4;
         constexpr float CARD_X[CARDS] = {66, 287, 508, 729};
@@ -508,12 +508,13 @@ namespace arena
 
         // What is sold, by rarity
         {
-            float lx = 66.0f + ui.text(66, 124, "Rarer items are stronger:", Font::Text500, 13, TEXT_DIM) + 10.0f;
+            float lx = 66.0f + ui.text(66, 124, "Chance of each rarity:", Font::Text500, 13, TEXT_DIM) + 10.0f;
             for (int k = 0; k < static_cast<int>(content.run.rarities.size()); ++k)
             {
                 const auto itemScope = ui.scope(static_cast<uint64_t>(100 + k));
+                const int chance = static_cast<int>(std::lround(content.run.rarityChance(k, r.wave) * 100.0f));
                 ui.rect(lx, 128, 8, 8, rarityColour(k));
-                lx += 14.0f + ui.text(lx + 14, 124, content.run.rarities[static_cast<size_t>(k)].name + " x" + oneDecimal(content.run.rarities[static_cast<size_t>(k)].power),
+                lx += 14.0f + ui.text(lx + 14, 124, content.run.rarities[static_cast<size_t>(k)].name + " " + std::to_string(chance) + "%",
                                       Font::Text700, 12, rarityColour(k)) + 14.0f;
             }
         }

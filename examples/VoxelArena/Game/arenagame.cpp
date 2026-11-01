@@ -3219,11 +3219,11 @@ namespace arena
             v.spells.push_back(card);
         }
 
-        // The hovered card's attacks: after a second, fading in (as the shop's tooltips)
+        // The hovered card's attacks: after a moment, fading in (as the shop's tooltips)
         const auto now = std::chrono::steady_clock::now();
         const float hoveredFor = std::chrono::duration<float>(now - armoryHoverSince).count();
         v.tipCard = armoryHover;
-        v.tipAlpha = armoryHover >= 0 ? std::clamp((hoveredFor - 1.0f) / 0.2f, 0.0f, 1.0f) : 0.0f;
+        v.tipAlpha = armoryHover >= 0 ? std::clamp((hoveredFor - 0.35f) / 0.12f, 0.0f, 1.0f) : 0.0f;
 
         const int hovered = screens::drawArmory(ui, v);
         if (hovered != armoryHover)

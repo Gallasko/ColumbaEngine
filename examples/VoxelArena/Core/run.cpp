@@ -960,20 +960,20 @@ namespace arena
             std::swap(open[i - 1], open[runRandom() % i]);
 
         // Each item's rarity: rarer ones come up more as the waves go on
-        const float t = def.waves > 1 ? std::clamp(static_cast<float>(run.wave - 1) / static_cast<float>(def.waves - 1), 0.0f, 1.0f) : 0.0f;
+        const int rarities = static_cast<int>(def.rarities.size());
         auto rollRarity = [&]() {
             float total = 0.0f;
-            for (const auto& r : def.rarities)
-                total += std::max(0.0f, r.weight.x + (r.weight.y - r.weight.x) * t);
+            for (int k = 0; k < rarities; ++k)
+                total += def.rarityWeight(k, run.wave);
             if (total <= 0.0f)
                 return 0;
 
             float roll = static_cast<float>(runRandom() % 100000) / 100000.0f * total;
-            for (size_t k = 0; k < def.rarities.size(); ++k)
+            for (int k = 0; k < rarities; ++k)
             {
-                roll -= std::max(0.0f, def.rarities[k].weight.x + (def.rarities[k].weight.y - def.rarities[k].weight.x) * t);
+                roll -= def.rarityWeight(k, run.wave);
                 if (roll < 0.0f)
-                    return static_cast<int>(k);
+                    return k;
             }
             return 0;
         };

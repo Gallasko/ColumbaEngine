@@ -174,6 +174,26 @@ namespace arena
         return nullptr;
     }
 
+    float RunDef::rarityWeight(int rarity, int wave) const
+    {
+        if (rarity < 0 or rarity >= static_cast<int>(rarities.size()))
+            return 0.0f;
+
+        // Rarer ones come up more as the waves go on
+        const float t = waves > 1 ? std::clamp(static_cast<float>(wave - 1) / static_cast<float>(waves - 1), 0.0f, 1.0f) : 0.0f;
+        const glm::vec2 w = rarities[static_cast<size_t>(rarity)].weight;
+        return std::max(0.0f, w.x + (w.y - w.x) * t);
+    }
+
+    float RunDef::rarityChance(int rarity, int wave) const
+    {
+        float total = 0.0f;
+        for (int k = 0; k < static_cast<int>(rarities.size()); ++k)
+            total += rarityWeight(k, wave);
+
+        return total > 0.0f ? rarityWeight(rarity, wave) / total : 0.0f;
+    }
+
     std::string Content::runArenaId(int wave, bool duel) const
     {
         if (duel and not run.duel.arena.empty() and arenas.count(run.duel.arena))
