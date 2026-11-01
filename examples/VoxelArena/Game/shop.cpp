@@ -120,18 +120,27 @@ namespace arena
         return t;
     }
 
-    std::string boostText(const SpellTweak& t, float k)
+    std::string boostText(const SpellTweak& t, float k, const std::string& tag)
     {
         std::vector<std::string> parts;
         auto pc = [&](float v) { return std::to_string(static_cast<int>(std::lround(v * k * 100.0f))) + "%"; };
 
+        // A tag item names what it boosts: "+20% fire damage", "-15% spell cooldown"
+        static const std::map<std::string, std::string> nouns = {
+            {"attack", "weapon attack"}, {"heal", "healing"}, {"projectile", "projectile"},
+        };
+        std::string noun = tag;
+        if (auto it = nouns.find(tag); it != nouns.end())
+            noun = it->second;
+        const std::string of = noun.empty() ? "" : noun + " ";
+
         if (t.count != 0) parts.push_back("+" + std::to_string(t.count) + (t.count == 1 ? " projectile" : " projectiles"));
-        if (t.damage != 0.0f) parts.push_back("+" + pc(t.damage) + " damage");
-        if (t.area != 0.0f) parts.push_back("+" + pc(t.area) + " area");
-        if (t.cooldown != 0.0f) parts.push_back("-" + pc(t.cooldown) + " cooldown");
-        if (t.cost != 0.0f) parts.push_back("-" + pc(t.cost) + " cost");
-        if (t.duration != 0.0f) parts.push_back("+" + pc(t.duration) + " duration");
-        if (t.speed != 0.0f) parts.push_back("+" + pc(t.speed) + " projectile speed");
+        if (t.damage != 0.0f) parts.push_back("+" + pc(t.damage) + (tag == "heal" ? " healing" : " " + of + "damage"));
+        if (t.area != 0.0f) parts.push_back("+" + pc(t.area) + (tag == "area" ? " area size" : " " + of + "area size"));
+        if (t.cooldown != 0.0f) parts.push_back("-" + pc(t.cooldown) + " " + of + "cooldown");
+        if (t.cost != 0.0f) parts.push_back("-" + pc(t.cost) + " " + of + (tag == "spell" ? "mana cost" : tag == "technique" ? "stamina cost" : "cost"));
+        if (t.duration != 0.0f) parts.push_back("+" + pc(t.duration) + " " + of + "duration");
+        if (t.speed != 0.0f) parts.push_back("+" + pc(t.speed) + (tag == "projectile" ? " projectile speed" : " " + of + "projectile speed"));
 
         std::string out;
         for (const auto& part : parts)
@@ -308,19 +317,19 @@ namespace arena
         auto pc = [&](float v) { return std::to_string(static_cast<int>(std::lround(v * k * 100.0f))) + "%"; };
         auto num = [&](float v) { return oneDecimal(v * k); };
 
-        // A tag item: just what it does ("-15% cooldown"); what it reaches is on the card's kind row
+        // A tag item: what it does, and to what ("-15% spell cooldown")
         if (u.forTag())
-            return boostText(u.boost, k);
+            return boostText(u.boost, k, u.tag);
         else
         {
             if (u.maxHealth != 0.0f) parts.push_back("+" + std::to_string(static_cast<int>(std::lround(u.maxHealth * k))) + " max health");
-            if (u.damage != 0.0f) parts.push_back("+" + pc(u.damage) + " damage");
+            if (u.damage != 0.0f) parts.push_back("+" + pc(u.damage) + " damage on all attacks and spells");
             if (u.dashCharges != 0) parts.push_back("+" + std::to_string(u.dashCharges) + (u.dashCharges == 1 ? " dash charge" : " dash charges"));
             if (u.manaCost != 0.0f) parts.push_back("Spells cost " + pc(u.manaCost) + " less");
             if (u.manaRegen != 0.0f) parts.push_back("+" + pc(u.manaRegen) + " mana regeneration");
             if (u.staminaRegen != 0.0f) parts.push_back("+" + pc(u.staminaRegen) + " stamina regeneration");
             if (u.speed != 0.0f) parts.push_back("+" + pc(u.speed) + " move speed");
-            if (u.cooldown != 0.0f) parts.push_back("Skills and spells recharge " + pc(u.cooldown) + " faster");
+            if (u.cooldown != 0.0f) parts.push_back("-" + pc(u.cooldown) + " cooldown on all skills and spells");
             if (u.lifeOnHit != 0.0f) parts.push_back("Heal " + num(u.lifeOnHit) + " on every hit");
             if (u.statusStacks != 0) parts.push_back("Your statuses land " + std::to_string(u.statusStacks) + (u.statusStacks == 1 ? " stack deeper" : " stacks deeper"));
             if (u.armor != 0.0f) parts.push_back("Take " + pc(u.armor) + " less damage");

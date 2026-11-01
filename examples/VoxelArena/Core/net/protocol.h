@@ -11,7 +11,7 @@
 namespace arena::net
 {
     /** Bumped when messages change shape: a client and server of different versions refuse each other. */
-    constexpr uint16_t PROTOCOL_VERSION = 20;
+    constexpr uint16_t PROTOCOL_VERSION = 21;
 
     /** The server sends a snapshot every this many steps (60 / 2 = 30 per second). */
     constexpr int SNAPSHOT_EVERY = 2;
@@ -139,6 +139,11 @@ namespace arena::net
         std::vector<WorldEvent> events;
         RunState run;                  // the arena run, as it stands (without what only the server needs)
         std::vector<Pickup> pickups;   // the shards lying about or flying to a player
+
+        // Every player's items and run stats come now and then (they change little); the client's own
+        // always. A client keeps the last ones it got of each player
+        bool extras = false;
+        std::vector<int> withExtras;   // decoded: the fighters whose items and stats came in this one
     };
 
     struct TerrainDeltaMsg
@@ -228,6 +233,8 @@ namespace arena::net
     bool decode(const std::vector<uint8_t>& data, PieceSpawnMsg& m);
 
     /** A fighter in a message: full (everything prediction needs) or for display only. */
-    void writeFighter(Writer& w, const Fighter& f, bool full, const Names& names);
-    void readFighter(Reader& r, Fighter& f, const Names& names);
+    /** full: all the client's prediction reads (its own player). extras: a player's items and run stats (always with full). */
+    void writeFighter(Writer& w, const Fighter& f, bool full, const Names& names, bool extras = false);
+    /** Returns whether the player's items and run stats came with it. */
+    bool readFighter(Reader& r, Fighter& f, const Names& names);
 }

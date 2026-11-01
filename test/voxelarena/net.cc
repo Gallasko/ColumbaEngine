@@ -177,6 +177,33 @@ TEST(arena_net, messages_read_back_what_was_written)
     EXPECT_NEAR(inBack.inputs[0].input.aimDir.y, si.input.aimDir.y, 1e-3f);
     EXPECT_EQ(inBack.inputs[0].input.stamp, 1000);
 
+    // A player's items and run stats: its own always, the others' only in a snapshot with the extras
+    {
+        SnapshotMsg withItems = snap;
+        withItems.fighters[1].boons = {{"base:greed", 2}, {"base:tough", 0}};
+        withItems.fighters[1].stats.kills = 31;
+        withItems.fighters[1].stats.damage = 1234.4f;
+        withItems.fighters[1].stats.presents = 2;
+        withItems.fighters[1].level = 9;
+
+        SnapshotMsg plain;
+        ASSERT_TRUE(decode(encode(withItems, names), plain, names));
+        EXPECT_EQ(plain.withExtras, std::vector<int>({7}));
+        EXPECT_TRUE(plain.fighters[1].boons.empty());
+
+        withItems.extras = true;
+        SnapshotMsg full;
+        ASSERT_TRUE(decode(encode(withItems, names), full, names));
+        EXPECT_EQ(full.withExtras, std::vector<int>({7, 8}));
+        ASSERT_EQ(full.fighters[1].boons.size(), 2u);
+        EXPECT_EQ(full.fighters[1].boons[0].id, "base:greed");
+        EXPECT_EQ(full.fighters[1].boons[0].rarity, 2);
+        EXPECT_EQ(full.fighters[1].stats.kills, 31);
+        EXPECT_FLOAT_EQ(full.fighters[1].stats.damage, 1234.0f);
+        EXPECT_EQ(full.fighters[1].stats.presents, 2);
+        EXPECT_EQ(full.fighters[1].level, 9);
+    }
+
     // A truncated message is refused, not half read
     auto bytes = encode(snap, names);
     bytes.resize(bytes.size() / 2);
@@ -975,7 +1002,20 @@ TEST(arena_net, a_dedicated_server_starts_the_run_when_everyone_is_ready)
 
     b.client->setReady(true);
     s.run(20);
+    EXPECT_EQ(s.serverWorld.run.phase, RunPhase::Difficulty);
+
+    // The first one in picks the difficulty (a dedicated server has no host): every level is open
+    EXPECT_EQ(s.serverWorld.run.chooser, a.client->playerId);
+    b.input.pick = InputFrame::DIFFICULTY + 1;
+    s.run(10);
+    EXPECT_EQ(s.serverWorld.run.phase, RunPhase::Difficulty);
+    b.input.pick = 0;
+    a.input.pick = InputFrame::DIFFICULTY + 1;
+    s.run(10);
+    a.input.pick = 0;
     EXPECT_EQ(s.serverWorld.run.phase, RunPhase::Fighting);
+    EXPECT_EQ(s.serverWorld.run.difficulty, 1);
+    EXPECT_EQ(a.world.run.difficulty, 1);
 
     // Not ready any more, for the next time in the lobby
     s.run(10);
@@ -991,7 +1031,7 @@ TEST(arena_net, a_ready_set_while_joining_is_sent_once_in)
     s.run(30);
 
     ASSERT_EQ(s.server->lobby().players.size(), 1u);
-    EXPECT_EQ(s.serverWorld.run.phase, RunPhase::Fighting);   // alone and ready: it began
+    EXPECT_EQ(s.serverWorld.run.phase, RunPhase::Difficulty);   // alone and ready: it began, with the difficulty to choose
 }
 
 TEST(arena_net, a_listen_servers_lobby_has_its_host_first)

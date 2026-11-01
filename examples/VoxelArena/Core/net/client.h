@@ -130,6 +130,15 @@ namespace arena::net
         };
         std::map<int, StepSmoothing> steps;
 
+        // The other players' items and run stats, as they last came (not in every snapshot)
+        struct Extras
+        {
+            std::vector<Fighter::Boon> boons;
+            Fighter::RunStats stats;
+            int level = 1;
+        };
+        std::map<int, Extras> extras;
+
         std::vector<SpellRecipe> spells;
     };
 }

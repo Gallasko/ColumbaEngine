@@ -265,8 +265,12 @@ namespace arena::net
             held.pop_front();
 
         for (const auto& f : m.fighters)
+        {
             if (f.id == playerId)
                 reconcile(f, m.ackSeq);
+            else if (std::find(m.withExtras.begin(), m.withExtras.end(), f.id) != m.withExtras.end())
+                extras[f.id] = {f.boons, f.stats, f.level};
+        }
 
         snapshots.push_back(std::move(m));
 
@@ -435,6 +439,14 @@ namespace arena::net
             displayFrame[fa.id] = frame;
             f.flash = flashAt(f.id, renderTick);
 
+            // A player's items and stats, as they last came
+            if (auto x = extras.find(f.id); x != extras.end())
+            {
+                f.boons = x->second.boons;
+                f.stats = x->second.stats;
+                f.level = x->second.level;
+            }
+
             // Stepping up a block: the height jumps, drawn as an ease instead (like the server's own
             // step smoothing, which only looks and is not sent). A jump is in the air: not a step
             {
@@ -461,6 +473,12 @@ namespace arena::net
         // Forget the looks of who is gone, and flashes long over
         for (auto it = steps.begin(); it != steps.end();)
             it = world.find(it->first) ? std::next(it) : steps.erase(it);
+        for (auto it = extras.begin(); it != extras.end();)
+        {
+            const auto& latest = snapshots.back().fighters;
+            const bool there = std::any_of(latest.begin(), latest.end(), [&](const Fighter& f) { return f.id == it->first; });
+            it = there ? std::next(it) : extras.erase(it);
+        }
 
         for (auto it = flashUntil.begin(); it != flashUntil.end();)
             it = it->second < renderTick - 1.0 and it->first != playerId ? flashUntil.erase(it) : std::next(it);

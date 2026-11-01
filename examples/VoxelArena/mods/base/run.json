@@ -27,6 +27,8 @@
 // levelChoices: picks offered for a level up.
 // spawnScale: the spawn rate and the most at once times this; coopScale: half again for each player
 // past the first (0.5).
+// shardFalloff: the players' greed items add up with diminishing returns: a total t of extra shard chance
+// counts as t / (1 + shardFalloff x t) (0.5: +20% stays about +18%, +100% gives +67%, +300% gives +120%).
 // Score: each enemy's "score" for the kill (twice for an elite), waveScore times the wave's number
 // for getting through it, victoryScore for the last one.
 // arenas: the arena of each stretch of waves (arenas/*.json: see arenas/pit.json), each from its
@@ -53,6 +55,7 @@
     "spawnScale": 0.75,
     "coopScale": 0.5,
     "pickupRange": 3.5,
+    "shardFalloff": 0.5,
     "resetEachWave": true,
     "chooseWeapon": true,
     "duel": { "enabled": true, "duration": 120, "countdown": 3, "radius": 9, "arena": "crucible" },

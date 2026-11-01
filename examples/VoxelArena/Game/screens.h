@@ -10,14 +10,8 @@ namespace arena
     /** The title screen (UI_SPEC.md section 8): the game's name, what to play, the best score. */
     struct TitleView
     {
-        std::string arenaLine;          // "10 timed waves, a shop between them, a boss at the end"
+        std::string arenaLine;          // "Timed waves, a shop between them, bosses"
         int best = 0;
-
-        // The difficulty picked (when there is more than one level), what it does, the ones around it
-        int levels = 1;
-        std::string level, levelText;
-        bool easier = false, harder = false;
-        std::string locked;             // the next level is not open yet: how to open it
         bool waitingForHost = false;    // a client: only the host starts the run
         int players = 1, maxPlayers = 8;
         float time = 0.0f;
@@ -37,6 +31,15 @@ namespace arena
         std::string boss = "the Stone Warden";
         std::string champion;           // the final duel's winner ("" when there was none)
         bool youChampion = false;
+
+        // Two players or more: what each one did in the run, a row each
+        struct Recap
+        {
+            std::string name;
+            bool you = false, champion = false;
+            int level = 1, kills = 0, damage = 0, healing = 0, shards = 0, xp = 0, presents = 0, items = 0, downs = 0;
+        };
+        std::vector<Recap> recap;
     };
 
     /** The lobby (multiplayer's title): who is in, ready or not, how friends join, start or ready. */
@@ -68,10 +71,6 @@ namespace arena
         std::string routerError;
 
         std::vector<std::string> log;   // the latest joins, leaves and refusals
-        int waves = 20;
-        std::string level;              // the run's difficulty level (the host picks it)
-        int levels = 1;
-        bool easier = false, harder = false;   // this game picks it, and can go that way
         float time = 0.0f;
         bool quitArmed = false;
     };
@@ -127,6 +126,23 @@ namespace arena
         std::string weapon;             // the weapon taken (to change it)
     };
 
+    /** Choosing the difficulty as a run starts: a card per level, one player picks (the host's). */
+    struct DifficultyView
+    {
+        struct Level
+        {
+            std::string name, waves;        // "Hard", "13 waves, a boss midway"
+            std::vector<std::string> lines; // what it changes: "Enemies have 15% more health"
+            std::string locked;             // not open yet: how to open it ("Win Normal to open")
+        };
+
+        std::vector<Level> levels;
+        int cursor = 0;                     // the card the arrow keys are on
+        bool choosing = true;               // this player picks; else chooserName does
+        std::string chooserName;
+        bool canBack = true;                // a Back to the title (the lobby)
+    };
+
     /** The controls (from the options): an action a row, its key, click it then press the new one. */
     struct ControlsView
     {
@@ -146,7 +162,6 @@ namespace arena
         // Click actions
         constexpr int TITLE_ARENA = 1, TITLE_TRAINING = 2, TITLE_SPELLBOOK = 3, TITLE_OPTIONS = 4;
         constexpr int END_AGAIN = 11, END_TRAINING = 12;
-        constexpr int TITLE_EASIER = 13, TITLE_HARDER = 14;   // the difficulty level (the title, the host's lobby)
         constexpr int LOBBY_READY = 5;   // the host's start is TITLE_ARENA
         constexpr int TITLE_MULTIPLAYER = 10;
         constexpr int TITLE_INVITE = 6, TITLE_JOIN = 7, LOBBY_LEAVE = 8, TITLE_QUIT = 9;
@@ -158,6 +173,8 @@ namespace arena
         constexpr int ARMORY_SPELL = 650;  // + the first spell's index
         constexpr int ARMORY_BACK = 690;   // back to the weapons
         constexpr int CONTROLS_RESET = 698, CONTROLS_BACK = 699, CONTROLS_ROW = 700;   // + the row's index
+        constexpr int DIFFICULTY_BACK = 799, DIFFICULTY_PICK = 800;   // + the level
+        void drawDifficulty(Ui& ui, const DifficultyView& v);
         void drawControls(Ui& ui, const ControlsView& v);
         /** Returns the weapon card under the mouse (-1: none), for its tooltip. */
         int drawArmory(Ui& ui, const ArmoryView& v);

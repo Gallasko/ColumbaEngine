@@ -1574,6 +1574,93 @@ TEST(arena_run, a_harder_level_is_shorter_or_longer_and_its_enemies_tougher)
     EXPECT_EQ(r.world.run.difficulty, 1);
 }
 
+TEST(arena_run, the_host_chooses_the_difficulty_among_the_open_levels_before_the_run)
+{
+    RunArena r;
+    r.content.run.difficulties = {DifficultyDef{}, DifficultyDef{"Hard", 13}, DifficultyDef{"Nightmare", 20}};
+    const int guest = r.world.addPlayer(1);
+
+    r.world.run.difficulty = 0;
+    r.world.run.levelsOpen = 2;   // Nightmare is not open yet
+    r.world.chooseDifficulty(5);
+    EXPECT_EQ(r.world.run.phase, RunPhase::Difficulty);
+    EXPECT_EQ(r.world.run.chooser, r.player().id);   // the host's player, not the guest
+
+    // Only the chooser's pick counts, and only an open level
+    std::map<int, InputFrame> in;
+    in[guest].pick = InputFrame::DIFFICULTY + 1;
+    r.world.step(in);
+    EXPECT_EQ(r.world.run.phase, RunPhase::Difficulty);
+
+    r.pick(InputFrame::DIFFICULTY + 2);
+    EXPECT_EQ(r.world.run.phase, RunPhase::Difficulty);
+
+    // Back: no run
+    r.pick(InputFrame::BACK);
+    EXPECT_EQ(r.world.run.phase, RunPhase::Off);
+    EXPECT_EQ(r.world.run.levelsOpen, 2);
+
+    // Hard: the run begins at it
+    r.world.chooseDifficulty(6);
+    r.pick(InputFrame::DIFFICULTY + 1);
+    EXPECT_EQ(r.world.run.phase, RunPhase::Fighting);
+    EXPECT_EQ(r.world.run.difficulty, 1);
+    EXPECT_EQ(r.world.run.waves, 13);
+
+    // Play again at the end: the choice again
+    r.world.skipToWave(13);
+    r.timeUp();
+    ASSERT_TRUE(r.world.run.phase == RunPhase::Victory or r.world.run.phase == RunPhase::Duel);
+    r.world.run.phase = RunPhase::Victory;
+    r.pick(InputFrame::START);
+    EXPECT_EQ(r.world.run.phase, RunPhase::Difficulty);
+}
+
+TEST(arena_run, with_one_level_there_is_nothing_to_choose)
+{
+    RunArena r;
+    r.world.chooseDifficulty(5);
+    EXPECT_EQ(r.world.run.phase, RunPhase::Fighting);
+}
+
+TEST(arena_run, each_player_keeps_what_they_did_for_the_recap)
+{
+    RunArena r;
+    r.world.startRun(9);
+    EXPECT_EQ(r.player().stats.kills, 0);
+
+    // A kill of theirs: the kill, the damage up to the health it had
+    Fighter& slime = r.near("base:slime");
+    slime.health = 5.0f;
+    AttackDef hit;
+    hit.name = "test";
+    hit.damage = 40.0f;
+    r.world.applyHit(r.player(), slime, hit);
+    EXPECT_EQ(r.player().stats.kills, 1);
+    EXPECT_FLOAT_EQ(r.player().stats.damage, 5.0f);
+
+    // Shards picked up and the XP they gave
+    r.world.collect(r.player(), 7);
+    EXPECT_EQ(r.player().stats.shards, 7);
+    EXPECT_EQ(r.player().stats.xp, 7);
+
+    // An item bought
+    r.timeUp();
+    ASSERT_EQ(r.world.run.phase, RunPhase::Shop);
+    Fighter& p = r.player();
+    p.levelUps = 0;
+    p.levelOffer.clear();
+    p.presents = 0;
+    p.shards = 1000;
+    r.pick(InputFrame::BUY);
+    EXPECT_EQ(r.player().stats.items, 1);
+
+    // A new run starts them over
+    r.world.startRun(10);
+    EXPECT_EQ(r.player().stats.kills, 0);
+    EXPECT_EQ(r.player().stats.items, 0);
+}
+
 TEST(arena_run, scholar_gives_more_xp_per_shard_and_greed_more_shards)
 {
     RunArena r;
@@ -1593,10 +1680,15 @@ TEST(arena_run, scholar_gives_more_xp_per_shard_and_greed_more_shards)
     EXPECT_EQ(p.xp, 3);
     EXPECT_EQ(p.shards, 2);   // shards are not more: only the XP
 
-    // Greed past 100%: every shard of a kill comes with one more
+    // Greed adds up with diminishing returns: 100% counts as 67% at a falloff of 0.5
     p.boons.push_back({"base:greed"});
     r.content.upgrades["base:greed"].shardChance = 1.0f;
     r.world.sumBoons(p);
+    r.content.run.shardFalloff = 0.5f;
+    EXPECT_NEAR(r.world.teamShardChance(), 1.0f / 1.5f, 1e-5f);
+
+    // Without it, greed at 100%: every shard of a kill comes with one more
+    r.content.run.shardFalloff = 0.0f;
     EXPECT_FLOAT_EQ(r.world.teamShardChance(), 1.0f);
 
     const int drops = r.content.enemies.at("base:brute").drops;

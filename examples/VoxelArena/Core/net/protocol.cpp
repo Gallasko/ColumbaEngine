@@ -16,6 +16,7 @@ namespace arena::net
             "volt_burst", "fire_nova", "ice_nova", "volt_nova", "fire_zone", "ice_zone", "volt_zone", "fire_beam", "ice_beam", "volt_beam",
             "run_start", "spawn_warn", "boss_warn", "spawn", "boss_spawn", "wave_clear", "run_victory", "run_defeat", "boon",
             "wave_start", "arena_reset", "arena_change", "despawn", "elite_warn", "pickup", "level_up", "buy", "crit", "present", "present_drop",
+            "difficulty_pick",
         };
 
         const char* const AI_MOVES[] = { "hold", "chase", "strafe", "retreat", "flank" };
@@ -552,7 +553,7 @@ namespace arena::net
 
     // ---- Fighters ---------------------------------------------------------------------------------
 
-    void writeFighter(Writer& w, const Fighter& f, bool full, const Names& names)
+    void writeFighter(Writer& w, const Fighter& f, bool full, const Names& names, bool extras)
     {
         w.boolean(full);
         w.u16(static_cast<uint16_t>(f.id));
@@ -593,6 +594,31 @@ namespace arena::net
             w.u8(static_cast<uint8_t>(std::clamp(f.statuses[i].stacks, 0, 255)));
         }
 
+        // A player's items (everyone sees them on it) and what it did in the run (the recap at its end)
+        const bool withExtras = f.team == Team::Player and (full or extras);
+        if (f.team == Team::Player)
+            w.boolean(withExtras);
+        if (withExtras)
+        {
+            w.u8(static_cast<uint8_t>(std::min<size_t>(f.boons.size(), 64)));
+            for (size_t i = 0; i < f.boons.size() and i < 64; ++i)
+            {
+                w.u16(names.id(f.boons[i].id));
+                w.u8(static_cast<uint8_t>(std::clamp(f.boons[i].rarity, 0, 255)));
+            }
+
+            const auto& st = f.stats;
+            w.u16(static_cast<uint16_t>(std::clamp(st.kills, 0, 65535)));
+            w.u32(static_cast<uint32_t>(std::max(0, st.shards)));
+            w.u32(static_cast<uint32_t>(std::max(0, st.xp)));
+            w.u8(static_cast<uint8_t>(std::clamp(st.presents, 0, 255)));
+            w.u8(static_cast<uint8_t>(std::clamp(st.items, 0, 255)));
+            w.u8(static_cast<uint8_t>(std::clamp(st.downs, 0, 255)));
+            w.u32(static_cast<uint32_t>(std::lround(std::clamp(st.damage, 0.0f, 4e9f))));
+            w.u32(static_cast<uint32_t>(std::lround(std::clamp(st.healing, 0.0f, 4e9f))));
+            w.u8(static_cast<uint8_t>(std::clamp(f.level, 0, 255)));
+        }
+
         if (not full)
             return;
 
@@ -630,15 +656,7 @@ namespace arena::net
         w.i8(static_cast<int8_t>(std::clamp(f.chargeSlot, -1, 127)));
         w.f32(f.dashCharges);
 
-        // The run: the boons picked and the ones offered now
-        w.u8(static_cast<uint8_t>(std::min<size_t>(f.boons.size(), 64)));
-        for (size_t i = 0; i < f.boons.size() and i < 64; ++i)
-        {
-            w.u16(names.id(f.boons[i].id));
-            w.u8(static_cast<uint8_t>(std::clamp(f.boons[i].rarity, 0, 255)));
-        }
-
-        // ... the spells and techniques it was given, their levels and branches
+        // The run: the spells and techniques it was given, their levels and branches
         for (const auto* list : {&f.runSpells, &f.runSkills})
         {
             w.u8(static_cast<uint8_t>(std::min<size_t>(list->size(), 8)));
@@ -685,7 +703,7 @@ namespace arena::net
         w.boolean(f.armed);
     }
 
-    void readFighter(Reader& r, Fighter& f, const Names& names)
+    bool readFighter(Reader& r, Fighter& f, const Names& names)
     {
         const bool full = r.boolean();
         f.id = r.u16();
@@ -727,8 +745,33 @@ namespace arena::net
             f.statuses.push_back(s);
         }
 
+        const bool withExtras = f.team == Team::Player and r.boolean();
+        if (withExtras)
+        {
+            f.boons.clear();
+            const uint8_t boons = r.u8();
+            for (uint8_t k = 0; k < boons and k < 64 and not r.failed; ++k)
+            {
+                Fighter::Boon b;
+                b.id = names.name(r.u16());
+                b.rarity = r.u8();
+                f.boons.push_back(b);
+            }
+
+            auto& st = f.stats;
+            st.kills = r.u16();
+            st.shards = static_cast<int>(std::min<uint32_t>(r.u32(), 1u << 30));
+            st.xp = static_cast<int>(std::min<uint32_t>(r.u32(), 1u << 30));
+            st.presents = r.u8();
+            st.items = r.u8();
+            st.downs = r.u8();
+            st.damage = static_cast<float>(r.u32());
+            st.healing = static_cast<float>(r.u32());
+            f.level = r.u8();
+        }
+
         if (not full)
-            return;
+            return withExtras;
 
         f.sinceHit = r.f32();
         f.stamina = r.f32();
@@ -762,16 +805,6 @@ namespace arena::net
         f.wallNormal = r.vec3();
         f.chargeSlot = r.i8();
         f.dashCharges = r.f32();
-
-        f.boons.clear();
-        const uint8_t boons = r.u8();
-        for (uint8_t k = 0; k < boons and k < 64 and not r.failed; ++k)
-        {
-            Fighter::Boon b;
-            b.id = names.name(r.u16());
-            b.rarity = r.u8();
-            f.boons.push_back(b);
-        }
 
         for (auto* list : {&f.runSpells, &f.runSkills})
         {
@@ -828,6 +861,7 @@ namespace arena::net
         f.banked = r.u16();
         f.interest = r.u16();
         f.armed = r.boolean();
+        return withExtras;
     }
 
     // ---- Snapshot ---------------------------------------------------------------------------------
@@ -843,7 +877,7 @@ namespace arena::net
 
         w.u8(static_cast<uint8_t>(m.fighters.size()));
         for (const auto& f : m.fighters)
-            writeFighter(w, f, f.id == m.playerId, names);
+            writeFighter(w, f, f.id == m.playerId, names, m.extras);
 
         w.u8(static_cast<uint8_t>(std::min<size_t>(m.projectiles.size(), 255)));
         for (size_t i = 0; i < m.projectiles.size() and i < 255; ++i)
@@ -867,6 +901,8 @@ namespace arena::net
         w.u8(static_cast<uint8_t>(std::clamp(m.run.wave, 0, 255)));
         w.u8(static_cast<uint8_t>(std::clamp(m.run.waves, 0, 255)));
         w.u8(static_cast<uint8_t>(std::clamp(m.run.difficulty, 0, 255)));
+        w.u8(static_cast<uint8_t>(std::clamp(m.run.levelsOpen, 0, 255)));
+        w.u16(static_cast<uint16_t>(m.run.chooser));
         w.f32(m.run.timer);
         w.f32(m.run.elapsed);
         w.u32(static_cast<uint32_t>(std::max(0, m.run.score)));
@@ -937,7 +973,8 @@ namespace arena::net
         for (uint8_t k = 0; k < fighters and not r.failed; ++k)
         {
             Fighter f;
-            readFighter(r, f, names);
+            if (readFighter(r, f, names))
+                m.withExtras.push_back(f.id);
             m.fighters.push_back(std::move(f));
         }
 
@@ -962,10 +999,12 @@ namespace arena::net
             m.pieces.push_back(p);
         }
 
-        m.run.phase = static_cast<RunPhase>(std::min<uint8_t>(r.u8(), static_cast<uint8_t>(RunPhase::Armory)));
+        m.run.phase = static_cast<RunPhase>(std::min<uint8_t>(r.u8(), static_cast<uint8_t>(RunPhase::Difficulty)));
         m.run.wave = r.u8();
         m.run.waves = r.u8();
         m.run.difficulty = r.u8();
+        m.run.levelsOpen = r.u8();
+        m.run.chooser = r.u16();
         m.run.timer = r.f32();
         m.run.elapsed = r.f32();
         m.run.score = static_cast<int>(r.u32());

@@ -430,7 +430,8 @@ namespace arena::net
         const RunPhase phase = world.run.phase;
         if (phase != lastPhase)
         {
-            if (phase == RunPhase::Fighting and (lastPhase == RunPhase::Off or lastPhase == RunPhase::Victory or lastPhase == RunPhase::Defeat))
+            const bool started = phase == RunPhase::Difficulty or phase == RunPhase::Armory or phase == RunPhase::Fighting;
+            if (started and (lastPhase == RunPhase::Off or lastPhase == RunPhase::Victory or lastPhase == RunPhase::Defeat))
             {
                 for (auto& [peer, c] : clients)
                     c.ready = false;
@@ -450,7 +451,7 @@ namespace arena::net
             if (all)
             {
                 log.push_back("everyone is ready: the run begins");
-                world.startRun(static_cast<uint32_t>(world.steps) * 2654435761u + 7u);
+                world.chooseDifficulty(static_cast<uint32_t>(world.steps) * 2654435761u + 7u);
             }
         }
 
@@ -535,6 +536,9 @@ namespace arena::net
         base.run = world.run;
         base.run.pending.clear();
         base.pickups = world.pickups;
+
+        // Everyone's items and run stats: every tenth snapshot, and all the while at a run's end (the recap)
+        base.extras = (world.steps / SNAPSHOT_EVERY) % 10 == 0 or world.run.phase == RunPhase::Victory or world.run.phase == RunPhase::Defeat;
 
         for (const auto& [peer, c] : clients)
         {

@@ -187,6 +187,39 @@ namespace arena
             boxMesh->setData(buildMesh(cube, table, opt));
         }
 
+        // The spell zones: a flat disc of radius 0.5 facing up, and its edge, a ring (each zone's edge shows where zones overlap)
+        {
+            constexpr int SIDES = 40;
+            MeshData disc, ring;
+            auto vertex = [](MeshData& m, float x, float z) {
+                m.vertices.insert(m.vertices.end(), {x, 0.0f, z, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, -1.0f, 0.0f});
+            };
+
+            vertex(disc, 0.0f, 0.0f);
+            for (int k = 0; k < SIDES; ++k)
+            {
+                const float a = static_cast<float>(k) * 6.2831853f / static_cast<float>(SIDES);
+                vertex(disc, std::cos(a) * 0.5f, std::sin(a) * 0.5f);
+                vertex(ring, std::cos(a) * 0.47f, std::sin(a) * 0.47f);
+                vertex(ring, std::cos(a) * 0.5f, std::sin(a) * 0.5f);
+            }
+
+            // Wound counter clockwise seen from above
+            for (int k = 0; k < SIDES; ++k)
+            {
+                const uint32_t next = static_cast<uint32_t>((k + 1) % SIDES);
+                disc.indices.insert(disc.indices.end(), {0, 1 + next, 1 + static_cast<uint32_t>(k)});
+
+                const uint32_t inner = 2 * static_cast<uint32_t>(k), outer = inner + 1, nextInner = 2 * next, nextOuter = nextInner + 1;
+                ring.indices.insert(ring.indices.end(), {inner, nextInner, nextOuter, inner, nextOuter, outer});
+            }
+
+            discMesh = std::make_shared<GpuMesh>();
+            discMesh->setData(std::move(disc));
+            ringMesh = std::make_shared<GpuMesh>();
+            ringMesh->setData(std::move(ring));
+        }
+
         blockTextures = std::make_shared<GpuTextureArray>();
         worldMesh = std::make_shared<GpuMesh>();
         worldMesh->textures = blockTextures;
@@ -598,8 +631,9 @@ namespace arena
 
     void ArenaGame::onEvent(const OnMouseClick& event)
     {
-        // The engine's MouseClickSystem is the one reader of the press latch (Input::takePress): reading
-        // it here too lost every click that system took first. Its click event comes once per press.
+        // The engine's MouseClickSystem is the one reader of the press latch (Input::takePress) for the left
+        // and right buttons: reading it here too lost every click that system took first. Its click event
+        // comes once per press. The other buttons it leaves alone: execute() reads them.
         std::lock_guard<std::mutex> lock(inputMutex);
 
         // Rebinding: the button pressed is the new key, nothing else
@@ -713,7 +747,7 @@ namespace arena
             altHeld = held("freeCursor");
         }
 
-        const bool want = not altHeld and not consoleOpen and not cursorFree and not bookOpen and not optionsOpen and not shopOpen and not titleOpen and not endOpen and not armoryOpen;
+        const bool want = not altHeld and not consoleOpen and not cursorFree and not bookOpen and not optionsOpen and not shopOpen and not titleOpen and not endOpen and not armoryOpen and not difficultyOpen;
 
         if (want == cursorLocked)
             return;
@@ -774,6 +808,23 @@ namespace arena
 
         if (frameSeconds > 0.0f)
             frameSecondsSmoothed += (frameSeconds - frameSecondsSmoothed) * 0.05f;
+
+        // The engine sends clicks for the left and right buttons only: the middle and side buttons are read
+        // here, the same way (the new key on the controls screen, or a press for the next step)
+        if (input)
+        {
+            for (const int button : {SDL_BUTTON_MIDDLE, SDL_BUTTON_X1, SDL_BUTTON_X2})
+            {
+                if (not input->takePress(static_cast<MouseButton>(button)))
+                    continue;
+
+                std::lock_guard<std::mutex> lock(inputMutex);
+                if (capturing)
+                    rebindMouse = button;
+                else if (not uiTakesClicks() and cursorLocked and (not window or window->isCursorCaptured()))
+                    mousePresses.insert(button);
+            }
+        }
 
         // Debug keys and the console
         std::vector<KeyPress> presses;
@@ -961,8 +1012,6 @@ namespace arena
                 }
                 else if (p.scancode == SDL_SCANCODE_T)
                     titleOpen = false;
-                else if ((p.scancode == SDL_SCANCODE_LEFT or p.scancode == SDL_SCANCODE_RIGHT) and not client)
-                    pickLevel(levelPicked + (p.scancode == SDL_SCANCODE_LEFT ? -1 : 1));
                 else if (p.scancode == SDL_SCANCODE_ESCAPE)
                     setOptionsOpen(true);
                 continue;
@@ -972,6 +1021,27 @@ namespace arena
             if (world.inRun())
             {
                 const RunPhase phase = world.run.phase;
+
+                // The difficulty: 1-9 or the arrows and Enter play one, Backspace goes back (only the player who picks)
+                if (difficultyOpen)
+                {
+                    const int levels = content.run.levels();
+                    const int open = std::min(levels, levelOpenNow());
+
+                    if (p.scancode >= SDL_SCANCODE_1 and p.scancode <= SDL_SCANCODE_9)
+                        pendingPick = InputFrame::DIFFICULTY + static_cast<int>(p.scancode - SDL_SCANCODE_1);
+                    else if (p.scancode == SDL_SCANCODE_LEFT or p.scancode == SDL_SCANCODE_UP)
+                        difficultyCursor = std::max(0, difficultyCursor - 1);
+                    else if (p.scancode == SDL_SCANCODE_RIGHT or p.scancode == SDL_SCANCODE_DOWN)
+                        difficultyCursor = std::min(open - 1, difficultyCursor + 1);
+                    else if (p.scancode == SDL_SCANCODE_RETURN or p.scancode == SDL_SCANCODE_KP_ENTER)
+                        pendingPick = InputFrame::DIFFICULTY + difficultyCursor;
+                    else if (p.scancode == SDL_SCANCODE_BACKSPACE)
+                        pendingPick = InputFrame::BACK;
+                    else if (p.scancode == SDL_SCANCODE_ESCAPE)
+                        setOptionsOpen(true);
+                    continue;
+                }
 
                 // The weapon choice: 1-9 take one; then the first spell (Backspace: back to the weapons)
                 if (armoryOpen)
@@ -1474,25 +1544,22 @@ namespace arena
         std::ofstream(std::filesystem::path(spellbookPath()).parent_path() / "levels.txt") << levelOpen << " " << levelPicked;
     }
 
-    std::string ArenaGame::levelText(int level) const
+    std::vector<std::string> ArenaGame::levelLines(int level) const
     {
         const DifficultyDef& d = content.run.difficulty(level);
-        auto pc = [](float v) { return std::to_string(static_cast<int>(std::lround(v * 100.0f))) + "%"; };
+        auto pc = [](float v) { return std::to_string(static_cast<int>(std::lround(std::fabs(v) * 100.0f))) + "%"; };
 
-        std::vector<std::string> parts;
-        if (d.health != 1.0f) parts.push_back((d.health > 1.0f ? "+" : "-") + pc(std::fabs(d.health - 1.0f)) + " health");
-        if (d.damage != 1.0f) parts.push_back((d.damage > 1.0f ? "+" : "-") + pc(std::fabs(d.damage - 1.0f)) + " damage");
-        if (d.spawn != 1.0f) parts.push_back(pc(std::fabs(d.spawn - 1.0f)) + (d.spawn > 1.0f ? " more" : " fewer"));
-        if (d.healthGrowth > 0.0f or d.damageGrowth > 0.0f) parts.push_back("stronger each wave");
-        if (d.eliteChance > 0.0f) parts.push_back("more elites");
+        std::vector<std::string> lines;
+        if (d.health != 1.0f) lines.push_back("Enemies have " + pc(d.health - 1.0f) + (d.health > 1.0f ? " more" : " less") + " health");
+        if (d.damage != 1.0f) lines.push_back("Enemies deal " + pc(d.damage - 1.0f) + (d.damage > 1.0f ? " more" : " less") + " damage");
+        if (d.spawn != 1.0f) lines.push_back(pc(d.spawn - 1.0f) + (d.spawn > 1.0f ? " more" : " fewer") + " enemies");
+        if (d.healthGrowth > 0.0f) lines.push_back("Enemy health grows " + pc(d.healthGrowth) + " more each wave");
+        if (d.damageGrowth > 0.0f) lines.push_back("Enemy damage grows " + pc(d.damageGrowth) + " each wave");
+        if (d.eliteChance > 0.0f) lines.push_back("+" + pc(d.eliteChance) + " elite chance");
 
-        if (parts.empty())
-            return "enemies as they come";
-
-        std::string out = "enemies ";
-        for (size_t i = 0; i < parts.size(); ++i)
-            out += (i ? ", " : "") + parts[i];
-        return out;
+        if (lines.empty())
+            lines.push_back("The standard run");
+        return lines;
     }
 
     std::string ArenaGame::arenaLine(int level) const
@@ -1515,11 +1582,57 @@ namespace arena
         return out;
     }
 
-    void ArenaGame::startArena()
+    void ArenaGame::drawDifficulty()
+    {
+        DifficultyView v;
+        const int open = levelOpenNow();
+
+        for (int k = 0; k < content.run.levels(); ++k)
+        {
+            DifficultyView::Level l;
+            l.name = content.run.difficulty(k).name;
+
+            // "13 waves, a boss midway"
+            const int waves = content.run.wavesAt(k);
+            int bosses = 0;
+            for (const auto& [wave, id] : content.run.bosses)
+                bosses += wave <= waves ? 1 : 0;
+            const bool last = content.run.bosses.count(waves) > 0;
+            l.waves = std::to_string(waves) + " waves";
+            if (bosses > 1 and last)
+                l.waves += ", bosses midway and at the end";
+            else if (bosses == 1)
+                l.waves += last ? ", a boss at the end" : ", a boss midway";
+            else if (bosses > 1)
+                l.waves += ", " + std::to_string(bosses) + " bosses";
+
+            l.lines = levelLines(k);
+            if (k >= open)
+                l.locked = "Win " + content.run.difficulty(k - 1).name + " to open";
+            v.levels.push_back(l);
+        }
+
+        const Fighter* me = world.player();
+        v.cursor = difficultyCursor;
+        v.choosing = me and world.run.chooser == me->id;
+        v.chooserName = playerNameOf(world.run.chooser);
+        if (v.chooserName.empty())
+            v.chooserName = "The host";
+        screens::drawDifficulty(ui, v);
+    }
+
+    void ArenaGame::startArena(bool chooseLevel)
     {
         titleOpen = false;
         const uint32_t seed = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
-        world.startRun(seed);
+        world.run.difficulty = levelPicked;
+        world.run.levelsOpen = levelOpen + 1;
+        difficultyCursor = levelPicked;
+
+        if (chooseLevel)
+            world.chooseDifficulty(seed);
+        else
+            world.startRun(seed);
         world.setBrain(&brain);
         meshDirty = true;
     }
@@ -1529,14 +1642,21 @@ namespace arena
         const RunState& r = world.run;
         const Fighter* me = world.player();
 
-        // Outside a run, the next run is at the level picked here (a client's is the host's)
+        // Outside a run, the next run is at the level picked here (a client's is the host's), among the ones open
+        if (not client)
+            world.run.levelsOpen = levelOpen + 1;
         if (not client and not world.inRun())
             world.run.difficulty = levelPicked;
 
-        // A win opens the next level, and picks it
         if (r.phase != lastPhase)
         {
             levelJustOpened.clear();
+
+            // The difficulty chosen: kept for next time; the screen comes up on the last one played
+            if (lastPhase == RunPhase::Difficulty and r.phase != RunPhase::Off and not client)
+                pickLevel(r.difficulty);
+            if (r.phase == RunPhase::Difficulty)
+                difficultyCursor = std::clamp(r.difficulty, 0, std::max(0, levelOpenNow() - 1));
 
             if (r.phase == RunPhase::Victory and r.difficulty + 1 < content.run.levels() and r.difficulty + 1 > levelOpen)
             {
@@ -1560,7 +1680,7 @@ namespace arena
         if (r.phase != RunPhase::Fighting and r.phase != RunPhase::Shop)
             headlineWave = 0;
 
-        if (titleOpen or not world.inRun() or r.phase == RunPhase::Armory)
+        if (titleOpen or not world.inRun() or r.phase == RunPhase::Armory or r.phase == RunPhase::Difficulty)
             return;
 
         // The top: the wave and its time, the shards and the level, the score
@@ -1736,8 +1856,9 @@ namespace arena
         // (after the moment a wave's end is left to sink in: run.json "intermission")
         shopOpen = me and world.run.phase == RunPhase::Shop and world.run.timer <= 0.0f and not titleOpen and not bookOpen and not optionsOpen;
         armoryOpen = me and world.run.phase == RunPhase::Armory and not titleOpen and not bookOpen and not optionsOpen;
+        difficultyOpen = me and world.run.phase == RunPhase::Difficulty and not titleOpen and not bookOpen and not optionsOpen;
 
-        if (shopOpen or armoryOpen)
+        if (shopOpen or armoryOpen or difficultyOpen)
         {
             std::lock_guard<std::mutex> lock(inputMutex);
             stepPresses.clear();
@@ -2511,7 +2632,7 @@ namespace arena
 
     bool ArenaGame::uiTakesClicks() const
     {
-        return optionsOpen or bookOpen or shopOpen or titleOpen or endOpen or armoryOpen;
+        return optionsOpen or bookOpen or shopOpen or titleOpen or endOpen or armoryOpen or difficultyOpen;
     }
 
     std::string ArenaGame::playerNameOf(int id) const
@@ -2797,6 +2918,15 @@ namespace arena
                 continue;
             }
 
+            if (difficultyOpen)
+            {
+                if (action == screens::DIFFICULTY_BACK)
+                    pendingPick = InputFrame::BACK;
+                else if (action >= screens::DIFFICULTY_PICK)
+                    pendingPick = InputFrame::DIFFICULTY + (action - screens::DIFFICULTY_PICK);
+                continue;
+            }
+
             if (armoryOpen)
             {
                 if (action == screens::ARMORY_BACK)
@@ -2851,11 +2981,6 @@ namespace arena
                     case screens::TITLE_ARENA:
                         if (not client)
                             startArena();
-                        break;
-                    case screens::TITLE_EASIER:
-                    case screens::TITLE_HARDER:
-                        if (not client)
-                            pickLevel(levelPicked + (action == screens::TITLE_EASIER ? -1 : 1));
                         break;
                     case screens::LOBBY_READY:
                         if (client)
@@ -3341,11 +3466,6 @@ namespace arena
         v.canLeave = client != nullptr or (server != nullptr and ownNetwork != nullptr);
         v.port = options.port;
         v.manualPort = manualPort;
-        v.waves = content.run.wavesAt(world.run.difficulty);
-        v.level = content.run.difficulty(world.run.difficulty).name;
-        v.levels = content.run.levels();
-        v.easier = server and levelPicked > 0;
-        v.harder = server and levelPicked < levelOpen;
         v.time = uiTime;
         v.log.assign(netLog.begin(), netLog.end());
         v.quitArmed = quitArmed();
@@ -3430,6 +3550,10 @@ namespace arena
             clientPhase = phase;
         }
 
+        // Back from choosing the difficulty: the title (the lobby) again
+        if (not client and lastPhase == RunPhase::Difficulty and phase == RunPhase::Off)
+            titleOpen = true;
+
         // The final duel begins: the view turns to the middle, and the others
         if (p and phase == RunPhase::Duel and duelSeen != RunPhase::Duel)
         {
@@ -3492,14 +3616,7 @@ namespace arena
         else if (titleOpen)
         {
             TitleView t;
-            t.arenaLine = arenaLine(levelPicked);
-            t.levels = content.run.levels();
-            t.level = content.run.difficulty(levelPicked).name;
-            t.levelText = levelText(levelPicked);
-            t.easier = levelPicked > 0;
-            t.harder = levelPicked < levelOpen;
-            if (levelPicked == levelOpen and levelOpen + 1 < content.run.levels())
-                t.locked = "win " + t.level + " to open " + content.run.difficulty(levelOpen + 1).name;
+            t.arenaLine = "Timed waves of enemies, a shop between them, bosses";
             t.best = bestScore;
             t.waitingForHost = client != nullptr;
             t.time = uiTime;
@@ -3545,16 +3662,52 @@ namespace arena
             e.solo = not networked();
             e.difficulty = content.run.levels() > 1 ? content.run.difficulty(r.difficulty).name : "";
             e.opened = levelJustOpened;
+            // The players in the order they joined; one without a name is P and its place
+            std::vector<const Fighter*> players;
+            for (const auto& f : world.fighters)
+                if (f.team == Team::Player)
+                    players.push_back(&f);
+            std::sort(players.begin(), players.end(), [](const Fighter* a, const Fighter* b) { return a->id < b->id; });
+
+            auto nameOf = [&](int id) {
+                std::string name = playerNameOf(id);
+                for (size_t k = 0; k < players.size() and name.empty(); ++k)
+                    if (players[k]->id == id)
+                        name = "P" + std::to_string(k + 1);
+                return name.empty() ? "P?" : name;
+            };
+
             if (r.champion != 0)
             {
                 e.youChampion = r.champion == p->id;
-                e.champion = playerNameOf(r.champion);
-                if (e.champion.empty())
-                    e.champion = "P" + std::to_string(r.champion);
+                e.champion = nameOf(r.champion);
             }
             if (auto b = content.run.bosses.find(r.waves); b != content.run.bosses.end())
                 if (auto d = content.enemies.find(b->second); d != content.enemies.end())
                     e.boss = "the " + d->second.name;
+
+            // Two players or more: what each one did
+
+            if (players.size() >= 2)
+            {
+                for (const Fighter* f : players)
+                {
+                    EndView::Recap row;
+                    row.name = nameOf(f->id);
+                    row.you = f->id == p->id;
+                    row.champion = r.champion != 0 and f->id == r.champion;
+                    row.level = f->level;
+                    row.kills = f->stats.kills;
+                    row.damage = static_cast<int>(std::lround(f->stats.damage));
+                    row.healing = static_cast<int>(std::lround(f->stats.healing));
+                    row.shards = f->stats.shards;
+                    row.xp = f->stats.xp;
+                    row.presents = f->stats.presents;
+                    row.items = f->stats.items;
+                    row.downs = f->stats.downs;
+                    e.recap.push_back(row);
+                }
+            }
             screens::drawEnd(ui, e);
         }
 
@@ -3563,6 +3716,9 @@ namespace arena
 
         if (armoryOpen and p)
             drawArmory();
+
+        if (difficultyOpen and p)
+            drawDifficulty();
 
         if (bookOpen or optionsOpen)
             mouseBack();
@@ -3669,6 +3825,7 @@ namespace arena
         // Fighters, grouped by model: one draw per model with an instance per fighter
         std::map<std::string, std::vector<float>> instances;
         std::vector<float> trail, danger;   // see-through: slash trails, heavy attack tells
+        std::vector<float> gems;            // the items circling the players
 
         for (const auto& f : world.fighters)
         {
@@ -3822,6 +3979,71 @@ namespace arena
                 }
             }
 
+            // The items it has: worn (a piece on a body part, moving with it) or circling it (a gem)
+            if (f.team == Team::Player and not viewModel and not f.boons.empty())
+            {
+                // Each item once, glowing by the rarest it was taken at
+                std::map<std::string, int> rarest;
+                for (const auto& b : f.boons)
+                {
+                    auto [it, fresh] = rarest.emplace(b.id, b.rarity);
+                    if (not fresh)
+                        it->second = std::max(it->second, b.rarity);
+                }
+
+                int gemCount = 0, gem = 0;
+                for (const auto& [id, rarity] : rarest)
+                    if (auto u = content.upgrades.find(id); u != content.upgrades.end() and u->second.look.orbit)
+                        ++gemCount;
+
+                const Gait& gait = gaits[f.id];
+
+                for (const auto& [id, rarity] : rarest)
+                {
+                    auto u = content.upgrades.find(id);
+                    if (u == content.upgrades.end() or u->second.look.empty())
+                        continue;
+
+                    const LookDef& look = u->second.look;
+                    const bool flashing = flash.a > 0.0f;
+                    glm::vec4 glow = flash;
+                    if (not flashing and rarity >= 3)
+                        glow = glm::vec4(1.0f, 0.8f, 0.3f, 0.22f + 0.08f * std::sin(simTime * 3.0f));
+                    else if (not flashing and rarity == 2)
+                        glow = glm::vec4(0.75f, 0.45f, 1.0f, 0.18f);
+                    else if (not flashing and rarity == 1)
+                        glow = glm::vec4(0.45f, 0.7f, 1.0f, 0.12f);
+
+                    for (const auto& piece : look.pieces)
+                    {
+                        auto pieceModel = content.models.find(piece.model);
+                        if (pieceModel == content.models.end())
+                            continue;
+
+                        // On its body part, posed as the part is
+                        glm::mat4 local(1.0f);
+                        if (model.parts.size() > 1 and f.alive())
+                            for (const auto& part : model.parts)
+                                if (part.name == piece.part)
+                                    local = glm::translate(glm::mat4(1.0f), part.joint) * partPose(part.name, f, gait, frame) * glm::translate(glm::mat4(1.0f), -part.joint);
+
+                        const glm::mat4 m = modelMatrix * local * glm::translate(glm::mat4(1.0f), piece.at) * rotY(piece.yaw) *
+                                            glm::scale(glm::mat4(1.0f), glm::vec3(piece.scale / scale)) * glm::translate(glm::mat4(1.0f), -pieceModel->second->pivot);
+                        pushInstance(instances[piece.model], view, m, tint, glow);
+                    }
+
+                    if (look.orbit and f.alive())
+                    {
+                        const float a = simTime * 1.6f + 6.2831853f * static_cast<float>(gem) / static_cast<float>(std::max(1, gemCount));
+                        const glm::vec3 at = pos + glm::vec3(std::sin(a) * 0.78f, h * 0.62f + 0.08f * std::sin(simTime * 3.0f + static_cast<float>(gem)), std::cos(a) * 0.78f);
+                        const glm::mat4 m = glm::translate(glm::mat4(1.0f), at) * rotY(simTime * 140.0f + static_cast<float>(gem) * 40.0f) * rotX(45.0f) *
+                                            glm::rotate(glm::mat4(1.0f), 45.0f * DEG, glm::vec3(0, 0, 1)) * glm::scale(glm::mat4(1.0f), glm::vec3(0.085f)) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f));
+                        pushInstance(gems, view, m, glm::vec4(look.colour, 1.0f), glm::vec4(look.colour, not flashing and rarity > 0 ? 0.75f : 0.55f));
+                        ++gem;
+                    }
+                }
+            }
+
             // The weapon in the hand
             if (f.team == Team::Player)
             {
@@ -3921,22 +4143,22 @@ namespace arena
             }
         }
 
-        // Spell zones: a disc on the ground in the element's colour (effects.json "zone:<element>"), fading at the end
-        for (const auto& z : world.zones)
+        // Spell zones: a disc on the ground in the element's colour (effects.json "zone:<element>"), fading at the end.
+        // Each a little above the one before it, so zones that overlap never share a plane (they would flicker)
+        std::vector<float> zoneDiscs, zoneRings;
+        for (size_t i = 0; i < world.zones.size(); ++i)
         {
+            const Zone& z = world.zones[i];
             auto look = effects.find(z.heal > 0.0f ? std::string("zone:heal") : std::string("zone:") + elementName(z.element));
             const glm::vec3 tint = look != effects.end() and look->second.hasTint ? look->second.tint : glm::vec3(1.0f);
             const float fade = glm::clamp(z.remaining / 0.6f, 0.0f, 1.0f) * glm::clamp((z.duration - z.remaining) / 0.2f + 0.3f, 0.0f, 1.0f);
-            const float side = z.radius * 2.0f * 0.92f;
-
-            // An octagon of four turned squares
-            for (int k = 0; k < 4; ++k)
-            {
-                const glm::mat4 m = glm::translate(glm::mat4(1.0f), z.position + glm::vec3(0, 0.03f + 0.004f * static_cast<float>(k), 0)) * rotY(22.5f * static_cast<float>(k)) *
-                                    glm::scale(glm::mat4(1.0f), glm::vec3(side, 0.03f, side)) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f, 0, -0.5f));
-                pushInstance(danger, view, m, glm::vec4(tint, (z.heal > 0.0f ? 0.22f : 0.1f) * fade), glm::vec4(0.0f));   // a healing zone shows more: you go to it
-            }
+            const float lift = 0.04f + 0.012f * static_cast<float>(i % 12);
+            const glm::mat4 m = glm::translate(glm::mat4(1.0f), z.position + glm::vec3(0, lift, 0)) * glm::scale(glm::mat4(1.0f), glm::vec3(z.radius * 2.0f, 1.0f, z.radius * 2.0f));
+            pushInstance(zoneDiscs, view, m, glm::vec4(tint, (z.heal > 0.0f ? 0.3f : 0.18f) * fade), glm::vec4(0.0f));   // a healing zone shows more: you go to it
+            pushInstance(zoneRings, view, glm::translate(glm::mat4(1.0f), glm::vec3(0, 0.004f, 0)) * m, glm::vec4(tint, 0.7f * fade), glm::vec4(0.0f));
         }
+        add(discMesh, debugMaterial, OpacityType::Normal, std::move(zoneDiscs));
+        add(ringMesh, debugMaterial, OpacityType::Normal, std::move(zoneRings));
 
         // A run's spawn points while they are warned of: a red column, pulsing, over a patch of ground
         for (const auto& m : spawnMarks)
@@ -3953,6 +4175,7 @@ namespace arena
 
         add(boxMesh, debugMaterial, OpacityType::Normal, std::move(trail));
         add(boxMesh, debugMaterial, OpacityType::Normal, std::move(danger));
+        add(boxMesh, litMaterial, OpacityType::Opaque, std::move(gems));
 
         // Projectiles, along their flight
         for (const auto& pr : world.projectiles)
@@ -4208,7 +4431,7 @@ namespace arena
         {
             return "reload | tune <key> [value] | tunes [prefix] | spawn <enemy> [count] | clear | reset\n"
                    "place x y z <block|air> | fill x0 y0 z0 x1 y1 z1 <block|air>\n"
-                   "view [first|third] | weapon <id> | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | map [arena] | training | difficulty <n> | wave <n> | duel | timeup | join <address> | leave | shards <n> | kill | options | mods | errors | warnings\n"
+                   "view [first|third] | weapon <id> | item <id|all> [rarity] | bot | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | map [arena] | training | difficulty <n> | wave <n> | duel | timeup | join <address> | leave | shards <n> | kill | options | mods | errors | warnings\n"
                    "scripted input: mouse [on|off] | click <x> <y> | hover <x> <y> | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
         }
 
@@ -4329,14 +4552,27 @@ namespace arena
         if (cmd == "players")
             return netStatus();
 
+        // An idle extra player: the final duel and the players' recap, tried alone
+        if (cmd == "bot")
+        {
+            if (networked())
+                return "bot: only in a game alone";
+            const int id = world.addPlayer(1000 + static_cast<int>(world.fighters.size()));
+            if (Fighter* bot = world.find(id))
+                bot->body.position = world.player() ? world.player()->body.position + glm::vec3(2.0f, 0.0f, 0.0f) : bot->body.position;
+            return "bot: player " + std::to_string(id) + " added (it stands still)";
+        }
+
         // Spells: the player's own, so a client may change them too
         if (cmd == "arena")
         {
             if (client)
                 return "arena: the host starts the run (Enter at the end of one plays again)";
 
-            startArena();
-            return "the arena: wave 1";
+            // Straight to wave 1 at the level picked (scripts, tests); "arena choose": the difficulty screen first
+            const bool choose = args.size() > 1 and args[1] == "choose";
+            startArena(choose);
+            return choose ? "the arena: choose the difficulty" : "the arena: wave 1 at " + content.run.difficulty(levelPicked).name;
         }
 
         if (cmd == "difficulty")
@@ -4354,6 +4590,25 @@ namespace arena
             pickLevel(std::atoi(args[1].c_str()));
             world.run.difficulty = levelPicked;
             return "difficulty " + content.run.difficulty(levelPicked).name + ": " + arenaLine(levelPicked);
+        }
+
+        if (cmd == "item")
+        {
+            Fighter* me = world.player();
+            if (args.size() < 2 or not me)
+                return "item <id> [rarity 0-3]: give yourself a shop item (all: every item)";
+
+            std::vector<std::string> ids;
+            for (const auto& [id, u] : content.upgrades)
+                if (args[1] == "all" or id == args[1] or localId(id) == args[1])
+                    ids.push_back(id);
+            if (ids.empty())
+                return "item: no item \"" + args[1] + "\"";
+
+            const int rarity = args.size() > 2 ? std::clamp(std::atoi(args[2].c_str()), 0, 3) : 0;
+            for (const auto& id : ids)
+                world.takeBoon(*me, {id, rarity});
+            return "item: " + std::to_string(ids.size()) + " given";
         }
 
         if (cmd == "wave")
@@ -4431,8 +4686,8 @@ namespace arena
             if (players < 2)
                 return "duel: it takes two players or more";
 
-            if (not world.inRun())
-                startArena();
+            if (not world.inRun() or world.run.phase == RunPhase::Difficulty)
+                startArena(false);
             world.beginDuel();
             return "the final duel";
         }
@@ -4577,7 +4832,7 @@ namespace arena
         // The world belongs to the server: a client asking to change it would only change its own view
         if (client and (cmd == "reload" or cmd == "spawn" or cmd == "clear" or cmd == "reset" or cmd == "place" or cmd == "fill" or
                         cmd == "god" or cmd == "stamina" or cmd == "mana" or cmd == "ai" or cmd == "tune" or cmd == "wave" or cmd == "teleport" or cmd == "pause" or
-                        cmd == "step" or cmd == "slowmo" or cmd == "shards" or cmd == "timeup" or cmd == "kill" or cmd == "duel"))
+                        cmd == "step" or cmd == "slowmo" or cmd == "shards" or cmd == "timeup" or cmd == "kill" or cmd == "duel" or cmd == "item"))
             return cmd + ": only the host can do that";
 
         // Every machine must run the same content (the fingerprint): no reload once others have joined

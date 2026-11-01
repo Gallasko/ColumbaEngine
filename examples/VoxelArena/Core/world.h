@@ -60,10 +60,12 @@ namespace arena
          * The arena run's shop and menus: BUY + i buys offer i, LOCK + i keeps it for the next shop,
          * REROLL rolls the shop again, LEVEL + i takes level-up pick i, START is ready (or plays again),
          * WEAPON + i takes weapon i (Content::weaponOrder) before the first wave, FIRST_SPELL + i the
-         * first spell i of run.json's chooseSpell (after the weapon), PRESENT + i takes a present's pick i.
+         * first spell i of run.json's chooseSpell (after the weapon), PRESENT + i takes a present's pick i,
+         * DIFFICULTY + i plays the run at difficulty level i (before it starts), BACK leaves that choice.
          */
         int pick = 0;
         static constexpr int START = 9, BUY = 1, LOCK = 11, REROLL = 20, LEVEL = 31, WEAPON = 41, PRESENT = 61, FIRST_SPELL = 71;
+        static constexpr int BACK = 80, DIFFICULTY = 81;
 
         static constexpr int ABILITIES = 8;
         bool abilityPressed[ABILITIES] = {};
@@ -167,6 +169,18 @@ namespace arena
         std::vector<std::string> levelOffer;   // a level up's picks: a spell (new, or its next level) or a weapon skill
         bool ready = false;
         int rerolls = 0;
+
+        // ... and what it did in the run, for the recap at its end
+        struct RunStats
+        {
+            int kills = 0;            // enemies it finished off
+            int shards = 0, xp = 0;   // picked up, and the XP they gave
+            int presents = 0;         // picked up
+            int items = 0;            // bought in the shop
+            int downs = 0;            // times it fell
+            float damage = 0.0f;      // dealt (to enemies, and to the others in the duel)
+            float healing = 0.0f;     // given (to itself and the others)
+        } stats;
 
         bool elite = false;           // an enemy of a run: tougher, harder hitting, worth more
         bool gone = false;            // a dead enemy of a run: taken out of the arena at the end of the step
@@ -309,10 +323,6 @@ namespace arena
         int stage = 0;
     };
 
-    /**
-     * Where the arena run is (see ArenaWorld::startRun). Armory: before the first wave, each player
-     * picks a weapon. Duel: after the last wave, in multiplayer, everyone for themselves.
-     */
     /** Life on hit from an area's, a zone's or a chain's hit: this share of it. */
     constexpr float AREA_LEECH = 0.2f;
 
@@ -321,7 +331,12 @@ namespace arena
     /** An attack quicker by `speed` (0.1: 10%): its frames fewer, its lunges faster (as far in less time). */
     void hasten(AttackDef& attack, float speed);
 
-    enum class RunPhase { Off, Fighting, Shop, Victory, Defeat, Duel, Armory };
+    /**
+     * Where the arena run is (see ArenaWorld::startRun). Difficulty: before it starts, one player picks
+     * its level (see ArenaWorld::chooseDifficulty). Armory: before the first wave, each player picks a
+     * weapon. Duel: after the last wave, in multiplayer, everyone for themselves.
+     */
+    enum class RunPhase { Off, Fighting, Shop, Victory, Defeat, Duel, Armory, Difficulty };
 
     struct RunState
     {
@@ -329,6 +344,8 @@ namespace arena
         int wave = 0;                 // 1-based, the current or last one
         int waves = 0;
         int difficulty = 0;           // the level (RunDef::difficulties) of this run; outside one, the next run's
+        int levelsOpen = 1000;        // the levels that may be picked (the host's progress; a dedicated server: all)
+        int chooser = 0;              // the Difficulty phase: the player who picks (the host's, else the first one in)
         float timer = 0.0f;           // s left in the wave (a boss wave: until the boss falls)
         float elapsed = 0.0f;         // s of the run so far
         int score = 0;
@@ -514,6 +531,13 @@ namespace arena
         RunState run;
         /** A run from the start: a fresh arena, the players as new, wave 1. */
         void startRun(uint32_t seed);
+        /**
+         * A run asked for: first its difficulty level, picked by one player (the host's, or on a dedicated
+         * server the first one in) among the open ones, then startRun. With one level, startRun at once.
+         */
+        void chooseDifficulty(uint32_t seed);
+        /** Who picks the difficulty: the player of this machine (the host's), else the first one in (0: nobody). */
+        int difficultyChooser() const;
         /** Training: no run (the arena's own enemies, respawning). */
         void stopRun();
         /** Testing: straight to a wave of the run (the enemies now in the arena go). */
@@ -558,6 +582,8 @@ namespace arena
         void rollPresent(Fighter& f);
         /** What the shop's reroll costs this player now. */
         int rerollPrice(const Fighter& f) const;
+        /** An item taken (bought, a present's, or given by the console): its numbers at once. */
+        void takeBoon(Fighter& f, const Fighter::Boon& boon);
         /** What a fighter's boons add up to (from its list: a client works it out the same way). */
         void sumBoons(Fighter& f) const;
         /** What a rarity multiplies an item's numbers by (the run's rarities; 1 without). */
@@ -601,7 +627,7 @@ namespace arena
         /** Enemies' health and damage at a wave, times these: the difficulty level's. */
         float enemyHealthScale(int wave) const;
         float enemyDamageScale(int wave) const;
-        /** What the players' items add for everyone: more enemies, more shards from each kill. */
+        /** What the players' items add for everyone: more enemies, more shards from each kill (with run.json's shardFalloff). */
         float teamHorde() const;
         float teamShardChance() const;
         int maxDashes(const Fighter& f) const { return tuning.dash.charges + f.boon.dashCharges; }
@@ -697,7 +723,6 @@ namespace arena
         void beginWave(int wave);
         void endWave();
         void shopPick(Fighter& f, int pick);
-        void takeBoon(Fighter& f, const Fighter::Boon& boon);
         void takeLevel(Fighter& f, const std::string& id);
         /** Items for sale (stat and tag items, rarity rolled), not already in `kept`, at most n. */
         std::vector<Fighter::ShopOffer> rollItems(const Fighter& f, int n, const std::vector<Fighter::ShopOffer>& kept, bool unlocks);

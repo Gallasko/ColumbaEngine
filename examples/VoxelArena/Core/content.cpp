@@ -1536,7 +1536,7 @@ namespace arena
                 const Json& j = raw.data;
                 checkKeys(j, {"name", "text", "maxHealth", "damage", "dashCharges", "manaCost", "manaRegen", "staminaRegen", "speed", "cooldown", "lifeOnHit",
                               "statusStacks", "most", "armor", "crit", "pickupRange", "regen", "attackSpeed", "horde", "xpGain", "shardChance",
-                              "price", "tag", "boost"},
+                              "price", "tag", "boost", "look"},
                           raw.file, report, "boon " + id);
 
                 UpgradeDef u;
@@ -1572,6 +1572,50 @@ namespace arena
                 if (u.forTag() != (j.find("boost") != nullptr))
                     report.error(raw.file, j.line, "boon \"" + id + "\": a tag item has both a \"tag\" and a \"boost\"");
 
+                // "look": { "orbit": [255, 106, 61] }, or a piece { "model", "part", "at", "yaw", "scale" }, or a list of pieces
+                if (const Json* look = j.find("look"))
+                {
+                    std::vector<const Json*> pieces;
+                    if (look->isArray())
+                        for (const auto& p : look->array)
+                            pieces.push_back(&p);
+                    else
+                        pieces.push_back(look);
+
+                    for (const Json* p : pieces)
+                    {
+                        checkKeys(*p, {"model", "part", "at", "yaw", "scale", "orbit"}, raw.file, report, "boon " + id + "'s look");
+
+                        if (const Json* orbit = p->find("orbit"))
+                        {
+                            if (orbit->isArray() and orbit->array.size() >= 3)
+                            {
+                                u.look.orbit = true;
+                                for (int k = 0; k < 3; ++k)
+                                    u.look.colour[k] = std::clamp(static_cast<float>(orbit->array[static_cast<size_t>(k)].number) / 255.0f, 0.0f, 1.0f);
+                            }
+                            else
+                                report.error(raw.file, orbit->line, "boon \"" + id + "\": \"orbit\" is a colour, [r, g, b] (0-255)");
+                            continue;
+                        }
+
+                        LookDef::Piece piece;
+                        readStr(*p, "model", piece.model, raw.file, report);
+                        readStr(*p, "part", piece.part, raw.file, report);
+                        readVec3(*p, "at", piece.at, raw.file, report);
+                        readNum(*p, "yaw", piece.yaw, raw.file, report);
+                        readNum(*p, "scale", piece.scale, raw.file, report);
+                        piece.model = piece.model.empty() ? "" : resolveId(piece.model, raw.mod);
+
+                        if (piece.model.empty() or not content.raw["model"].count(piece.model))
+                        {
+                            report.error(raw.file, p->line, "boon \"" + id + "\": unknown look model \"" + piece.model + "\"");
+                            continue;
+                        }
+                        u.look.pieces.push_back(piece);
+                    }
+                }
+
                 content.upgrades[id] = u;
             }
         }
@@ -1591,7 +1635,7 @@ namespace arena
 
             checkKeys(j, {"waves", "duration", "spawnRate", "maxAlive", "eliteFrom", "eliteChance", "healthGrowth", "pools", "bosses", "warn", "centre", "spawnRadius", "coopScale",
                           "waveScore", "victoryScore", "pickupRange", "xp", "start", "shop", "arena", "arenas", "resetEachWave", "duel", "chooseWeapon",
-                          "levelSkills", "intermission", "spawnScale", "branchLevel", "mastery", "presents", "difficulties"},
+                          "levelSkills", "intermission", "spawnScale", "branchLevel", "mastery", "presents", "difficulties", "shardFalloff"},
                       raw.file, report, "the run");
 
             readInt(j, "waves", r.waves, raw.file, report);
@@ -1618,6 +1662,8 @@ namespace arena
             readNum(j, "spawnRadius", r.spawnRadius, raw.file, report);
             readNum(j, "coopScale", r.coopScale, raw.file, report);
             readNum(j, "spawnScale", r.spawnScale, raw.file, report);
+            readNum(j, "shardFalloff", r.shardFalloff, raw.file, report);
+            r.shardFalloff = std::max(0.0f, r.shardFalloff);
             readInt(j, "branchLevel", r.branchLevel, raw.file, report);
             r.branchLevel = std::max(2, r.branchLevel);
             if (const Json* mastery = j.find("mastery"))

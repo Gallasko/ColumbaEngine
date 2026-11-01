@@ -398,18 +398,67 @@ namespace arena
         for (const auto& f : fighters)
             if (f.team == Team::Player)
                 sum += f.boon.shardChance;
-        return sum;
+
+        // Diminishing returns: a whole team of greed items does not multiply the shards
+        return sum / (1.0f + content->run.shardFalloff * sum);
     }
 
     // ---- Starting, stopping ---------------------------------------------------------------------
+
+    int ArenaWorld::difficultyChooser() const
+    {
+        const Fighter* chooser = nullptr;
+        for (const auto& f : fighters)
+        {
+            if (f.team != Team::Player)
+                continue;
+
+            const bool host = f.owner == 0, chooserHost = chooser and chooser->owner == 0;
+            if (not chooser or (host and not chooserHost) or (host == chooserHost and f.id < chooser->id))
+                chooser = &f;
+        }
+        return chooser ? chooser->id : 0;
+    }
+
+    void ArenaWorld::chooseDifficulty(uint32_t seed)
+    {
+        const RunDef& def = content->run;
+        if (def.levels() <= 1)
+        {
+            startRun(seed);
+            return;
+        }
+
+        const int level = std::clamp(run.difficulty, 0, def.levels() - 1);
+        const int open = run.levelsOpen;
+        run = RunState{};
+        run.seed = seed ? seed : 1u;
+        run.difficulty = level;
+        run.levelsOpen = open;
+        run.phase = RunPhase::Difficulty;
+        run.chooser = difficultyChooser();
+
+        // Nobody to fight while it is chosen; whoever was down is back up
+        removeEnemies();
+        projectiles.clear();
+        zones.clear();
+        pickups.clear();
+        pendingHits.clear();
+
+        for (auto& f : fighters)
+            if (f.team == Team::Player and not f.alive())
+                respawn(f);
+    }
 
     void ArenaWorld::startRun(uint32_t seed)
     {
         const RunDef& def = content->run;
         const int level = std::clamp(run.difficulty, 0, def.levels() - 1);
+        const int open = run.levelsOpen;
         run = RunState{};
         run.seed = seed ? seed : 1u;
         run.difficulty = level;
+        run.levelsOpen = open;
         run.waves = def.wavesAt(level);
 
         // A fresh arena (the run's own), nobody in it but the players, as new, with what a run starts with
@@ -451,6 +500,7 @@ namespace arena
             f.runSkills.clear();
             f.presents = f.banked = f.interest = 0;
             f.presentOffer.clear();
+            f.stats = Fighter::RunStats{};
             f.ready = false;
             f.armed = not (def.chooseWeapon and content->weaponOrder.size() > 1);
             sumBoons(f);
@@ -505,9 +555,11 @@ namespace arena
 
     void ArenaWorld::stopRun()
     {
-        const int level = run.difficulty;
+        const int level = run.difficulty, open = run.levelsOpen;
+        const bool choosing = run.phase == RunPhase::Difficulty;
         run = RunState{};
         run.difficulty = level;
+        run.levelsOpen = open;
         pickups.clear();
 
         for (auto& f : fighters)
@@ -535,12 +587,21 @@ namespace arena
                 if (f.team == Team::Player)
                     respawn(f);
         }
+        else if (choosing)
+        {
+            // Back from choosing the difficulty: the training ground as it was, its enemies back
+            showArena(trainingArena);
+        }
     }
 
     void ArenaWorld::skipToWave(int wave)
     {
         if (not inRun())
             return;
+
+        // Still choosing the difficulty: the run starts at the one picked so far
+        if (run.phase == RunPhase::Difficulty)
+            startRun(run.seed);
 
         removeEnemies();
         run.bossId = 0;
@@ -704,7 +765,10 @@ namespace arena
                 }
 
             if (nearest and p.present)
+            {
                 ++nearest->presents;
+                ++nearest->stats.presents;
+            }
             else if (nearest)
                 collect(*nearest, p.value);
         }
@@ -836,12 +900,14 @@ namespace arena
     void ArenaWorld::collect(Fighter& f, int value)
     {
         f.shards += value;
+        f.stats.shards += value;
 
         // More XP per shard comes in parts: what is short of a whole one waits for the next shard
         f.xpCarry += static_cast<float>(value) * (1.0f + std::max(0.0f, f.boon.xpGain));
         const int whole = static_cast<int>(f.xpCarry + 1e-4f);
         f.xpCarry = std::max(0.0f, f.xpCarry - static_cast<float>(whole));
         f.xp += whole;
+        f.stats.xp += whole;
 
         while (f.xp >= xpFor(f.level))
         {
@@ -899,6 +965,7 @@ namespace arena
                     if (present)
                     {
                         ++to->presents;
+                        ++to->stats.presents;
                         event("present", at, 1.0f, to->id);
                     }
                     else
@@ -1259,6 +1326,7 @@ namespace arena
             f.shards -= o.price;
             o.bought = true;
             o.locked = false;
+            ++f.stats.items;
 
             if (content->upgrades.count(o.id))
             {
@@ -1322,13 +1390,13 @@ namespace arena
             return it != inputs.end() ? it->second.pick : 0;
         };
 
-        // Anyone's START: a run from the start
+        // Anyone's START: a run from the start (its difficulty first)
         auto startAgain = [&]() {
             for (const auto& f : fighters)
             {
                 if (f.team == Team::Player and pickOf(f) == InputFrame::START)
                 {
-                    startRun(runRandom() ^ static_cast<uint32_t>(steps * 2654435761u + 1u));
+                    chooseDifficulty(runRandom() ^ static_cast<uint32_t>(steps * 2654435761u + 1u));
                     return;
                 }
             }
@@ -1463,6 +1531,27 @@ namespace arena
 
                 if ((not run.bossWave and run.timer <= 0.0f) or bossDown)
                     endWave();
+                break;
+            }
+
+            case RunPhase::Difficulty:
+            {
+                // One player picks (the host's, else the first one in), among the levels open
+                run.chooser = difficultyChooser();
+                const Fighter* chooser = run.chooser ? find(run.chooser) : nullptr;
+                const int pick = chooser ? pickOf(*chooser) : 0;
+                const int level = pick - InputFrame::DIFFICULTY;
+
+                if (pick == InputFrame::BACK)
+                {
+                    stopRun();
+                }
+                else if (level >= 0 and level < def.levels() and level < std::max(1, run.levelsOpen))
+                {
+                    run.difficulty = level;
+                    event("difficulty_pick", arena().centre, static_cast<float>(level));
+                    startRun(run.seed);
+                }
                 break;
             }
 

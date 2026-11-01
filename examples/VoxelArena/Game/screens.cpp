@@ -301,6 +301,87 @@ namespace arena::screens
         }
     }
 
+    void drawDifficulty(Ui& ui, const DifficultyView& v)
+    {
+        ui.section("difficulty");
+        ui.anchor(Anchor::TopLeft);
+        ui.rectPx(0, 0, ui.width(), ui.height(), withAlpha(INK, 0.58f));
+
+        ui.anchor(Anchor::Centre);
+        ui.raised(40, 60, 1200, 600, PANEL, 4.0f);
+
+        ui.text(66, 84, "CHOOSE THE DIFFICULTY", Font::Display, 40, TEXT, Align::Left, 1.0f);
+        ui.text(66, 128, v.choosing ? "Win a difficulty to open the next one." : v.chooserName + " is choosing the difficulty.", Font::Text500, 13, v.choosing ? TEXT_DIM : GOLD);
+
+        // Easy to hard: green, gold, red, purple
+        const Colour ramp[] = {GOOD, GOLD, FIRE_TEXT, HEALTH_NUMBER, BOSS};
+        const size_t n = std::max<size_t>(1, v.levels.size());
+        auto accentOf = [&](size_t i) {
+            const float t = n > 1 ? static_cast<float>(i) / static_cast<float>(n - 1) * 4.0f : 0.0f;
+            const int a = std::min(3, static_cast<int>(t));
+            const float f = t - static_cast<float>(a);
+            return glm::mix(ramp[a], ramp[a + 1], f);
+        };
+
+        const float gap = 12.0f;
+        const float cw = std::floor((1148.0f - gap * static_cast<float>(n - 1)) / static_cast<float>(n));
+
+        for (size_t i = 0; i < v.levels.size(); ++i)
+        {
+            const auto itemScope = ui.scope(i);
+            const auto& l = v.levels[i];
+            const bool open = l.locked.empty();
+            const float x = 66.0f + static_cast<float>(i) * (cw + gap), y = 160.0f, h = 400.0f;
+            const bool over = v.choosing and open and ui.hover(x, y, cw, h);
+            const bool lit = over or (v.choosing and open and static_cast<int>(i) == v.cursor);
+            const Colour accent = open ? accentOf(i) : FAINT;
+
+            ui.raised(x, y, cw, h, open ? CARD : CARD_DIM, 3.0f, 2.0f, lit ? GOLD : INK);
+            ui.rect(x + 2, y + 2, cw - 4, 6, accent);
+
+            float cy = y + 22.0f;
+            if (v.choosing and open)
+                ui.keycap(x + 14, cy, 22, std::to_string(i + 1), GOLD, GOLD_INK, 18, 0.0f);
+            else if (not open)
+                ui.icon("lock", x + 16, cy + 4, 2.0f, FAINT);
+            cy += 34.0f;
+
+            ui.text(x + 14, cy, ui.fit(l.name, Font::Display, 32, cw - 28), Font::Display, 32, open ? accent : FAINT);
+            cy += 44.0f;
+            cy += ui.paragraph(x + 14, cy, cw - 28, l.waves, Font::Text600, 13, open ? TEXT : FAINT, 18.0f, 2) + 12.0f;
+
+            for (const auto& line : l.lines)
+                cy += ui.paragraph(x + 14, cy, cw - 28, line, Font::Text500, 12, open ? TEXT_DIM : FAINT, 16.0f, 2) + 6.0f;
+
+            // Play it, or how to open it
+            const float by = y + h - 14 - 44;
+            if (not open)
+            {
+                ui.box(x + 14, by, cw - 28, 44, WELL, 2.0f, LINE);
+                ui.text(x + cw * 0.5f, by + 14, ui.fit(l.locked, Font::Text600, 12, cw - 40), Font::Text600, 12, MUTED, Align::Centre);
+            }
+            else if (v.choosing)
+            {
+                ui.raised(x + 14, by, cw - 28, 44, GOLD, 3.0f, 2.0f, lit ? TEXT : INK);
+                ui.text(x + cw * 0.5f, by + 9, "Play", Font::Display, 26, GOLD_INK, Align::Centre);
+                ui.hit(x, y, cw, h, DIFFICULTY_PICK + static_cast<int>(i));
+            }
+        }
+
+        // Back to the title (the lobby)
+        if (v.choosing and v.canBack)
+        {
+            const float kw = ui.measure("BKSP", Font::Display, 15) + 12.0f;
+            const float bw = 12.0f + kw + 10.0f + ui.measure("Back", Font::Display, 24) + 16.0f;
+            const bool over = ui.hover(66, 590, bw, 44);
+            ui.box(66, 590, bw, 44, CARD, 2.0f, over ? GOLD : LINE);
+            ui.box(78, 601, kw, 22, INK, 0.0f);
+            ui.text(78 + kw * 0.5f, 604, "BKSP", Font::Display, 15, GOLD, Align::Centre);
+            ui.text(78 + kw + 10, 598, "Back", Font::Display, 24, TEXT);
+            ui.hit(66, 590, bw, 44, DIFFICULTY_BACK);
+        }
+    }
+
     int drawArmory(Ui& ui, const ArmoryView& v)
     {
         int hovered = -1;
@@ -527,29 +608,6 @@ namespace arena::screens
             ui.hit(72, 318, 472, 78, TITLE_ARENA);
         }
 
-        // The difficulty: < and > (or the arrow keys) go through the levels open
-        if (v.levels > 1 and not v.waitingForHost)
-        {
-            const float y = 562.0f;
-            ui.box(72, y, 472, 44, CARD, 2.0f, LINE);
-
-            auto arrow = [&](float x, const std::string& key, bool can, int action) {
-                const auto arrowScope = ui.scope(static_cast<uint64_t>(action));
-                if (can and ui.hover(x, y + 9, 26, 26))
-                    ui.box(x - 2, y + 7, 30, 30, CARD, 2.0f, GOLD);
-                ui.keycap(x, y + 9, 26, key, can ? GOLD : LINE, can ? GOLD_INK : FAINT, 20, 0.0f);
-                if (can)
-                    ui.hit(x, y + 9, 26, 26, action);
-            };
-
-            arrow(84, "<", v.easier, TITLE_EASIER);
-            ui.text(184, y + 8, ui.fit(v.level, Font::Display, 28, 128), Font::Display, 28, TEXT, Align::Centre);
-            arrow(258, ">", v.harder, TITLE_HARDER);
-
-            ui.text(530, y + 7, ui.fit(v.levelText, Font::Text600, 12, 230), Font::Text600, 12, TEXT_DIM, Align::Right);
-            ui.text(530, y + 24, ui.fit(v.locked.empty() ? "difficulty" : v.locked, Font::Text500, 11, 230), Font::Text500, 11, v.locked.empty() ? FAINT : MUTED, Align::Right);
-        }
-
         struct Item { std::string key, name, hint; int action; };
         const Item items[] = {
             {"T", "Training ground", "dummies, enemies that come back", TITLE_TRAINING},
@@ -708,32 +766,6 @@ namespace arena::screens
             ui.hit(x, 542, 152, 40, items[k].action);
         }
 
-        // The difficulty: the host picks it (< and >, or the arrow keys), the others see it
-        if (v.levels > 1 and v.status.empty())
-        {
-            const float x = 392.0f;
-            ui.box(x, 542, 152, 40, CARD, 2.0f, LINE);
-            const bool picks = v.isHost or v.easier or v.harder;
-
-            if (picks)
-            {
-                auto arrow = [&](float ax, const std::string& key, bool can, int action) {
-                    const auto arrowScope = ui.scope(static_cast<uint64_t>(action));
-                    ui.keycap(ax, 549, 24, key, can ? GOLD : LINE, can ? GOLD_INK : FAINT, 18, 0.0f);
-                    if (can)
-                        ui.hit(ax, 549, 24, 24, action);
-                };
-                arrow(x + 6, "<", v.easier, TITLE_EASIER);
-                arrow(x + 122, ">", v.harder, TITLE_HARDER);
-                ui.text(x + 76, 550, ui.fit(v.level, Font::Display, 22, 84), Font::Display, 22, TEXT, Align::Centre);
-            }
-            else
-            {
-                ui.text(x + 10, 546, "DIFFICULTY", Font::Text700, 9, MUTED, Align::Left, 1.2f);
-                ui.text(x + 10, 557, ui.fit(v.level, Font::Display, 22, 132), Font::Display, 22, TEXT);
-            }
-        }
-
         // ---- How friends join
         ui.text(72, 598, v.isHost ? "FRIENDS JOIN WITH" : "JOINED", Font::Text700, 11, MUTED, Align::Left, 1.5f);
         const std::string port = ":" + std::to_string(v.port);
@@ -794,55 +826,75 @@ namespace arena::screens
 
         const Colour accent = v.won ? GOLD : HEALTH_NUMBER;
 
+        // Taller with the duel's winner and the players' recap, wider with the recap
+        const bool recap = not v.recap.empty();
+        const float duelH = v.champion.empty() ? 0.0f : 58.0f;
+        const float recapH = recap ? 4.0f + 22.0f * static_cast<float>(v.recap.size()) : 0.0f;
+        const float panelW = recap ? 800.0f : 640.0f, panelH = 420.0f + duelH + recapH;
+        const float px = 640.0f - panelW * 0.5f, py = std::max(8.0f, 360.0f - panelH * 0.5f);
+        const float L = px + 34.0f, R = px + panelW - 34.0f, W = R - L;
+
         ui.anchor(Anchor::Centre);
-        ui.raised(320, 150, 640, 420, PANEL, 4.0f);
-        ui.rect(322, 152, 636, 6, accent);
+        ui.raised(px, py, panelW, panelH, PANEL, 4.0f);
+        ui.rect(px + 2, py + 2, panelW - 4, 6, accent);
 
         const std::string title = not v.won ? "DEFEATED" : (v.youChampion ? "CHAMPION" : "VICTORY");
-        ui.textShadow(354, 176, title, Font::Display, 84, accent, 4.0f, Align::Left, 2.0f);
+        ui.textShadow(L, py + 26, title, Font::Display, 84, accent, 4.0f, Align::Left, 2.0f);
 
         std::string subtitle = v.won ? "All " + std::to_string(v.waves) + " waves, and " + v.boss + " falls."
                                      : "At wave " + std::to_string(v.wave) + " of " + std::to_string(v.waves) + ".";
         if (v.won and not v.champion.empty())
-            subtitle = "All " + std::to_string(v.waves) + " waves, then " + (v.youChampion ? std::string("you won") : v.champion + " won") + " the final duel.";
+            subtitle = "All " + std::to_string(v.waves) + " waves, then the final duel.";
         if (not v.difficulty.empty())
             subtitle = v.difficulty + " \xC2\xB7 " + subtitle;
 
         // A win that opened the next level
         if (not v.opened.empty())
         {
-            ui.text(926, 192, "NOW OPEN", Font::Text700, 11, MUTED, Align::Right, 1.5f);
-            ui.text(926, 208, ui.fit(v.opened, Font::Display, 30, 220), Font::Display, 30, GOLD, Align::Right);
+            ui.text(R, py + 42, "NOW OPEN", Font::Text700, 11, MUTED, Align::Right, 1.5f);
+            ui.text(R, py + 58, ui.fit(v.opened, Font::Display, 30, 220), Font::Display, 30, GOLD, Align::Right);
         }
-        ui.text(354, 262, ui.fit(subtitle, Font::Text600, 16, 572), Font::Text600, 16, SUBTITLE);
+        ui.text(L, py + 112, ui.fit(subtitle, Font::Text600, 16, W), Font::Text600, 16, SUBTITLE);
+
+        // Who won the final duel
+        float y = py + 144;
+        if (duelH > 0.0f)
+        {
+            ui.box(L, y, W, 46, hex(0x2A2414), 2.0f, GOLD);
+            ui.text(L + 16, y + 16, "DUEL WINNER", Font::Text700, 12, GOLD, Align::Left, 1.5f);
+            const std::string who = v.youChampion ? v.champion + " (you)" : v.champion;
+            ui.text(L + 150, y + 6, ui.fit(who, Font::Display, 32, W - 170), Font::Display, 32, TEXT);
+            y += duelH;
+        }
 
         // The waves: reached, the one it ended on, the rest
         for (int k = 0; k < v.waves; ++k)
         {
-            const float x = 354.0f + static_cast<float>(k) * (572.0f + 3.0f) / static_cast<float>(v.waves);
-            const float w = std::floor(575.0f / static_cast<float>(v.waves)) - 3.0f;
+            const float x = L + static_cast<float>(k) * (W + 3.0f) / static_cast<float>(v.waves);
+            const float w = std::floor((W + 3.0f) / static_cast<float>(v.waves)) - 3.0f;
             Colour c = withAlpha(INK, 0.6f);
             if (k < v.wave - 1 or (v.won and k < v.waves))
                 c = TEXT;
             else if (k == v.wave - 1)
                 c = HEALTH;
-            ui.rect(std::round(x), 294, w, 10, c);
+            ui.rect(std::round(x), y, w, 10, c);
         }
 
         // The score, the best, the run in numbers
-        ui.box(354, 322, 572, 96, WELL);
-        ui.text(372, 336, "SCORE", Font::Text700, 11, MUTED, Align::Left, 1.5f);
-        const float sw = ui.text(372, 350, grouped(v.score), Font::Display, 56, TEXT);
+        y += 28;
+        ui.box(L, y, W, 96, WELL);
+        ui.text(L + 18, y + 14, "SCORE", Font::Text700, 11, MUTED, Align::Left, 1.5f);
+        const float sw = ui.text(L + 18, y + 28, grouped(v.score), Font::Display, 56, TEXT);
 
         if (v.score >= v.best and v.score > 0)
         {
             const float tw = ui.measure("BEST!", Font::Display, 18) + 12.0f;
-            ui.rect(372 + sw + 12, 368, tw, 22, GOLD);
-            ui.text(372 + sw + 18, 369, "BEST!", Font::Display, 18, GOLD_INK);
+            ui.rect(L + 18 + sw + 12, y + 46, tw, 22, GOLD);
+            ui.text(L + 18 + sw + 18, y + 47, "BEST!", Font::Display, 18, GOLD_INK);
         }
         else
         {
-            ui.text(372 + sw + 12, 372, "(best " + grouped(v.best) + ")", Font::Text600, 13, MUTED);
+            ui.text(L + 18 + sw + 12, y + 50, "(best " + grouped(v.best) + ")", Font::Text600, 13, MUTED);
         }
 
         const int seconds = static_cast<int>(v.time);
@@ -851,30 +903,79 @@ namespace arena::screens
 
         for (int k = 0; k < 3; ++k)
         {
-            const float x = 926.0f - 18.0f - static_cast<float>(3 - k) * 86.0f;
-            ui.text(x, 340, stats[k].first, Font::Text700, 11, MUTED, Align::Left, 1.5f);
-            ui.text(x, 358, stats[k].second, Font::Display, 34, TEXT);
+            const float x = R - 18.0f - static_cast<float>(3 - k) * 86.0f;
+            ui.text(x, y + 18, stats[k].first, Font::Text700, 11, MUTED, Align::Left, 1.5f);
+            ui.text(x, y + 36, stats[k].second, Font::Display, 34, TEXT);
         }
+        y += 110;
+
+        // What each player did: a row each, the columns right-aligned
+        if (recap)
+        {
+            const bool healed = std::any_of(v.recap.begin(), v.recap.end(), [](const EndView::Recap& r) { return r.healing > 0; });
+            std::vector<std::string> heads = {"LEVEL", "KILLS", "DAMAGE"};
+            if (healed)
+                heads.push_back("HEALING");
+            for (const char* h : {"SHARDS", "XP", "PRESENTS", "ITEMS", "FALLS"})
+                heads.push_back(h);
+
+            // Each column as wide as its heading needs; the name takes the rest
+            std::vector<float> right;
+            float used = 0.0f;
+            for (const auto& h : heads)
+                right.push_back(used += std::max(58.0f, ui.measure(h, Font::Text700, 11, 1.0f) + 24.0f));
+            const float nameW = W - used;
+
+            ui.text(L + 10, y, "PLAYER", Font::Text700, 11, MUTED, Align::Left, 1.5f);
+            for (size_t c = 0; c < heads.size(); ++c)
+                ui.text(L + nameW + right[c] - 10.0f, y, heads[c], Font::Text700, 11, MUTED, Align::Right, 1.0f);
+            y += 20;
+
+            for (size_t i = 0; i < v.recap.size(); ++i)
+            {
+                const auto rowScope = ui.scope(i);
+                const EndView::Recap& r = v.recap[i];
+                const float ry = y + 22.0f * static_cast<float>(i);
+                if (r.you)
+                    ui.rect(L, ry, W, 22, withAlpha(TEXT, 0.07f));
+
+                const Colour ink = r.champion ? GOLD : (r.you ? TEXT : TEXT_DIM);
+                const std::string name = r.name + (r.you ? " (you)" : "");
+                ui.text(L + 10, ry + 3, ui.fit(name, Font::Text700, 14, nameW - 16), Font::Text700, 14, ink);
+
+                std::vector<std::string> cells = {std::to_string(r.level), std::to_string(r.kills), grouped(r.damage)};
+                if (healed)
+                    cells.push_back(grouped(r.healing));
+                for (int value : {r.shards, r.xp, r.presents, r.items, r.downs})
+                    cells.push_back(grouped(value));
+
+                for (size_t c = 0; c < cells.size(); ++c)
+                    ui.text(L + nameW + right[c] - 10.0f, ry + 3, cells[c], Font::Text600, 14, ink, Align::Right);
+            }
+            y += 22.0f * static_cast<float>(v.recap.size()) + 16.0f;
+        }
+
+        const float by = py + 342.0f + duelH + recapH;
 
         // Again, or the training ground
         const float aw = 22.0f + ui.measure("ENTER", Font::Display, 16) + 12.0f + ui.measure("Play again", Font::Display, 28) + 24.0f;
-        bool over = ui.hover(354, 492, aw, 48);
-        ui.raised(354, 492, aw, 48, GOLD, 3.0f, 2.0f, over ? TEXT : INK);
+        bool over = ui.hover(L, by, aw, 48);
+        ui.raised(L, by, aw, 48, GOLD, 3.0f, 2.0f, over ? TEXT : INK);
         const float kw = ui.measure("ENTER", Font::Display, 16) + 12.0f;
-        ui.box(366, 505, kw, 22, INK, 0.0f);
-        ui.text(366 + kw * 0.5f, 507, "ENTER", Font::Display, 16, GOLD, Align::Centre);
-        ui.text(366 + kw + 12, 500, "Play again", Font::Display, 28, GOLD_INK);
-        ui.hit(354, 492, aw, 48, END_AGAIN);
+        ui.box(L + 12, by + 13, kw, 22, INK, 0.0f);
+        ui.text(L + 12 + kw * 0.5f, by + 15, "ENTER", Font::Display, 16, GOLD, Align::Centre);
+        ui.text(L + 12 + kw + 12, by + 8, "Play again", Font::Display, 28, GOLD_INK);
+        ui.hit(L, by, aw, 48, END_AGAIN);
 
         if (v.solo)
         {
-            const float tx = 354.0f + aw + 12.0f;
+            const float tx = L + aw + 12.0f;
             const float tw = 12.0f + 26.0f + 12.0f + ui.measure("Training ground", Font::Display, 28) + 16.0f;
-            over = ui.hover(tx, 492, tw, 48);
-            ui.box(tx, 492, tw, 48, CARD, 2.0f, over ? GOLD : LINE);
-            ui.keycap(tx + 12, 503, 26, "T", GOLD, GOLD_INK, 20, 0.0f);
-            ui.text(tx + 50, 500, "Training ground", Font::Display, 28, TEXT);
-            ui.hit(tx, 492, tw, 48, END_TRAINING);
+            over = ui.hover(tx, by, tw, 48);
+            ui.box(tx, by, tw, 48, CARD, 2.0f, over ? GOLD : LINE);
+            ui.keycap(tx + 12, by + 11, 26, "T", GOLD, GOLD_INK, 20, 0.0f);
+            ui.text(tx + 50, by + 8, "Training ground", Font::Display, 28, TEXT);
+            ui.hit(tx, by, tw, 48, END_TRAINING);
         }
     }
 }

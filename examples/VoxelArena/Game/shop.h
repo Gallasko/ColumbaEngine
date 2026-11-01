@@ -16,16 +16,19 @@ namespace arena
     };
     OfferInfo offerInfo(const Content& content, const std::string& id);
 
-    /** A stat or tag item at a rarity, in words: "+40 max health", "Fire: +24% damage". */
+    /** A stat or tag item at a rarity, in words: "+40 max health", "+24% fire damage". */
     std::string itemText(const Content& content, const UpgradeDef& item, float power);
 
     /** A spell or technique given in a run, with its level ("Firebolt III"); the name of the branch it took. */
     std::string runSpellName(const Content& content, const Fighter::RunSpell& spell);
     std::string branchName(const Content& content, const Fighter::RunSpell& spell);
 
-    /** What a tag item's boost reaches ("Projectiles"), and its boost in words ("+1 projectile, +25% projectile speed"). */
+    /**
+     * What a tag item's boost reaches ("Projectiles"), and its boost in words ("+1 projectile, +25% projectile speed").
+     * With a tag, each part names it: "+20% fire damage", "-15% spell cooldown".
+     */
     std::string tagLabel(const std::string& tag);
-    std::string boostText(const SpellTweak& boost, float k = 1.0f);
+    std::string boostText(const SpellTweak& boost, float k = 1.0f, const std::string& tag = "");
 
     /** A number that changes from one fighter to another ("Firebolt damage: 12.0 -> 14.4"): what a tooltip lists. */
     struct Change

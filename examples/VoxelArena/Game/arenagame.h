@@ -152,7 +152,7 @@ namespace arena
 
         // Rendering
         size_t litMaterial = 0, skyMaterial = 0, debugMaterial = 0;
-        std::shared_ptr<GpuMesh> worldMesh, skyMesh, boxMesh;
+        std::shared_ptr<GpuMesh> worldMesh, skyMesh, boxMesh, discMesh, ringMesh;
         std::map<std::string, std::shared_ptr<GpuMesh>> modelMeshes;   // kept for the whole run, see GpuMesh
         uint64_t meshedRevision = ~0ull;
         uint64_t meshedTerrainRevision = ~0ull;
@@ -254,6 +254,11 @@ namespace arena
         float uiTime = 0.0f;
         bool endOpen = false;               // the end of a run is up
         bool armoryOpen = false;            // the weapon choice before the first wave is up
+        bool difficultyOpen = false;        // the difficulty choice as a run starts is up
+        int difficultyCursor = 0;           // its card under the arrow keys
+        /** The levels that may be picked: this game's progress, or the server's (a client). */
+        int levelOpenNow() const { return client ? std::max(1, world.run.levelsOpen) : levelOpen + 1; }
+        void drawDifficulty();
 
         // The controls screen (from the options): an action rebound by the next key or button pressed
         bool controlsOpen = false;
@@ -397,14 +402,15 @@ namespace arena
         int pendingPick = 0;
         RunPhase lastPhase = RunPhase::Off;
         int bestScore = 0;
-        void startArena();
+        /** A run: its difficulty chosen first (chooseLevel), or straight in at the level picked last. */
+        void startArena(bool chooseLevel = true);
 
         // The difficulty levels: the highest open (each opens once the one before is won), the one picked
         int levelOpen = 0, levelPicked = 0;
         std::string levelJustOpened;       // a win just opened it: the end screen says so
         void pickLevel(int level);
         void saveLevels() const;
-        std::string levelText(int level) const;   // what a level changes, in words
+        std::vector<std::string> levelLines(int level) const;   // what a level changes, in words, a line each
         std::string arenaLine(int level) const;   // "10 timed waves, a shop between them, a boss at the end"
         void runHud(Hud::View& v);
         struct SpawnMark

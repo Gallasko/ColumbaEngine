@@ -528,9 +528,34 @@ namespace arena
      * A boon (upgrades.json), picked between the waves of a run. Its numbers add up with each pick:
      * damage 0.15 is 15% more, manaCost 0.15 is 15% cheaper, cooldown 0.2 is 20% shorter.
      */
+    /**
+     * How an item shows on a player who has it (upgrades.json "look"): pieces worn on the body, or a gem
+     * circling it. A piece is a model whose bottom centre goes at `at` (in the player model's voxels) on a
+     * body part (head, body, arm_l, arm_r, leg_l, leg_r: it moves with it), turned by yaw degrees, its
+     * voxels `scale` m (the player's are 0.125).
+     */
+    struct LookDef
+    {
+        struct Piece
+        {
+            std::string model;
+            std::string part = "body";
+            glm::vec3 at = glm::vec3(0.0f);
+            float yaw = 0.0f;
+            float scale = 0.0625f;
+        };
+        std::vector<Piece> pieces;
+
+        bool orbit = false;           // a gem circling the player, in this colour (0-1)
+        glm::vec3 colour = glm::vec3(1.0f);
+
+        bool empty() const { return pieces.empty() and not orbit; }
+    };
+
     struct UpgradeDef
     {
         std::string id, name, text;
+        LookDef look;
         float maxHealth = 0.0f;
         float damage = 0.0f;
         int dashCharges = 0;
@@ -628,6 +653,7 @@ namespace arena
 
         // The economy: shards dropped (each enemy's "drops"), picked up in range, money and XP
         float pickupRange = 2.5f;
+        float shardFalloff = 0.0f;    // the players' extra shard chances (greed) add up to t, counted as t / (1 + shardFalloff x t)
         int xpBase = 10, xpStep = 6;  // shards to the next level: base + step x (level - 1)
         std::string startWeapon = "base:sword";
         std::vector<std::string> startOwned = {"element:fire", "base:bolt"};

@@ -16,7 +16,7 @@ cd release
 make -j18 VoxelArena VoxelArenaServer test_voxelarena
 cd ..
 ./release/VoxelArena            # or ./make_and_play.sh VoxelArena
-./release/test_voxelarena       # 135 tests, about half a second
+./release/test_voxelarena       # 217 tests, about three seconds
 ```
 
 The game reads its mods and its shader straight from the source tree (`examples/VoxelArena/mods`,
@@ -39,6 +39,14 @@ Options:
 
 The title screen: **Enter** for the arena, **T** for the training ground (the sandbox, with dummies
 and enemies that come back), **O** for the options.
+
+- **The difficulty**, chosen as a run starts (and again with Play again): a card for each level of
+  `run.json`'s `difficulties` (Normal, Hard, Very hard, Nightmare, Torment, Hell), with its waves and what it
+  changes. 1-6, a click, or the arrows and Enter play one; Backspace goes back. The first is open, and
+  winning a level opens the next (`~/.local/share/voxelarena/levels.txt`); the locked ones show what opens
+  them. In multiplayer the host chooses (the others see who is choosing); on a dedicated server, the first
+  player in, with every level open. Console: `arena` goes straight to wave 1 at the last level picked,
+  `arena choose` shows the choice.
 
 - **Five arenas**, four waves each, every one built around the terrain (`mods/base/arenas/`):
   - *The Pit* (waves 1-4): four pillars, a platform, a boulder on a rope over the middle.
@@ -116,10 +124,11 @@ and enemies that come back), **O** for the options.
     "zone", "beam"); techniques with "technique", their own ("melee", "area", "dash", "heal") and
     "projectile" when they shoot; your weapon's light and heavy attacks with "attack", its role
     ("melee", "ranged", "support"), its type and "projectile" when they shoot (they take damage, area
-    and projectile speed, not more projectiles). Fire: +20% damage; Melee: +20% damage (your sword's
-    swings too); Attacks: +15% damage; Projectiles: +1 projectile, or +25% projectile speed; Area: +20%
-    area; Zones: last longer; Spells or Techniques: recharge faster, cost less... One is offered only
-    when something of yours has its tag. Leech (life on hit) heals in full from a direct hit (a
+    and projectile speed, not more projectiles). Searing: +20% fire damage; Honed: +20% melee damage (your
+    sword's swings too); Whetstone: +15% weapon attack damage; Split shot: +1 projectile; Fleet: +25%
+    projectile speed; Widening: +20% area size; Lingering: +30% zone duration; Hastened: -15% spell
+    cooldown; Tireless: -20% technique stamina cost... One is offered only when something of yours has
+    its tag. Leech (life on hit) heals in full from a direct hit (a
     swing, an arrow, a bolt or a beam striking), a fifth from an area's, a zone's or a chain's.
 
   Hover a card: a tooltip lists what buying it changes, before -> after (your numbers, each spell's
@@ -128,7 +137,15 @@ and enemies that come back), **O** for the options.
   goes on (`run.json` `shop.rarities`). They add up through the run. **Prices** start at half and end
   at one and a half times the written ones (`shop.priceScale`). **Interest**: the shards you keep
   through a shop grow by the next one as much as the prices did, so what you could buy and did not,
-  you still can (shown under your shards).
+  you still can (shown under your shards). **Greed** (each shard of a kill may come with one more) adds
+  up across the players with diminishing returns (`run.json` `shardFalloff`: a total of +100% counts as
+  +67%).
+
+  **Items show on you**: each one you have is worn (shoulder pads for Tough, a breastplate for Plated,
+  horns for Horde, a coin pouch for Greed, wings at the heels for Nimble...), and each tag item is a gem
+  in its colour circling you. The rarer, the more it glows. The others see yours. They are data: an
+  item's `look` in `upgrades.json` (a model on a body part, or `"orbit"`: a gem's colour); the base
+  mod's pieces come from `tools/make_looks.py`. Console: `item <id|all> [rarity]` gives you items.
 - **Bosses**: the **Brute Chieftain** on wave 10 (a brute twice the size: a slam, a stomp all around
   when crowded, a rush when you keep away) and the **Stone Warden** on wave 20 (a slam, a sweep all
   around, a long charge, a thrown rock; volt cracks it, fire barely warms it, under half its health it
@@ -137,16 +154,19 @@ and enemies that come back), **O** for the options.
   themselves. In the Crucible, everyone is back up at full in a ring around its middle, facing
   it; FINAL DUEL counts down 3 s (no one can hurt anyone yet), then FIGHT. Every hit, spell, arrow and
   zone of a player now lands on the other players too. One life each: the last one standing is the
-  champion (CHAMPION on their screen, "<name> won the final duel" on the others'); after two minutes,
+  champion (CHAMPION on their screen; everyone's end screen names the DUEL WINNER); after two minutes,
   the one with the most of their health left. The `duel` section of `run.json` (`enabled`, `duration`,
   `countdown`, `radius`, `arena`). Alone, the last wave is the victory as before.
 - **The score**: points per kill (twice for an elite), per wave survived, and a bonus for the victory.
   The best is kept (`~/.local/share/voxelarena/best.txt`). **Enter** at the end plays again, **T** goes
   training.
+- **The recap**: with two players or more, the end screen has a row for each player: their level,
+  kills, damage dealt, healing (when someone healed), shards and XP picked up, presents picked up,
+  items bought and falls. Console: `bot` adds an idle player, to try the duel and the recap alone.
 - **Falling**: alone, the run is over. In co-op you are back up at the next wave; the run is lost
   only when everyone is down.
-- In multiplayer the host starts the run from its title; on a dedicated server, any player's
-  Enter does.
+- In multiplayer the host starts the run from its title; on a dedicated server, it starts when
+  everyone is ready.
 
 The run is data: `mods/base/run.json` (the waves' durations, spawn rates and pools, elites, bosses,
 XP, the start kit and spells, the level ups' skills, the branch level and mastery, presents, the pause
@@ -183,7 +203,8 @@ for the players from anywhere, whatever its engage range.
 
 Bindings are data: the `controls` section of `mods/base/tuning.json`. Players rebind them in the game:
 Options, then Controls (moving, jumping, dodging, the attacks, the spells, the weapon skills, the terrain
-abilities, the next weapon): click a key, press the new one (a key or a mouse button). A key another
+abilities, the next weapon): click a key, press the new one (a key or a mouse button: left, right,
+middle, and the two side buttons, Mouse4 and Mouse5). A key another
 action had moves to it the other way round (they swap); Reset to defaults clears them. The keys are kept
 in `options.json` (`"keys"`) over the tuning's, and are named as the keyboard prints them (an AZERTY shows
 Z Q S D where a QWERTY shows W A S D: the same keys, by position).

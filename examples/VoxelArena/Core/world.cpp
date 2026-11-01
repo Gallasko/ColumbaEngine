@@ -2402,6 +2402,9 @@ namespace arena
             const float before = t.health;
             t.health = std::min(t.maxHealth, t.health + amount);
             event("heal", chest(t), t.health - before, t.id);
+
+            if (Fighter* healer = inRun() ? find(owner) : nullptr; healer and healer->team == Team::Player)
+                healer->stats.healing += t.health - before;
         }
     }
 
@@ -3315,7 +3318,14 @@ namespace arena
         const bool spared = godMode and target.team == Team::Player;
 
         if (not spared)
+        {
+            // What the attacker dealt, for the run's recap (what the target had left at most)
+            if (inRun() and attacker.team == Team::Player and target.id != attacker.id)
+                if (Fighter* by = find(attacker.id))
+                    by->stats.damage += std::clamp(damage, 0.0f, std::max(0.0f, target.health));
+
             target.health -= damage;
+        }
 
         // Life on hit: whole from a direct hit, a share from an area's, a zone's or a chain's (they hit many, or often)
         if (attacker.boon.lifeOnHit > 0.0f and attacker.alive() and damage > 0.0f)
@@ -3388,11 +3398,16 @@ namespace arena
             applyStatus(target, a.status.status, a.status.stacks + attacker.boon.statusStacks);
     }
 
-    void ArenaWorld::die(Fighter& target, int)
+    void ArenaWorld::die(Fighter& target, int attackerId)
     {
+        if (inRun() and target.team == Team::Player and target.alive())
+            ++target.stats.downs;
+
         if (inRun() and target.team == Team::Enemy and target.alive())
         {
             ++run.kills;
+            if (Fighter* by = attackerId ? find(attackerId) : nullptr; by and by->team == Team::Player)
+                ++by->stats.kills;
             if (auto def = content->enemies.find(target.type); def != content->enemies.end())
             {
                 run.score += def->second.score * (target.elite ? 2 : 1);
