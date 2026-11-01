@@ -57,6 +57,7 @@ namespace pg
         struct ProgramFiles
         {
             std::vector<std::vector<StatementPtr>> files;
+            std::vector<std::string> origins;  // By file: its path and a digest of its source, "" with no file
             FileImports imports;
             bool complete = true;
         };

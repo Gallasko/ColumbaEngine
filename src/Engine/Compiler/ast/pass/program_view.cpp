@@ -7,6 +7,7 @@
 #include "Interpreter/lexer.h"
 #include "Interpreter/parser.h"
 
+#include <functional>
 #include <map>
 #include <mutex>
 #include <unordered_map>
@@ -427,6 +428,11 @@ namespace pg
         {
             // The files by path, each the index it has in `out`, negative while it is read or when it
             // is none of them
+            std::string originOf(const std::string& path, const std::string& source)
+            {
+                return path + "#" + std::to_string(source.size()) + "." + std::to_string(std::hash<std::string>{}(source));
+            }
+
             using Visited = std::map<std::string, int>;
 
             void filesOfStatements(const std::string& baseDir, const std::vector<StatementPtr>& statements, size_t file, Visited& visited, ProgramFiles& out);
@@ -474,6 +480,7 @@ namespace pg
                 visited[fullPath] = static_cast<int>(file);
 
                 out.files.push_back(summary->statements);
+                out.origins.push_back(originOf(fullPath, summary->source));
                 out.imports.emplace_back();
 
                 filesOfStatements(baseDir, summary->statements, file, visited, out);
@@ -582,6 +589,7 @@ namespace pg
 
             const auto main = listOf(statements);
             program.files.push_back(main);
+            program.origins.push_back(UniversalFileAccessor::exists(mainFile) ? originOf(mainFile, UniversalFileAccessor::openTextFile(mainFile).data) : "");
             program.imports.emplace_back();
 
             filesOfStatements(baseDir, main, 0, visited, program);

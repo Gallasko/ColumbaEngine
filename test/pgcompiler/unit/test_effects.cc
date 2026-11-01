@@ -1750,7 +1750,7 @@ namespace pg
             Analyzed apart("const t = {a: 1}\nvar k = 0\nk = 1\nt.b = 2\n");
 
             EXPECT_NE(joined.effects.factsOf({"t"}).find("1 joins t"), std::string::npos);
-            EXPECT_TRUE(apart.effects.factsOf({"t", "k"}).empty());
+            EXPECT_NE(apart.effects.factsOf({"t", "k"}).find("nothing;"), std::string::npos);
 
             // A join that rests on a function of another file: the facts move with it
             ast::ProgramEffects on, off;
@@ -1883,7 +1883,7 @@ namespace pg
             ASSERT_TRUE(other.analyze({parsed("const k = {a: 1}\nvar seen = k\nfun read()\n{\n    return seen.a\n}\n"), module}));
             EXPECT_TRUE(one.joinsInFile(1)[1].joined);
             EXPECT_TRUE(other.joinsInFile(1)[1].joined);
-            EXPECT_EQ(one.factsOf({"t", "x", "read"}), other.factsOf({"t", "x", "read"}));
+            EXPECT_EQ(one.factsOf({"t"}), other.factsOf({"t"}));
 
             // A file not all of whose names are held is not what the module is made of
             ast::ProgramEffects held;
@@ -1895,6 +1895,19 @@ namespace pg
             ast::ProgramEffects twins;
             ASSERT_TRUE(twins.analyze({parsed("const t = {a: 1}\nt.b = 2\n"), parsed("const t = {a: 2}\nt.b = 3\n")}));
             EXPECT_NE(twins.factsOf({"t"}).find("plain;"), std::string::npos);
+
+            // A file's line is by its origin: another file of the same names is not it
+            const auto line = parsed("const t = {a: 1}\nt.b = 2\n");
+            ast::ProgramEffects here, there;
+            ASSERT_TRUE(here.analyze({line}, {}, {"f.pg#1"}));
+            ASSERT_TRUE(there.analyze({line}, {}, {"s.pg#1"}));
+            EXPECT_NE(here.factsOf({"t"}).find("f.pg#1:"), std::string::npos);
+            EXPECT_NE(here.factsOf({"t"}), there.factsOf({"t"}));
+
+            // A file that declares nothing has nothing to tell
+            ast::ProgramEffects nameless;
+            ASSERT_TRUE(nameless.analyze({parsed("import \"m\"\n")}, {}, {"n.pg#1"}));
+            EXPECT_TRUE(nameless.factsOf({"t"}).empty());
         }
 
         TEST(ProgramEffects, EffectsOfAStatementAreItsOwn)

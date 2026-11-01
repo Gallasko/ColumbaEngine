@@ -56,14 +56,14 @@ namespace pg
                 return vm.testOutput;
             }
 
-            // The script run with the whole-program analysis: the global `out` it left. Printing would
-            // be a statement the analysis knows nothing of, which leaves it nothing to decide
-            int64_t analyzed(const std::string& name)
+            // The global `out` a script left. Printing would be a statement the analysis knows nothing
+            // of, which leaves it nothing to decide
+            int64_t outOf(const std::string& name, bool wholeProgram)
             {
                 EntitySystem ecs;
                 ecs.setVMOptimizationLevel(VmOptimizationLevel::O3);
                 ecs.setVMFrontEnd(ScriptFrontEnd::Ast);
-                ecs.setWholeProgramAnalysis(true);
+                ecs.setWholeProgramAnalysis(wholeProgram);
 
                 VM vm;
                 ecs.setupVm(vm);
@@ -74,6 +74,9 @@ namespace pg
                 EXPECT_TRUE(IS_INT(out)) << name;
                 return IS_INT(out) ? AS_INT(out) : -1;
             }
+
+            int64_t analyzed(const std::string& name) { return outOf(name, true); }
+            int64_t plain(const std::string& name) { return outOf(name, false); }
         };
 
         TEST_F(ModuleCache, ASecondImportIsTakenFromTheCache)
@@ -183,6 +186,34 @@ namespace pg
 
             EXPECT_EQ(modulecache::counts().compiled, 2u);
             EXPECT_EQ(modulecache::counts().taken, 0u);
+        }
+
+        TEST_F(ModuleCache, AFileOfTheSameNamesDoesNotStandInForTheModule)
+        {
+            // In a's program f's entry joins t. In b's, s declares t as well: nothing joins in f, s's
+            // entry does, and the two programs decide the same for "a file declaring t"
+            write("f.pg", "const t = {a: 1}\nt.b = k.n\n");
+            write("s.pg", "const t = {a: 2}\nt.b = 3\nt.c = k.n\n");
+            write("a.pg", "const k = {n: 1}\nimport \"f\"\nvar out = t.b\n");
+            write("b.pg", "const k = {n: 1}\nimport \"s\"\nimport \"f\"\nvar out = t.b\n");
+
+            EXPECT_EQ(analyzed("a.pg"), 1);
+            EXPECT_EQ(analyzed("b.pg"), 1);
+        }
+
+        TEST_F(ModuleCache, AModuleCompiledWithAndWithoutTheAnalysisIsNotShared)
+        {
+            // Off, the loop is folded away and the fill joins t. On, the loop stands and it does not: the
+            // two compiles of m are not the same code, and each is taken only by its own side
+            write("m.pg", "const t = {a: 1}\nfor (var i = 0; i < 0; i++)\n{\n}\nt.b = 2\nvar other = 5\n");
+            write("a.pg", "import \"m\"\nvar out = t.b + other\n");
+
+            EXPECT_EQ(plain("a.pg"), 7);
+            EXPECT_EQ(analyzed("a.pg"), 7);
+            EXPECT_EQ(plain("a.pg"), 7);
+
+            EXPECT_EQ(modulecache::counts().compiled, 2u);
+            EXPECT_EQ(modulecache::counts().taken, 1u);
         }
 
         TEST_F(ModuleCache, TheAnalysisCompilesAChangedFileAgain)

@@ -66,8 +66,10 @@ namespace pg
         }
 
         /**
-         * The same, of every name the module holds (read, called, declared): for a pass whose
-         * choices for a module depend on more than what it calls
+         * The same, for a pass whose choices for a module depend on more than what it calls:
+         * `identifiers` is every name the module and its imports hold (read, called, declared).
+         * ProgramConstsPass tells from it the files the module may be made of, and gives what it
+         * decided for each of them
          */
         virtual std::string factsAboutIdentifiers(const std::set<std::string>& identifiers) const
         {

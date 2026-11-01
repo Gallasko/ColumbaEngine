@@ -262,8 +262,8 @@ The 94 fills are `statNames` 51 and `statShort` 43. `lastAge`, `anyAge`, `noBrea
 | Off | 0.21 s | 1.87 G |
 | On | 0.39 s | 3.69 G |
 
-That is +0.18 s. The analysis itself, all eight programs, takes about 0.16 s: 139 ms to analyze,
-23 ms to read the programs, 1 ms of module cache facts. The rest is the modules compiled again
+That is +0.18 s. The analysis itself, all eight programs, takes about 0.16 s: about 140 ms to
+analyze, 23 ms to read the programs, 1 ms of module cache facts. The rest is the modules compiled again
 (22 compiles on, 15 off), where a program decides otherwise for them.
 
 ### Rulecheck and beam
@@ -276,7 +276,8 @@ That is +0.18 s. The analysis itself, all eight programs, takes about 0.16 s: 13
 | Beam, tasks | 102 of 266 | 102 of 266, the same report |
 
 The beam costs more with the analysis on because the switch also analyzes the solver's own
-`solver.pg`, about 15 s of that run (25% of its samples). The search itself is 2 s shorter.
+`solver.pg`, about 15 s of that run (25% of its samples). The search times cannot be told apart:
+they are whole seconds, from two runs side by side.
 
 `test_compiler` (431) and `test_chronicle` (762) pass with the switch off.
 
@@ -289,8 +290,8 @@ The beam costs more with the analysis on because the switch also analyzes the so
 - **`RunOncePass`:** with the switch on, its fills are off, and `ProgramConstsPass` decides them.
 - **A file that runs more than once:** it joins only constant fills, and infers no var holding an
   object. What such a file imports counts as running more than once too.
-- **Module cache key:** it holds what was decided for the files a module is made of, not what the
-  decisions rest on (summaries, regions).
+- **Module cache key:** it holds what was decided for the files a module is made of, each by its
+  path and a digest of its source, not what the decisions rest on (summaries, regions).
 - **BodyIR cache:** not added. The target was met without it.
 
 ### Where on differs from off, by decision

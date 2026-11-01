@@ -819,9 +819,11 @@ namespace pg
             return found;
         }
 
-        bool ProgramEffects::analyze(const std::vector<std::vector<StatementPtr>>& files, const FileImports& imports)
+        bool ProgramEffects::analyze(const std::vector<std::vector<StatementPtr>>& files, const FileImports& imports, const std::vector<std::string>& fileOrigins)
         {
             *this = ProgramEffects();
+
+            origins = fileOrigins;
 
             // What the top levels define
             std::map<std::string, int> functions;
@@ -1179,7 +1181,11 @@ namespace pg
                     told += std::to_string(i) + " joins " + declaredBy(programFiles[f][fileJoins[f][i].target]) + ";";
             }
 
-            return names.empty() or told.empty() ? "" : names + ":" + told;
+            if (names.empty())
+                return "";
+
+            const bool known = f < origins.size() and not origins[f].empty();
+            return (known ? origins[f] : names) + ":" + (told.empty() ? "nothing;" : told);
         }
 
         std::string ProgramEffects::factsOf(const std::set<std::string>& identifiers) const

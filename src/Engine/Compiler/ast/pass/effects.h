@@ -86,11 +86,12 @@ namespace pg
         {
         public:
             // The program: its files' top-level statements, the script's first, and what each imports
-            // where (`imports`: what is not imported runs after, in order). False when code of the
+            // where (`imports`: what is not imported runs after, in order), and what tells each file
+            // from any other (`origins`, ProgramFiles: factsOf says it). False when code of the
             // program runs behind what the bodies show (a class, a function named as a metamethod) or a
             // `return` in a top-level statement decides whether what follows runs at all: then nothing
             // it says may be used
-            bool analyze(const std::vector<std::vector<StatementPtr>>& files, const FileImports& imports = {});
+            bool analyze(const std::vector<std::vector<StatementPtr>>& files, const FileImports& imports = {}, const std::vector<std::string>& origins = {});
 
             // A top-level statement of the program; any other is unknown: it may do anything, and
             // onlyMakes refuses it
@@ -147,9 +148,10 @@ namespace pg
             size_t collapsed() const { return collapsedValues; }
 
             // What was decided for the files a module may be made of, as text (a module cache's key):
-            // those whose every name it holds (`identifiers`, its own and its imports'). A module comes
-            // out of the pass by what was decided for it alone: why does not matter, every program
-            // decides anew
+            // those whose every name it holds (`identifiers`, its own and its imports'), one line a
+            // file, by its origin, a file with nothing decided included: a file of the same names is
+            // not that file. A module comes out of the pass by what was decided for it alone: why does
+            // not matter, every program decides anew
             std::string factsOf(const std::set<std::string>& identifiers) const;
 
             int definitions(const std::string& name) const;
@@ -176,6 +178,7 @@ namespace pg
             // The order the program runs in, an import where it stands
             std::unordered_map<const Statement*, size_t> ranAt;
             std::unordered_map<std::string, size_t> definedAt;    // The last definition of a name
+            std::vector<std::string> origins;                     // By file, what the program was given
             std::vector<std::string> decidedText;                 // By file: fileFacts
 
             std::set<std::string> followed;      // The functions summed up
@@ -244,7 +247,8 @@ namespace pg
             // A statement standing among open consts that is part of making them: the const it joins
             int joinTarget(const std::vector<StatementPtr>& file, size_t statement, const std::vector<size_t>& open) const;
 
-            // What was decided for a file, by what it declares; "" when nothing can differ
+            // What was decided for a file, by its origin (what it declares, with none); "" when it
+            // declares nothing: nothing can be decided for it
             std::string fileFacts(size_t file) const;
 
             // `writers`: the objects each statement or function writes into. The vars found to be consts

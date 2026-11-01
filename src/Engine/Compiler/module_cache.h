@@ -13,7 +13,9 @@
  *  - the VM's passes, AST and bytecode, and whether optimizations are on;
  *  - what the AST passes learnt from the program of the script compiled, for the names the
  *    module calls and those an inlined body brings (AstPass::factsAbout): a module is compiled
- *    below its importer, with what the passes learnt from that whole program.
+ *    below its importer, with what the passes learnt from that whole program;
+ *  - with the whole-program analysis, what was decided for each file the module is made of, by
+ *    that file's path and source (AstPass::factsAboutIdentifiers).
  *
  * The bytecode kept went through the bytecode passes: a module taken from here, or compiled
  * here, is `precompiled`, as one imported from its .pgc is.

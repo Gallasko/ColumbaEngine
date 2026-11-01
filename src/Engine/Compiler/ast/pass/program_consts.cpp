@@ -31,7 +31,7 @@ namespace pg
             analyzed = files.complete;
 
             if (analyzed)
-                analyzed = effects.analyze(files.files, files.imports);
+                analyzed = effects.analyze(files.files, files.imports, files.origins);
         }
 
         // By index, the empty statements of the parser left aside
