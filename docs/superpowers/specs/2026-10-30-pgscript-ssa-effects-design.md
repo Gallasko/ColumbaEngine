@@ -233,3 +233,70 @@ so a second run writes back the value it holds.
 - The tests: at least `amountsOf`'s summary, the `activitytable`-shaped loop not polluting rows,
   an idempotent vs non-idempotent write, an `if` merging two values, recursion converging, and
   the switch off changing nothing.
+
+## Results
+
+Measured 2026-11-01 on `Chronicle`, with one build of `ChronicleRules` and `ChronicleSolver` for
+both sides.
+
+### The eight programs
+
+| Program | Analyzed | Collapsed | Inferred | Joined |
+|---|---|---|---|---|
+| `milestones` | yes | 0 | 9 | 94 fills |
+| `windows` | yes | 0 | 10 | 94 fills, `townPlaces` |
+| `forecast` | yes | 0 | 10 | 94 fills, `townPlaces` |
+| `resources` | yes | 0 | 12 | 94 fills, `townPlaces` |
+| `achievements` | yes | 0 | 11 | 94 fills |
+| `epitaph` | yes | 0 | 14 | 94 fills, `townPlaces` |
+| `town` | yes | 0 | 15 | 94 fills, `townPlaces` |
+| `expedition` | yes | 0 | 9 | 94 fills |
+
+The 94 fills are `statNames` 51 and `statShort` 43. `lastAge`, `anyAge`, `noBreak` and `town`'s
+`foundLine`/`opened` are inferred. The `.pgc` files come to 2 942 683 bytes on, 2 938 923 off.
+
+### Speed
+
+| Whole rules compile | Time | Instructions |
+|---|---|---|
+| Off | 0.21 s | 1.87 G |
+| On | 0.39 s | 3.69 G |
+
+That is +0.18 s. The analysis itself, all eight programs, takes about 0.16 s: 139 ms to analyze,
+23 ms to read the programs, 1 ms of module cache facts. The rest is the modules compiled again
+(22 compiles on, 15 off), where a program decides otherwise for them.
+
+### Rulecheck and beam
+
+| Run | Off | On |
+|---|---|---|
+| Rulecheck | 18.3 G instructions | 21.7 G, byte-identical answers |
+| Beam, whole run | 316.9 G, 44 s | 475.0 G, 59 s |
+| Beam, search | 43 s | 41 s |
+| Beam, tasks | 102 of 266 | 102 of 266, the same report |
+
+The beam costs more with the analysis on because the switch also analyzes the solver's own
+`solver.pg`, about 15 s of that run (25% of its samples). The search itself is 2 s shorter.
+
+`test_compiler` (431) and `test_chronicle` (762) pass with the switch off.
+
+### Departures from this design during the build
+
+- **Object solve:** the final aliases and regions are solved over objects, not rewritten as paths,
+  because path closure did not finish on `windows`.
+- **Pass order:** `ProgramConstsPass` runs first in the AST pipeline, so the analysis and what it
+  decides see the same statements.
+- **`RunOncePass`:** with the switch on, its fills are off, and `ProgramConstsPass` decides them.
+- **A file that runs more than once:** it joins only constant fills, and infers no var holding an
+  object. What such a file imports counts as running more than once too.
+- **Module cache key:** it holds what was decided for the files a module is made of, not what the
+  decisions rest on (summaries, regions).
+- **BodyIR cache:** not added. The target was met without it.
+
+### Where on differs from off, by decision
+
+- **The `count` ruling:** `const count = {n: 0}` then `count.n = count.n + 1` keeps joining, so it
+  gives 1, 1, 1 on and 1, 2, 3 off.
+- **Fills behind a folded loop:** `StaticLoopEvaluation` removes an empty loop before the off
+  `RunOncePass`, so the fill behind it joins off. The analysis reads the source, where the loop
+  still stands, so that fill stays apart on and runs on every run. First runs agree.

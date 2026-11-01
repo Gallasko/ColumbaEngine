@@ -107,21 +107,7 @@ namespace pg
 
     std::string ProgramConstsPass::factsAboutIdentifiers(const std::set<std::string>& identifiers) const
     {
-        // What its choices for a module rest on: of every name the module holds, what the program
-        // says of it
-        if (not analyzed)
-            return "unread";
-
-        std::string facts;
-
-        for (const auto& name : identifiers)
-        {
-            const std::string flags = effects.factsOf(name);
-
-            if (not flags.empty())
-                facts += name + ":" + flags + ";";
-        }
-
-        return facts;
+        // What its choices for a module came to
+        return analyzed ? effects.factsOf(identifiers) : "unread";
     }
 }

@@ -1749,19 +1749,17 @@ namespace pg
             Analyzed joined("const t = {a: 1}\nt.b = 2\n");
             Analyzed apart("const t = {a: 1}\nvar k = 0\nk = 1\nt.b = 2\n");
 
-            EXPECT_NE(joined.effects.factsOf("t").find("j1,"), std::string::npos);
-            EXPECT_EQ(apart.effects.factsOf("t").find('j'), std::string::npos);
-            EXPECT_EQ(apart.effects.factsOf("t").find('i'), std::string::npos);
-            EXPECT_NE(joined.effects.factsOf("t"), apart.effects.factsOf("t"));
+            EXPECT_NE(joined.effects.factsOf({"t"}).find("1 joins t"), std::string::npos);
+            EXPECT_TRUE(apart.effects.factsOf({"t", "k"}).empty());
 
-            // A join that rests on a function of another file: the const's facts move with it
+            // A join that rests on a function of another file: the facts move with it
             ast::ProgramEffects on, off;
             auto module = parsed("const t = {a: 1}\nt.b = read()\n");
             ASSERT_TRUE(on.analyze({parsed("const k = 1\nfun read()\n{\n    return k\n}\n"), module}));
             ASSERT_TRUE(off.analyze({parsed("var k = 1\nk = 2\nfun read()\n{\n    return k\n}\n"), module}));
             EXPECT_TRUE(on.joinsInFile(1)[1].joined);
             EXPECT_FALSE(off.joinsInFile(1)[1].joined);
-            EXPECT_NE(on.factsOf("t"), off.factsOf("t"));
+            EXPECT_NE(on.factsOf({"t"}), off.factsOf({"t"}));
         }
 
         TEST(ProgramEffects, ANativeReboundIsNoNative)
@@ -1870,17 +1868,33 @@ namespace pg
         {
             Analyzed a(activitiesSource), b(activitiesSource);
 
-            for (const std::string name : {"activities", "other", "amountsOf", "len", "nothing"})
-                EXPECT_EQ(a.effects.factsOf(name), b.effects.factsOf(name)) << name;
+            const std::set<std::string> names{"activities", "other", "amountsOf", "len", "total"};
 
-            EXPECT_EQ(a.effects.factsOf("other").find('c'), 0u);
-            EXPECT_NE(a.effects.factsOf("amountsOf").find("#0.[#1].*.amount"), std::string::npos);
-            EXPECT_TRUE(a.effects.factsOf("nothing").empty());
+            EXPECT_EQ(a.effects.factsOf(names), b.effects.factsOf(names));
+            EXPECT_NE(a.effects.factsOf(names).find("var other;"), std::string::npos);
+        }
 
-            // Two globals that share, each named in the other's facts
-            Analyzed s("var rows = {a: 1}\nvar index = {}\nindex.x = rows\n");
-            EXPECT_NE(s.effects.factsOf("index").find("rows,"), std::string::npos);
-            EXPECT_NE(s.effects.factsOf("rows").find("index,"), std::string::npos);
+        TEST(ProgramEffects, FactsTellOnlyWhatWasDecidedForTheFilesHeld)
+        {
+            // What the file is made of differs, what was decided for it does not: it is the same module
+            auto module = parsed("const t = {a: 1}\nt.b = read()\n");
+            ast::ProgramEffects one, other;
+            ASSERT_TRUE(one.analyze({parsed("fun read()\n{\n    return 1\n}\n"), module}));
+            ASSERT_TRUE(other.analyze({parsed("const k = {a: 1}\nvar seen = k\nfun read()\n{\n    return seen.a\n}\n"), module}));
+            EXPECT_TRUE(one.joinsInFile(1)[1].joined);
+            EXPECT_TRUE(other.joinsInFile(1)[1].joined);
+            EXPECT_EQ(one.factsOf({"t", "x", "read"}), other.factsOf({"t", "x", "read"}));
+
+            // A file not all of whose names are held is not what the module is made of
+            ast::ProgramEffects held;
+            ASSERT_TRUE(held.analyze({parsed("const t = {a: 1}\nt.b = 2\nvar other = 1\n")}));
+            EXPECT_TRUE(held.factsOf({"t"}).empty());
+            EXPECT_FALSE(held.factsOf({"t", "other"}).empty());
+
+            // A file taken for another gets the plain fills: no file decided like it may stand in for it
+            ast::ProgramEffects twins;
+            ASSERT_TRUE(twins.analyze({parsed("const t = {a: 1}\nt.b = 2\n"), parsed("const t = {a: 2}\nt.b = 3\n")}));
+            EXPECT_NE(twins.factsOf({"t"}).find("plain;"), std::string::npos);
         }
 
         TEST(ProgramEffects, EffectsOfAStatementAreItsOwn)

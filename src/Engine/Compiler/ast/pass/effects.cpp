@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <cctype>
 #include <functional>
-#include <sstream>
+#include <iterator>
 #include <utility>
 
 namespace pg
@@ -72,6 +72,39 @@ namespace pg
                 std::sort(out.begin(), out.end());
                 return out;
             }
+        }
+
+        ObjectSet::ObjectSet(std::vector<LocId> objects) : items(std::move(objects))
+        {
+            sortUnique(items);
+        }
+
+        size_t ObjectSet::count(LocId object) const
+        {
+            return std::binary_search(items.begin(), items.end(), object) ? 1 : 0;
+        }
+
+        bool ObjectSet::insert(LocId object)
+        {
+            auto at = std::lower_bound(items.begin(), items.end(), object);
+
+            if (at != items.end() and *at == object)
+                return false;
+
+            items.insert(at, object);
+            return true;
+        }
+
+        bool ObjectSet::insert(const ObjectSet& objects)
+        {
+            if (std::includes(items.begin(), items.end(), objects.items.begin(), objects.items.end()))
+                return false;
+
+            std::vector<LocId> both;
+            both.reserve(items.size() + objects.items.size());
+            std::set_union(items.begin(), items.end(), objects.items.begin(), objects.items.end(), std::back_inserter(both));
+            items = std::move(both);
+            return true;
         }
 
         Summary ProgramEffects::evaluate(const BodyIR& body, size_t& collapsed) const
@@ -195,11 +228,29 @@ namespace pg
             return locs.deep(l) or reachingAll.count(l) > 0;
         }
 
-        void ProgramEffects::addFieldsOf(LocId object, KeyId key, Objects& out) const
+        bool ProgramEffects::addedNow(LocId object) const
         {
+            if (object >= addedAt.size())
+                addedAt.resize(std::max<size_t>(object + 1, addedAt.size() * 2), 0);
+
+            if (addedAt[object] == addRound)
+                return false;
+
+            addedAt[object] = addRound;
+            return true;
+        }
+
+        void ProgramEffects::addFieldsOf(LocId object, KeyId key, std::vector<LocId>& out) const
+        {
+            auto add = [&](LocId o)
+            {
+                if (addedNow(o))
+                    out.push_back(o);
+            };
+
             // Nothing is known of what is inside these
             if (locs.rootKind(object) == RootKind::Unknown or isInput(object))
-                out.insert(object);
+                add(object);
 
             auto fields = heap.find(object);
 
@@ -209,7 +260,10 @@ namespace pg
             if (key == Locations::AnyKey or locs.isParamKey(key))
             {
                 for (const auto& [name, held] : fields->second)
-                    out.insert(held.begin(), held.end());
+                {
+                    for (auto o : held)
+                        add(o);
+                }
 
                 return;
             }
@@ -219,18 +273,25 @@ namespace pg
                 auto held = fields->second.find(k);
 
                 if (held != fields->second.end())
-                    out.insert(held->second.begin(), held->second.end());
+                {
+                    for (auto o : held->second)
+                        add(o);
+                }
             }
         }
 
-        ProgramEffects::Objects ProgramEffects::reachableFrom(Objects objects) const
+        ProgramEffects::Objects ProgramEffects::reachableFrom(const Objects& objects) const
         {
-            std::vector<LocId> todo(objects.begin(), objects.end());
+            std::vector<LocId> reached(objects.begin(), objects.end());
 
-            while (not todo.empty())
+            ++addRound;
+
+            for (auto o : reached)
+                addedNow(o);
+
+            for (size_t at = 0; at < reached.size(); ++at)
             {
-                auto fields = heap.find(todo.back());
-                todo.pop_back();
+                auto fields = heap.find(reached[at]);
 
                 if (fields == heap.end())
                     continue;
@@ -239,13 +300,13 @@ namespace pg
                 {
                     for (auto o : held)
                     {
-                        if (objects.insert(o).second)
-                            todo.push_back(o);
+                        if (addedNow(o))
+                            reached.push_back(o);
                     }
                 }
             }
 
-            return objects;
+            return Objects(std::move(reached));
         }
 
         const ProgramEffects::Objects& ProgramEffects::objectsAt(LocId l) const
@@ -269,20 +330,36 @@ namespace pg
                 auto held = holds.find(l);
 
                 if (held != holds.end())
-                    out.insert(held->second.begin(), held->second.end());
+                    out.insert(held->second);
             }
             else
             {
-                for (auto o : objectsAt(locs.parent(l)))
-                    addFieldsOf(o, locs.keyOf(l), out);
+                const Objects& parents = objectsAt(locs.parent(l));
+                std::vector<LocId> found;
 
-                out.insert(anywhere.begin(), anywhere.end());
+                ++addRound;
+
+                for (auto o : parents)
+                    addFieldsOf(o, locs.keyOf(l), found);
+
+                out = Objects(std::move(found));
+                out.insert(anywhere);
 
                 if (locs.deep(l))
-                    out = reachableFrom(std::move(out));
+                    out = reachableFrom(out);
             }
 
             return objectsMemo[l] = std::move(out);
+        }
+
+        const ProgramEffects::Objects& ProgramEffects::reachableAt(LocId l) const
+        {
+            auto memo = reachableMemo.find(l);
+
+            if (memo != reachableMemo.end())
+                return memo->second;
+
+            return reachableMemo[l] = reachableFrom(objectsAt(l));
         }
 
         ProgramEffects::Objects ProgramEffects::objectsOf(LocId write) const
@@ -290,8 +367,7 @@ namespace pg
             if (locs.depth(write) == 0)
                 return {write};
 
-            const Objects& parents = objectsAt(locs.parent(write));
-            Objects objects = reachesAll(write) ? reachableFrom(parents) : parents;
+            Objects objects = reachesAll(write) ? reachableAt(locs.parent(write)) : objectsAt(locs.parent(write));
 
             // A slot of no object known: of a parameter, or of a value no table is seen in
             if (objects.empty())
@@ -306,24 +382,28 @@ namespace pg
 
             for (auto w : writes)
             {
-                const Objects objects = objectsOf(w);
-                out.insert(objects.begin(), objects.end());
+                out.insert(objectsOf(w));
             }
 
             return out;
         }
 
-        void ProgramEffects::resolveEdges(const std::vector<Edge>& edges)
+        void ProgramEffects::resolveEdges(const std::vector<Edge>& all)
         {
+            // The same edges come from every statement that calls the same functions
+            std::unordered_set<uint64_t> seen;
+            std::vector<Edge> edges;
+
+            for (const auto& e : all)
+            {
+                if (seen.insert((static_cast<uint64_t>(e.at) << 32) | e.value).second)
+                    edges.push_back(e);
+            }
+
             findHolders(edges);
 
             // A location holding a value and all inside it: what a call not followed left, the two go
             // together through every summary. It stands for all that is reachable, a store for one slot
-            std::unordered_set<uint64_t> seen;
-
-            for (const auto& e : edges)
-                seen.insert((static_cast<uint64_t>(e.at) << 32) | e.value);
-
             for (const auto& e : edges)
             {
                 if (locs.depth(e.at) == 0 or locs.keyOf(e.at) != Locations::AnyKey or locs.rootKind(e.value) == RootKind::Unknown)
@@ -335,13 +415,6 @@ namespace pg
                     reachingAll.insert(e.at);
             }
 
-            auto addAll = [](Objects& into, const Objects& from)
-            {
-                const size_t before = into.size();
-                into.insert(from.begin(), from.end());
-                return into.size() != before;
-            };
-
             // Each edge holds at every object its location may name, itself found through the edges
             bool grew = true;
 
@@ -349,19 +422,20 @@ namespace pg
             {
                 grew = false;
                 objectsMemo.clear();
+                reachableMemo.clear();
 
                 for (const auto& e : edges)
                 {
                     const bool all = locs.depth(e.at) > 0 and reachesAll(e.at);
-                    const Objects values = all ? reachableFrom(objectsAt(e.value)) : objectsAt(e.value);
+                    const Objects& given = all ? reachableAt(e.value) : objectsAt(e.value);
 
-                    if (values.empty())
+                    if (given.empty())
                         continue;
 
                     if (locs.rootKind(e.at) == RootKind::Unknown)
-                        grew = addAll(anywhere, values) or grew;
+                        grew = anywhere.insert(given) or grew;
                     else if (locs.depth(e.at) == 0)
-                        grew = addAll(holds[e.at], values) or grew;
+                        grew = holds[e.at].insert(given) or grew;
                     else
                     {
                         const Objects& parents = objectsAt(locs.parent(e.at));
@@ -370,14 +444,15 @@ namespace pg
                         const KeyId key = all or locs.isParamKey(locs.keyOf(e.at)) ? Locations::AnyKey : locs.keyOf(e.at);
 
                         // No object known: it is in the global the path starts from
-                        const Objects held = parents.empty() ? Objects{locs.rootOf(e.at)} : all ? reachableFrom(parents) : parents;
+                        const Objects root = parents.empty() ? Objects{locs.rootOf(e.at)} : Objects();
+                        const Objects& held = parents.empty() ? root : all ? reachableAt(locs.parent(e.at)) : parents;
 
                         for (auto o : held)
                         {
                             if (locs.rootKind(o) == RootKind::Unknown)
-                                grew = addAll(anywhere, values) or grew;
+                                grew = anywhere.insert(given) or grew;
                             else
-                                grew = addAll(heap[o][key], values) or grew;
+                                grew = heap[o][key].insert(given) or grew;
                         }
                     }
                 }
@@ -401,8 +476,8 @@ namespace pg
             for (const auto& name : globals)
             {
                 Objects reached = objectsAt(locs.global(name));
-                reached.insert(anywhere.begin(), anywhere.end());
-                reached = reachableFrom(std::move(reached));
+                reached.insert(anywhere);
+                reached = reachableFrom(reached);
 
                 for (auto o : reached)
                     reachedBy[o].insert(name);
@@ -579,13 +654,7 @@ namespace pg
             }
 
             for (size_t f = 0; f < programFiles.size(); ++f)
-            {
-                for (size_t i = 0; i < programFiles[f].size(); ++i)
-                {
-                    if (fileJoins[f][i].joined)
-                        joinedTo[declaredBy(programFiles[f][fileJoins[f][i].target])].push_back(i);
-                }
-            }
+                decidedText.push_back(fileFacts(f));
         }
 
         int ProgramEffects::joinTarget(const std::vector<StatementPtr>& file, size_t statement, const std::vector<size_t>& open) const
@@ -1087,57 +1156,62 @@ namespace pg
             return it == regions.end() ? std::vector<std::string>{} : textsOf(locs, {it->second.begin(), it->second.end()});
         }
 
-        std::string ProgramEffects::factsOf(const std::string& name) const
+        std::string ProgramEffects::fileFacts(size_t f) const
+        {
+            std::string names;
+            std::string told = decided(f) ? "" : "plain;";
+
+            for (size_t i = 0; i < programFiles[f].size(); ++i)
+            {
+                const StatementPtr& s = programFiles[f][i];
+                const std::string name = declaredBy(s);
+
+                if (not name.empty())
+                    names += name + ",";
+
+                if (not decided(f))
+                    continue;
+
+                if (s->kind() == AstKind::VariableStatement and inferred.count(name))
+                    told += "var " + name + ";";
+
+                if (fileJoins[f][i].joined)
+                    told += std::to_string(i) + " joins " + declaredBy(programFiles[f][fileJoins[f][i].target]) + ";";
+            }
+
+            return names.empty() or told.empty() ? "" : names + ":" + told;
+        }
+
+        std::string ProgramEffects::factsOf(const std::set<std::string>& identifiers) const
         {
             if (not usable)
                 return "";
 
-            std::ostringstream out;
+            std::vector<std::string> told;
 
-            if (inferred.count(name))
-                out << 'c';
-
-            if (invariant(name))
-                out << 'i';
-
-            // The statements that join it: what its module's code comes to
-            auto joins = joinedTo.find(name);
-
-            if (joins != joinedTo.end())
+            for (size_t f = 0; f < programFiles.size(); ++f)
             {
-                out << 'j';
+                if (decidedText[f].empty())
+                    continue;
 
-                for (auto statement : joins->second)
-                    out << statement << ',';
-            }
-
-            auto f = summaries.find(name);
-
-            if (f != summaries.end())
-                out << 'f' << f->second.digest(locs);
-
-            // What it reaches, and which other globals reach some of it
-            auto reach = regions.find(name);
-
-            if (reach != regions.end())
-            {
-                std::set<std::string> sharing;
-
-                for (auto object : reach->second)
+                const bool held = std::all_of(programFiles[f].begin(), programFiles[f].end(), [&](const StatementPtr& s)
                 {
-                    const auto& by = reachedBy.at(object);
-                    sharing.insert(by.begin(), by.end());
-                }
+                    const std::string name = declaredBy(s);
+                    return name.empty() or identifiers.count(name) > 0;
+                });
 
-                sharing.erase(name);
-
-                out << 'r' << reach->second.size() << 's';
-
-                for (const auto& g : sharing)
-                    out << g << ',';
+                if (held)
+                    told.push_back(decidedText[f]);
             }
 
-            return out.str();
+            std::sort(told.begin(), told.end());
+
+            std::string out;
+
+            for (const auto& text : told)
+                out += text + "\n";
+
+            return out;
         }
 
         int ProgramEffects::definitions(const std::string& name) const

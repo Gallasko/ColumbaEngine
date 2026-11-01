@@ -34,6 +34,7 @@
 #include "Compiler/ast/analysis/summaries.h"
 #include "Interpreter/statement.h"
 
+#include <initializer_list>
 #include <map>
 #include <memory>
 #include <set>
@@ -54,6 +55,31 @@ namespace pg
             std::vector<analysis::Edge> edges;
             std::set<std::string> rebinds;
             bool unknown = false;
+        };
+
+        // Objects are few and looked through far more often than added to: a sorted list of them, what
+        // the sets of every field of every table cost in nodes otherwise
+        class ObjectSet
+        {
+        public:
+            ObjectSet() = default;
+
+            // `objects` in any order, repeats included
+            explicit ObjectSet(std::vector<analysis::LocId> objects);
+            ObjectSet(std::initializer_list<analysis::LocId> objects) : ObjectSet(std::vector<analysis::LocId>(objects)) {}
+
+            auto begin() const { return items.begin(); }
+            auto end() const { return items.end(); }
+            size_t size() const { return items.size(); }
+            bool empty() const { return items.empty(); }
+
+            size_t count(analysis::LocId object) const;
+
+            bool insert(analysis::LocId object);        // True when it was not in
+            bool insert(const ObjectSet& objects);      // True when one was not in
+
+        private:
+            std::vector<analysis::LocId> items;
         };
 
         class ProgramEffects
@@ -120,13 +146,16 @@ namespace pg
             // Values that hit their guard, now the unknown: sound, reported only
             size_t collapsed() const { return collapsedValues; }
 
-            // What the program's choices about a global rest on, as text (a module cache's key)
-            std::string factsOf(const std::string& name) const;
+            // What was decided for the files a module may be made of, as text (a module cache's key):
+            // those whose every name it holds (`identifiers`, its own and its imports'). A module comes
+            // out of the pass by what was decided for it alone: why does not matter, every program
+            // decides anew
+            std::string factsOf(const std::set<std::string>& identifiers) const;
 
             int definitions(const std::string& name) const;
 
         private:
-            using Objects = std::set<analysis::LocId>;  // Each named by a location: a root, or a path of holders
+            using Objects = ObjectSet;  // Each named by a location: a root, or a path of holders
 
             bool usable = false;
 
@@ -147,7 +176,7 @@ namespace pg
             // The order the program runs in, an import where it stands
             std::unordered_map<const Statement*, size_t> ranAt;
             std::unordered_map<std::string, size_t> definedAt;    // The last definition of a name
-            std::map<std::string, std::vector<size_t>> joinedTo;  // Const -> the statements joined to it
+            std::vector<std::string> decidedText;                 // By file: fileFacts
 
             std::set<std::string> followed;      // The functions summed up
             std::map<std::string, analysis::Summary> summaries;
@@ -169,7 +198,10 @@ namespace pg
             // Every location is made where it is first needed, questions included
             mutable analysis::Locations locs;
             mutable std::unordered_map<analysis::LocId, Objects> objectsMemo;
+            mutable std::unordered_map<analysis::LocId, Objects> reachableMemo;
             mutable std::unordered_map<analysis::LocId, analysis::LocId> namedObjects;
+            mutable std::vector<uint32_t> addedAt;  // By location: the last round that added it
+            mutable uint32_t addRound = 0;
 
             analysis::Summary evaluate(const analysis::BodyIR& body, size_t& collapsed) const;
 
@@ -184,11 +216,18 @@ namespace pg
 
             bool reachesAll(analysis::LocId l) const;
 
-            void addFieldsOf(analysis::LocId object, analysis::KeyId key, Objects& out) const;
-            Objects reachableFrom(Objects objects) const;
+            // False when the location was added already this round: a field of many entries holds the
+            // same few objects, each is only added once
+            bool addedNow(analysis::LocId object) const;
+
+            void addFieldsOf(analysis::LocId object, analysis::KeyId key, std::vector<analysis::LocId>& out) const;
+            Objects reachableFrom(const Objects& objects) const;
 
             // The objects a location may hold
             const Objects& objectsAt(analysis::LocId l) const;
+
+            // All that is reachable from what a location may hold
+            const Objects& reachableAt(analysis::LocId l) const;
 
             // The objects a write writes into, and those of every write
             Objects objectsOf(analysis::LocId write) const;
@@ -204,6 +243,9 @@ namespace pg
 
             // A statement standing among open consts that is part of making them: the const it joins
             int joinTarget(const std::vector<StatementPtr>& file, size_t statement, const std::vector<size_t>& open) const;
+
+            // What was decided for a file, by what it declares; "" when nothing can differ
+            std::string fileFacts(size_t file) const;
 
             // `writers`: the objects each statement or function writes into. The vars found to be consts
             // and the consts found not to be rest on each other: both found again until none is lost

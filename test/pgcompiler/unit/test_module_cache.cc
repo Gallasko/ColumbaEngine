@@ -55,6 +55,25 @@ namespace pg
 
                 return vm.testOutput;
             }
+
+            // The script run with the whole-program analysis: the global `out` it left. Printing would
+            // be a statement the analysis knows nothing of, which leaves it nothing to decide
+            int64_t analyzed(const std::string& name)
+            {
+                EntitySystem ecs;
+                ecs.setVMOptimizationLevel(VmOptimizationLevel::O3);
+                ecs.setVMFrontEnd(ScriptFrontEnd::Ast);
+                ecs.setWholeProgramAnalysis(true);
+
+                VM vm;
+                ecs.setupVm(vm);
+
+                EXPECT_EQ(vm.interpretFromFile((dir / name).string()), InterpretResult::OK) << name;
+
+                const Value out = vm.findGlobal("out");
+                EXPECT_TRUE(IS_INT(out)) << name;
+                return IS_INT(out) ? AS_INT(out) : -1;
+            }
         };
 
         TEST_F(ModuleCache, ASecondImportIsTakenFromTheCache)
@@ -135,6 +154,48 @@ namespace pg
 
             EXPECT_EQ(a, "2\n");
             EXPECT_EQ(b, "101\n");
+        }
+
+        TEST_F(ModuleCache, TheAnalysisSharesAModuleItDecidedTheSameFor)
+        {
+            // The two programs are not alike, what is decided for m is
+            write("m.pg", "const names = {a: 1}\nnames[\"b\"] = 2\nvar shown = 5\n");
+            write("a.pg", "import \"m\"\nvar other = 1\nvar out = names.b + other\n");
+            write("b.pg", "import \"m\"\nvar other = {n: 3}\nfun read()\n{\n    return other.n\n}\nvar out = names.b + read()\n");
+
+            EXPECT_EQ(analyzed("a.pg"), 3);
+            EXPECT_EQ(analyzed("b.pg"), 5);
+
+            EXPECT_EQ(modulecache::counts().compiled, 1u);
+            EXPECT_EQ(modulecache::counts().taken, 1u);
+        }
+
+        TEST_F(ModuleCache, TheAnalysisDecidingOtherwiseGivesAModuleItsOwnCompile)
+        {
+            // In a's program the entry reads what never changes: it joins the const, made once. In b's
+            // it reads what is rebound: it stands on its own, each run makes it
+            write("m.pg", "fun read()\n{\n    return level.n\n}\nconst t = {a: 1}\nt.b = read()\n");
+            write("a.pg", "const level = {n: 1}\nimport \"m\"\nvar out = t.b\n");
+            write("b.pg", "var level = {n: 1}\nlevel = {n: 5}\nimport \"m\"\nvar out = t.b\n");
+
+            EXPECT_EQ(analyzed("a.pg"), 1);
+            EXPECT_EQ(analyzed("b.pg"), 5);
+
+            EXPECT_EQ(modulecache::counts().compiled, 2u);
+            EXPECT_EQ(modulecache::counts().taken, 0u);
+        }
+
+        TEST_F(ModuleCache, TheAnalysisCompilesAChangedFileAgain)
+        {
+            write("m.pg", "const t = {a: 1}\nt.b = 2\n");
+            write("a.pg", "import \"m\"\nvar out = t.b\n");
+            EXPECT_EQ(analyzed("a.pg"), 2);
+
+            write("m.pg", "const t = {a: 1}\nt.b = 7\n");
+            EXPECT_EQ(analyzed("a.pg"), 7);
+
+            EXPECT_EQ(modulecache::counts().compiled, 2u);
+            EXPECT_EQ(modulecache::counts().taken, 0u);
         }
     }
 }
