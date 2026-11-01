@@ -1,0 +1,8 @@
+{
+    "id": "wildfire",
+    "name": "Wildfire: the bouncing bomb",
+    "version": "0.1.0",
+    "api": 1,
+    "description": "Adds a lobbed bomb that skips along the floor. No C++: one keyword and one spell.",
+    "dependencies": ["base"]
+}

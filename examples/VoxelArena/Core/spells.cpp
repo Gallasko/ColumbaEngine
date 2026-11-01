@@ -91,6 +91,8 @@ namespace arena
                 st.poiseDamage = k->poiseDamage;
                 st.knockback = k->knockback;
                 st.terrainDamage = k->terrainDamage;
+                st.bounces = k->bounces;
+                st.bounciness = k->bounciness;
                 s.stages.push_back(st);
                 stageMana.push_back(k->mana);
                 stageScale.push_back(1.0f);
@@ -228,6 +230,9 @@ namespace arena
 
             if (st.chains > 0)
                 part += ", jumps to " + std::to_string(st.chains) + (st.chains == 1 ? " more enemy" : " more enemies");
+
+            if (st.bounces > 0)
+                part += ", bounces " + std::to_string(st.bounces) + (st.bounces == 1 ? " time" : " times");
 
             out += (out.empty() ? "" : " ") + part + ".";
         }

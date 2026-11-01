@@ -282,6 +282,8 @@ namespace arena
         ProjectileDef def;
         std::shared_ptr<const Spell> spell;   // a spell's bolt: the spell, and the stage it is (the next one comes from its impact)
         int stage = -1;
+        int bounces = 0;          // skips off the floor left before its impact
+        float bounciness = 0.7f;  // the share of its speed each skip leaves it
         glm::vec3 position = glm::vec3(0.0f);
         glm::vec3 velocity = glm::vec3(0.0f);
         float age = 0.0f;

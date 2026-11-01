@@ -163,6 +163,8 @@ namespace arena
         float poiseDamage = 8.0f;
         float knockback = 3.0f;
         float terrainDamage = 0.0f;     // to the block it strikes
+        int bounces = 0;                // bolt: skips off the floor this many times before its impact
+        float bounciness = 0.7f;        // bolt: the share of its speed each skip leaves it
 
         // A modifier's: multipliers of its form's numbers (1 changes nothing)
         int count = 1;                  // copies of the form

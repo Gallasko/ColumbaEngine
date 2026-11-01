@@ -1,0 +1,10 @@
+// The bomb: a bolt that falls fast and skips along the floor.
+// gravity: how soon it comes down. bounces: skips before it lands for good. bounciness: the share of
+// its speed each skip leaves it. A wall, a ceiling or an enemy stops it at once.
+{
+    "bomb": { "kind": "form", "shape": "bolt", "name": "Bomb", "mana": 14, "cooldown": 0.6,
+              "speed": 20, "gravity": 20, "radius": 0.3, "range": 120,
+              "bounces": 2, "bounciness": 0.75,
+              "damage": 6, "poiseDamage": 4, "knockback": 2, "terrainDamage": 5,
+              "model": { "fire": "base:fireball", "ice": "base:ice_shard", "volt": "base:volt_orb" }, "modelScale": 0.12 }
+}

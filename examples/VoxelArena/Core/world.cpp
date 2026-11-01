@@ -2303,6 +2303,8 @@ namespace arena
                 p.def.modelScale = st.form.modelScale;
                 p.spell = spell;
                 p.stage = stage;
+                p.bounces = st.bounces;
+                p.bounciness = st.bounciness;
                 p.position = from;
                 p.velocity = fanned(d, k, st.count, 7.0f) * st.speed;
                 projectiles.push_back(p);
@@ -3095,6 +3097,20 @@ namespace arena
 
             if (wall.hit and wall.distance < best)
             {
+                // A bouncing shot skips off the floor: only a wall, a ceiling or its last landing stops it
+                if (p.bounces > 0 and wall.normal.y > 0)
+                {
+                    --p.bounces;
+                    p.position += dir * wall.distance + glm::vec3(0.0f, 0.02f, 0.0f);
+                    p.velocity = glm::vec3(p.velocity.x, -p.velocity.y, p.velocity.z) * p.bounciness;
+
+                    if (p.def.element != Element::None)
+                        event(std::string(elementName(p.def.element)) + "_burst", p.position, 0.25f, 0, AIR, p.owner);
+
+                    ++it;
+                    continue;
+                }
+
                 // Stopped by the arena: a raised wall takes the arrow
                 const Projectile shot = p;
                 it = projectiles.erase(it);

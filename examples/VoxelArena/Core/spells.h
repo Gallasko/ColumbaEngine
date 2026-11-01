@@ -16,6 +16,8 @@ namespace arena
         float speed = 0.0f, gravity = 0.0f, radius = 0.0f, range = 0.0f, duration = 0.0f;
         float damage = 0.0f, poiseDamage = 0.0f, knockback = 0.0f, terrainDamage = 0.0f;
         int chains = 0;
+        int bounces = 0;
+        float bounciness = 0.7f;
     };
 
     /**

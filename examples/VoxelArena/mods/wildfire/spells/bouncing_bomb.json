@@ -1,0 +1,12 @@
+// A bomb that bounces along the floor and explodes on an enemy, a wall or its last landing.
+// Levels: a wider explosion, harder, two explosions.
+{
+    "name": "Bouncing Bomb",
+    "text": "Throws a bomb that bounces twice along the floor. It explodes on an enemy, a wall or its last landing.",
+    "recipe": ["fire", "bomb", "base:nova"],
+    "levels": [["base:enlarge"], ["base:empower"], ["base:multiply"]],
+    "branches": [
+        { "name": "Scorched earth", "text": "The explosion leaves burning ground.", "keywords": ["base:zone"] },
+        { "name": "Bomb salvo", "text": "Throws one more bomb.", "boost": { "count": 1 } }
+    ]
+}

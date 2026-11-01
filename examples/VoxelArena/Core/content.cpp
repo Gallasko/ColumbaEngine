@@ -1283,7 +1283,7 @@ namespace arena
                 const Json& j = raw.data;
 
                 checkKeys(j, {"kind", "shape", "name", "mana", "manaScale", "cooldown", "speed", "gravity", "radius", "range", "duration", "damage", "poiseDamage",
-                              "knockback", "terrainDamage", "count", "durationScale", "rangeScale", "radiusScale", "damageScale", "chains", "forms", "model", "modelScale"},
+                              "knockback", "terrainDamage", "bounces", "bounciness", "count", "durationScale", "rangeScale", "radiusScale", "damageScale", "chains", "forms", "model", "modelScale"},
                           raw.file, report, "keyword " + id);
 
                 KeywordDef k;
@@ -1321,6 +1321,8 @@ namespace arena
                 readNum(j, "poiseDamage", k.poiseDamage, raw.file, report);
                 readNum(j, "knockback", k.knockback, raw.file, report);
                 readNum(j, "terrainDamage", k.terrainDamage, raw.file, report);
+                readInt(j, "bounces", k.bounces, raw.file, report);
+                readNum(j, "bounciness", k.bounciness, raw.file, report);
                 readInt(j, "count", k.count, raw.file, report);
                 readNum(j, "durationScale", k.durationScale, raw.file, report);
                 readNum(j, "rangeScale", k.rangeScale, raw.file, report);

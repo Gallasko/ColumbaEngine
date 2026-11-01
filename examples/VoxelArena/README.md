@@ -573,7 +573,9 @@ be a list, `["base:shadow_dash", "base:whirlwind"]`: the first one the weapon in
 A spell keyword (`keywords.json`, the header comment explains every field) is a form, with its
 numbers (`speed`, `radius`, `range`, `duration`, `damage`...), or a modifier, with the multipliers it
 applies to its form (`count`, `durationScale`, `radiusScale`...) and the forms it can follow. Both
-add `mana` and `cooldown`; a modifier's `manaScale` multiplies its form's cost. A mod adds a keyword
+add `mana` and `cooldown`; a modifier's `manaScale` multiplies its form's cost. A bolt with `bounces`
+skips off the floor that many times, keeping `bounciness` of its speed each time, and a wall, a ceiling
+or an enemy stops it at once (`mods/wildfire` is a small example). A mod adds a keyword
 and every player can use it in their spells at once. What spells look like is the client's: a
 bolt's `model` by element on its keyword, a zone's tint and particles in `effects.json` (`zone:fire`),
 a status's under its id (`base:burn`), and `"along": true` spreads an effect along a line (a beam).

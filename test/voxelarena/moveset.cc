@@ -412,6 +412,105 @@ TEST(arena_spells, a_firebolt_leaves_a_burning_zone_where_it_lands)
     EXPECT_TRUE(a.world.zones.empty());
 }
 
+// The bouncing bomb of mods/wildfire: a bolt with bounces that skips off the floor
+
+namespace
+{
+    struct Flight { int bounces = 0; glm::vec3 last = glm::vec3(0.0f); bool landed = false; };
+
+    /** Follows the shot in the air: how many times it turned up, where it was last. */
+    Flight follow(Arena& a, int most = 400)
+    {
+        Flight f;
+        float vy = a.world.projectiles.empty() ? 0.0f : a.world.projectiles[0].velocity.y;
+
+        for (int i = 0; i < most and not a.world.projectiles.empty(); ++i)
+        {
+            f.last = a.world.projectiles[0].position;
+            a.world.step(InputFrame{});
+
+            if (a.world.projectiles.empty())
+                break;
+
+            const float now = a.world.projectiles[0].velocity.y;
+            if (vy < 0.0f and now > 0.0f)
+                ++f.bounces;
+            vy = now;
+        }
+
+        f.landed = a.world.projectiles.empty();
+        return f;
+    }
+}
+
+TEST(arena_spells, the_bouncing_bomb_comes_from_a_mod_and_says_it_bounces)
+{
+    Arena a;
+    ASSERT_TRUE(a.content.spells.count("wildfire:bouncing_bomb"));
+    const Spell s = a.spell("fire wildfire:bomb nova");
+    ASSERT_TRUE(s.valid()) << s.error;
+    EXPECT_EQ(s.stages[0].bounces, 2);
+    EXPECT_NE(describe(a.content, s).find("bounces 2 times"), std::string::npos);
+    EXPECT_EQ(a.spell("fire bolt nova").stages[0].bounces, 0);
+}
+
+TEST(arena_spells, a_bomb_skips_along_the_floor_and_explodes_on_its_last_landing)
+{
+    // Where it lands for good, on a first throw
+    glm::vec3 end;
+    const glm::vec3 from = glm::vec3(16, 1, 8);
+    {
+        Arena a;
+        a.cast("fire wildfire:bomb nova", from + glm::vec3(0, 0.05f, 5.0f));
+        const Flight f = follow(a);
+        ASSERT_TRUE(f.landed);
+        EXPECT_EQ(f.bounces, 2);
+        end = f.last;
+        EXPECT_GT(end.z, from.z + 8.0f);   // well past where it first touched the floor
+    }
+
+    // The same throw, with a brute waiting there: the explosion reaches it
+    Arena a;
+    Fighter* b = a.brute(glm::vec3(end.x + 2.0f, 1.0f, end.z));
+    const int id = b->id;
+    a.cast("fire wildfire:bomb nova", from + glm::vec3(0, 0.05f, 5.0f));
+    ASSERT_TRUE(follow(a).landed);
+    a.run(2);
+    EXPECT_LT(a.world.find(id)->health, a.world.find(id)->maxHealth);
+}
+
+TEST(arena_spells, a_bomb_explodes_on_the_enemy_it_meets_without_bouncing)
+{
+    Arena a;
+    Fighter* b = a.brute(a.player().body.position + glm::vec3(0, 0, 3.0f));
+    const int id = b->id;
+    a.cast("fire wildfire:bomb nova", b->body.position + glm::vec3(0, 1.0f, 0));
+    const Flight f = follow(a);
+    a.run(2);
+    ASSERT_TRUE(f.landed);
+    EXPECT_EQ(f.bounces, 0);
+
+    // The bomb's hit and the explosion both
+    EXPECT_LT(a.world.find(id)->health, a.world.find(id)->maxHealth - a.spell("fire wildfire:bomb nova").stages[0].damage);
+}
+
+TEST(arena_spells, a_bomb_explodes_on_a_wall_without_bouncing)
+{
+    Arena a;
+    const BlockId stone = a.content.block("base:stone");
+    const glm::vec3 from = a.player().body.position;
+
+    for (int y = 1; y < 6; ++y)
+        for (int x = 12; x < 21; ++x)
+            a.world.grid.set(x, y, static_cast<int>(from.z) + 4, stone);
+
+    a.cast("fire wildfire:bomb nova", from + glm::vec3(0, 1.5f, 4.0f));
+    const Flight f = follow(a);
+    ASSERT_TRUE(f.landed);
+    EXPECT_EQ(f.bounces, 0);
+    EXPECT_LT(f.last.z, from.z + 4.0f);
+}
+
 TEST(arena_spells, multiply_makes_two_bolts_each_with_its_own_longer_zone)
 {
     Arena a;

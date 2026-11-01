@@ -5,7 +5,9 @@
 // before it: where a bolt lands, where a beam strikes, where a nova bursts, where a zone ends.
 //   bolt: a shot that flies (speed, gravity, range, radius is its size). zone: an area on the ground
 //   that hurts whoever stands in it (radius, duration, damage per second). nova: a burst all around
-//   (radius). beam: an instant strike along the aim (range).
+//   (radius). beam: an instant strike along the aim (range). A bolt with bounces skips off the floor
+//   that many times, keeping bounciness of its speed each time (0.7: 70%), before it lands; a wall, a
+//   ceiling or an enemy stops it at once.
 //
 // A modifier changes the last form before it: count (copies of it), durationScale, rangeScale,
 // radiusScale, damageScale, chains (its hit jumps on to more enemies). forms: the shapes it can change.
