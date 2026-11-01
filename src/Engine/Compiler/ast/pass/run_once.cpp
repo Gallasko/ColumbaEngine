@@ -237,6 +237,17 @@ namespace pg
         }
     }
 
+    namespace ast
+    {
+        std::vector<Join> plainJoins(const std::vector<StatementPtr>& statements)
+        {
+            return walkConsts(statements,
+                [](const VariableStatement& v) { return v.isConst and not v.inferredConst; },
+                [](size_t) { return true; },
+                [](size_t, const std::vector<size_t>&) { return -1; }, false);
+        }
+    }
+
     bool RunOncePass::runPass(VM* vm, std::queue<StatementPtr>& statements)
     {
         // The whole program: the script compiled (outermost) and every module it imports. A module
@@ -264,12 +275,7 @@ namespace pg
         const std::vector<StatementPtr> all = listOf(statements);
 
         // With the fills left to ProgramConstsPass, nothing joins here
-        const std::vector<ast::Join> joins = fills
-            ? ast::walkConsts(all,
-                [](const VariableStatement& v) { return v.isConst and not v.inferredConst; },
-                [](size_t) { return true; },
-                [](size_t, const std::vector<size_t>&) { return -1; }, false)
-            : std::vector<ast::Join>(all.size());
+        const std::vector<ast::Join> joins = fills ? ast::plainJoins(all) : std::vector<ast::Join>(all.size());
 
         std::vector<StatementPtr> out;
 

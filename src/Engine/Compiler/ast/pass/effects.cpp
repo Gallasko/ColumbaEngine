@@ -484,6 +484,7 @@ namespace pg
             }
 
             fileJoins.resize(programFiles.size());
+            undecidedFiles.insert(sameShape.begin(), sameShape.end());
 
             bool lost = true;
 
@@ -526,7 +527,7 @@ namespace pg
                 for (size_t f = 0; f < programFiles.size(); ++f)
                 {
                     const auto& file = programFiles[f];
-                    fileJoins[f] = std::find(sameShape.begin(), sameShape.end(), f) == sameShape.end() ? walkFile(file) : std::vector<Join>(file.size());
+                    fileJoins[f] = decided(f) ? walkFile(f) : std::vector<Join>(file.size());
 
                     for (size_t i = 0; i < file.size(); ++i)
                     {
@@ -625,25 +626,36 @@ namespace pg
             return -1;
         }
 
-        std::vector<Join> ProgramEffects::walkFile(const std::vector<StatementPtr>& file) const
+        std::vector<Join> ProgramEffects::walkFile(size_t index) const
         {
+            const std::vector<StatementPtr>& file = programFiles[index];
+
+            // A file the run reaches more than once (a module imported twice) runs its statements at each
+            // import: a statement that reads what it writes would give its first value only, joined. Its
+            // constant entries are set the same at each import, those join as ever
+            const bool twice = index < runTwice.size() and runTwice[index];
+
             // A constant entry joins its const on the same terms as any other statement: the const must
             // be one made once, else the fill runs on every run and closes the run like anything else
             return walkConsts(file,
                 [this](const VariableStatement& v) { return v.isConst or inferred.count(v.name.text) > 0; },
                 [this, &file](size_t target) { return invariantConsts.count(declaredBy(file[target])) > 0; },
-                [this, &file](size_t statement, const std::vector<size_t>& open) { return joinTarget(file, statement, open); }, true);
+                [this, &file, twice](size_t statement, const std::vector<size_t>& open) { return twice ? -1 : joinTarget(file, statement, open); }, true);
         }
 
         void ProgramEffects::findRunOrder(const FileImports& imports)
         {
             std::vector<bool> ran(programFiles.size(), false);
+            runTwice.assign(programFiles.size(), false);
             size_t position = 0;
 
             std::function<void(size_t)> run = [&](size_t f)
             {
                 if (ran[f])
+                {
+                    runTwice[f] = true;
                     return;
+                }
 
                 ran[f] = true;
 
@@ -669,7 +681,10 @@ namespace pg
             };
 
             for (size_t f = 0; f < programFiles.size(); ++f)
-                run(f);
+            {
+                if (not ran[f])
+                    run(f);
+            }
         }
 
         int ProgramEffects::fileOf(const std::vector<StatementPtr>& statements) const

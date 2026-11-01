@@ -774,6 +774,40 @@ TEST(RunOncePass, KeepsAFunctionDefinedOnceAndNeverWritten)
             EXPECT_EQ(variable(plain, "t")->keptFills.size(), 1u);
         }
 
+        TEST(ProgramConstsPass, AFileNothingWasDecidedForGetsThePlainFills)
+        {
+            // The analysis off (a top-level return), a twin module, a module compiled beside: the
+            // constant fills are those of the pass without the analysis, no fewer
+            const std::map<std::string, std::string> doubleImport = {
+                {"main.pg", "import \"m\"\nc0.n = 1\nimport \"h\"\nvar out = 0\nout = c0.n\nif (out == 99)\n{\n    return 2\n}\n"},
+                {"m.pg", "import \"h\"\n"},
+                {"h.pg", "const c0 = {n: 1}\nc0.n = 7\n"}};
+            EXPECT_EQ(sameBothWays(doubleImport, {"out"}), lines({"out=1 ", "out=1 ", "out=1 "}));
+
+            EXPECT_EQ(sameBothWays({{"main.pg", "const t = {n: 0}\nt.n = 1\nvar out = 0\nt.n = t.n + 1\nout = t.n\nif (out == 99)\n{\n    return 2\n}\n"}}, {"out"}),
+                      lines({"out=2 ", "out=3 ", "out=4 "}));
+
+            const std::map<std::string, std::string> twins = {
+                {"main.pg", "import \"m\"\nc0.n = 1\nimport \"h\"\nimport \"twin\"\nvar out = 0\nout = c0.n\n"},
+                {"m.pg", "import \"h\"\n"},
+                {"h.pg", "const c0 = {n: 1}\nc0.n = 7\n"},
+                {"twin.pg", "const c0 = {n: 1}\nc0.n = 7\n"}};
+            EXPECT_EQ(sameBothWays(twins, {"out"}), lines({"out=1 ", "out=1 ", "out=1 "}));
+
+            EXPECT_EQ(sameBothWays({{"main.pg", "import \"m\"\nconst t = {n: 0}\nt.n = 1\nvar out = 0\nt.n = t.n + 1\nout = t.n\n"},
+                                    {"m.pg", "const count = {n: 0}\ncount.n = count.n + 1\n"}}, {"out"}, "m.pg", "m.pg.pgc"),
+                      lines({"out=2 ", "out=3 ", "out=4 "}));
+        }
+
+        TEST(ProgramConstsPass, AModuleImportedTwiceJoinsNoStatementReadingItsConst)
+        {
+            // It runs at each import: joined, it would run once
+            EXPECT_EQ(sameBothWays({{"main.pg", "import \"m\"\nimport \"h\"\nvar out = 0\nout = c0.n\n"},
+                                    {"m.pg", "import \"h\"\n"},
+                                    {"h.pg", "const c0 = {n: 1}\nc0.n = c0.n + 1\n"}}, {"out"}),
+                      lines({"out=3 ", "out=5 ", "out=7 "}));
+        }
+
         TEST(ProgramConstsPass, AModuleCompiledAsPgPgcIsNotReadEither)
         {
             // The compiler takes `m.pg.pgc` as it takes `m.pgc`

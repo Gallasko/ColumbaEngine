@@ -59,6 +59,10 @@ namespace pg
                                      const std::function<bool(size_t target)>& fills,
                                      const std::function<int(size_t statement, const std::vector<size_t>& open)>& makes,
                                      bool inOrder);
+
+        // The plain walk: the declared consts and their constant entries, nothing known of the program.
+        // What RunOncePass joins without the analysis, and what a file the analysis decided nothing for gets
+        std::vector<Join> plainJoins(const std::vector<StatementPtr>& statements);
     }
 
     class RunOncePass : public AstPass

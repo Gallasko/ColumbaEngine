@@ -7,6 +7,7 @@
 #include "Interpreter/lexer.h"
 #include "Interpreter/parser.h"
 
+#include <map>
 #include <mutex>
 #include <unordered_map>
 
@@ -424,12 +425,17 @@ namespace pg
 
         namespace
         {
-            void filesOfStatements(const std::string& baseDir, const std::vector<StatementPtr>& statements, size_t file, std::set<std::string>& visited, ProgramFiles& out);
+            // The files by path, each the index it has in `out`, negative while it is read or when it
+            // is none of them
+            using Visited = std::map<std::string, int>;
+
+            void filesOfStatements(const std::string& baseDir, const std::vector<StatementPtr>& statements, size_t file, Visited& visited, ProgramFiles& out);
 
             // The modules of a program in the order an import reaches them, each once: their
             // statements as parsed. Native modules (no file) are none of them. What the compiler would
-            // take from a .pgc cannot be read from a source. The file a name adds, negative when none
-            int filesOf(const std::string& baseDir, const std::string& name, std::set<std::string>& visited, ProgramFiles& out)
+            // take from a .pgc cannot be read from a source. The file a name adds, or the one it added
+            // before (a module imported twice runs twice), negative when none
+            int filesOf(const std::string& baseDir, const std::string& name, Visited& visited, ProgramFiles& out)
             {
                 std::string fileName = name;
 
@@ -438,10 +444,12 @@ namespace pg
 
                 const std::string fullPath = baseDir + fileName;
 
-                if (visited.count(fullPath))
-                    return -1;
+                const auto seen = visited.find(fullPath);
 
-                visited.insert(fullPath);
+                if (seen != visited.end())
+                    return seen->second;
+
+                visited[fullPath] = -1;
 
                 // The spellings the compiler takes bytecode from (CParser::parseImportFile): a name
                 // given as one, `m.pgc`, or `m.pg.pgc`
@@ -463,6 +471,7 @@ namespace pg
                 }
 
                 const size_t file = out.files.size();
+                visited[fullPath] = static_cast<int>(file);
 
                 out.files.push_back(summary->statements);
                 out.imports.emplace_back();
@@ -472,7 +481,7 @@ namespace pg
                 return static_cast<int>(file);
             }
 
-            void filesOfStatements(const std::string& baseDir, const std::vector<StatementPtr>& statements, size_t file, std::set<std::string>& visited, ProgramFiles& out)
+            void filesOfStatements(const std::string& baseDir, const std::vector<StatementPtr>& statements, size_t file, Visited& visited, ProgramFiles& out)
             {
                 size_t index = 0;
 
@@ -557,13 +566,13 @@ namespace pg
         ProgramFiles readProgramFiles(VM* vm, const std::queue<StatementPtr>& statements)
         {
             ProgramFiles program;
-            std::set<std::string> visited;
+            Visited visited;
             std::string baseDir;
             const std::string mainFile = vm ? vm->currentFileName : std::string();
 
             if (not mainFile.empty())
             {
-                visited.insert(mainFile);
+                visited[mainFile] = 0;
 
                 const size_t slash = mainFile.find_last_of("/\\");
 

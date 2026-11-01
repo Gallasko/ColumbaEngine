@@ -97,6 +97,10 @@ namespace pg
             // parser's empty statements left aside). Nothing joins in a file another could be taken for
             const std::vector<Join>& joinsInFile(size_t file) const { return fileJoins[file]; }
 
+            // Whether anything was decided for a file: nothing is for one another file of the program
+            // could be taken for (its joins are all empty), the plain walk is what it gets
+            bool decided(size_t file) const { return undecidedFiles.count(file) == 0; }
+
             // Every write of the statement stores what it stored last run, by the values stored only
             // (analysis::Idempotence says what that leaves unchecked: nothing is decided on it)
             bool idempotent(const StatementPtr& statement) const;
@@ -135,6 +139,8 @@ namespace pg
 
             std::vector<std::vector<StatementPtr>> programFiles;  // What the sites and `topLevel` are keyed by, kept alive
             std::vector<std::vector<Join>> fileJoins;             // By file, by statement
+            std::set<size_t> undecidedFiles;                      // Files another could be taken for
+            std::vector<bool> runTwice;                           // By file: reached by the run order more than once
 
             // The order the program runs in, an import where it stands
             std::unordered_map<const Statement*, size_t> ranAt;
@@ -192,7 +198,7 @@ namespace pg
             void findRunOrder(const FileImports& imports);
 
             // The walk of a file with what the program knows now
-            std::vector<Join> walkFile(const std::vector<StatementPtr>& file) const;
+            std::vector<Join> walkFile(size_t file) const;
 
             // A statement standing among open consts that is part of making them: the const it joins
             int joinTarget(const std::vector<StatementPtr>& file, size_t statement, const std::vector<size_t>& open) const;

@@ -34,9 +34,6 @@ namespace pg
                 analyzed = effects.analyze(files.files, files.imports);
         }
 
-        if (not analyzed)
-            return false;
-
         // By index, the empty statements of the parser left aside
         std::vector<StatementPtr> all, own;
 
@@ -48,22 +45,19 @@ namespace pg
                 own.push_back(all.back());
         }
 
-        const int file = script ? 0 : effects.fileOf(own);
+        // A file nothing was decided for gets the plain walk's fills, what RunOncePass joins without
+        // the analysis: it joins none itself here (RunOncePass::fills)
+        int file = analyzed ? (script ? 0 : effects.fileOf(own)) : ast::ProgramEffects::NoFile;
 
-        if (file < 0)
-        {
-            if (file == ast::ProgramEffects::TwinFiles)
-                LOG_INFO(DOM, "A module two files of the program could be: nothing was decided for it");
-            else
-                LOG_ERROR(DOM, "A module does not line up with the file analyzed: nothing is applied to it");
+        if (analyzed and file == ast::ProgramEffects::TwinFiles)
+            LOG_INFO(DOM, "A module two files of the program could be: it gets the plain fills");
+        else if (analyzed and file == ast::ProgramEffects::NoFile)
+            LOG_ERROR(DOM, "A module does not line up with the file analyzed: it gets the plain fills");
+        else if (analyzed and not effects.decided(static_cast<size_t>(file)))
+            file = ast::ProgramEffects::TwinFiles;
 
-            for (const auto& s : all)
-                statements.push(s);
-
-            return false;
-        }
-
-        const std::vector<ast::Join>& joins = effects.joinsInFile(file);
+        const bool plain = file < 0;
+        const std::vector<ast::Join> joins = plain ? ast::plainJoins(own) : effects.joinsInFile(static_cast<size_t>(file));
 
         bool changed = false;
         size_t inferred = 0;
@@ -82,7 +76,7 @@ namespace pg
             const ast::Join& join = joins[index++];
 
             // A var found to be as good as a const is one
-            if (s->kind() == AstKind::VariableStatement)
+            if (not plain and s->kind() == AstKind::VariableStatement)
             {
                 auto v = std::static_pointer_cast<VariableStatement>(s);
 
@@ -106,7 +100,7 @@ namespace pg
             statements.push(s);
         }
 
-        LOG_INFO(DOM, inferred << " vars made consts, joined " << joined << " statements to their const");
+        LOG_INFO(DOM, inferred << " vars made consts, joined " << joined << " statements to their const" << (plain ? " (plain fills)" : ""));
 
         return changed;
     }

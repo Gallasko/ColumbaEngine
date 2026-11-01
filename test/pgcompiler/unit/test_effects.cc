@@ -1193,6 +1193,9 @@ namespace pg
             EXPECT_FALSE(effects.joinsInFile(0)[1].joined);
             EXPECT_FALSE(effects.joinsInFile(1)[1].joined);
             EXPECT_TRUE(effects.joinsInFile(2)[1].joined);
+            EXPECT_FALSE(effects.decided(0));
+            EXPECT_FALSE(effects.decided(1));
+            EXPECT_TRUE(effects.decided(2));
             EXPECT_FALSE(effects.invariant("t"));
 
             ast::ProgramEffects two;
@@ -1653,6 +1656,30 @@ namespace pg
             ASSERT_TRUE(inBelow.analyze({script, below, helper}, Imports{{{0, 1}}, {{1, 2}}, {}}));
             EXPECT_TRUE(inAbove.joinsInFile(1)[2].joined);
             EXPECT_FALSE(inBelow.joinsInFile(1)[2].joined);
+        }
+
+        TEST(ProgramEffects, AFileReachedTwiceJoinsNoStatementThatReads)
+        {
+            // Imported by the script and by m: it runs twice a run, and `c0.n = c0.n + 1` counts both.
+            // Its constant entry is the same at each import: it joins as the plain walk has it
+            using Imports = ast::FileImports;
+            auto script = parsed("import \"m\"\nimport \"h\"\nvar out = c0.n\n");
+            auto m = parsed("import \"h\"\n");
+            auto h = parsed("const c0 = {n: 1}\nc0.k = 5\nc0.n = c0.n + 1\n");
+
+            ast::ProgramEffects twice;
+            ASSERT_TRUE(twice.analyze({script, m, h}, Imports{{{0, 1}, {1, 2}}, {{0, 2}}, {}}));
+            EXPECT_TRUE(twice.joinsInFile(2)[1].joined);
+            EXPECT_FALSE(twice.joinsInFile(2)[2].joined);
+            EXPECT_FALSE(twice.invariant("c0"));
+
+            // Imported once, it joins
+            auto once = parsed("import \"h\"\nvar out = c0.n\n");
+
+            ast::ProgramEffects single;
+            ASSERT_TRUE(single.analyze({once, h}, Imports{{{0, 1}}, {}}));
+            EXPECT_TRUE(single.joinsInFile(1)[2].joined);
+            EXPECT_TRUE(single.invariant("c0"));
         }
 
         TEST(ProgramEffects, AJoinDoesNotGoBackInARun)
