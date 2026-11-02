@@ -91,6 +91,7 @@ namespace
 #include "Compiler/ast/pass/ast_survey.h"
 #include "Compiler/ast/pass/function_inlining.h"
 #include "Compiler/ast/pass/length_hoisting.h"
+#include "Compiler/ast/pass/row_hoisting.h"
 #include "Compiler/ast/pass/run_once.h"
 #include "Compiler/ast/pass/program_consts.h"
 #include "Compiler/pass/comparison_local_indexing.h"
@@ -1147,12 +1148,15 @@ namespace pg
             // skipped by the other passes anyway), then static evaluation so
             // fully-folded loops disappear before hoisting sees the leftovers.
             // Inlining comes second: the calls it folds away are calls those
-            // two would otherwise refuse.
+            // two would otherwise refuse. The lengths go before the invariants: a
+            // len() left in a loop is a call, which LoopInvariantHoisting refuses. The
+            // rows go after: a key may be what the invariants named.
             vm.addAstPass(std::make_unique<EntityLoopLoweringPass>());
             vm.addAstPass(std::make_unique<FunctionInliningPass>());
             vm.addAstPass(std::make_unique<StaticLoopEvaluationPass>());
-            vm.addAstPass(std::make_unique<LoopInvariantHoistingPass>());
             vm.addAstPass(std::make_unique<LengthHoistingPass>());
+            vm.addAstPass(std::make_unique<LoopInvariantHoistingPass>());
+            vm.addAstPass(std::make_unique<RowHoistingPass>());
 
             // Last: it marks what the others leave of the top level to be run once a VM. The fills of
             // the consts are ProgramConstsPass's when it runs: one walk decides them

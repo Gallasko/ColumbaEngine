@@ -31,9 +31,13 @@
  *   to avoid incorrect transformations. This pattern is extremely common in
  *   for loops: for (var i = 0; i < n; i++)
  *
+ *   Also drops what `i++` and `i--` push when the statement pops it unread:
+ *     OP_Get_Local 0, OP_Constant 0, OP_Post_Incr_Local, OP_Pop
+ *   becomes
+ *     OP_Short_Int 0, OP_Post_Incr_Local
+ *
  *   Could be extended to support:
  *   - Pre-increment (++i) pattern detection
- *   - Decrement patterns (i--)
  *   - Global variable increments
  * @end_pass_doc
  */
@@ -89,6 +93,25 @@ namespace pg
 
                 return newBytecode;
             }, sameLocalAndConstantOne);
+
+            // `i++` as a statement: the old value is pushed to be popped. The operator's own operand is
+            // the slot, as a constant
+            auto sameLocal = [&chunk](const std::vector<CapturedInstruction>& captured) {
+                auto value = chunk.constants[captured[1].getConstantIndex()];
+
+                return IS_INT(value) and AS_INT(value) == captured[0].operands[0];
+            };
+
+            std::vector<PatternElement> unread = {
+                PatternElement::match(OpCode::OP_Get_Local, true),
+                PatternElement::match(OpCode::OP_Constant, true),
+                PatternElement::anyOf({OpCode::OP_Post_Incr_Local, OpCode::OP_Post_Decr_Local}, true),
+                PatternElement::match(OpCode::OP_Pop),
+            };
+
+            rewriter->addAdvancedRule(unread, [](const std::vector<CapturedInstruction>& captured) -> std::vector<uint8_t> {
+                return {static_cast<uint8_t>(OpCode::OP_Short_Int), captured[0].operands[0], static_cast<uint8_t>(captured[2].opcode)};
+            }, sameLocal);
 
             return rewriter->rewrite(chunk);
         }

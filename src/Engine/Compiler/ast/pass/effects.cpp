@@ -2,6 +2,8 @@
 
 #include "effects.h"
 
+#include "ast_analysis.h"
+
 #include "logger.h"
 
 #include <algorithm>
@@ -30,6 +32,89 @@ namespace pg
             bool isMetamethod(const std::string& name)
             {
                 return name == "__get" or name == "__set" or name == "__iter" or name == "__next";
+            }
+
+            // Whether a class is defined anywhere but at the top level
+            bool definesClassBelow(const StatementPtr& s)
+            {
+                if (s->kind() != AstKind::ClassStatement)
+                    return holdsStatement(s, AstKind::ClassStatement, true);
+
+                for (auto methods = std::static_pointer_cast<ClassStatement>(s)->methods; not methods.empty(); methods.pop())
+                {
+                    if (holdsStatement(methods.front()->body, AstKind::ClassStatement, true))
+                        return true;
+                }
+
+                return false;
+            }
+
+            // Why a program's classes are not all that runs behind what they show, "" when they are.
+            // `functions`: what the program can call by name
+            std::string whyNotFollowed(const std::vector<std::vector<StatementPtr>>& files, const ClassModel& model, const std::map<std::string, int>& functions)
+            {
+                std::string why;
+
+                auto isMethodOrMetamethod = [&](const std::string& name) {
+                    return isMetamethod(name) or model.methods.count(name) > 0;
+                };
+
+                for (const auto& [method, runs] : model.methods)
+                {
+                    if (isMetamethod(method))
+                        return "a class's metamethod runs behind what the code shows";
+                }
+
+                std::unordered_set<const Expression*> called;
+
+                const ExprVisit look = [&](const ExprPtr& e) {
+                    const AstKind type = e->kind();
+
+                    if (type == AstKind::CallExpression)
+                        called.insert(std::static_pointer_cast<CallExpression>(e)->caller.get());
+                    else if (type == AstKind::Set and isMethodOrMetamethod(std::static_pointer_cast<Set>(e)->name.text))
+                        why = "a class has a method or a metamethod of the name of a field: `" + std::static_pointer_cast<Set>(e)->name.text + "`";
+                    else if (type == AstKind::Atom)
+                    {
+                        const auto& value = std::static_pointer_cast<Atom>(e)->value;
+
+                        if (value.type == UnionType::STRING and isMethodOrMetamethod(value.toString()))
+                            why = "a class has a method or a metamethod of the name of a field: `" + value.toString() + "`";
+                    }
+                    else if (type == AstKind::List)
+                    {
+                        auto entries = std::static_pointer_cast<List>(e)->entries;
+
+                        for (; not entries.empty(); entries.pop())
+                        {
+                            const auto& entry = entries.front();
+
+                            if (entry.explicitKey and entry.key and isMethodOrMetamethod(entry.key->getName()))
+                                why = "a class has a method or a metamethod of the name of a field: `" + entry.key->getName() + "`";
+                        }
+                    }
+                    else if (type == AstKind::Var and not called.count(e.get()))
+                    {
+                        const std::string& name = std::static_pointer_cast<Var>(e)->name.text;
+
+                        // In a field, it is what a call of a method may run
+                        if (functions.count(name) or model.classes.count(name))
+                            why = "a class's program hands a function around: `" + name + "`";
+                    }
+                };
+
+                for (const auto& file : files)
+                {
+                    for (const auto& s : file)
+                    {
+                        eachExpr(s, look, true);
+
+                        if (not why.empty())
+                            return why;
+                    }
+                }
+
+                return "";
             }
 
             // What a statement declares at the top level, "" when nothing
@@ -1162,7 +1247,9 @@ namespace pg
 
             // What the top levels define
             std::map<std::string, int> functions;
+            ClassModel classes;
             bool hiddenCode = false;
+            bool classBelow = false;
             bool returnsEarly = false;
 
             for (const auto& file : files)
@@ -1176,6 +1263,7 @@ namespace pg
 
                     programFiles.back().push_back(s);
                     returnsEarly = returnsEarly or holdsStatement(s, AstKind::ReturnStatement, false);
+                    classBelow = classBelow or definesClassBelow(s);
 
                     if (s->kind() == AstKind::VariableStatement)
                     {
@@ -1196,8 +1284,24 @@ namespace pg
                     }
                     else if (s->kind() == AstKind::ClassStatement)
                     {
-                        ++defined[std::static_pointer_cast<ClassStatement>(s)->name.text];
-                        hiddenCode = true;
+                        auto c = std::static_pointer_cast<ClassStatement>(s);
+                        const std::string& className = c->name.text;
+
+                        ++defined[className];
+                        classes.classes.insert(className);
+
+                        for (auto methods = c->methods; not methods.empty(); methods.pop())
+                        {
+                            const std::string& method = methods.front()->name.text;
+                            const std::string function = ClassModel::functionOf(className, method);
+
+                            if (method == "init")
+                                classes.withInit.insert(className);
+
+                            classes.methods[method].push_back(function);
+                            ++defined[function];
+                            ++functions[function];
+                        }
                     }
                 }
             }
@@ -1205,7 +1309,24 @@ namespace pg
             // Code runs behind a field read or a loop, which the IR does not show
             if (hiddenCode)
             {
-                refused = "a class or a metamethod runs behind what the code shows";
+                refused = "a metamethod runs behind what the code shows";
+                LOG_INFO(DOM, "Not analyzed: " << refused);
+                return false;
+            }
+
+            if (classBelow)
+                refused = "a class is defined below the top level";
+            else if (not classes.classes.empty())
+                refused = whyNotFollowed(programFiles, classes, functions);
+
+            for (const auto& name : classes.classes)
+            {
+                if (refused.empty() and defined[name] != 1)
+                    refused = "a class is defined twice: `" + name + "`";
+            }
+
+            if (not refused.empty())
+            {
                 LOG_INFO(DOM, "Not analyzed: " << refused);
                 return false;
             }
@@ -1246,12 +1367,25 @@ namespace pg
                         if (s->kind() == AstKind::FunctionStatement)
                         {
                             auto f = std::static_pointer_cast<FunctionStatement>(s);
-                            functionBodies.emplace_back(f->name.text, buildFunction(*f, locs, isNative));
+                            functionBodies.emplace_back(f->name.text, buildFunction(*f, locs, isNative, &classes));
                             noteRebinds(functionBodies.back().second);
                         }
                         else if (s->kind() != AstKind::ImportStatement)
                         {
-                            statementBodies.emplace_back(s.get(), buildTopLevel(s, locs, isNative));
+                            if (s->kind() == AstKind::ClassStatement)
+                            {
+                                auto c = std::static_pointer_cast<ClassStatement>(s);
+
+                                for (auto methods = c->methods; not methods.empty(); methods.pop())
+                                {
+                                    const auto& m = methods.front();
+
+                                    functionBodies.emplace_back(ClassModel::functionOf(c->name.text, m->name.text), buildMethod(*m, locs, isNative, &classes));
+                                    noteRebinds(functionBodies.back().second);
+                                }
+                            }
+
+                            statementBodies.emplace_back(s.get(), buildTopLevel(s, locs, isNative, &classes));
                             noteRebinds(statementBodies.back().second);
                         }
                     }
@@ -1275,6 +1409,18 @@ namespace pg
 
             if (nativeRebound)
                 buildBodies();
+
+            // A name that may hold something else is no class a call can tell
+            for (const auto& name : classes.classes)
+            {
+                if (rebinds.count(name))
+                {
+                    usable = false;
+                    refused = "a class is assigned: `" + name + "`";
+                    LOG_INFO(DOM, "Not analyzed: " << refused);
+                    return false;
+                }
+            }
 
             for (const auto& [name, count] : defined)
                 definedRoots.insert(locs.global(name));

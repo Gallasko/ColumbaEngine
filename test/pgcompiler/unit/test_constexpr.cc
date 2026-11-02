@@ -349,10 +349,41 @@ namespace pg
 
         TEST(Constexpr, AProgramTheAnalysisCannotReadIsRefused)
         {
-            const std::string error = errorOf("class Thing {\n    get() {\n        return 1\n    }\n}\nconstexpr rows = {n: 1}\n");
+            const std::string error = errorOf("class Thing {\n    __get(key) {\n        return 1\n    }\n}\nconstexpr rows = {n: 1}\n");
 
             EXPECT_TRUE(says(error, "cannot be proved")) << error;
             EXPECT_TRUE(says(error, "class")) << error;
+        }
+
+        TEST(Constexpr, AClassMayMakeIt)
+        {
+            const char* source =
+                "class Row\n{\n    init(n)\n    {\n        this.n = n\n    }\n    twice()\n    {\n        return this.n * 2\n    }\n}\n"
+                "fun make()\n{\n    var r = Row(3)\n    return {n: r.twice()}\n}\n"
+                "constexpr rows = make()\n";
+
+            EXPECT_EQ(errorOf(source), "") << source;
+        }
+
+        TEST(Constexpr, AMethodWritingItIsRefused)
+        {
+            const std::string error = errorOf(
+                "constexpr rows = {n: 1}\n"
+                "class Box\n{\n    clear()\n    {\n        rows.n = 0\n    }\n}\n");
+
+            EXPECT_TRUE(says(error, "`rows`")) << error;
+            EXPECT_TRUE(says(error, "Box.clear")) << error;
+        }
+
+        TEST(Constexpr, AnObjectHoldingItIsNoWayToWriteIt)
+        {
+            const std::string error = errorOf(
+                "constexpr rows = {n: 1}\n"
+                "class Box\n{\n    init(t)\n    {\n        this.t = t\n    }\n    clear()\n    {\n        this.t.n = 0\n    }\n}\n"
+                "var b = Box(rows)\n"
+                "b.clear()\n");
+
+            EXPECT_TRUE(says(error, "`rows`")) << error;
         }
 
         TEST(Constexpr, AnImporterWritingItIsRefused)

@@ -883,10 +883,16 @@ namespace pg
             EXPECT_EQ(variable(statements, "t")->keptFills.size(), 0u);
         }
 
-        TEST(RunOncePass, AProgramWithAClassIsNotAnalyzed)
+        TEST(RunOncePass, AProgramWithAMetamethodIsNotAnalyzed)
+        {
+            auto statements = runOnce("class Box\n{\n    __get(key)\n    {\n        return 1\n    }\n}\nvar x = 1\n", true);
+            EXPECT_FALSE(variable(statements, "x")->isConst);
+        }
+
+        TEST(RunOncePass, AProgramWithAPlainClassIsAnalyzed)
         {
             auto statements = runOnce("class Box\n{\n    size()\n    {\n        return 1\n    }\n}\nvar x = 1\n", true);
-            EXPECT_FALSE(variable(statements, "x")->isConst);
+            EXPECT_TRUE(variable(statements, "x")->isConst);
         }
 
         TEST(RunOncePass, KeptCodeAnswersTheSameOnEveryRun)

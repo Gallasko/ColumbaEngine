@@ -529,6 +529,12 @@ namespace pg
     // Table Operations
     // ========================================================================
 
+    const DecodedInstruction* op_peek_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        vm->push(vm->retainValue(vm->peek(instr.operands.byte)));
+        return &instr + 1;
+    }
+
     const DecodedInstruction* op_get_index_decoded(VM* vm, const DecodedInstruction& instr)
     {
         Value index  = vm->pop();

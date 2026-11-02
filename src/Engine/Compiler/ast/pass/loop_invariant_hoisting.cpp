@@ -82,6 +82,35 @@ namespace pg
             return type == AstKind::BinaryExpression or type == AstKind::LogicExpression or type == AstKind::UnaryExpression;
         }
 
+        /** Whether a name is read: what reads none is a constant, as good where it stands */
+        bool readsAName(const ExprPtr& e)
+        {
+            const AstKind type = e->kind();
+
+            if (type == AstKind::Var)
+                return true;
+
+            if (type == AstKind::CompoundAtom)
+                return readsAName(std::static_pointer_cast<CompoundAtom>(e)->expr);
+
+            if (type == AstKind::UnaryExpression)
+                return readsAName(std::static_pointer_cast<UnaryExpression>(e)->expr);
+
+            if (type == AstKind::BinaryExpression)
+            {
+                auto b = std::static_pointer_cast<BinaryExpression>(e);
+                return readsAName(b->leftExpr) or readsAName(b->rightExpr);
+            }
+
+            if (type == AstKind::LogicExpression)
+            {
+                auto l = std::static_pointer_cast<LogicExpression>(e);
+                return readsAName(l->leftExpr) or readsAName(l->rightExpr);
+            }
+
+            return false;
+        }
+
         /**
          * Type-aware structural key: prettyPrint alone would collide int 1
          * with string "1", so tag every node with its kind.
@@ -134,7 +163,7 @@ namespace pg
                 return;
 
             // Maximal invariant subtree: record and stop descending
-            if (isCandidateType(e) and isInvariant(e, f))
+            if (isCandidateType(e) and isInvariant(e, f) and readsAName(e))
             {
                 auto key = keyOf(e);
 

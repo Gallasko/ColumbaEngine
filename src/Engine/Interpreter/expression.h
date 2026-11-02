@@ -273,6 +273,9 @@ namespace pg
         ExprPtr value;
         Token bracket;
 
+        // Written by `+=` and the like: value is `object[index] op right`, the same object and index
+        bool compound = false;
+
         /** Equivalent 'object.set(index, value)' call for the tree-walking path */
         ExprPtr desugared;
     };
@@ -365,5 +368,8 @@ namespace pg
         ExprPtr object;
         Token name;
         ExprPtr value;
+
+        // Written by `+=` and the like: value is `object.name op right`, the same object
+        bool compound = false;
     };
 }

@@ -31,6 +31,7 @@
  *   iterated, compared or returned; never passed elsewhere, stored or captured), so that x cannot
  *   be the same list. A row of that list counts when the list holds all it holds alone: only given
  *   new tables and what is no table, no row read anywhere it could leave (Ownership::ownedDeep).
+ *   A local only ever given rows of it counts as that list (Ownership::rowOfOwned).
  * - Or x is beyond them, and any list other than x's may be written: x is such a list itself,
  *   which nothing else can name, or a local that only ever holds what is no table (a string, which
  *   no write changes).

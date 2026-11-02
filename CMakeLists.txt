@@ -215,6 +215,8 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Compiler/ast/pass/ast_survey.cpp
     src/Engine/Compiler/ast/pass/function_inlining.cpp
     src/Engine/Compiler/ast/pass/length_hoisting.cpp
+    src/Engine/Compiler/ast/pass/loop_ownership.cpp
+    src/Engine/Compiler/ast/pass/row_hoisting.cpp
     src/Engine/Compiler/ast/pass/program_view.cpp
     src/Engine/Compiler/ast/pass/run_once.cpp
     src/Engine/Compiler/ast/pass/program_consts.cpp
@@ -314,6 +316,8 @@ set(ENGINESOURCE
     src/Engine/Compiler/ast/pass/ast_survey.cpp
     src/Engine/Compiler/ast/pass/function_inlining.cpp
     src/Engine/Compiler/ast/pass/length_hoisting.cpp
+    src/Engine/Compiler/ast/pass/loop_ownership.cpp
+    src/Engine/Compiler/ast/pass/row_hoisting.cpp
     src/Engine/Compiler/ast/pass/program_view.cpp
     src/Engine/Compiler/ast/pass/run_once.cpp
     src/Engine/Compiler/ast/pass/program_consts.cpp

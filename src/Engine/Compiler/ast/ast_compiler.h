@@ -104,6 +104,8 @@ namespace pg
          */
         int internString(const std::string& name, const Token& token);
 
+        void writeBinaryOperator(const Token& op);
+
         /** Emit a value read/write for a named variable (local/upvalue/global) */
         void emitVariableGet(const Token& name);
 

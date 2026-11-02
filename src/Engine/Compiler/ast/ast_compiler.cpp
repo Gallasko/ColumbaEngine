@@ -239,14 +239,48 @@ namespace pg
     // Expressions
     // ------------------------------------------------------------------
 
+    // Whether evaluating an expression twice is evaluating it once: no call, nothing it sets, no read
+    // a __get could answer. What is not goes through OP_Peek in a `+=`, at every level
+    static bool sameReadTwice(const ExprPtr& e)
+    {
+        switch (e->kind())
+        {
+            case AstKind::Var:
+            case AstKind::Atom:
+            case AstKind::NoneAtom:
+            case AstKind::This:
+                return true;
+
+            case AstKind::CompoundAtom:
+                return sameReadTwice(std::static_pointer_cast<CompoundAtom>(e)->expr);
+
+            case AstKind::UnaryExpression:
+                return sameReadTwice(std::static_pointer_cast<UnaryExpression>(e)->expr);
+
+            case AstKind::BinaryExpression:
+            {
+                auto b = std::static_pointer_cast<BinaryExpression>(e);
+                return sameReadTwice(b->leftExpr) and sameReadTwice(b->rightExpr);
+            }
+
+            default:
+                return false;
+        }
+    }
+
     void AstCompiler::visit(BinaryExpression* expr)
     {
         expr->leftExpr->accept(this);
         expr->rightExpr->accept(this);
 
-        setLine(expr->op);
+        writeBinaryOperator(expr->op);
+    }
 
-        switch (expr->op.type)
+    void AstCompiler::writeBinaryOperator(const Token& op)
+    {
+        setLine(op);
+
+        switch (op.type)
         {
             case TokenType::PLUS:
                 root.parser.writeByte(OpCode::OP_Add);
@@ -293,7 +327,7 @@ namespace pg
                 break;
 
             default:
-                error(expr->op, "Unknown binary operator '" + expr->op.text + "'.");
+                error(op, "Unknown binary operator '" + op.text + "'.");
                 break;
         }
     }
@@ -638,7 +672,20 @@ namespace pg
         if (stringIndex < 0)
             return;
 
-        expr->value->accept(this);
+        if (expr->compound and not sameReadTwice(expr->object))
+        {
+            auto value = std::static_pointer_cast<BinaryExpression>(expr->value);
+
+            root.parser.writeByte(OpCode::OP_Peek);
+            root.parser.writeByte(0);
+            root.parser.writeByte(OpCode::OP_Get_Property);
+            root.parser.writeByte(static_cast<uint8_t>(stringIndex));
+
+            value->rightExpr->accept(this);
+            writeBinaryOperator(value->op);
+        }
+        else
+            expr->value->accept(this);
 
         setLine(expr->name);
         root.parser.writeByte(OpCode::OP_Set_Property);
@@ -665,7 +712,25 @@ namespace pg
     {
         expr->object->accept(this);
         expr->index->accept(this);
-        expr->value->accept(this);
+
+        if (expr->compound and not (sameReadTwice(expr->object) and sameReadTwice(expr->index)))
+        {
+            auto value = std::static_pointer_cast<BinaryExpression>(expr->value);
+
+            // Both stay for the write
+            root.parser.writeByte(OpCode::OP_Peek);
+            root.parser.writeByte(1);
+            root.parser.writeByte(OpCode::OP_Peek);
+            root.parser.writeByte(1);
+
+            setLine(expr->bracket);
+            root.parser.writeByte(OpCode::OP_Get_Index);
+
+            value->rightExpr->accept(this);
+            writeBinaryOperator(value->op);
+        }
+        else
+            expr->value->accept(this);
 
         setLine(expr->bracket);
         root.parser.writeByte(OpCode::OP_Set_Index);

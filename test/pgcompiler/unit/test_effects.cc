@@ -1050,7 +1050,8 @@ namespace pg
         TEST(ProgramEffects, ACodeBehindAFieldOrALoopGivesUp)
         {
             const std::vector<std::string> sources = {
-                "class Box\n{\n    size()\n    {\n        return 1\n    }\n}\nvar x = 1\nx\n",
+                "class Box\n{\n    __get(key)\n    {\n        return 1\n    }\n}\nvar x = 1\nx\n",
+                "class Box\n{\n    __iter()\n    {\n        return 1\n    }\n}\nvar x = 1\nx\n",
                 "fun __get(t, k)\n{\n    return 1\n}\nvar x = 1\nx\n",
                 "fun __set(t, k, v)\n{\n    return 1\n}\nvar x = 1\nx\n",
                 "fun __iter(t)\n{\n    return 1\n}\nvar x = 1\nx\n",
@@ -1969,9 +1970,92 @@ namespace pg
             EXPECT_EQ(p.effects.bodyOf(StatementPtr()), nullptr);
         }
 
+        // ---- classes ---------------------------------------------------------------------------
+
+        namespace
+        {
+            const std::string box = "class Box\n{\n    init(t)\n    {\n        this.t = t\n    }\n    clear()\n    {\n        this.t.n = 0\n    }\n    size()\n    {\n        return 1\n    }\n}\n";
+        }
+
+        TEST(ProgramEffects, APlainClassIsFollowed)
+        {
+            Analyzed p(box + "var x = {n: 1}\nvar b = Box({n: 2})\nb.size()\n");
+            EXPECT_TRUE(p.usable) << p.effects.refusal();
+            EXPECT_TRUE(p.consts().count("x"));
+        }
+
+        TEST(ProgramEffects, AMethodNeverCalledStillWrites)
+        {
+            Analyzed p("var rows = {n: 1}\nclass Box\n{\n    clear()\n    {\n        rows.n = 0\n    }\n}\n");
+            EXPECT_TRUE(p.usable) << p.effects.refusal();
+            EXPECT_FALSE(p.consts().count("rows"));
+        }
+
+        TEST(ProgramEffects, InitRunsWhenTheClassIsCalled)
+        {
+            Analyzed p("var rows = {n: 1}\nclass Box\n{\n    init()\n    {\n        rows.n = 0\n    }\n}\nvar b = Box()\n");
+            EXPECT_TRUE(p.usable) << p.effects.refusal();
+            EXPECT_FALSE(p.consts().count("rows"));
+        }
+
+        TEST(ProgramEffects, WhatAnObjectHoldsIsWrittenThroughIt)
+        {
+            Analyzed p(box + "var rows = {n: 1}\nvar b = Box(rows)\nb.clear()\n");
+            EXPECT_TRUE(p.usable) << p.effects.refusal();
+            EXPECT_FALSE(p.consts().count("rows"));
+        }
+
+        TEST(ProgramEffects, WhatAnObjectHoldsIsWrittenThroughAFunction)
+        {
+            Analyzed p(box + "var rows = {n: 1}\nfun go(o)\n{\n    o.clear()\n}\nvar b = Box(rows)\ngo(b)\n");
+            EXPECT_TRUE(p.usable) << p.effects.refusal();
+            EXPECT_FALSE(p.consts().count("rows"));
+        }
+
+        TEST(ProgramEffects, EveryMethodOfTheNameMayRun)
+        {
+            Analyzed p("var rows = {n: 1}\n"
+                       "class A\n{\n    go()\n    {\n        return 1\n    }\n}\n"
+                       "class B\n{\n    init(t)\n    {\n        this.t = t\n    }\n    go()\n    {\n        this.t.n = 0\n    }\n}\n"
+                       "fun run(o)\n{\n    o.go()\n}\n"
+                       "run(A())\nrun(B(rows))\n");
+
+            EXPECT_TRUE(p.usable) << p.effects.refusal();
+            EXPECT_FALSE(p.consts().count("rows"));
+        }
+
+        TEST(ProgramEffects, ACallThatMayRunOtherCodeIsNotFollowed)
+        {
+            const std::vector<std::string> sources = {
+                // A field of a method's name may hold anything
+                "class Box\n{\n    go()\n    {\n        return 1\n    }\n}\nvar t = {}\nt.go = 1\nvar x = 1\n",
+                "class Box\n{\n    go()\n    {\n        return 1\n    }\n}\nvar t = {go: 1}\nvar x = 1\n",
+                "class Box\n{\n    go()\n    {\n        return 1\n    }\n}\nvar t = {}\nt[\"go\"] = 1\nvar x = 1\n",
+
+                // A function in a field is what a call of a method would run
+                "class Box\n{\n    go()\n    {\n        return 1\n    }\n}\nfun f()\n{\n    return 2\n}\nvar k = \"g\" + \"o\"\nvar t = {}\nt[k] = f\nt.go()\nvar x = 1\n",
+
+                // A metamethod set by hand
+                "class Box\n{\n    go()\n    {\n        return 1\n    }\n}\nvar b = Box()\nb.__get = 1\nvar x = 1\n",
+                "class Box\n{\n    go()\n    {\n        return 1\n    }\n}\nvar b = Box()\nb[\"__get\"] = 1\nvar x = 1\n",
+
+                // Not a class a name can tell
+                "class Box\n{\n    go()\n    {\n        return 1\n    }\n}\nBox = 1\nvar x = 1\n",
+                "class Box\n{\n    go()\n    {\n        return 1\n    }\n}\nclass Box\n{\n    go()\n    {\n        return 2\n    }\n}\nvar x = 1\n",
+                "fun f()\n{\n    class Box\n    {\n        go()\n        {\n            return 1\n        }\n    }\n}\nvar x = 1\n",
+            };
+
+            for (const auto& source : sources)
+            {
+                Analyzed p(source);
+                EXPECT_FALSE(p.usable) << source;
+                EXPECT_FALSE(p.effects.refusal().empty()) << source;
+            }
+        }
+
         TEST(ProgramEffects, NoBodiesWhenNothingIsUsable)
         {
-            Analyzed p("fun f()\n{\n    return 1\n}\nclass Box\n{\n    size()\n    {\n        return 1\n    }\n}\n");
+            Analyzed p("fun f()\n{\n    return 1\n}\nclass Box\n{\n    __next()\n    {\n        return 1\n    }\n}\n");
             EXPECT_FALSE(p.usable);
             EXPECT_EQ(p.effects.bodyOf("f"), nullptr);
             EXPECT_EQ(p.effects.bodyOf(p.statements[0]), nullptr);

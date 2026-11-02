@@ -8,6 +8,7 @@
 #include "Interpreter/expression.h"
 #include "Interpreter/statement.h"
 
+#include <functional>
 #include <set>
 #include <string>
 
@@ -43,6 +44,13 @@ namespace pg
          * bodies have their own slot space and are excluded.
          */
         int countLocalSlots(const StatementPtr& s);
+
+        using ExprVisit = std::function<void(const ExprPtr&)>;
+
+        // An expression or a statement and every expression below it, each before those it holds; in
+        // the bodies of the functions and classes it defines only with `intoFunctions`
+        void eachExpr(const ExprPtr& e, const ExprVisit& visit, bool intoFunctions = false);
+        void eachExpr(const StatementPtr& s, const ExprVisit& visit, bool intoFunctions = false);
 
         // Local slots are addressed with a single byte; passes adding hidden locals stay under this
         constexpr int kMaxLocalSlots = 240;

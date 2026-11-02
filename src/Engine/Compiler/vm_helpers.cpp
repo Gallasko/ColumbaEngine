@@ -452,6 +452,7 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Build_Table), op_build_table_decoded, 0);
         register_operation(static_cast<uint8_t>(OpCode::OP_Build_Vector), op_build_vector_decoded, 0);
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Index), op_get_index_decoded, 0);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Peek), op_peek_decoded, 0);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Index), op_set_index_decoded, 0);
 
         // Iterator operations

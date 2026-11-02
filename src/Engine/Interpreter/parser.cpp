@@ -212,9 +212,6 @@ namespace pg
             skipEOL();
             auto rExpr = assignment();
 
-            // Todo += desugaring breaks when used on list
-            // var list = [0, 1, 2]; list[0] += 1; << Crashes
-
             // Desugaring operator +=, -=, *=, /= and %=
             switch(op.type)
             {
@@ -235,7 +232,7 @@ namespace pg
                 break;
 
             case TokenType::MODEQUAL:
-                rExpr = std::make_shared<BinaryExpression>(expr, Token{TokenType::SLASH, "%", op.line, op.column}, rExpr);
+                rExpr = std::make_shared<BinaryExpression>(expr, Token{TokenType::MOD, "%", op.line, op.column}, rExpr);
                 break;
 
             default:
@@ -252,7 +249,11 @@ namespace pg
             else if (expr->kind() == AstKind::Get)
             {
                 auto getExpr = std::static_pointer_cast<Get>(expr);
-                return std::make_shared<Set>(getExpr->object, getExpr->name, rExpr);
+                auto setExpr = std::make_shared<Set>(getExpr->object, getExpr->name, rExpr);
+
+                setExpr->compound = op.type != TokenType::EQUAL;
+
+                return setExpr;
             }
             // Check if the expression is an assignment to a subscript: object[index] = value
             else if (expr->kind() == AstKind::IndexGet)
@@ -260,6 +261,8 @@ namespace pg
                 auto indexExpr = std::static_pointer_cast<IndexGet>(expr);
 
                 auto setExpr = std::make_shared<IndexSet>(indexExpr->object, indexExpr->index, rExpr, indexExpr->bracket);
+
+                setExpr->compound = op.type != TokenType::EQUAL;
 
                 std::queue<ExprPtr> args;
                 args.push(indexExpr->index);

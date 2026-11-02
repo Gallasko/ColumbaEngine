@@ -26,7 +26,7 @@ The language supports dynamic typing with the following types:
 * **Booleans**: ``true`` and ``false`` literals
 * **Tables**: Associative arrays that can store key-value pairs and indexed values
 * **Functions**: First-class functions with closure support
-* **Classes**: Object-oriented programming with inheritance
+* **Classes**: Object-oriented programming, without inheritance
 
 Control Flow
 ~~~~~~~~~~~~
@@ -129,7 +129,7 @@ The statements right after it that only build it are part of it. The compiler pr
 * All it is made of is the same on every run: no value the host gives the script, and no ``var`` that changes.
 * Nothing but what builds it writes it, through any other name, in any file of the program.
 
-So it can only be proved when the whole program can be read: a class, a ``return`` at a file's top level, an import below a file's top level or a module that exists only as a ``.pgc`` refuse it. It stands at the top level of a script, and needs the AST front-end.
+So it can only be proved when the whole program can be read: a class's ``__get``, ``__set``, ``__iter`` or ``__next``, a class defined inside a function, a field named like a method, a function handed around as a value in a program with classes, a ``return`` at a file's top level, an import below a file's top level or a module that exists only as a ``.pgc`` refuse it. Plain classes are fine: their methods are read like any function. It stands at the top level of a script, and needs the AST front-end.
 
 To change a row, change a copy: ``deepCopy(table)`` shares nothing with the table. ``copy(table)`` shares what is below its first level, and a write there is refused.
 

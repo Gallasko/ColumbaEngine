@@ -99,9 +99,9 @@ namespace pg
             // The program: its files' top-level statements, the script's first, and what each imports
             // where (`imports`: what is not imported runs after, in order), and what tells each file
             // from any other (`origins`, ProgramFiles: factsOf says it). False when code of the
-            // program runs behind what the bodies show (a class, a function named as a metamethod) or a
-            // `return` in a top-level statement decides whether what follows runs at all: then nothing
-            // it says may be used
+            // program runs behind what the bodies show (a metamethod, a function a field of a table may
+            // hold where a method is called) or a `return` in a top-level statement decides whether
+            // what follows runs at all: then nothing it says may be used
             bool analyze(const std::vector<std::vector<StatementPtr>>& files, const FileImports& imports = {}, const std::vector<std::string>& origins = {});
 
             // A top-level statement of the program; any other is unknown: it may do anything, and

@@ -226,6 +226,45 @@ namespace fusion
         return op_get_index_decoded(vm, instr);
     }
 
+    // v[i] read with both in locals: handle from slot byte1, index from slot
+    // byte2, both borrowed. Same shapes as fusedGetIndexLocal; the delegate
+    // consumes what it is given, so it gets owned copies.
+    inline const DecodedInstruction* fusedGetIndexLocals(VM* vm, const DecodedInstruction& instr)
+    {
+        const Value target = vm->currentFrame->slots[instr.operands.indexed.byte1];
+        const Value index = vm->currentFrame->slots[instr.operands.indexed.byte2];
+
+        if (IS_VECTOR(target) and IS_INT(index))
+        {
+            ObjVector* vec = vm->asVector(target);
+            const int64_t idx = AS_INT(index);
+            if (idx >= 0 and idx < static_cast<int64_t>(vec->fields.size()))
+            {
+                vm->push(vm->retainValue(vec->fields[idx]));
+                return &instr + 1;
+            }
+        }
+
+        if (IS_LONG_STRING(target) and IS_INT(index))
+        {
+            const std::string& str = *vm->asStringPtr(target);
+            int64_t idx = AS_INT(index);
+            if (idx < 0)
+                idx += static_cast<int64_t>(str.size());
+
+            if (idx >= 0 and idx < static_cast<int64_t>(str.size()))
+                vm->push(vm->singleCharCache[static_cast<unsigned char>(str[idx])]);
+            else
+                vm->push(makeNoneValue());
+
+            return &instr + 1;
+        }
+
+        vm->push(vm->retainValue(target));
+        vm->push(vm->retainValue(index));
+        return op_get_index_decoded(vm, instr);
+    }
+
     // v[i] = x: value and index popped from the stack, vector handle from
     // slot byte1 (borrowed). Replaces the Set_Index + trailing Pop pair (the
     // generic Set_Index leaves the target on the stack for that Pop). The

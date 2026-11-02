@@ -822,6 +822,7 @@ namespace pg
     // whose TARGET is a plain local.
     //
     //   Get_Local v; <pure index expr>; Get_Index        → nop; expr; FUSED_GetIndex(L,S)
+    //   Get_Local v; Get_Local i; Get_Index              → nop; nop; FUSED_GetIndex(L,L)
     //   Get_Local v; <pure exprs>; Set_Index; Pop        → nop; exprs; FUSED_SetIndex(L,S,S); nop
     //
     // The container handle is then read straight from the slot (BORROWED —
@@ -876,6 +877,11 @@ namespace pg
             if (ins[idx].decodedHandler == &fusedGetIndexLocal)
             {
                 pops = 1; pushes = 1;
+                return true;
+            }
+            if (ins[idx].decodedHandler == &fusedGetIndexLocals)
+            {
+                pops = 0; pushes = 1;
                 return true;
             }
             if (im[idx].fusedLength >= 2)
@@ -935,9 +941,22 @@ namespace pg
                 if (plain and op == OpCode::OP_Get_Index and depth == 1
                     and ins[j].decodedHandler == &op_get_index_decoded)
                 {
-                    ins[j].decodedHandler = &fusedGetIndexLocal;
+                    // The index is a local right there: neither goes through the stack
+                    if (j == i + 2 and im[i + 1].fusedLength < 2 and ins[i + 1].decodedHandler == &op_get_local_decoded)
+                    {
+                        ins[j].decodedHandler = &fusedGetIndexLocals;
+                        ins[j].operands.indexed.byte2 = ins[i + 1].operands.byte;
+                        ins[i + 1].decodedHandler = &fusedElidedProducer;
+                        im[i + 1].fusedName = internFusionName("ELIDED_Producer");
+                        im[j].fusedName = internFusionName("FUSED_GetIndex(L,L)");
+                    }
+                    else
+                    {
+                        ins[j].decodedHandler = &fusedGetIndexLocal;
+                        im[j].fusedName = internFusionName("FUSED_GetIndex(L,S)");
+                    }
+
                     ins[j].operands.indexed.byte1 = slot;
-                    im[j].fusedName = internFusionName("FUSED_GetIndex(L,S)");
                     ins[i].decodedHandler = &fusedElidedProducer;
                     im[i].fusedName = internFusionName("ELIDED_Producer");
                     ++rewrites;

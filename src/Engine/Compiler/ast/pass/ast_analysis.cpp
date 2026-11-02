@@ -193,6 +193,150 @@ namespace pg
             // Break / Continue / Import: nothing to record
         }
 
+        void eachExpr(const ExprPtr& e, const ExprVisit& visit, bool intoFunctions)
+        {
+            if (not e)
+                return;
+
+            visit(e);
+
+            const AstKind type = e->kind();
+
+            if (type == AstKind::CallExpression)
+            {
+                auto c = std::static_pointer_cast<CallExpression>(e);
+                eachExpr(c->caller, visit, intoFunctions);
+
+                auto args = c->args;
+
+                while (not args.empty())
+                {
+                    eachExpr(args.front(), visit, intoFunctions);
+                    args.pop();
+                }
+            }
+            else if (type == AstKind::IndexSet)
+            {
+                auto g = std::static_pointer_cast<IndexSet>(e);
+                eachExpr(g->object, visit, intoFunctions);
+                eachExpr(g->index, visit, intoFunctions);
+                eachExpr(g->value, visit, intoFunctions);
+            }
+            else if (type == AstKind::IndexGet)
+            {
+                auto g = std::static_pointer_cast<IndexGet>(e);
+                eachExpr(g->object, visit, intoFunctions);
+                eachExpr(g->index, visit, intoFunctions);
+            }
+            else if (type == AstKind::Get)
+                eachExpr(std::static_pointer_cast<Get>(e)->object, visit, intoFunctions);
+            else if (type == AstKind::Set)
+            {
+                auto g = std::static_pointer_cast<Set>(e);
+                eachExpr(g->object, visit, intoFunctions);
+                eachExpr(g->value, visit, intoFunctions);
+            }
+            else if (type == AstKind::BinaryExpression)
+            {
+                auto b = std::static_pointer_cast<BinaryExpression>(e);
+                eachExpr(b->leftExpr, visit, intoFunctions);
+                eachExpr(b->rightExpr, visit, intoFunctions);
+            }
+            else if (type == AstKind::LogicExpression)
+            {
+                auto l = std::static_pointer_cast<LogicExpression>(e);
+                eachExpr(l->leftExpr, visit, intoFunctions);
+                eachExpr(l->rightExpr, visit, intoFunctions);
+            }
+            else if (type == AstKind::UnaryExpression)
+                eachExpr(std::static_pointer_cast<UnaryExpression>(e)->expr, visit, intoFunctions);
+            else if (type == AstKind::CompoundAtom)
+                eachExpr(std::static_pointer_cast<CompoundAtom>(e)->expr, visit, intoFunctions);
+            else if (type == AstKind::Assign)
+                eachExpr(std::static_pointer_cast<Assign>(e)->expr, visit, intoFunctions);
+            else if (type == AstKind::List)
+            {
+                auto entries = std::static_pointer_cast<List>(e)->entries;
+
+                while (not entries.empty())
+                {
+                    if (not entries.front().explicitKey)
+                        eachExpr(entries.front().key, visit, intoFunctions);
+
+                    eachExpr(entries.front().value, visit, intoFunctions);
+                    entries.pop();
+                }
+            }
+            else if (type == AstKind::AnonymousFunction and intoFunctions)
+                eachExpr(std::static_pointer_cast<AnonymousFunction>(e)->body, visit, intoFunctions);
+        }
+
+        void eachExpr(const StatementPtr& s, const ExprVisit& visit, bool intoFunctions)
+        {
+            if (not s)
+                return;
+
+            const AstKind type = s->kind();
+
+            if (type == AstKind::ExpressionStatement)
+                eachExpr(std::static_pointer_cast<ExpressionStatement>(s)->expr, visit, intoFunctions);
+            else if (type == AstKind::VariableStatement)
+                eachExpr(std::static_pointer_cast<VariableStatement>(s)->expr, visit, intoFunctions);
+            else if (type == AstKind::ReturnStatement)
+                eachExpr(std::static_pointer_cast<ReturnStatement>(s)->value, visit, intoFunctions);
+            else if (type == AstKind::DPrintStatement)
+                eachExpr(std::static_pointer_cast<DPrintStatement>(s)->expr, visit, intoFunctions);
+            else if (type == AstKind::BlockStatement)
+            {
+                auto statements = std::static_pointer_cast<BlockStatement>(s)->statements;
+
+                while (not statements.empty())
+                {
+                    eachExpr(statements.front(), visit, intoFunctions);
+                    statements.pop();
+                }
+            }
+            else if (type == AstKind::IfStatement)
+            {
+                auto i = std::static_pointer_cast<IfStatement>(s);
+                eachExpr(i->condition, visit, intoFunctions);
+                eachExpr(i->thenBranch, visit, intoFunctions);
+                eachExpr(i->elseBranch, visit, intoFunctions);
+            }
+            else if (type == AstKind::WhileStatement)
+            {
+                auto w = std::static_pointer_cast<WhileStatement>(s);
+                eachExpr(w->condition, visit, intoFunctions);
+                eachExpr(w->body, visit, intoFunctions);
+            }
+            else if (type == AstKind::ForStatement)
+            {
+                auto f = std::static_pointer_cast<ForStatement>(s);
+                eachExpr(f->initializer, visit, intoFunctions);
+                eachExpr(f->condition, visit, intoFunctions);
+                eachExpr(f->increment, visit, intoFunctions);
+                eachExpr(f->body, visit, intoFunctions);
+            }
+            else if (type == AstKind::ForInStatement)
+            {
+                auto f = std::static_pointer_cast<ForInStatement>(s);
+                eachExpr(f->iterable, visit, intoFunctions);
+                eachExpr(f->body, visit, intoFunctions);
+            }
+            else if (type == AstKind::FunctionStatement and intoFunctions)
+                eachExpr(std::static_pointer_cast<FunctionStatement>(s)->body, visit, intoFunctions);
+            else if (type == AstKind::ClassStatement and intoFunctions)
+            {
+                auto methods = std::static_pointer_cast<ClassStatement>(s)->methods;
+
+                while (not methods.empty())
+                {
+                    eachExpr(methods.front()->body, visit, intoFunctions);
+                    methods.pop();
+                }
+            }
+        }
+
         int countLocalSlots(const StatementPtr& s)
         {
             if (not s)

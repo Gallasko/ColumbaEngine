@@ -15,12 +15,19 @@
  * written with constant keys: a field read after a write is the value written. Any other use
  * (handed to a call, stored, returned, joined) and any loop entered end that for the rest of the
  * body; its field reads are then `Field` nodes.
+ *
+ * With the program's classes (ClassModel), a method is a function of its own, `this` its first
+ * parameter: `Box(a)` is a new table handed to `Box.init`, and `x.m(a)` every method named `m`, there
+ * being no other kind of method and no inheritance. ProgramEffects refuses a program where that is
+ * not all a call can run.
  */
 
 #include "locations.h"
 
 #include <functional>
+#include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -90,9 +97,22 @@ namespace pg
                 std::string dump() const;
             };
 
-            // `isNative(name)`: true when the program defines nothing of that name (the builder still checks locals)
-            BodyIR buildFunction(const FunctionStatement& f, Locations& locs, const std::function<bool(const std::string&)>& isNative);
-            BodyIR buildTopLevel(const std::shared_ptr<Statement>& s, Locations& locs, const std::function<bool(const std::string&)>& isNative);
+            // The classes of a program, for the calls that run their methods
+            struct ClassModel
+            {
+                std::set<std::string> classes;
+                std::set<std::string> withInit;                          // Classes a call runs `init` of
+                std::map<std::string, std::vector<std::string>> methods; // By name: the functions it may be
+
+                // The name a method goes by among the functions
+                static std::string functionOf(const std::string& className, const std::string& method) { return className + "." + method; }
+            };
+
+            // `isNative(name)`: true when the program defines nothing of that name (the builder still
+            // checks locals). `classes`: nullptr when a class is not to be followed
+            BodyIR buildFunction(const FunctionStatement& f, Locations& locs, const std::function<bool(const std::string&)>& isNative, const ClassModel* classes = nullptr);
+            BodyIR buildMethod(const FunctionStatement& f, Locations& locs, const std::function<bool(const std::string&)>& isNative, const ClassModel* classes);
+            BodyIR buildTopLevel(const std::shared_ptr<Statement>& s, Locations& locs, const std::function<bool(const std::string&)>& isNative, const ClassModel* classes = nullptr);
         }
     }
 }

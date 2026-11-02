@@ -351,16 +351,26 @@ namespace pg
                 class Builder
                 {
                 public:
-                    Builder(Locations& locs, const std::function<bool(const std::string&)>& isNative) : locs(locs), isNative(isNative)
+                    Builder(Locations& locs, const std::function<bool(const std::string&)>& isNative, const ClassModel* classes) : locs(locs), isNative(isNative), classes(classes)
                     {
                         ir.keyNames[Locations::AnyKey] = "*";
                     }
 
-                    BodyIR function(const FunctionStatement& f)
+                    BodyIR function(const FunctionStatement& f, bool method = false)
                     {
                         env.scopes.emplace_back();
 
                         uint32_t i = 0;
+
+                        if (method)
+                        {
+                            Node n;
+                            n.op = Op::Param;
+                            n.param = i++;
+
+                            self = add(std::move(n));
+                            inMethod = true;
+                        }
 
                         for (const auto& p : listOf(f.parameters))
                         {
@@ -391,6 +401,9 @@ namespace pg
                 private:
                     Locations& locs;
                     const std::function<bool(const std::string&)>& isNative;
+                    const ClassModel* classes;
+                    bool inMethod = false;
+                    ValueId self = 0;
 
                     BodyIR ir;
                     Env env;
@@ -849,6 +862,15 @@ namespace pg
                         {
                             auto g = std::static_pointer_cast<Get>(c->caller);
                             handed = expr(g->object);
+
+                            if (classes)
+                            {
+                                auto method = classes->methods.find(g->name.text);
+
+                                if (method != classes->methods.end())
+                                    return methodCall(c, handed, method->second, args);
+                            }
+
                             callee = readField(handed, nameKey(g->name.text), g.get());
                             ir.valueOf[g.get()] = callee;
                         }
@@ -871,8 +893,57 @@ namespace pg
                         return make(Op::Call, std::move(in), c.get());
                     }
 
+                    // The receiver is the first thing every method it may be is handed
+                    ValueId methodCall(const std::shared_ptr<CallExpression>& c, ValueId receiver, const std::vector<std::string>& functions, const std::vector<ExprPtr>& args)
+                    {
+                        std::vector<ValueId> in = {receiver};
+
+                        for (const auto& a : args)
+                            in.push_back(expr(a));
+
+                        for (auto v : in)
+                            use(v);
+
+                        std::vector<ValueId> results;
+
+                        for (const auto& function : functions)
+                            results.push_back(make(Op::Call, in, c.get(), function));
+
+                        return results.size() == 1 ? results.front() : phi(results, c.get());
+                    }
+
+                    // A new table, handed to `init` when the class has one
+                    ValueId construct(const std::shared_ptr<CallExpression>& c, const std::string& name, const std::vector<ExprPtr>& args)
+                    {
+                        std::vector<ValueId> in;
+
+                        for (const auto& a : args)
+                            in.push_back(expr(a));
+
+                        Node n;
+                        n.op = Op::Literal;
+                        n.site = locs.site(c.get());
+                        n.name = locs.text(n.site);
+                        n.origin = c.get();
+
+                        const ValueId made = add(std::move(n));
+
+                        in.insert(in.begin(), made);
+
+                        for (auto v : in)
+                            use(v);
+
+                        if (classes->withInit.count(name))
+                            make(Op::Call, std::move(in), c.get(), ClassModel::functionOf(name, "init"));
+
+                        return made;
+                    }
+
                     ValueId namedCall(const std::shared_ptr<CallExpression>& c, const std::string& name, const std::vector<ExprPtr>& args)
                     {
+                        if (classes and classes->classes.count(name))
+                            return construct(c, name, args);
+
                         const NativeKind kind = isNative(name) ? nativeKind(name) : NativeKind::None;
 
                         if (kind == NativeKind::Lookup)
@@ -1045,6 +1116,12 @@ namespace pg
                                 return literal(std::static_pointer_cast<List>(e));
 
                             case AstKind::This:
+                                if (inMethod)
+                                    return self;
+
+                                markUnknown();
+                                return make(Op::Unknown, {}, e.get());
+
                             case AstKind::AnonymousFunction:
                             default:
                                 // Not followed: who calls a closure, and with what, is not known
@@ -1096,6 +1173,10 @@ namespace pg
                             }
 
                             case AstKind::ClassStatement:
+                                // Its methods are built of their own
+                                if (classes and env.scopes.empty())
+                                    return;
+
                                 markUnknown();
                                 return;
 
@@ -1191,14 +1272,19 @@ namespace pg
                 };
             }
 
-            BodyIR buildFunction(const FunctionStatement& f, Locations& locs, const std::function<bool(const std::string&)>& isNative)
+            BodyIR buildFunction(const FunctionStatement& f, Locations& locs, const std::function<bool(const std::string&)>& isNative, const ClassModel* classes)
             {
-                return Builder(locs, isNative).function(f);
+                return Builder(locs, isNative, classes).function(f);
             }
 
-            BodyIR buildTopLevel(const std::shared_ptr<Statement>& s, Locations& locs, const std::function<bool(const std::string&)>& isNative)
+            BodyIR buildMethod(const FunctionStatement& f, Locations& locs, const std::function<bool(const std::string&)>& isNative, const ClassModel* classes)
             {
-                return Builder(locs, isNative).topLevel(s);
+                return Builder(locs, isNative, classes).function(f, true);
+            }
+
+            BodyIR buildTopLevel(const std::shared_ptr<Statement>& s, Locations& locs, const std::function<bool(const std::string&)>& isNative, const ClassModel* classes)
+            {
+                return Builder(locs, isNative, classes).topLevel(s);
             }
         }
     }
