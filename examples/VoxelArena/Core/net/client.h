@@ -111,6 +111,8 @@ namespace arena::net
         std::deque<StampedInput> pending;
 
         std::deque<SnapshotMsg> snapshots;   // newest last, for interpolation
+        std::deque<SnapshotRecords> read;    // the last snapshots read, as records: the server sends the next ones as changes to them
+        uint32_t snapshotAck = 0;            // the newest of them, told to the server with each input
         double lastSnapshotTick = -1.0;
         double lastSnapshotAt = 0.0;
         double startedAt = -1.0;

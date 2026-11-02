@@ -211,8 +211,24 @@ namespace arena::net
                 case Msg::Snapshot:
                 {
                     SnapshotMsg m;
-                    if (decode(e.data, m, names))
-                        onSnapshot(m, nowMs);
+                    SnapshotRecords records;
+                    const auto baseOf = [this](uint32_t seq) -> const SnapshotRecords* {
+                        for (const auto& r : read)
+                            if (r.seq == seq)
+                                return &r;
+                        return nullptr;
+                    };
+
+                    // Changes to a snapshot no longer kept cannot be read: the next ones build on a newer one
+                    if (not decode(e.data, m, names, baseOf, &records))
+                        break;
+
+                    read.push_back(std::move(records));
+                    while (read.size() > SNAPSHOTS_KEPT)
+                        read.pop_front();
+                    snapshotAck = std::max(snapshotAck, m.seq);
+
+                    onSnapshot(m, nowMs);
                     break;
                 }
 
@@ -331,6 +347,7 @@ namespace arena::net
         InputMsg msg;
         msg.clientTimeMs = static_cast<uint32_t>(std::max(1.0, nowMs - startedAt));
         msg.rttMs = static_cast<uint16_t>(std::clamp(rttMs, 0.0f, 65535.0f));
+        msg.snapshotAck = snapshotAck;
 
         const size_t from = pending.size() > SEND_REDUNDANCY ? pending.size() - SEND_REDUNDANCY : 0;
         msg.inputs.assign(pending.begin() + static_cast<std::ptrdiff_t>(from), pending.end());

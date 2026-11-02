@@ -234,6 +234,152 @@ TEST(arena_net, messages_read_back_what_was_written)
 
 // ---- Sessions ---------------------------------------------------------------------------------
 
+TEST(arena_net, a_snapshot_goes_as_the_changes_since_one_the_client_read)
+{
+    Session s;
+    Names names;
+    names.build(s.content);
+
+    // What the client read: its player, three enemies, a shard, a zone
+    SnapshotMsg a;
+    a.seq = 10;
+    a.tick = 500;
+    a.playerId = 1;
+    for (int id = 1; id <= 4; ++id)
+    {
+        Fighter f;
+        f.id = id;
+        f.team = id == 1 ? Team::Player : Team::Enemy;
+        f.type = id == 1 ? "player" : "base:brute";
+        f.body.position = glm::vec3(static_cast<float>(id), 1.0f, 2.0f);
+        a.fighters.push_back(f);
+    }
+    Pickup shard;
+    shard.id = 3;
+    shard.position = glm::vec3(4.0f, 1.0f, 4.0f);
+    a.pickups.push_back(shard);
+    ZoneState zone;
+    zone.id = 6;
+    zone.element = Element::Fire;
+    zone.position = glm::vec3(8.0f, 1.0f, 8.0f);
+    zone.radius = 2.0f;
+    zone.duration = 5.0f;
+    zone.remaining = 4.0f;
+    a.zones.push_back(zone);
+
+    SnapshotRecords sentA, readA;
+    SnapshotMsg aBack;
+    ASSERT_TRUE(decode(encode(a, names, nullptr, &sentA), aBack, names, nullptr, &readA));
+    EXPECT_EQ(aBack.baseSeq, 0u);
+
+    // The next one: an enemy moved, one died, a new one came in front of the others, the shard flew off;
+    // the zone is still there with less time left
+    SnapshotMsg b = a;
+    b.seq = 11;
+    b.tick = 530;
+    b.fighters[1].body.position.x += 0.5f;
+    b.fighters[1].health = 40.0f;
+    b.fighters.erase(b.fighters.begin() + 2);
+    Fighter newcomer = b.fighters[1];
+    newcomer.id = 9;
+    newcomer.body.position = glm::vec3(20.0f, 1.0f, 20.0f);
+    b.fighters.insert(b.fighters.begin() + 1, newcomer);
+    b.pickups.clear();
+    b.zones[0].remaining = 3.5f;
+
+    const auto whole = encode(b, names);
+    const auto changes = encode(b, names, &sentA, nullptr);
+    EXPECT_LT(changes.size(), whole.size() / 2);
+
+    SnapshotMsg fromWhole, fromChanges;
+    ASSERT_TRUE(decode(whole, fromWhole, names));
+    const auto baseOf = [&](uint32_t seq) { return seq == readA.seq ? &readA : nullptr; };
+    ASSERT_TRUE(decode(changes, fromChanges, names, baseOf, nullptr));
+    EXPECT_EQ(fromChanges.baseSeq, 10u);
+
+    ASSERT_EQ(fromChanges.fighters.size(), fromWhole.fighters.size());
+    for (size_t i = 0; i < fromWhole.fighters.size(); ++i)
+    {
+        EXPECT_EQ(fromChanges.fighters[i].id, fromWhole.fighters[i].id);
+        EXPECT_EQ(fromChanges.fighters[i].body.position, fromWhole.fighters[i].body.position);
+        EXPECT_EQ(fromChanges.fighters[i].health, fromWhole.fighters[i].health);
+        EXPECT_EQ(fromChanges.fighters[i].type, fromWhole.fighters[i].type);
+    }
+    EXPECT_EQ(fromChanges.fighters[1].id, 9);   // in the server's order
+    EXPECT_NEAR(fromChanges.fighters[2].body.position.x, 2.5f, 0.01f);
+    EXPECT_TRUE(fromChanges.pickups.empty());
+    ASSERT_EQ(fromChanges.zones.size(), 1u);
+    EXPECT_NEAR(fromChanges.zones[0].remaining, 3.5f, STEP_SECONDS);
+
+    // Without what it builds on (lost, or never read), it cannot be read
+    SnapshotMsg lost;
+    EXPECT_FALSE(decode(changes, lost, names));
+    EXPECT_FALSE(decode(changes, lost, names, [](uint32_t) { return nullptr; }, nullptr));
+}
+
+TEST(arena_net, more_than_255_fighters_go_across)
+{
+    Session s;
+    Names names;
+    names.build(s.content);
+
+    SnapshotMsg m;
+    for (int id = 1; id <= 300; ++id)
+    {
+        Fighter f;
+        f.id = id;
+        f.type = "base:brute";
+        f.body.position = glm::vec3(static_cast<float>(id % 50), 1.0f, static_cast<float>(id / 50));
+        m.fighters.push_back(f);
+    }
+
+    SnapshotMsg back;
+    ASSERT_TRUE(decode(encode(m, names), back, names));
+    ASSERT_EQ(back.fighters.size(), 300u);
+    EXPECT_EQ(back.fighters[299].id, 300);
+    EXPECT_NEAR(back.fighters[299].body.position.z, 6.0f, 0.01f);
+}
+
+TEST(arena_net, a_crowd_coming_and_going_reaches_a_client_through_lost_snapshots)
+{
+    // A lossy link: changes are always sent from a snapshot the client said it read
+    Session s(40.0, 10.0, 0.25);
+    s.serverWorld.aiEnabled = false;
+    auto& a = s.join("a");
+    s.run(40);
+
+    std::vector<int> ids;
+    for (int k = 0; k < 280; ++k)
+        ids.push_back(s.serverWorld.spawnEnemy("base:brute", glm::vec3(2.0f + static_cast<float>(k % 28), 1.0f, 2.0f + static_cast<float>(k / 28) * 2.5f), 0.0f));
+    s.run(60);
+
+    // Half of them go, the others are pushed along a little
+    for (size_t k = 0; k < ids.size(); k += 2)
+        s.serverWorld.removeFighter(ids[k]);
+    for (auto& f : s.serverWorld.fighters)
+        if (f.team == Team::Enemy)
+            f.body.position.y += 0.25f;
+    s.run(90);
+
+    size_t enemies = 0;
+    for (const auto& f : s.serverWorld.fighters)
+    {
+        if (f.team != Team::Enemy)
+            continue;
+
+        ++enemies;
+        const Fighter* seen = a.world.find(f.id);
+        ASSERT_TRUE(seen) << "enemy " << f.id;
+        EXPECT_NEAR(glm::length(seen->body.position - f.body.position), 0.0f, 0.02f);
+    }
+
+    EXPECT_EQ(enemies, 140u);
+    size_t seenEnemies = 0;
+    for (const auto& f : a.world.fighters)
+        seenEnemies += f.team == Team::Enemy ? 1 : 0;
+    EXPECT_EQ(seenEnemies, enemies);
+}
+
 TEST(arena_net, a_client_joins_and_gets_its_player)
 {
     Session s(30.0);

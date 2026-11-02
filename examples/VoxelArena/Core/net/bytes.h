@@ -30,6 +30,14 @@ namespace arena::net
         void str(const std::string& s) { u16(static_cast<uint16_t>(s.size())); data.insert(data.end(), s.begin(), s.end()); }
         void blob(const std::string& s) { u32(static_cast<uint32_t>(s.size())); data.insert(data.end(), s.begin(), s.end()); }
 
+        /** A number in 2 bytes, to 1 / scale, within what 16 bits hold at that scale. */
+        void fixed(float v, float scale)
+        {
+            i16(static_cast<int16_t>(std::isfinite(v) ? glm::clamp(std::round(v * scale), -32767.0f, 32767.0f) : 0.0f));
+        }
+
+        void bytes(const uint8_t* from, size_t n) { data.insert(data.end(), from, from + n); }
+
         /** A unit direction in 6 bytes. */
         void dir(const glm::vec3& v)
         {
@@ -91,6 +99,23 @@ namespace arena::net
             std::string s(reinterpret_cast<const char*>(p), n);
             p += n;
             return s;
+        }
+
+        float fixed(float scale) { return static_cast<float>(i16()) / scale; }
+
+        /** n bytes as they are, or null (and failed) when fewer are left. */
+        const uint8_t* bytes(size_t n)
+        {
+            if (left() < n)
+            {
+                failed = true;
+                p = end;
+                return nullptr;
+            }
+
+            const uint8_t* at = p;
+            p += n;
+            return at;
         }
 
         glm::vec3 dir()

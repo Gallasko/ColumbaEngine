@@ -1,7 +1,10 @@
 #include "protocol.h"
 
 #include <algorithm>
+#include <cstring>
 #include <set>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace arena::net
 {
@@ -20,6 +23,10 @@ namespace arena::net
         };
 
         const char* const AI_MOVES[] = { "hold", "chase", "strafe", "retreat", "flank" };
+
+        // What positions and facings go across in two bytes as: centimetres, and -180..180 degrees over the whole range
+        constexpr float CENTIMETRES = 100.0f;
+        constexpr float YAW_SCALE = 32767.0f / 180.0f;
 
         uint8_t colorByte(float c) { return static_cast<uint8_t>(std::clamp(c, 0.0f, 1.0f) * 255.0f); }
 
@@ -455,6 +462,7 @@ namespace arena::net
         w.u8(static_cast<uint8_t>(Msg::Input));
         w.u32(m.clientTimeMs);
         w.u16(m.rttMs);
+        w.u32(m.snapshotAck);
         w.u8(static_cast<uint8_t>(m.inputs.size()));
 
         for (const auto& s : m.inputs)
@@ -503,6 +511,7 @@ namespace arena::net
 
         m.clientTimeMs = r.u32();
         m.rttMs = r.u16();
+        m.snapshotAck = r.u32();
         const uint8_t n = r.u8();
 
         if (n > 16)
@@ -561,13 +570,27 @@ namespace arena::net
         w.u16(names.id(f.type));
         w.u16(static_cast<uint16_t>(f.owner));
 
-        // What every fighter needs to be drawn
-        w.vec3(f.body.position);
-        w.vec3(f.body.velocity);
+        // What every fighter needs to be drawn: the client's own exactly (its prediction starts from it),
+        // the others where they are to a centimetre (an arena is 256 blocks at most), facing to a hundredth of a degree
+        if (full)
+        {
+            w.vec3(f.body.position);
+            w.vec3(f.body.velocity);
+        }
+        else
+        {
+            for (int a = 0; a < 3; ++a)
+                w.fixed(f.body.position[a], CENTIMETRES);
+            for (int a = 0; a < 3; ++a)
+                w.fixed(f.body.velocity[a], CENTIMETRES);
+        }
         w.f32(f.body.width);
         w.f32(f.body.height);
         w.boolean(f.body.onGround);
-        w.f32(f.yaw);
+        if (full)
+            w.f32(f.yaw);
+        else
+            w.fixed(std::isfinite(f.yaw) ? f.yaw - 360.0f * std::floor((f.yaw + 180.0f) / 360.0f) : 0.0f, YAW_SCALE);
         w.f32(f.health);
         w.f32(f.maxHealth);
         w.f32(f.poise);
@@ -711,12 +734,22 @@ namespace arena::net
         f.type = names.name(r.u16());
         f.owner = r.u16();
 
-        f.body.position = r.vec3();
-        f.body.velocity = r.vec3();
+        if (full)
+        {
+            f.body.position = r.vec3();
+            f.body.velocity = r.vec3();
+        }
+        else
+        {
+            for (int a = 0; a < 3; ++a)
+                f.body.position[a] = r.fixed(CENTIMETRES);
+            for (int a = 0; a < 3; ++a)
+                f.body.velocity[a] = r.fixed(CENTIMETRES);
+        }
         f.body.width = r.f32();
         f.body.height = r.f32();
         f.body.onGround = r.boolean();
-        f.yaw = r.f32();
+        f.yaw = full ? r.f32() : r.fixed(YAW_SCALE);
         f.health = r.f32();
         f.maxHealth = r.f32();
         f.poise = r.f32();
@@ -866,32 +899,318 @@ namespace arena::net
 
     // ---- Snapshot ---------------------------------------------------------------------------------
 
+    void SnapshotRecords::Section::add(uint16_t id, const uint8_t* data, size_t n)
+    {
+        if (offsets.empty())
+            offsets.push_back(0);
+
+        ids.push_back(id);
+        bytes.insert(bytes.end(), data, data + n);
+        offsets.push_back(static_cast<uint32_t>(bytes.size()));
+    }
+
+    namespace
+    {
+        using Section = SnapshotRecords::Section;
+
+        // Whole: every record. As changes to a base: the ids gone, the records new or changed (a changed
+        // one of the same length as only the bytes that differ, after a mask of which), then the order
+        // when it is not the base's with the new ones at the end
+        enum : uint8_t { WHOLE = 0, CHANGES = 1 };
+        enum : uint8_t { NEW = 0, PATCH = 1 };
+
+        void writeSection(Writer& w, const Section& now, const Section* base)
+        {
+            if (not base)
+            {
+                w.u8(WHOLE);
+                w.u16(static_cast<uint16_t>(now.size()));
+
+                for (size_t i = 0; i < now.size(); ++i)
+                {
+                    w.u16(now.ids[i]);
+                    w.u16(static_cast<uint16_t>(now.length(i)));
+                    w.bytes(now.record(i), now.length(i));
+                }
+
+                return;
+            }
+
+            w.u8(CHANGES);
+
+            std::unordered_map<uint16_t, size_t> inBase, inNow;
+            for (size_t i = 0; i < base->size(); ++i)
+                inBase[base->ids[i]] = i;
+            for (size_t i = 0; i < now.size(); ++i)
+                inNow[now.ids[i]] = i;
+
+            std::vector<uint16_t> gone;
+            for (uint16_t id : base->ids)
+                if (not inNow.count(id))
+                    gone.push_back(id);
+
+            w.u16(static_cast<uint16_t>(gone.size()));
+            for (uint16_t id : gone)
+                w.u16(id);
+
+            // The order the client makes without being told: the base's, then the new ones
+            std::vector<uint16_t> order;
+            order.reserve(now.size());
+            for (uint16_t id : base->ids)
+                if (inNow.count(id))
+                    order.push_back(id);
+
+            std::vector<size_t> changed;
+            for (size_t i = 0; i < now.size(); ++i)
+            {
+                auto b = inBase.find(now.ids[i]);
+
+                if (b == inBase.end())
+                {
+                    changed.push_back(i);
+                    order.push_back(now.ids[i]);
+                }
+                else if (base->length(b->second) != now.length(i) or std::memcmp(base->record(b->second), now.record(i), now.length(i)) != 0)
+                {
+                    changed.push_back(i);
+                }
+            }
+
+            w.u16(static_cast<uint16_t>(changed.size()));
+
+            for (size_t i : changed)
+            {
+                w.u16(now.ids[i]);
+                auto b = inBase.find(now.ids[i]);
+                const size_t n = now.length(i);
+                const uint8_t* rec = now.record(i);
+
+                if (b == inBase.end() or base->length(b->second) != n)
+                {
+                    w.u8(NEW);
+                    w.u16(static_cast<uint16_t>(n));
+                    w.bytes(rec, n);
+                    continue;
+                }
+
+                w.u8(PATCH);
+                const uint8_t* was = base->record(b->second);
+                const size_t maskAt = w.data.size();
+                w.data.resize(maskAt + (n + 7) / 8, 0);
+
+                for (size_t k = 0; k < n; ++k)
+                {
+                    if (rec[k] == was[k])
+                        continue;
+
+                    w.data[maskAt + k / 8] |= static_cast<uint8_t>(1u << (k % 8));
+                    w.u8(rec[k]);
+                }
+            }
+
+            const bool reordered = order != now.ids;
+            w.boolean(reordered);
+
+            if (reordered)
+            {
+                w.u16(static_cast<uint16_t>(now.size()));
+                for (uint16_t id : now.ids)
+                    w.u16(id);
+            }
+        }
+
+        bool readSection(Reader& r, Section& out, const Section* base)
+        {
+            const uint8_t mode = r.u8();
+
+            if (mode == WHOLE)
+            {
+                const uint16_t n = r.u16();
+
+                for (uint16_t k = 0; k < n and not r.failed; ++k)
+                {
+                    const uint16_t id = r.u16();
+                    const uint16_t length = r.u16();
+                    const uint8_t* rec = r.bytes(length);
+                    if (rec)
+                        out.add(id, rec, length);
+                }
+
+                return not r.failed;
+            }
+
+            if (mode != CHANGES or not base)
+                return false;
+
+            std::unordered_map<uint16_t, size_t> inBase;
+            for (size_t i = 0; i < base->size(); ++i)
+                inBase[base->ids[i]] = i;
+
+            std::unordered_set<uint16_t> gone;
+            const uint16_t goneCount = r.u16();
+            for (uint16_t k = 0; k < goneCount and not r.failed; ++k)
+                gone.insert(r.u16());
+
+            std::vector<uint16_t> order;
+            order.reserve(base->size());
+            for (uint16_t id : base->ids)
+                if (not gone.count(id))
+                    order.push_back(id);
+
+            std::unordered_map<uint16_t, std::vector<uint8_t>> changed;
+            const uint16_t changedCount = r.u16();
+
+            for (uint16_t k = 0; k < changedCount and not r.failed; ++k)
+            {
+                const uint16_t id = r.u16();
+                const uint8_t kind = r.u8();
+                auto b = inBase.find(id);
+                const bool known = b != inBase.end() and not gone.count(id);
+
+                if (kind == NEW)
+                {
+                    const uint16_t length = r.u16();
+                    const uint8_t* rec = r.bytes(length);
+                    if (not rec)
+                        return false;
+
+                    if (not known and not changed.count(id))
+                        order.push_back(id);
+                    changed[id].assign(rec, rec + length);
+                }
+                else if (kind == PATCH and known)
+                {
+                    const size_t n = base->length(b->second);
+                    const uint8_t* mask = r.bytes((n + 7) / 8);
+                    if (not mask)
+                        return false;
+
+                    std::vector<uint8_t> rec(base->record(b->second), base->record(b->second) + n);
+                    for (size_t i = 0; i < n; ++i)
+                        if (mask[i / 8] & (1u << (i % 8)))
+                            rec[i] = r.u8();
+
+                    changed[id] = std::move(rec);
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            if (r.boolean())
+            {
+                order.clear();
+                const uint16_t n = r.u16();
+                for (uint16_t k = 0; k < n and not r.failed; ++k)
+                    order.push_back(r.u16());
+            }
+
+            if (r.failed)
+                return false;
+
+            for (uint16_t id : order)
+            {
+                if (auto c = changed.find(id); c != changed.end())
+                {
+                    out.add(id, c->second.data(), c->second.size());
+                    continue;
+                }
+
+                auto b = inBase.find(id);
+                if (b == inBase.end() or gone.count(id))
+                    return false;
+
+                out.add(id, base->record(b->second), base->length(b->second));
+            }
+
+            return true;
+        }
+
+        /** The records of a snapshot's fighters, projectiles, shards and zones (an id taken twice keeps its first). */
+        SnapshotRecords recordsOf(const SnapshotMsg& m, const Names& names)
+        {
+            SnapshotRecords out;
+            out.seq = m.seq;
+            Writer w;
+
+            auto put = [&](Section& section, std::unordered_set<uint16_t>& taken, int id) {
+                if (taken.insert(static_cast<uint16_t>(id)).second)
+                    section.add(static_cast<uint16_t>(id), w.data.data(), w.data.size());
+                w.data.clear();
+            };
+
+            std::unordered_set<uint16_t> taken;
+            for (const auto& f : m.fighters)
+            {
+                writeFighter(w, f, f.id == m.playerId, names, m.extras);
+                put(out.sections[SnapshotRecords::FIGHTERS], taken, f.id);
+            }
+
+            taken.clear();
+            for (const auto& p : m.projectiles)
+            {
+                w.vec3(p.position);
+                w.vec3(p.velocity);
+                w.u16(names.id(p.source));
+                w.u16(names.id(p.attack));
+                put(out.sections[SnapshotRecords::PROJECTILES], taken, p.id);
+            }
+
+            // Shards: where they are, to a centimetre
+            taken.clear();
+            for (const auto& p : m.pickups)
+            {
+                for (int a = 0; a < 3; ++a)
+                    w.fixed(p.position[a], CENTIMETRES);
+                w.u8(static_cast<uint8_t>(std::clamp(p.value, 0, 255)));
+                w.u16(static_cast<uint16_t>(p.target));
+                w.boolean(p.present);
+                put(out.sections[SnapshotRecords::PICKUPS], taken, p.id);
+            }
+
+            // Zones: the tick they end at rather than the time left, so a zone's record never changes
+            taken.clear();
+            for (size_t i = 0; i < m.zones.size() and i < MAX_SNAPSHOT_ZONES; ++i)
+            {
+                const ZoneState& z = m.zones[i];
+                const float left = std::isfinite(z.remaining) ? std::clamp(z.remaining, 0.0f, 3600.0f) : 0.0f;
+                w.u8(static_cast<uint8_t>(z.element));
+                w.vec3(z.position);
+                w.f32(z.radius);
+                w.u32(m.tick + static_cast<uint32_t>(std::lround(left / STEP_SECONDS)));
+                w.f32(z.duration);
+                w.f32(z.heal);
+                put(out.sections[SnapshotRecords::ZONES], taken, z.id);
+            }
+
+            return out;
+        }
+    }
+
     std::vector<uint8_t> encode(const SnapshotMsg& m, const Names& names)
     {
+        return encode(m, names, nullptr, nullptr);
+    }
+
+    std::vector<uint8_t> encode(const SnapshotMsg& m, const Names& names, const SnapshotRecords* base, SnapshotRecords* sent)
+    {
+        SnapshotRecords records = recordsOf(m, names);
+
         Writer w;
         w.u8(static_cast<uint8_t>(Msg::Snapshot));
+        w.u32(m.seq);
+        w.u32(base ? base->seq : 0);
         w.u32(m.tick);
         w.u32(m.ackSeq);
         w.u32(m.echoTimeMs);
         w.u16(static_cast<uint16_t>(m.playerId));
 
-        w.u8(static_cast<uint8_t>(m.fighters.size()));
-        for (const auto& f : m.fighters)
-            writeFighter(w, f, f.id == m.playerId, names, m.extras);
+        for (int s = 0; s < SnapshotRecords::SECTIONS; ++s)
+            writeSection(w, records.sections[s], base ? &base->sections[s] : nullptr);
 
-        w.u8(static_cast<uint8_t>(std::min<size_t>(m.projectiles.size(), 255)));
-        for (size_t i = 0; i < m.projectiles.size() and i < 255; ++i)
-        {
-            const auto& p = m.projectiles[i];
-            w.u16(static_cast<uint16_t>(p.id));
-            w.vec3(p.position);
-            w.vec3(p.velocity);
-            w.u16(names.id(p.source));
-            w.u16(names.id(p.attack));
-        }
-
-        w.u8(static_cast<uint8_t>(std::min<size_t>(m.pieces.size(), 255)));
-        for (size_t i = 0; i < m.pieces.size() and i < 255; ++i)
+        w.u16(static_cast<uint16_t>(std::min<size_t>(m.pieces.size(), 65535)));
+        for (size_t i = 0; i < m.pieces.size() and i < 65535; ++i)
         {
             w.u16(static_cast<uint16_t>(m.pieces[i].id));
             w.f32(m.pieces[i].drop);
@@ -907,37 +1226,11 @@ namespace arena::net
         w.f32(m.run.elapsed);
         w.u32(static_cast<uint32_t>(std::max(0, m.run.score)));
         w.u16(static_cast<uint16_t>(std::clamp(m.run.kills, 0, 65535)));
-        w.u8(static_cast<uint8_t>(std::clamp(m.run.enemiesLeft, 0, 255)));
+        w.u16(static_cast<uint16_t>(std::clamp(m.run.enemiesLeft, 0, 65535)));
         w.u16(static_cast<uint16_t>(m.run.bossId));
         w.boolean(m.run.bossWave);
         w.u16(static_cast<uint16_t>(m.run.champion));
         w.f32(m.run.warmup);
-
-        // Shards: where they are, to a centimetre
-        w.u8(static_cast<uint8_t>(std::min<size_t>(m.pickups.size(), 255)));
-        for (size_t i = 0; i < m.pickups.size() and i < 255; ++i)
-        {
-            const Pickup& p = m.pickups[i];
-            w.u16(static_cast<uint16_t>(p.id));
-            for (int a = 0; a < 3; ++a)
-                w.i16(static_cast<int16_t>(std::clamp(std::lround(p.position[a] * 100.0f), -32767l, 32767l)));
-            w.u8(static_cast<uint8_t>(std::clamp(p.value, 0, 255)));
-            w.u16(static_cast<uint16_t>(p.target));
-            w.boolean(p.present);
-        }
-
-        w.u8(static_cast<uint8_t>(std::min<size_t>(m.zones.size(), 64)));
-        for (size_t i = 0; i < m.zones.size() and i < 64; ++i)
-        {
-            const ZoneState& z = m.zones[i];
-            w.u16(static_cast<uint16_t>(z.id));
-            w.u8(static_cast<uint8_t>(z.element));
-            w.vec3(z.position);
-            w.f32(z.radius);
-            w.f32(z.remaining);
-            w.f32(z.duration);
-            w.f32(z.heal);
-        }
 
         w.u8(static_cast<uint8_t>(std::min<size_t>(m.events.size(), 255)));
         for (size_t i = 0; i < m.events.size() and i < 255; ++i)
@@ -955,43 +1248,50 @@ namespace arena::net
             w.u8(static_cast<uint8_t>(std::clamp(static_cast<int64_t>(m.tick) - e.tick, int64_t(0), int64_t(255))));   // ticks before the snapshot
         }
 
+        if (sent)
+            *sent = std::move(records);
+
         return w.data;
     }
 
     bool decode(const std::vector<uint8_t>& data, SnapshotMsg& m, const Names& names)
     {
+        return decode(data, m, names, nullptr, nullptr);
+    }
+
+    bool decode(const std::vector<uint8_t>& data, SnapshotMsg& m, const Names& names,
+                const std::function<const SnapshotRecords*(uint32_t seq)>& baseOf, SnapshotRecords* got)
+    {
         Reader r(data);
         if (r.u8() != static_cast<uint8_t>(Msg::Snapshot))
             return false;
+
+        m.seq = r.u32();
+        m.baseSeq = r.u32();
+
+        // Changes to a snapshot this client no longer has (or never read): nothing to build on
+        const SnapshotRecords* base = nullptr;
+        if (m.baseSeq != 0)
+        {
+            base = baseOf ? baseOf(m.baseSeq) : nullptr;
+            if (not base)
+                return false;
+        }
 
         m.tick = r.u32();
         m.ackSeq = r.u32();
         m.echoTimeMs = r.u32();
         m.playerId = r.u16();
 
-        const uint8_t fighters = r.u8();
-        for (uint8_t k = 0; k < fighters and not r.failed; ++k)
-        {
-            Fighter f;
-            if (readFighter(r, f, names))
-                m.withExtras.push_back(f.id);
-            m.fighters.push_back(std::move(f));
-        }
+        SnapshotRecords records;
+        records.seq = m.seq;
 
-        const uint8_t projectiles = r.u8();
-        for (uint8_t k = 0; k < projectiles and not r.failed; ++k)
-        {
-            ProjectileState p;
-            p.id = r.u16();
-            p.position = r.vec3();
-            p.velocity = r.vec3();
-            p.source = names.name(r.u16());
-            p.attack = names.name(r.u16());
-            m.projectiles.push_back(p);
-        }
+        for (int s = 0; s < SnapshotRecords::SECTIONS; ++s)
+            if (not readSection(r, records.sections[s], base ? &base->sections[s] : nullptr))
+                return false;
 
-        const uint8_t pieces = r.u8();
-        for (uint8_t k = 0; k < pieces and not r.failed; ++k)
+        const uint16_t pieces = r.u16();
+        for (uint16_t k = 0; k < pieces and not r.failed; ++k)
         {
             PieceState p;
             p.id = r.u16();
@@ -1009,38 +1309,11 @@ namespace arena::net
         m.run.elapsed = r.f32();
         m.run.score = static_cast<int>(r.u32());
         m.run.kills = r.u16();
-        m.run.enemiesLeft = r.u8();
+        m.run.enemiesLeft = r.u16();
         m.run.bossId = r.u16();
         m.run.bossWave = r.boolean();
         m.run.champion = r.u16();
         m.run.warmup = r.f32();
-
-        const uint8_t pickups = r.u8();
-        for (uint8_t k = 0; k < pickups and not r.failed; ++k)
-        {
-            Pickup p;
-            p.id = r.u16();
-            for (int a = 0; a < 3; ++a)
-                p.position[a] = static_cast<float>(r.i16()) / 100.0f;
-            p.value = r.u8();
-            p.target = r.u16();
-            p.present = r.boolean();
-            m.pickups.push_back(p);
-        }
-
-        const uint8_t zones = r.u8();
-        for (uint8_t k = 0; k < zones and k < 64 and not r.failed; ++k)
-        {
-            ZoneState z;
-            z.id = r.u16();
-            z.element = static_cast<Element>(std::min<uint8_t>(r.u8(), static_cast<uint8_t>(Element::Volt)));
-            z.position = r.vec3();
-            z.radius = r.f32();
-            z.remaining = r.f32();
-            z.duration = r.f32();
-            z.heal = r.f32();
-            m.zones.push_back(z);
-        }
 
         const uint8_t events = r.u8();
         for (uint8_t k = 0; k < events and not r.failed; ++k)
@@ -1059,7 +1332,75 @@ namespace arena::net
             m.events.push_back(e);
         }
 
-        return not r.failed;
+        if (r.failed)
+            return false;
+
+        // The records, read as the snapshot's own parts
+        const Section& fighters = records.sections[SnapshotRecords::FIGHTERS];
+        for (size_t i = 0; i < fighters.size(); ++i)
+        {
+            Reader fr(fighters.record(i), fighters.length(i));
+            Fighter f;
+            if (readFighter(fr, f, names))
+                m.withExtras.push_back(f.id);
+            if (fr.failed)
+                return false;
+            m.fighters.push_back(std::move(f));
+        }
+
+        const Section& projectiles = records.sections[SnapshotRecords::PROJECTILES];
+        for (size_t i = 0; i < projectiles.size(); ++i)
+        {
+            Reader pr(projectiles.record(i), projectiles.length(i));
+            ProjectileState p;
+            p.id = projectiles.ids[i];
+            p.position = pr.vec3();
+            p.velocity = pr.vec3();
+            p.source = names.name(pr.u16());
+            p.attack = names.name(pr.u16());
+            if (pr.failed)
+                return false;
+            m.projectiles.push_back(p);
+        }
+
+        const Section& pickups = records.sections[SnapshotRecords::PICKUPS];
+        for (size_t i = 0; i < pickups.size(); ++i)
+        {
+            Reader pr(pickups.record(i), pickups.length(i));
+            Pickup p;
+            p.id = pickups.ids[i];
+            for (int a = 0; a < 3; ++a)
+                p.position[a] = pr.fixed(CENTIMETRES);
+            p.value = pr.u8();
+            p.target = pr.u16();
+            p.present = pr.boolean();
+            if (pr.failed)
+                return false;
+            m.pickups.push_back(p);
+        }
+
+        const Section& zones = records.sections[SnapshotRecords::ZONES];
+        for (size_t i = 0; i < zones.size() and i < MAX_SNAPSHOT_ZONES; ++i)
+        {
+            Reader zr(zones.record(i), zones.length(i));
+            ZoneState z;
+            z.id = zones.ids[i];
+            z.element = static_cast<Element>(std::min<uint8_t>(zr.u8(), static_cast<uint8_t>(Element::Volt)));
+            z.position = zr.vec3();
+            z.radius = zr.f32();
+            const uint32_t endTick = zr.u32();
+            z.remaining = static_cast<float>(static_cast<int64_t>(endTick) - static_cast<int64_t>(m.tick)) * STEP_SECONDS;
+            z.duration = zr.f32();
+            z.heal = zr.f32();
+            if (zr.failed)
+                return false;
+            m.zones.push_back(z);
+        }
+
+        if (got)
+            *got = std::move(records);
+
+        return true;
     }
 
     // ---- Terrain ----------------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <deque>
 #include <map>
 #include <set>
 #include <string>
@@ -93,6 +94,8 @@ namespace arena::net
             bool modsSent = false;   // once only: a client still different after them is refused
             uint64_t since = 0;      // the step it connected (or got the mods) at
             uint64_t closeAt = 0;    // refused: closed at this step (0: not refused)
+            uint32_t snapshotAck = 0;               // the newest snapshot it read: the next ones are the changes since
+            std::deque<SnapshotRecords> sent;       // what it was sent from that one on
         };
 
         /** The round trip of a client: the transport's measure when it has one, else what the client says. */
@@ -123,6 +126,7 @@ namespace arena::net
         std::vector<WorldEvent> events;   // since the last snapshot
         std::set<int> knownPieces;
         int stepsSinceSnapshot = 0;
+        uint32_t snapshotSeq = 0;
 
         bool lobbyDirty = true;
         int stepsSinceLobby = 0;

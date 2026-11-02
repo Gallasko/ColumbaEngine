@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -11,7 +12,7 @@
 namespace arena::net
 {
     /** Bumped when messages change shape: a client and server of different versions refuse each other. */
-    constexpr uint16_t PROTOCOL_VERSION = 21;
+    constexpr uint16_t PROTOCOL_VERSION = 22;
 
     /** The server sends a snapshot every this many steps (60 / 2 = 30 per second). */
     constexpr int SNAPSHOT_EVERY = 2;
@@ -92,6 +93,7 @@ namespace arena::net
     {
         uint32_t clientTimeMs = 0;   // echoed by the server, for the round trip
         uint16_t rttMs = 0;          // the client's measure, for the dodge grace
+        uint32_t snapshotAck = 0;    // the newest snapshot the client has read: the next ones come as changes to it (0: none)
         std::vector<StampedInput> inputs;   // newest last
     };
 
@@ -128,6 +130,8 @@ namespace arena::net
 
     struct SnapshotMsg
     {
+        uint32_t seq = 0;              // the server's count of snapshots: what a client acks, and later ones build on
+        uint32_t baseSeq = 0;          // decoded: the snapshot this one came as changes to (0: whole)
         uint32_t tick = 0;
         uint32_t ackSeq = 0;           // the last input of this client the server played
         uint32_t echoTimeMs = 0;       // the client time of that input
@@ -145,6 +149,37 @@ namespace arena::net
         bool extras = false;
         std::vector<int> withExtras;   // decoded: the fighters whose items and stats came in this one
     };
+
+    /**
+     * A snapshot's fighters, projectiles, shards and zones as they went on the wire: one record each,
+     * by id. A snapshot is sent as the changes since one the client said it read (records gone, new,
+     * and the bytes that changed in the others); both sides keep the last few to build on.
+     */
+    struct SnapshotRecords
+    {
+        struct Section
+        {
+            std::vector<uint16_t> ids;        // in order
+            std::vector<uint32_t> offsets;    // where each record starts in bytes, and one past the last
+            std::vector<uint8_t> bytes;
+
+            size_t size() const { return ids.size(); }
+            const uint8_t* record(size_t i) const { return bytes.data() + offsets[i]; }
+            size_t length(size_t i) const { return offsets[i + 1] - offsets[i]; }
+            void add(uint16_t id, const uint8_t* data, size_t n);
+        };
+
+        static constexpr int FIGHTERS = 0, PROJECTILES = 1, PICKUPS = 2, ZONES = 3, SECTIONS = 4;
+
+        uint32_t seq = 0;
+        Section sections[SECTIONS];
+    };
+
+    /** The snapshots each side keeps to build later ones on: two seconds of them, more than any round trip. */
+    constexpr size_t SNAPSHOTS_KEPT = 64;
+
+    /** The most zones a snapshot carries (each costs nothing once sent: they do not change). */
+    constexpr size_t MAX_SNAPSHOT_ZONES = 1024;
 
     struct TerrainDeltaMsg
     {
@@ -208,7 +243,10 @@ namespace arena::net
     std::vector<uint8_t> encode(const Welcome& m);
     std::vector<uint8_t> encode(const ModBundle& m);
     std::vector<uint8_t> encode(const InputMsg& m);
+    /** A snapshot sent whole. */
     std::vector<uint8_t> encode(const SnapshotMsg& m, const Names& names);
+    /** A snapshot as the changes since `base` (null: whole). Its records go to `sent`, for later ones to build on. */
+    std::vector<uint8_t> encode(const SnapshotMsg& m, const Names& names, const SnapshotRecords* base, SnapshotRecords* sent);
     std::vector<uint8_t> encode(const TerrainDeltaMsg& m);
     std::vector<uint8_t> encode(const WorldInitMsg& m);
     std::vector<uint8_t> encode(const PieceSpawnMsg& m);
@@ -227,13 +265,22 @@ namespace arena::net
     bool decode(const std::vector<uint8_t>& data, Welcome& m);
     bool decode(const std::vector<uint8_t>& data, ModBundle& m);
     bool decode(const std::vector<uint8_t>& data, InputMsg& m);
+    /** A whole snapshot (one sent as changes cannot be read without what it builds on). */
     bool decode(const std::vector<uint8_t>& data, SnapshotMsg& m, const Names& names);
+    /**
+     * A snapshot, whole or as changes to the one `baseOf` gives for its base (null: not kept, and the
+     * snapshot cannot be read). Its records go to `got`, for later ones to build on.
+     */
+    bool decode(const std::vector<uint8_t>& data, SnapshotMsg& m, const Names& names,
+                const std::function<const SnapshotRecords*(uint32_t seq)>& baseOf, SnapshotRecords* got);
     bool decode(const std::vector<uint8_t>& data, TerrainDeltaMsg& m);
     bool decode(const std::vector<uint8_t>& data, WorldInitMsg& m);
     bool decode(const std::vector<uint8_t>& data, PieceSpawnMsg& m);
 
-    /** A fighter in a message: full (everything prediction needs) or for display only. */
-    /** full: all the client's prediction reads (its own player). extras: a player's items and run stats (always with full). */
+    /**
+     * A fighter in a message: full (all the client's prediction reads: its own player, exactly) or for
+     * display only (where it is, to a centimetre). extras: a player's items and run stats (always with full).
+     */
     void writeFighter(Writer& w, const Fighter& f, bool full, const Names& names, bool extras = false);
     /** Returns whether the player's items and run stats came with it. */
     bool readFighter(Reader& r, Fighter& f, const Names& names);

@@ -453,6 +453,10 @@ How it works:
   and their frames, health) and events (a hit on whom, a block broken, an arrow fired from which
   attack). Each client makes the animation, particles, sounds, hit flashes and colours from its own
   content.
+- **Snapshots only carry what changed.** Each client tells the server the newest snapshot it read. The
+  next ones only carry what changed since then: who came, who left, and the bytes that differ for
+  the rest. A late wave's snapshot is about 6 KB instead of 27 KB. A lost one does not matter: the
+  next is still built on one the client has.
 - **Effects play when you see them.** Events about your own player (you were hit, you hit something)
   play as they arrive. The rest wait until the others, drawn 100 ms in the past, reach the moment
   they happened, so a spark goes off as the blow is seen landing.

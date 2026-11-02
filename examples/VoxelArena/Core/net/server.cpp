@@ -178,6 +178,7 @@ namespace arena::net
                     return;
 
                 c.lastClientTimeMs = std::max(c.lastClientTimeMs, msg.clientTimeMs);
+                c.snapshotAck = std::max(c.snapshotAck, std::min(msg.snapshotAck, snapshotSeq));
                 c.rttMs = msg.rttMs;   // only used when the transport cannot measure it (see rttOf)
 
                 // Several inputs per message (repeated against loss): keep the ones not played yet
@@ -520,6 +521,7 @@ namespace arena::net
     void NetServer::sendSnapshots()
     {
         SnapshotMsg base;
+        base.seq = ++snapshotSeq;
         base.tick = static_cast<uint32_t>(world.steps);
         base.fighters = world.fighters;
         base.events = events;
@@ -540,7 +542,7 @@ namespace arena::net
         // Everyone's items and run stats: every tenth snapshot, and all the while at a run's end (the recap)
         base.extras = (world.steps / SNAPSHOT_EVERY) % 10 == 0 or world.run.phase == RunPhase::Victory or world.run.phase == RunPhase::Defeat;
 
-        for (const auto& [peer, c] : clients)
+        for (auto& [peer, c] : clients)
         {
             if (not c.joined)
                 continue;
@@ -549,7 +551,19 @@ namespace arena::net
             m.ackSeq = c.lastSeq;
             m.echoTimeMs = c.lastClientTimeMs;
             m.playerId = c.playerId;
-            transport.send(peer, encode(m, names), false);
+
+            // As the changes since the newest one it read, while that one is still kept (else whole). Older
+            // ones are never built on again
+            while (not c.sent.empty() and c.sent.front().seq < c.snapshotAck)
+                c.sent.pop_front();
+
+            const SnapshotRecords* read = not c.sent.empty() and c.sent.front().seq == c.snapshotAck ? &c.sent.front() : nullptr;
+            SnapshotRecords records;
+            transport.send(peer, encode(m, names, read, &records), false);
+
+            c.sent.push_back(std::move(records));
+            while (c.sent.size() > SNAPSHOTS_KEPT)
+                c.sent.pop_front();
         }
     }
 }
