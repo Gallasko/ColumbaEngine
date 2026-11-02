@@ -8,6 +8,8 @@
 #include "Compiler/vm.h"
 #include "logger.h"
 
+#include <algorithm>
+
 namespace pg
 {
     namespace
@@ -25,6 +27,12 @@ namespace pg
 
         // Natives that change the list they are given first
         const std::set<std::string> listNatives = {"push", "insert", "pop", "removeAt"};
+
+        // Natives whose result is never a table
+        const std::set<std::string> noTableNatives = {
+            "readFile", "len", "toInt", "toFloat", "toString", "strlen", "charAt", "substring", "replace", "join",
+            "capitalize", "lowerize", "toLowerCase", "toUpperCase", "trim"
+        };
 
         template <typename T>
         std::vector<T> listOf(std::queue<T> q)
@@ -59,18 +67,92 @@ namespace pg
             return "";
         }
 
-        // The x of `len(x)`, or ""
-        std::string lenOf(const ExprPtr& e)
+        // The t of `t` or `t[i][j]`, or ""
+        std::string rootOf(const ExprPtr& e)
+        {
+            if (e and e->kind() == AstKind::IndexGet)
+                return rootOf(std::static_pointer_cast<IndexGet>(e)->object);
+
+            return varName(e);
+        }
+
+        // A name or a chain of indexing by names and numbers, as text; "" for anything else
+        std::string pathOf(const ExprPtr& e)
+        {
+            if (not e or e->kind() != AstKind::IndexGet)
+                return varName(e);
+
+            auto g = std::static_pointer_cast<IndexGet>(e);
+            const std::string object = pathOf(g->object);
+
+            if (object.empty())
+                return "";
+
+            std::string index = varName(g->index);
+
+            if (g->index->kind() == AstKind::Atom)
+            {
+                const auto& value = std::static_pointer_cast<Atom>(g->index)->value;
+
+                if (value.isNumber())
+                    index = value.toString();
+            }
+
+            return index.empty() ? "" : object + "[" + index + "]";
+        }
+
+        // The names of a path
+        void namesOf(const ExprPtr& e, std::set<std::string>& out)
+        {
+            if (e and e->kind() == AstKind::IndexGet)
+            {
+                auto g = std::static_pointer_cast<IndexGet>(e);
+                namesOf(g->object, out);
+                namesOf(g->index, out);
+            }
+            else if (e and e->kind() == AstKind::Var)
+                out.insert(varName(e));
+        }
+
+        // The x of `len(x)` when it is a path, or nullptr
+        ExprPtr lenArgOf(const ExprPtr& e)
         {
             if (not e or e->kind() != AstKind::CallExpression)
-                return "";
+                return nullptr;
 
             auto c = std::static_pointer_cast<CallExpression>(e);
 
-            if (varName(c->caller) != "len" or c->args.size() != 1)
-                return "";
+            if (varName(c->caller) != "len" or c->args.size() != 1 or pathOf(c->args.front()).empty())
+                return nullptr;
 
-            return varName(c->args.front());
+            return c->args.front();
+        }
+
+        // Whether nothing but what the expression makes can reach its value: no table, or a new one
+        // holding only such values. An operator makes a number or a string: lists do not add
+        bool fresh(const ExprPtr& e)
+        {
+            if (not e)
+                return false;
+
+            const AstKind type = e->kind();
+
+            if (type == AstKind::Atom or type == AstKind::NoneAtom or type == AstKind::UnaryExpression or type == AstKind::BinaryExpression)
+                return true;
+
+            if (type == AstKind::CompoundAtom)
+                return fresh(std::static_pointer_cast<CompoundAtom>(e)->expr);
+
+            if (type != AstKind::List)
+                return false;
+
+            for (const auto& entry : listOf(std::static_pointer_cast<List>(e)->entries))
+            {
+                if (not fresh(entry.value))
+                    return false;
+            }
+
+            return true;
         }
 
         // The names a function body declares
@@ -122,15 +204,79 @@ namespace pg
             std::map<std::string, int> listDecls;          // `var name = [...]`
             std::set<std::string> otherWrites;             // Declared or assigned anything else, a parameter, a loop variable
             std::set<std::string> escaped;                 // Read anywhere a list could leave the function
+            std::set<std::string> given;                   // Given a value that is not fresh: its rows may be another's
+            std::set<std::string> rowsRead;                // A row read anywhere it could leave the function
+            std::set<std::string> noTables;                // Declared or assigned what is no table
+            std::set<std::string> maybeTables;             // Declared or assigned what may be one
+            std::set<std::string> nativesTrusted;          // The noTableNatives noTables rests on
 
             bool owned(const std::string& name) const
             {
                 auto it = listDecls.find(name);
                 return it != listDecls.end() and it->second == 1 and not otherWrites.count(name) and not escaped.count(name);
             }
+
+            // Owned with all it holds, down to the last row
+            bool ownedDeep(const std::string& name) const
+            {
+                return owned(name) and not given.count(name) and not rowsRead.count(name);
+            }
+
+            bool holdsNoTable(const std::string& name) const
+            {
+                return noTables.count(name) and not maybeTables.count(name);
+            }
+
+            void wrote(const std::string& name, const ExprPtr& value)
+            {
+                if (value and not noTable(value))
+                    maybeTables.insert(name);
+                else
+                    noTables.insert(name);
+            }
+
+            // A value that is no table when the natives it calls are the natives
+            bool noTable(const ExprPtr& e)
+            {
+                const AstKind type = e->kind();
+
+                if (type == AstKind::Atom or type == AstKind::NoneAtom or type == AstKind::UnaryExpression or type == AstKind::BinaryExpression)
+                    return true;
+
+                if (type == AstKind::CompoundAtom)
+                    return noTable(std::static_pointer_cast<CompoundAtom>(e)->expr);
+
+                if (type != AstKind::CallExpression)
+                    return false;
+
+                const std::string callee = varName(std::static_pointer_cast<CallExpression>(e)->caller);
+
+                if (not noTableNatives.count(callee))
+                    return false;
+
+                nativesTrusted.insert(callee);
+
+                return true;
+            }
         };
 
+        void ownExpr(const ExprPtr& e, Ownership& o, bool nested);
         void ownStmt(const StatementPtr& s, Ownership& o, bool nested);
+
+        // Read where a list stays: the object of an index, a field, a measure or a list native
+        void ownObject(const ExprPtr& x, Ownership& o, bool nested)
+        {
+            if (nested)
+                ownExpr(x, o, nested);
+            else if (x->kind() == AstKind::IndexGet)
+            {
+                auto g = std::static_pointer_cast<IndexGet>(x);
+                ownObject(g->object, o, nested);
+                ownExpr(g->index, o, nested);
+            }
+            else if (x->kind() != AstKind::Var)
+                ownExpr(x, o, nested);
+        }
 
         // `nested`: inside a function the function defines, where every name read is captured
         void ownExpr(const ExprPtr& e, Ownership& o, bool nested)
@@ -146,9 +292,11 @@ namespace pg
                 return;
             }
 
-            // Where a list read stays: the object of an index, a field, a measure or a list native
-            auto stays = [&](const ExprPtr& x) {
-                if (nested or x->kind() != AstKind::Var)
+            // A row an operator reads stays, as a number or a string comes out
+            auto operand = [&](const ExprPtr& x) {
+                if (x->kind() == AstKind::IndexGet)
+                    ownObject(x, o, nested);
+                else
                     ownExpr(x, o, nested);
             };
 
@@ -164,31 +312,51 @@ namespace pg
                 for (size_t i = 0; i < args.size(); ++i)
                 {
                     if (i == 0 and (callee == "len" or listNatives.count(callee)))
-                        stays(args[i]);
+                        ownObject(args[i], o, nested);
                     else
                         ownExpr(args[i], o, nested);
+                }
+
+                if (listNatives.count(callee) and not args.empty())
+                {
+                    // What comes off a list is a row read, what goes in is given
+                    if (callee == "pop" or callee == "removeAt")
+                        o.rowsRead.insert(rootOf(args[0]));
+                    else if (args.size() < 2 or not fresh(args.back()))
+                        o.given.insert(rootOf(args[0]));
                 }
             }
             else if (type == AstKind::IndexGet)
             {
                 auto g = std::static_pointer_cast<IndexGet>(e);
-                stays(g->object);
+                o.rowsRead.insert(rootOf(e));
+                ownObject(g->object, o, nested);
                 ownExpr(g->index, o, nested);
             }
             else if (type == AstKind::IndexSet)
             {
                 auto g = std::static_pointer_cast<IndexSet>(e);
-                stays(g->object);
+                ownObject(g->object, o, nested);
                 ownExpr(g->index, o, nested);
                 ownExpr(g->value, o, nested);
+
+                if (not fresh(g->value))
+                    o.given.insert(rootOf(g->object));
             }
             else if (type == AstKind::Get)
-                stays(std::static_pointer_cast<Get>(e)->object);
+            {
+                auto g = std::static_pointer_cast<Get>(e);
+                o.rowsRead.insert(rootOf(g->object));
+                ownObject(g->object, o, nested);
+            }
             else if (type == AstKind::Set)
             {
                 auto g = std::static_pointer_cast<Set>(e);
-                stays(g->object);
+                ownObject(g->object, o, nested);
                 ownExpr(g->value, o, nested);
+
+                if (not fresh(g->value))
+                    o.given.insert(rootOf(g->object));
             }
             else if (type == AstKind::BinaryExpression)
             {
@@ -197,13 +365,13 @@ namespace pg
                 // Compared, not kept
                 if (b->op.text == "==" or b->op.text == "!=")
                 {
-                    stays(b->leftExpr);
-                    stays(b->rightExpr);
+                    ownObject(b->leftExpr, o, nested);
+                    ownObject(b->rightExpr, o, nested);
                 }
                 else
                 {
-                    ownExpr(b->leftExpr, o, nested);
-                    ownExpr(b->rightExpr, o, nested);
+                    operand(b->leftExpr);
+                    operand(b->rightExpr);
                 }
             }
             else if (type == AstKind::LogicExpression)
@@ -223,6 +391,10 @@ namespace pg
                 if (nested or not a->expr or a->expr->kind() != AstKind::List)
                     o.otherWrites.insert(a->name.text);
 
+                if (not fresh(a->expr))
+                    o.given.insert(a->name.text);
+
+                o.wrote(a->name.text, a->expr);
                 ownExpr(a->expr, o, nested);
             }
             else if (type == AstKind::PreFixExpression)
@@ -268,6 +440,10 @@ namespace pg
                 else
                     o.otherWrites.insert(v->name.text);
 
+                if (not fresh(v->expr))
+                    o.given.insert(v->name.text);
+
+                o.wrote(v->name.text, v->expr);
                 ownExpr(v->expr, o, nested);
             }
             else if (type == AstKind::ReturnStatement)
@@ -310,10 +486,13 @@ namespace pg
             {
                 auto f = std::static_pointer_cast<ForInStatement>(s);
                 o.otherWrites.insert(f->varName.text);
+                o.maybeTables.insert(f->varName.text);
 
-                // Iterated, not kept
+                // Iterated, not kept: only its rows are
                 if (nested or f->iterable->kind() != AstKind::Var)
                     ownExpr(f->iterable, o, nested);
+                else
+                    o.rowsRead.insert(varName(f->iterable));
 
                 ownStmt(f->body, o, nested);
             }
@@ -321,12 +500,14 @@ namespace pg
             {
                 auto f = std::static_pointer_cast<FunctionStatement>(s);
                 o.otherWrites.insert(f->name.text);
+                o.maybeTables.insert(f->name.text);
                 ownStmt(f->body, o, true);
             }
             else if (type == AstKind::ClassStatement)
             {
                 auto c = std::static_pointer_cast<ClassStatement>(s);
                 o.otherWrites.insert(c->name.text);
+                o.maybeTables.insert(c->name.text);
 
                 for (const auto& m : listOf(c->methods))
                     ownStmt(m->body, o, true);
@@ -347,30 +528,73 @@ namespace pg
             int slotsUsed = 0;
             int counter = 0;
             long hoisted = 0;
-        };
 
-        // Whether a loop's region (not the functions it defines) leaves the length of x alone
-        struct RegionCheck
-        {
-            const Ctx& ctx;
-            const std::string& x;
-            bool ok = true;
-
-            bool ownedList(const ExprPtr& e) const
+            bool isNative(const std::string& name) const
             {
-                const std::string name = varName(e);
+                return not scriptNames.count(name) and not locals.count(name);
+            }
 
-                if (not ctx.inFunction or name.empty() or name == x or not ctx.ownership.owned(name))
+            // Ownership took them for the natives
+            bool ownershipHolds() const
+            {
+                if (not inFunction)
                     return false;
 
-                // Ownership took them for the natives
                 for (const auto& native : {"len", "push", "insert", "pop", "removeAt"})
                 {
-                    if (ctx.scriptNames.count(native) or ctx.locals.count(native))
+                    if (not isNative(native))
                         return false;
                 }
 
                 return true;
+            }
+
+            // Whether no write but those that name it can reach what a path measures: a list that
+            // never left the function, or no table at all
+            bool beyondWrites(const ExprPtr& path) const
+            {
+                const std::string root = rootOf(path);
+                const bool whole = path->kind() == AstKind::Var;
+
+                if (ownershipHolds() and (whole ? ownership.owned(root) : ownership.ownedDeep(root)))
+                    return true;
+
+                if (not whole or not locals.count(root) or not ownership.holdsNoTable(root))
+                    return false;
+
+                for (const auto& native : ownership.nativesTrusted)
+                {
+                    if (not isNative(native))
+                        return false;
+                }
+
+                return true;
+            }
+        };
+
+        // Whether a loop's region (not the functions it defines) leaves the length of a path alone
+        struct RegionCheck
+        {
+            const Ctx& ctx;
+            const std::string& x;       // The path's root
+            const bool beyondWrites;    // Ctx::beyondWrites
+            bool ok = true;
+
+            // Whether writing into a list leaves the path alone
+            bool mayWrite(const ExprPtr& list) const
+            {
+                const std::string root = rootOf(list);
+
+                if (root.empty() or root == x)
+                    return false;
+
+                if (beyondWrites)
+                    return true;
+
+                if (not ctx.ownershipHolds())
+                    return false;
+
+                return list->kind() == AstKind::Var ? ctx.ownership.owned(root) : ctx.ownership.ownedDeep(root);
             }
 
             void expr(const ExprPtr& e)
@@ -394,7 +618,7 @@ namespace pg
 
                     if (listNatives.count(callee))
                     {
-                        if (args.empty() or not ownedList(args[0]))
+                        if (args.empty() or not mayWrite(args[0]))
                         {
                             ok = false;
                             return;
@@ -413,12 +637,13 @@ namespace pg
                 {
                     auto g = std::static_pointer_cast<IndexSet>(e);
 
-                    if (not ownedList(g->object))
+                    if (not mayWrite(g->object))
                     {
                         ok = false;
                         return;
                     }
 
+                    expr(g->object);
                     expr(g->index);
                     expr(g->value);
                 }
@@ -520,17 +745,15 @@ namespace pg
             }
         };
 
-        // The x's whose `len(x)` a condition reads on its first evaluation
-        void firstLens(const ExprPtr& e, std::set<std::string>& out)
+        // The paths whose `len` a condition reads on its first evaluation
+        void firstLens(const ExprPtr& e, std::map<std::string, ExprPtr>& out)
         {
             if (not e)
                 return;
 
-            const std::string x = lenOf(e);
-
-            if (not x.empty())
+            if (auto x = lenArgOf(e))
             {
-                out.insert(x);
+                out[pathOf(x)] = x;
                 return;
             }
 
@@ -566,11 +789,9 @@ namespace pg
                 if (not e)
                     return e;
 
-                const std::string x = lenOf(e);
-
-                if (not x.empty())
+                if (auto x = lenArgOf(e))
                 {
-                    auto it = hidden.find(x);
+                    auto it = hidden.find(pathOf(x));
 
                     if (it != hidden.end())
                         return std::make_shared<Var>(Token(TokenType::EXPRESSION, it->second, 0, 0));
@@ -738,7 +959,7 @@ namespace pg
                 condition = f->condition;
             }
 
-            std::set<std::string> lens;
+            std::map<std::string, ExprPtr> lens;
             firstLens(condition, lens);
 
             if (lens.empty())
@@ -749,12 +970,17 @@ namespace pg
             std::map<std::string, std::string> hidden;
             std::queue<StatementPtr> block;
 
-            for (const auto& x : lens)
+            for (const auto& [path, x] : lens)
             {
-                if (facts.mutated.count(x))
+                std::set<std::string> names;
+                namesOf(x, names);
+
+                if (std::any_of(names.begin(), names.end(), [&](const std::string& name) { return facts.mutated.count(name); }))
                     continue;
 
-                RegionCheck check{ctx, x};
+                const std::string root = rootOf(x);
+
+                RegionCheck check{ctx, root, ctx.beyondWrites(x)};
                 check.stmt(s);
 
                 if (not check.ok)
@@ -768,15 +994,14 @@ namespace pg
                 // '@' cannot start a source name: no user name collides
                 const std::string name = "@len" + std::to_string(ctx.counter++);
                 const Token lenToken(TokenType::EXPRESSION, "len", 0, 0);
-                const Token xToken(TokenType::EXPRESSION, x, 0, 0);
 
                 std::queue<ExprPtr> args;
-                args.push(std::make_shared<Var>(xToken));
+                args.push(x);
 
                 auto call = std::make_shared<CallExpression>(std::make_shared<Var>(lenToken), lenToken, args);
 
                 block.push(std::make_shared<VariableStatement>(Token(TokenType::EXPRESSION, name, 0, 0), call));
-                hidden[x] = name;
+                hidden[path] = name;
             }
 
             if (hidden.empty())
@@ -810,7 +1035,10 @@ namespace pg
             ctx.ownership = Ownership();
 
             for (const auto& p : listOf(parameters))
+            {
                 ctx.ownership.otherWrites.insert(p->getName());
+                ctx.ownership.maybeTables.insert(p->getName());
+            }
 
             ownStmt(body, ctx.ownership, false);
 
@@ -970,6 +1198,8 @@ namespace pg
             if (s and s->kind() != AstKind::FunctionStatement and s->kind() != AstKind::ClassStatement and s->kind() != AstKind::VariableStatement)
                 declsOf(s, ctx.locals);
 
+            ownStmt(s, ctx.ownership, false);
+
             ctx.slotsUsed += ast::countLocalSlots(s);
         }
 
@@ -982,7 +1212,9 @@ namespace pg
 
         LOG_INFO(DOM, "Hoisted " << ctx.hoisted << " len() reads");
 
-        return ctx.hoisted > 0;
+        hoisted = ctx.hoisted;
+
+        return hoisted > 0;
     }
 
     std::string LengthHoistingPass::factsAbout(const std::set<std::string>& names, std::vector<std::shared_ptr<const void>>&) const

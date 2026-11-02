@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 
 #include "Compiler/vm.h"
+#include "Compiler/ast/pass/length_hoisting.h"
 #include "Compiler/ast/pass/loop_invariant_hoisting.h"
 #include "Compiler/ast/pass/static_loop_evaluation.h"
 
@@ -12,6 +13,7 @@
 #include "../../mocklogger.h"
 
 #include <string>
+#include <vector>
 
 namespace pg {
 namespace test {
@@ -83,6 +85,50 @@ protected:
     {
         LoopInvariantHoistingPass pass;
         return transformWith(pass, source, changed);
+    }
+};
+
+class LengthHoisting : public AstPassBase
+{
+protected:
+    // Every script here runs with the functions it needs
+    static std::string withImports(const std::string& source)
+    {
+        return "import \"algorithm\"\nimport \"string\"\n" + source;
+    }
+
+    // How many len() reads were hoisted out of the source
+    long hoisted(const std::string& source)
+    {
+        LengthHoistingPass pass;
+        bool changed = false;
+        transformWith(pass, source, changed);
+
+        return pass.hoistedReads();
+    }
+
+    // What the source prints with the passes and without them
+    void expectSameRun(const std::string& source)
+    {
+        const std::string script = withImports(source);
+
+        std::string outputs[2];
+
+        for (int level = 0; level < 2; ++level)
+        {
+            EntitySystem ecs;
+            ecs.setVMOptimizationLevel(level == 0 ? VmOptimizationLevel::O0 : VmOptimizationLevel::O3);
+            ecs.setVMFrontEnd(ScriptFrontEnd::Ast);
+
+            VM vm;
+            ecs.setupVm(vm);
+
+            EXPECT_EQ(vm.interpretFromText(script), InterpretResult::OK) << script;
+
+            outputs[level] = vm.testOutput;
+        }
+
+        EXPECT_EQ(outputs[0], outputs[1]) << script;
     }
 };
 
@@ -227,6 +273,124 @@ TEST_F(LoopInvariantHoisting, BehaviorUnchangedWithHoisting)
         "    total = total + (a * a)\n"
         "}\n"
         "__dprint(total)\n");
+}
+
+TEST_F(LengthHoisting, MeasuresARowThatDoesNotChange)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::string source =
+        "fun count(table)\n"
+        "{\n"
+        "    var res = []\n"
+        "    for (var i = 0; i < len(table); i++)\n"
+        "    {\n"
+        "        res[i] = []\n"
+        "        for (var j = 0; j < len(table[i]); j++)\n"
+        "        {\n"
+        "            res[i][j] = -1\n"
+        "            if (j + 1 < len(table[i]) and table[i][j] == 1)\n"
+        "            {\n"
+        "                res[i][j] += 1\n"
+        "            }\n"
+        "        }\n"
+        "    }\n"
+        "    return len(res)\n"
+        "}\n"
+        "__dprint(count([[1, 0], [1, 1, 1]]))\n";
+
+    EXPECT_EQ(hoisted(source), 2);
+    expectSameRun(source);
+}
+
+TEST_F(LengthHoisting, AnOwnedListIsBeyondOtherWrites)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::string source =
+        "fun clear(table)\n"
+        "{\n"
+        "    var res = [[1, 1], [1]]\n"
+        "    for (var i = 0; i < len(res); i++)\n"
+        "    {\n"
+        "        for (var j = 0; j < len(res[i]); j++)\n"
+        "        {\n"
+        "            if (res[i][j] < 4)\n"
+        "            {\n"
+        "                table[i][j] = 0\n"
+        "            }\n"
+        "        }\n"
+        "    }\n"
+        "}\n"
+        "var t = [[5, 5], [5]]\n"
+        "clear(t)\n"
+        "__dprint(t[0][1])\n";
+
+    EXPECT_EQ(hoisted(source), 2);
+    expectSameRun(source);
+}
+
+TEST_F(LengthHoisting, AStringIsBeyondWrites)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::string source =
+        "for (var file : [\"ab\", \"abc\"])\n"
+        "{\n"
+        "    var f = file + \"d\"\n"
+        "    var table = [[]]\n"
+        "    for (var i = 0; i < len(f); i++)\n"
+        "    {\n"
+        "        table[0][i] = 1\n"
+        "    }\n"
+        "    __dprint(len(table[0]))\n"
+        "}\n";
+
+    EXPECT_EQ(hoisted(source), 1);
+    expectSameRun(source);
+}
+
+TEST_F(LengthHoisting, LeavesWhatMayChange)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::vector<std::string> sources = {
+        // The row measured is written
+        "fun f(t, i)\n{\n    for (var j = 0; j < len(t[i]); j++)\n    {\n        if (j < 3)\n        {\n            t[i][j + 1] = 0\n        }\n    }\n    return len(t[i])\n}\n__dprint(f([[1]], 0))\n",
+
+        // The row measured changes with the loop
+        "fun f(t)\n{\n    var n = 0\n    for (var i = 0; n < len(t[i]); i++)\n    {\n        n = n + 1\n    }\n    return n\n}\n__dprint(f([[1, 2], [1, 2, 3], [1]]))\n",
+
+        // The measured index moves
+        "fun f(t)\n{\n    var k = 0\n    var n = 0\n    for (var i = 0; i < len(t[k]); i++)\n    {\n        n = n + 1\n        if (n < 2)\n        {\n            k = 1\n        }\n    }\n    return n\n}\n__dprint(f([[1, 2], [1, 2, 3, 4]]))\n",
+
+        // A row of an owned list that is another's
+        "fun f(t)\n{\n    var res = []\n    res[0] = t\n    for (var i = 0; i < len(t); i++)\n    {\n        if (i < 3)\n        {\n            res[0][i + 1] = 0\n        }\n    }\n    return len(t)\n}\n__dprint(f([1]))\n",
+
+        // A row of an owned list given away
+        "fun f()\n{\n    var res = [[1]]\n    var row = res[0]\n    for (var i = 0; i < len(res[0]); i++)\n    {\n        if (i < 3)\n        {\n            row[i + 1] = 0\n        }\n    }\n    return len(res[0])\n}\n__dprint(f())\n",
+
+        // Iterated: the loop's variable is a row
+        "fun f()\n{\n    var res = [[1]]\n    for (var row : res)\n    {\n        for (var i = 0; i < len(res[0]); i++)\n        {\n            if (i < 3)\n            {\n                row[i + 1] = 0\n            }\n        }\n    }\n    return len(res[0])\n}\n__dprint(f())\n",
+
+        // Popped: the row left the list
+        "fun f()\n{\n    var res = [[1], [2]]\n    var row = pop(res)\n    var k = 0\n    for (var i = 0; i < len(res[k]); i++)\n    {\n        if (i < 3)\n        {\n            row[i + 1] = 0\n        }\n    }\n    return len(row)\n}\n__dprint(f())\n",
+
+        // An owned list written by name
+        "fun f(t)\n{\n    var res = [1]\n    for (var i = 0; i < len(res); i++)\n    {\n        t[0] = 2\n        if (i < 3)\n        {\n            push(res, 1)\n        }\n    }\n    return len(res)\n}\n__dprint(f([1]))\n",
+
+        // A name that holds a list on some path
+        "fun f(c)\n{\n    var s = \"ab\"\n    if (c)\n    {\n        s = [1]\n    }\n    for (var i = 0; i < len(s); i++)\n    {\n        if (i < 3)\n        {\n            s[i + 1] = 0\n        }\n    }\n    return len(s)\n}\n__dprint(f(true))\n",
+
+        // A script function behind a native's name
+        "fun trim(x)\n{\n    return [1]\n}\nfun f()\n{\n    var s = trim(\"a\")\n    var o = s\n    for (var i = 0; i < len(s); i++)\n    {\n        if (i < 3)\n        {\n            o[i + 1] = 0\n        }\n    }\n    return len(s)\n}\n__dprint(f())\n",
+    };
+
+    for (const auto& source : sources)
+    {
+        EXPECT_EQ(hoisted(source), 0) << source;
+        expectSameRun(source);
+    }
 }
 
 TEST_F(StaticLoopEvaluation, FoldsFullyStaticForLoop)
