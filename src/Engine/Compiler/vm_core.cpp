@@ -1580,14 +1580,7 @@ namespace pg
 
         ObjUpvalue* upvalue = vm->currentFrame->closure->upvalues[slot];
 
-        if (upvalue->location == &upvalue->closed)
-        {
-            vm->push(*upvalue->location);
-        }
-        else
-        {
-            vm->push(vm->retainValue(*upvalue->location));
-        }
+        vm->push(vm->retainValue(*upvalue->location));
         return &instr + 1;
     }
 
@@ -1602,8 +1595,17 @@ namespace pg
             return nullptr;
         }
 #endif
+        // Through location: the local on the stack while its function runs, closed after that
         ObjUpvalue* upvalue = vm->currentFrame->closure->upvalues[slot];
-        upvalue->location = &vm->stack[vm->stack.size() - 1];
+
+        Value oldValue = *upvalue->location;
+
+        *upvalue->location = vm->retainValue(vm->peek(0));
+
+        if (requiresRefCount(oldValue))
+        {
+            vm->releaseAndDelete(oldValue);
+        }
         return &instr + 1;
     }
 

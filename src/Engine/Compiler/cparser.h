@@ -185,6 +185,10 @@ namespace pg
         }
 
         void writeConstant(const ElementType& constant);
+
+        /** Emit `upvalue++` or `upvalue--`, the old value left on the stack */
+        void writeUpvaluePostfix(uint8_t upvalue, bool increment);
+
         void writeByte(const OpCode& byte);
         void writeByte(uint8_t byte);
 

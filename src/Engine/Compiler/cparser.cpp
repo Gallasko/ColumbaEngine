@@ -252,6 +252,12 @@ namespace pg
         else if (parser.match(TokenType::INCREMENT))
         {
             // Postfix increment: var++
+            if (getOp == OpCode::OP_Get_Upvalue)
+            {
+                parser.writeUpvaluePostfix(static_cast<uint8_t>(arg), true);
+                return;
+            }
+
             parser.writeByte(getOp);
             parser.writeByte(static_cast<uint8_t>(arg));
             parser.writeConstant(ElementType(arg));
@@ -260,6 +266,12 @@ namespace pg
         else if (parser.match(TokenType::DECREMENT))
         {
             // Postfix decrement: var--
+            if (getOp == OpCode::OP_Get_Upvalue)
+            {
+                parser.writeUpvaluePostfix(static_cast<uint8_t>(arg), false);
+                return;
+            }
+
             parser.writeByte(getOp);
             parser.writeByte(static_cast<uint8_t>(arg));
             parser.writeConstant(ElementType(arg));
@@ -270,6 +282,22 @@ namespace pg
             parser.writeByte(getOp);
             parser.writeByte(static_cast<uint8_t>(arg));
         }
+    }
+
+    void CParser::writeUpvaluePostfix(uint8_t upvalue, bool increment)
+    {
+        // The old value stays on the stack, under what the upvalue is given. The post-increment ops
+        // take a slot of the frame, which an upvalue is not. A subtraction both ways: unlike an
+        // addition it stops on what is no number, as they do
+        writeByte(OpCode::OP_Get_Upvalue);
+        writeByte(upvalue);
+        writeByte(OpCode::OP_Get_Upvalue);
+        writeByte(upvalue);
+        writeConstant(ElementType(increment ? -1 : 1));
+        writeByte(OpCode::OP_Subtract);
+        writeByte(OpCode::OP_Set_Upvalue);
+        writeByte(upvalue);
+        writeByte(OpCode::OP_Pop);
     }
 
     void andOp(CParser& parser, bool)

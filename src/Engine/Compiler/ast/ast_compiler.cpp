@@ -450,12 +450,7 @@ namespace pg
         }
         else if ((arg = Compiler::current->resolveUpvalue(varToken)) != -1)
         {
-            // Bug-compatible with variable(): upvalues reuse the local
-            // post-increment op with the upvalue index as operand
-            root.parser.writeByte(OpCode::OP_Get_Upvalue);
-            root.parser.writeByte(static_cast<uint8_t>(arg));
-            root.parser.writeConstant(ElementType(arg));
-            root.parser.writeByte(increment ? OpCode::OP_Post_Incr_Local : OpCode::OP_Post_Decr_Local);
+            root.parser.writeUpvaluePostfix(static_cast<uint8_t>(arg), increment);
         }
         else
         {
