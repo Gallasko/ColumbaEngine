@@ -15,10 +15,33 @@ namespace arena
 {
     namespace
     {
-        constexpr int ROWS = 9;
-        const char* const NAMES[ROWS] = {"Mouse sensitivity", "Invert mouse Y", "Field of view", "Volume", "Camera shake", "Hit flash", "Slash trails", "View", "Debug overlay (F1)"};
+        constexpr int ROWS = 10;
+        const char* const NAMES[ROWS] = {"Mouse sensitivity", "Invert mouse Y", "Field of view", "Volume", "Camera shake", "Hit flash", "Slash trails", "View", "Frame rate", "Debug overlay (F1)"};
 
-        bool isToggle(int row) { return row == 1 or row == 6 or row == 7 or row == 8; }
+        // The frame rate's steps, the last without a limit
+        constexpr int FPS_STEPS[] = {30, 60, 120, 144, 240, 0};
+        constexpr int FPS_COUNT = static_cast<int>(sizeof(FPS_STEPS) / sizeof(FPS_STEPS[0]));
+
+        /** The step a frame rate is at (one not among them: the closest under it). */
+        int fpsStep(int fps)
+        {
+            if (fps <= 0)
+                return FPS_COUNT - 1;
+
+            int step = 0;
+            for (int k = 0; k < FPS_COUNT - 1; ++k)
+                if (FPS_STEPS[k] <= fps)
+                    step = k;
+            return step;
+        }
+
+        bool isToggle(int row) { return row == 1 or row == 6 or row == 7 or row == 9; }
+
+        /** A toggle's second choice is the one in effect. */
+        bool secondChosen(const GameOptions& o, int row)
+        {
+            return (row == 1 and o.invertY) or (row == 6 and o.trails) or (row == 7 and not o.firstPerson) or (row == 9 and o.overlay);
+        }
 
         std::string percent(float v) { return std::to_string(static_cast<int>(std::lround(v * 100.0f))) + "%"; }
 
@@ -35,7 +58,8 @@ namespace arena
                 case 5: return percent(o.hitFlash);
                 case 6: return o.trails ? "On" : "Off";
                 case 7: return o.firstPerson ? "First person" : "Third person";
-                case 8: return o.overlay ? "On" : "Off";
+                case 8: return o.maxFps > 0 ? std::to_string(o.maxFps) : "No limit";
+                case 9: return o.overlay ? "On" : "Off";
             }
             return "";
         }
@@ -50,6 +74,7 @@ namespace arena
                 case 3: return o.volume;
                 case 4: return o.shake / 1.5f;
                 case 5: return o.hitFlash;
+                case 8: return static_cast<float>(fpsStep(o.maxFps)) / static_cast<float>(FPS_COUNT - 1);
             }
             return 0.0f;
         }
@@ -66,7 +91,8 @@ namespace arena
                 case 5: o.hitFlash = std::clamp(o.hitFlash + 0.25f * static_cast<float>(step), 0.0f, 1.0f); break;
                 case 6: o.trails = not o.trails; break;
                 case 7: o.firstPerson = not o.firstPerson; break;
-                case 8: o.overlay = not o.overlay; break;
+                case 8: o.maxFps = FPS_STEPS[std::clamp(fpsStep(o.maxFps) + step, 0, FPS_COUNT - 1)]; break;
+                case 9: o.overlay = not o.overlay; break;
             }
         }
     }
@@ -110,6 +136,9 @@ namespace arena
         o.trails = j.flag("trails", o.trails);
         o.firstPerson = j.flag("firstPerson", o.firstPerson);
         o.overlay = j.flag("overlay", o.overlay);
+        o.maxFps = std::clamp(static_cast<int>(j.num("maxFps", o.maxFps)), 0, 1000);
+        if (o.maxFps > 0)
+            o.maxFps = std::max(o.maxFps, 30);
         o.name = j.str("name", o.name).substr(0, 24);
         o.lastJoin = j.str("lastJoin", o.lastJoin).substr(0, 64);
         o.hostPort = std::clamp(static_cast<int>(j.num("hostPort", o.hostPort)), 0, 65534);
@@ -158,6 +187,7 @@ namespace arena
              << "    \"trails\": " << flag(o.trails) << ",\n"
              << "    \"firstPerson\": " << flag(o.firstPerson) << ",\n"
              << "    \"overlay\": " << flag(o.overlay) << ",\n"
+             << "    \"maxFps\": " << o.maxFps << ",\n"
              << "    \"name\": " << quoted(o.name) << ",\n"
              << "    \"lastJoin\": " << quoted(o.lastJoin) << ",\n"
              << "    \"hostPort\": " << o.hostPort << ",\n"
@@ -230,51 +260,51 @@ namespace arena
         for (int row = 0; row < ROWS; ++row)
         {
             const auto itemScope = ui.scope(static_cast<uint64_t>(row));
-            const float y = 178.0f + 47.0f * static_cast<float>(row);
-            if (ui.hover(348, y, 584, 44))
+            const float y = 176.0f + 43.0f * static_cast<float>(row);
+            if (ui.hover(348, y, 584, 40))
                 focus = row;
 
             if (row == focus)
             {
-                ui.rect(348, y, 584, 44, hex(0x252833));
-                ui.rect(348, y, 4, 44, GOLD);
+                ui.rect(348, y, 584, 40, hex(0x252833));
+                ui.rect(348, y, 4, 40, GOLD);
             }
 
-            ui.text(366, y + 13, NAMES[row], Font::Text600, 15, row == focus ? TEXT : TEXT_DIM);
+            ui.text(366, y + 11, NAMES[row], Font::Text600, 15, row == focus ? TEXT : TEXT_DIM);
 
             if (isToggle(row))
             {
                 // Two choices side by side, the one in effect filled
-                const bool second = (row == 1 and o.invertY) or (row == 6 and o.trails) or (row == 7 and not o.firstPerson) or (row == 8 and o.overlay);
+                const bool second = secondChosen(o, row);
                 const std::string a = row == 7 ? "First person" : "Off";
                 const std::string b = row == 7 ? "Third person" : "On";
                 const float aw = ui.measure(a, Font::Display, 20) + 28.0f, bw = ui.measure(b, Font::Display, 20) + 28.0f;
                 const float x1 = 918.0f - bw, x0 = x1 - aw;
 
-                ui.box(x0, y + 6, aw, 32, second ? CARD : TEXT, 2.0f, INK);
-                ui.text(x0 + aw * 0.5f, y + 11, a, Font::Display, 20, second ? MUTED : INK, Align::Centre);
-                ui.box(x1, y + 6, bw, 32, second ? TEXT : CARD, 2.0f, INK);
-                ui.text(x1 + bw * 0.5f, y + 11, b, Font::Display, 20, second ? INK : MUTED, Align::Centre);
+                ui.box(x0, y + 4, aw, 32, second ? CARD : TEXT, 2.0f, INK);
+                ui.text(x0 + aw * 0.5f, y + 9, a, Font::Display, 20, second ? MUTED : INK, Align::Centre);
+                ui.box(x1, y + 4, bw, 32, second ? TEXT : CARD, 2.0f, INK);
+                ui.text(x1 + bw * 0.5f, y + 9, b, Font::Display, 20, second ? INK : MUTED, Align::Centre);
 
-                ui.hit(x0, y + 6, aw, 32, ROW + row * 10 + 3);
-                ui.hit(x1, y + 6, bw, 32, ROW + row * 10 + 4);
+                ui.hit(x0, y + 4, aw, 32, ROW + row * 10 + 3);
+                ui.hit(x1, y + 4, bw, 32, ROW + row * 10 + 4);
             }
             else
             {
                 const float fill = fraction(o, row);
                 const int pips = static_cast<int>(std::lround(fill * 10.0f));
                 for (int k = 0; k < 10; ++k)
-                    ui.box(568.0f + static_cast<float>(k) * 14.0f, y + 15, 12, 14, k < pips ? GOLD : WELL, 2.0f, INK);
+                    ui.box(568.0f + static_cast<float>(k) * 14.0f, y + 13, 12, 14, k < pips ? GOLD : WELL, 2.0f, INK);
 
-                ui.text(788, y + 10, valueOf(o, row), Font::Display, 24, TEXT, Align::Right);
+                ui.text(788, y + 8, valueOf(o, row), Font::Display, 24, TEXT, Align::Right);
 
                 for (int step : {-1, 1})
                 {
                     const float bx = step < 0 ? 846.0f : 886.0f;
-                    const bool over = ui.hover(bx, y + 6, 32, 32);
-                    ui.box(bx, y + 6, 32, 32, CARD, 2.0f, over ? GOLD : LINE);
-                    ui.text(bx + 16, y + 8, step < 0 ? "\xE2\x88\x92" : "+", Font::Display, 26, TEXT, Align::Centre);
-                    ui.hit(bx, y + 6, 32, 32, ROW + row * 10 + (step < 0 ? 1 : 2));
+                    const bool over = ui.hover(bx, y + 4, 32, 32);
+                    ui.box(bx, y + 4, 32, 32, CARD, 2.0f, over ? GOLD : LINE);
+                    ui.text(bx + 16, y + 6, step < 0 ? "\xE2\x88\x92" : "+", Font::Display, 26, TEXT, Align::Centre);
+                    ui.hit(bx, y + 4, 32, 32, ROW + row * 10 + (step < 0 ? 1 : 2));
                 }
             }
         }
@@ -348,7 +378,7 @@ namespace arena
         }
 
         // A choice: only a change when it is not the one in effect
-        const bool second = (row == 1 and o.invertY) or (row == 6 and o.trails) or (row == 7 and not o.firstPerson) or (row == 8 and o.overlay);
+        const bool second = secondChosen(o, row);
         if ((kind == 4) != second)
         {
             change(o, row, 0);

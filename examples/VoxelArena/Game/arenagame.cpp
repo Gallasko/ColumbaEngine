@@ -1925,6 +1925,10 @@ namespace arena
         showOverlay = prefs.overlay;
         ecsRef->sendEvent(SetMasterVolume{prefs.volume});
 
+        // The render loop's cap (0: none); the ECS passes follow the frames
+        if (window)
+            window->renderFrameLimiter.setTargetFPS(prefs.maxFps);
+
         if (firstPerson != prefs.firstPerson)
             setFirstPerson(prefs.firstPerson);
         else

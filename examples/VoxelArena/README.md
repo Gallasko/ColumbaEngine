@@ -198,7 +198,7 @@ for the players from anywhere, whatever its engage range.
 | E | Dig a pit where the crosshair is |
 | G / middle mouse (hold) | Mine the block under the crosshair |
 | 1, 2, 3 | Your spells, at the crosshair (training: firebolt, ice shards, chain lightning; a run: what level ups gave) |
-| O | Options: mouse sensitivity, invert Y, field of view, volume, camera shake, hit flash, slash trails, view, debug overlay (kept in `~/.local/share/voxelarena/options.json`); the arrows pick and change a row |
+| O | Options: mouse sensitivity, invert Y, field of view, volume, camera shake, hit flash, slash trails, view, frame rate (30 to 240, or no limit), debug overlay (kept in `~/.local/share/voxelarena/options.json`); the arrows pick and change a row |
 | R, 4 | The weapon's skills (dagger: shadow dash, hold to charge, and backflip; sword: whirlwind and leap slam) |
 | F1 | Debug overlay |
 | F2 | Hitboxes (red: active, orange: winding up) and hurtboxes (green, blue while invulnerable) |
