@@ -120,6 +120,32 @@ namespace arena
             data.insert(data.end(), {tint.r, tint.g, tint.b, tint.a, flash.r, flash.g, flash.b, flash.a});
         }
 
+        /** What the camera sees: its side and near planes (no far one, the fog hides that), taken from projection * view. */
+        struct ViewPlanes
+        {
+            glm::vec4 planes[5];
+
+            explicit ViewPlanes(const glm::mat4& m)
+            {
+                auto row = [&m](int i) { return glm::vec4(m[0][i], m[1][i], m[2][i], m[3][i]); };
+                const glm::vec4 w = row(3);
+                const glm::vec4 all[5] = {w + row(0), w - row(0), w + row(1), w - row(1), w + row(2)};
+
+                for (int i = 0; i < 5; ++i)
+                    planes[i] = all[i] / glm::length(glm::vec3(all[i]));
+            }
+
+            /** Whether any of a sphere is in view. */
+            bool sees(const glm::vec3& centre, float radius) const
+            {
+                for (const auto& p : planes)
+                    if (glm::dot(glm::vec3(p), centre) + p.w < -radius)
+                        return false;
+
+                return true;
+            }
+        };
+
         /** Default bindings, used for any action the tuning's "controls" section leaves out. */
         const std::vector<std::pair<std::string, std::vector<std::string>>> DEFAULT_CONTROLS = {
             {"forward", {"W", "Up"}}, {"back", {"S", "Down"}}, {"left", {"A", "Left"}}, {"right", {"D", "Right"}},
@@ -3789,6 +3815,9 @@ namespace arena
         // The camera this list is drawn with (see GpuMesh: baked into every instance)
         const glm::mat4 view = glm::lookAt(camera.position, camera.position + camera.forward(), glm::vec3(0, 1, 0));
 
+        // Only what is in view is drawn: a late wave has a couple of hundred enemies all around
+        const ViewPlanes seen(glm::perspective(fov() * DEG, aspect, 0.1f, 500.0f) * view);
+
         auto add = [this](const std::shared_ptr<GpuMesh>& mesh, size_t material, OpacityType opacity, std::vector<float> data) {
             if (not mesh or data.empty())
                 return;
@@ -3878,6 +3907,13 @@ namespace arena
             const float h = f.body.height;
 
             const AttackDef* attack = world.currentAttack(f);
+
+            // Out of view: none of it is drawn. The sphere takes in the weapon's reach and a body thrown about by
+            // its action; a heavy attack's tell lands further ahead on the ground, and the first person view model
+            // is always in front of the eye
+            if (f.id != world.localPlayerId and not (attack and attack->tellHeavy) and
+                not seen.sees(pos + glm::vec3(0, h * 0.5f, 0), std::max(h, f.body.width) + 1.5f))
+                continue;
 
             // The body frame at a frame of the action: feet, facing, then the action's pose (a function
             // of the frame, so the slash trail can ask where the body was a few frames ago)
@@ -4149,6 +4185,9 @@ namespace arena
         for (size_t i = 0; i < world.zones.size(); ++i)
         {
             const Zone& z = world.zones[i];
+            if (not seen.sees(z.position, z.radius))
+                continue;
+
             auto look = effects.find(z.heal > 0.0f ? std::string("zone:heal") : std::string("zone:") + elementName(z.element));
             const glm::vec3 tint = look != effects.end() and look->second.hasTint ? look->second.tint : glm::vec3(1.0f);
             const float fade = glm::clamp(z.remaining / 0.6f, 0.0f, 1.0f) * glm::clamp((z.duration - z.remaining) / 0.2f + 0.3f, 0.0f, 1.0f);
@@ -4185,6 +4224,9 @@ namespace arena
             if (modelIt == content.models.end())
                 continue;
 
+            if (not seen.sees(pr.position, 1.5f))
+                continue;
+
             const VoxelModel& m = *modelIt->second;
             const glm::vec3 dir = glm::length(pr.velocity) > 1e-4f ? glm::normalize(pr.velocity) : glm::vec3(0, 0, 1);
             const float yaw = std::atan2(dir.x, dir.z) / DEG;
@@ -4203,6 +4245,9 @@ namespace arena
 
             for (const auto& pk : world.pickups)
             {
+                if (not seen.sees(pk.position, 1.0f))
+                    continue;
+
                 // A present: a gold box with a red ribbon, turning slowly, bigger than any shard
                 if (pk.present)
                 {
@@ -4238,6 +4283,9 @@ namespace arena
 
             for (const auto& q : particles.all())
             {
+                if (not seen.sees(q.position, q.size))
+                    continue;
+
                 const float s = q.size * std::sqrt(std::max(0.0f, q.life / q.maxLife));
                 const glm::mat4 m = glm::translate(glm::mat4(1.0f), q.position - glm::vec3(s * 0.5f)) * glm::scale(glm::mat4(1.0f), glm::vec3(s));
                 pushInstance(d, view, m, glm::vec4(q.color, 1.0f), glm::vec4(0.0f));
