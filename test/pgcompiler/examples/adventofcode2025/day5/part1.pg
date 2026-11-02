@@ -1,0 +1,71 @@
+import "file"
+import "string"
+import "algorithm"
+
+var path = "test/pgcompiler/examples/adventofcode2025/day5/"
+var files = ["aoc5small", "aoc5full"]
+
+class Range
+{
+    init(start, end)
+    {
+        this.start = start
+        this.end = end
+    }
+
+    has(value)
+    {
+        return value >= this.start and value <= this.end
+    }
+}
+
+for (var file : files)
+{
+    var f = readFile(path + file)
+
+    var lines = splitLines(f)
+
+    var range = []
+    var ids = []
+
+    var inRange = true
+
+    for (var line : lines)
+    {
+        if (line == "")
+        {
+            inRange = false;
+            continue
+        }
+
+        if (inRange)
+        {
+            var parts = split(line, "-")
+            if (len(parts) != 2)
+            {
+                print("Invalid range: " + line)
+                continue
+            }
+
+            push(range, Range(toFloat(parts[0]), toFloat(parts[1])))
+        }
+        else
+            push(ids, toFloat(line))
+    }
+
+    var res = 0;
+
+    for (var id : ids)
+    {
+        for (var r : range)
+        {
+            if (r.has(id))
+            {
+                res++
+                break
+            }
+        }
+    }
+
+    __dprint(res)
+}

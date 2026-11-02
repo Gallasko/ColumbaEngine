@@ -1,0 +1,124 @@
+import "file"
+import "string"
+import "algorithm"
+
+var path = "test/pgcompiler/examples/adventofcode2025/day5/"
+var files = ["aoc5small", "ex1", "ex2", "aoc5full"]
+
+class Range
+{
+    init(start, end)
+    {
+        this.start = start
+        this.end = end
+    }
+
+    has(value)
+    {
+        return value >= this.start and value <= this.end
+    }
+}
+
+for (var file : files)
+{
+    var f = readFile(path + file)
+
+    var lines = splitLines(f)
+
+    var range = []
+    var ids = []
+
+    var inRange = true
+
+    for (var line : lines)
+    {
+        if (line == "")
+        {
+            inRange = false;
+            continue
+        }
+
+        if (inRange)
+        {
+            var parts = split(line, "-")
+            if (len(parts) != 2)
+            {
+                print("Invalid range: " + line)
+                continue
+            }
+
+            push(range, Range(toFloat(parts[0]), toFloat(parts[1])))
+        }
+        else
+            push(ids, toFloat(line))
+    }
+
+    var res = 0
+
+    var l = len(range)
+
+    for (var i = 0; i < l; i++)
+    {
+        var r = range[i]
+
+        if (r.overlaped)
+            continue
+
+        var overlap = false
+
+        for (var j = i + 1; j < l; j++)
+        {
+            var r2 = range[j]
+
+            if (r.start >= r2.start and r.start <= r2.end)
+            {
+                if (r.end < r2.end)
+                {
+                    overlap = true
+
+                    break
+                }
+
+                r.start = r2.end + 1
+            }
+
+            if (r.end >= r2.start and r.end <= r2.end)
+            {
+                r.end = r2.start - 1
+            }
+
+            if (r2.start >= r.start and r2.start <= r.end and r2.end < r.end)
+            {
+                r2.overlaped = true
+            }
+        }
+
+        if (not overlap and r.start <= r.end)
+        {
+
+            res += r.end - r.start + 1
+        }
+    }
+
+    // var dict = {}
+
+    // for (var r : range)
+    // {
+    //     for (var i = r.start; i <= r.end; i++)
+    //     {
+    //         dict[toString(i)] = true
+    //     }
+    // }
+
+    // var res = 0;
+
+    // for (var id : dict)
+    // {
+    //     print(res)
+    //     res++
+    // }
+
+    __dprint(res)
+
+    // __dprint(len(dict))
+}

@@ -33,7 +33,9 @@ for (var file : files)
     {
         table[l] = []
 
-        for (var i = 0; i < len(f); i++)
+        var l0 = len(f)
+
+        for (var i = 0; i < l0; i++)
         {
             if (line[i] == ".")
             {
@@ -52,11 +54,13 @@ for (var file : files)
 
     var resTable = []
 
-    for (var i = 0; i < len(table); i++)
+    var l1 = len(table)
+    for (var i = 0; i < l1; i++)
     {
         resTable[i] = []
 
-        for (var j = 0; j < len(table[i]); j++)
+        var l2 = len(table[i])
+        for (var j = 0; j < l2; j++)
         {
             resTable[i][j] = -1
 
@@ -70,7 +74,7 @@ for (var file : files)
             {
                 for (var y = -1; y < 2; y++)
                 {
-                    if (i + x < len(table) and i + x >= 0 and j + y < len(table[i]) and j + y >= 0)
+                    if (i + x < l1 and i + x >= 0 and j + y < l2 and j + y >= 0)
                     {
                         // print("i: " + toString(i) + " j: " + toString(j) + " x: " + toString(x) + " y: " + toString(y) + " table[i+x][j+y]: " + toString(table[i+x][j+y]))
                         if (table[i + x][j + y] == 1)
@@ -87,9 +91,12 @@ for (var file : files)
 
     var res = 0
 
-    for (var i = 0; i < len(resTable); i++)
+    var l3 = len(resTable)
+
+    for (var i = 0; i < l3; i++)
     {
-        for (var j = 0; j < len(resTable[i]); j++)
+        var l4 = len(resTable[i])
+        for (var j = 0; j < l4; j++)
         {
             if (table[i][j] == 1 and resTable[i][j] < 4)
             {
