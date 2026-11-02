@@ -291,7 +291,7 @@ namespace arena::net
     {
         // What a client sees is INTERP_TICKS behind its estimate of the server, and its input then waits
         // half a round trip and the buffer: older than that is a client claiming to see the past
-        const int rttSteps = static_cast<int>(std::ceil(rttOf(c) / (STEP_SECONDS * 1000.0f)));
+        const int rttSteps = static_cast<int>(std::ceil(rttOf(c) / stepRealMs(world.tuning)));
         const int now = static_cast<int>(world.steps);
         const int oldest = now - (NetClient::INTERP_TICKS + rttSteps + static_cast<int>(MAX_BUFFER) + SNAPSHOT_EVERY + 4);
 
@@ -357,7 +357,7 @@ namespace arena::net
             inputs[c.playerId] = nextInput(c);
 
             // How long a hit on this player waits for a dodge already on its way: half the round trip
-            world.defenderGrace[peer] = dodgeGrace ? std::clamp(static_cast<int>(std::lround(rttOf(c) * 0.5 / (STEP_SECONDS * 1000.0))), 0, 8) : 0;
+            world.defenderGrace[peer] = dodgeGrace ? std::clamp(static_cast<int>(std::lround(rttOf(c) * 0.5 / stepRealMs(world.tuning))), 0, 8) : 0;
         }
 
         const size_t eventsBefore = world.events.size();

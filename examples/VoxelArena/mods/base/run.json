@@ -4,10 +4,11 @@
 //
 // duration, spawnRate (enemies a second), maxAlive (at once): [the first wave's, the last wave's],
 // in between they grow evenly. More with more players: coopScale per extra player. healthGrowth:
-// enemies have that much more health with each wave (0.06: 6%).
+// enemies have that much more health with each wave (0.08: 8%).
 // pools: who comes, from wave `from` to wave `to`, picked by weight among the ones open.
 // eliteFrom, eliteChance: from that wave on, that chance an enemy comes as an elite (tougher, harder
-// hitting, three times the shards). bosses: wave -> boss; that wave lasts until it falls.
+// hitting, three times the shards). bosses: wave -> boss; that wave lasts until it falls. bossCoopHealth:
+// a boss's health goes up this much for each player past the first (0.75: x1.75 for two, x2.5 for three).
 // xp: shards to level 2, and how many more for each level after.
 // start: the weapon in hand, what is owned (weapons, weapon skills) and the spells (spells/*.json) the
 // run starts with; chooseSpell: the first spell each player picks among, after the weapon (fire, ice, volt). Players make no spells in a run: level ups give them. As a wave ends, after
@@ -30,6 +31,9 @@
 // past the first (0.5).
 // shardFalloff: the players' greed items add up with diminishing returns: a total t of extra shard chance
 // counts as t / (1 + shardFalloff x t) (0.5: +20% stays about +18%, +100% gives +67%, +300% gives +120%).
+// damageFalloff: extra damage from items (stat items together, then tag items and mastery together) counts
+// whole up to `from`, past that each bit less: e past `from` counts as e / (1 + rate x e). With from 0.4
+// and rate 0.6: +40% stays +40%, +100% gives +84%, +200% gives +122%, +400% gives +154%, never past +207%.
 // Score: each enemy's "score" for the kill (twice for an elite), waveScore times the wave's number
 // for getting through it, victoryScore for the last one.
 // arenas: the arena of each stretch of waves (arenas/*.json: see arenas/pit.json), each from its
@@ -49,7 +53,7 @@
     "duration": [45, 90],
     "spawnRate": [0.4, 1.8],
     "maxAlive": [5, 22],
-    "healthGrowth": 0.06,
+    "healthGrowth": 0.08,
     "warn": 1.2,
     "eliteFrom": 7,
     "eliteChance": 0.08,
@@ -57,6 +61,8 @@
     "coopScale": 0.5,
     "pickupRange": 3.5,
     "shardFalloff": 0.5,
+    "damageFalloff": { "from": 0.4, "rate": 0.6 },
+    "bossCoopHealth": 0.75,
     "resetEachWave": true,
     "chooseWeapon": true,
     "duel": { "enabled": true, "duration": 120, "countdown": 3, "radius": 9, "arena": "crucible" },

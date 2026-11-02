@@ -1664,7 +1664,7 @@ namespace arena
 
             checkKeys(j, {"waves", "duration", "spawnRate", "maxAlive", "eliteFrom", "eliteChance", "healthGrowth", "pools", "bosses", "warn", "centre", "spawnRadius", "coopScale",
                           "waveScore", "victoryScore", "pickupRange", "xp", "start", "shop", "arena", "arenas", "resetEachWave", "duel", "chooseWeapon",
-                          "levelSkills", "intermission", "spawnScale", "branchLevel", "mastery", "presents", "difficulties", "shardFalloff"},
+                          "levelSkills", "intermission", "spawnScale", "branchLevel", "mastery", "presents", "difficulties", "shardFalloff", "damageFalloff", "bossCoopHealth"},
                       raw.file, report, "the run");
 
             readInt(j, "waves", r.waves, raw.file, report);
@@ -1693,6 +1693,16 @@ namespace arena
             readNum(j, "spawnScale", r.spawnScale, raw.file, report);
             readNum(j, "shardFalloff", r.shardFalloff, raw.file, report);
             r.shardFalloff = std::max(0.0f, r.shardFalloff);
+            if (const Json* falloff = j.find("damageFalloff"))
+            {
+                checkKeys(*falloff, {"from", "rate"}, raw.file, report, "the run's damageFalloff");
+                readNum(*falloff, "from", r.damageFalloff.from, raw.file, report);
+                readNum(*falloff, "rate", r.damageFalloff.rate, raw.file, report);
+                r.damageFalloff.from = std::max(0.0f, r.damageFalloff.from);
+                r.damageFalloff.rate = std::max(0.0f, r.damageFalloff.rate);
+            }
+            readNum(j, "bossCoopHealth", r.bossCoopHealth, raw.file, report);
+            r.bossCoopHealth = std::max(0.0f, r.bossCoopHealth);
             readInt(j, "branchLevel", r.branchLevel, raw.file, report);
             r.branchLevel = std::max(2, r.branchLevel);
             if (const Json* mastery = j.find("mastery"))
@@ -2067,8 +2077,8 @@ namespace arena
                 const Json& j = raw.data;
 
                 checkKeys(j, {"id", "name", "model", "modelScale", "size", "health", "poise", "poiseRegenDelay", "staggerFrames",
-                              "knockbackScale", "walkSpeed", "turnSpeed", "respawnSeconds", "regenerates", "script", "params", "moveset",
-                              "weakness", "score", "boss", "drops"},
+                              "knockbackScale", "walkSpeed", "turnSpeed", "respawnSeconds", "regenerates", "anchored", "script", "params", "moveset",
+                              "weakness", "score", "boss", "drops", "phases"},
                           raw.file, report, "enemy " + id);
 
                 EnemyDef e;
@@ -2104,6 +2114,34 @@ namespace arena
                 readBool(j, "boss", e.boss, raw.file, report);
                 readInt(j, "drops", e.drops, raw.file, report);
 
+                if (const Json* phases = j.find("phases"))
+                {
+                    checkKeys(*phases, {"at", "crystal", "crystals", "radius", "stagger"}, raw.file, report, "the phases of enemy " + id);
+
+                    if (const Json* at = phases->find("at"); at and at->isArray())
+                    {
+                        for (const auto& v : at->array)
+                            if (v.isNumber() and v.number > 0.0 and v.number < 1.0)
+                                e.phases.at.push_back(static_cast<float>(v.number));
+                            else
+                                report.error(raw.file, v.line, "a phase is a share of the health, between 0 and 1");
+
+                        std::sort(e.phases.at.begin(), e.phases.at.end(), std::greater<float>());
+                    }
+                    else if (at)
+                    {
+                        report.error(raw.file, at->line, "\"at\" is a list of health shares ([0.66, 0.33])");
+                    }
+
+                    readStr(*phases, "crystal", e.phases.crystal, raw.file, report);
+                    e.phases.crystal = e.phases.crystal.empty() ? "" : resolveId(e.phases.crystal, raw.mod);
+                    readInt(*phases, "crystals", e.phases.crystals, raw.file, report);
+                    e.phases.crystals = std::clamp(e.phases.crystals, 1, 12);
+                    readNum(*phases, "radius", e.phases.radius, raw.file, report);
+                    readInt(*phases, "stagger", e.phases.stagger, raw.file, report);
+                    e.phases.stagger = std::max(0, e.phases.stagger);
+                }
+
                 if (const Json* weak = j.find("weakness"))
                 {
                     checkKeys(*weak, {"fire", "ice", "volt"}, raw.file, report, "the weakness of enemy " + id);
@@ -2119,6 +2157,7 @@ namespace arena
                 readNum(j, "turnSpeed", e.turnSpeed, raw.file, report);
                 readNum(j, "respawnSeconds", e.respawnSeconds, raw.file, report);
                 readBool(j, "regenerates", e.regenerates, raw.file, report);
+                readBool(j, "anchored", e.anchored, raw.file, report);
                 readStr(j, "script", e.script, raw.file, report);
 
                 if (not e.script.empty())
@@ -2149,6 +2188,16 @@ namespace arena
                 }
 
                 content.enemies[id] = std::move(e);
+            }
+
+            // A boss's crystals are enemies too (any mod's, read by now)
+            for (auto& [id, e] : content.enemies)
+            {
+                if (e.phases.crystal.empty() or content.enemies.count(e.phases.crystal))
+                    continue;
+
+                report.error(e.file, 0, "enemy \"" + id + "\": its phases' crystal \"" + e.phases.crystal + "\" is no enemy");
+                e.phases = EnemyDef::Phases{};
             }
         }
 

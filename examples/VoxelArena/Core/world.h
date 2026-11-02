@@ -18,6 +18,9 @@ namespace arena
     /** The simulation runs at a fixed 60 steps per second; every frame count in content is in these steps. */
     constexpr float STEP_SECONDS = 1.0f / 60.0f;
 
+    /** How long a step takes in real time: STEP_SECONDS of the game, slowed (or sped up) by the tuning's feel.gameSpeed. */
+    inline double stepRealMs(const Tuning& t) { return STEP_SECONDS * 1000.0 / static_cast<double>(t.feel.gameSpeed); }
+
     /** Facing direction of a yaw in degrees: 0 faces +Z, 90 faces +X. */
     glm::vec3 yawForward(float yawDegrees);
 
@@ -183,6 +186,9 @@ namespace arena
         } stats;
 
         bool elite = false;           // an enemy of a run: tougher, harder hitting, worth more
+        int phase = 0;                // a boss: the phases it has gone into (EnemyDef::phases)
+        bool shielded = false;        // a boss: nothing hurts it until its crystals are broken
+        std::vector<int> crystals;    // ... the crystals holding its shield (the server's)
         bool gone = false;            // a dead enemy of a run: taken out of the arena at the end of the step
 
         // In the air: what was used since the last landing, and a wall jump's push not to steer against
@@ -633,6 +639,8 @@ namespace arena
         float enemyDamageScale(int wave) const;
         /** What the players' items add for everyone: more enemies, more shards from each kill (with run.json's shardFalloff). */
         float teamHorde() const;
+        /** Extra damage (0.5: +50%) from items and mastery, with run.json's diminishing returns (damageFalloff). */
+        float damageFalloff(float extra) const;
         float teamShardChance() const;
         int maxDashes(const Fighter& f) const { return tuning.dash.charges + f.boon.dashCharges; }
         /** Health a second a fighter gets back: its regen items and its weapon's mending. */
@@ -745,6 +753,20 @@ namespace arena
         AttackDef hitOf(const std::string& name, float damage, float poiseDamage, float knockback, int hitstop, float shake, Element element, const StatusHit& status) const;
         void stepStatuses(Fighter& f);
         void die(Fighter& target, int attacker);
+
+        // ---- A boss's phases (EnemyDef::phases) ----
+        /**
+         * The health a boss cannot be taken under before its next phase: the highest of its phase lines still
+         * under its health (one set lower by hand, the console's kill, has gone past the ones above). 0: none
+         * left, it can die. phase: the phase that line begins.
+         */
+        float phaseFloor(const Fighter& f, int* phase = nullptr) const;
+        /** Damage as it lands on f: none on a shield, never past a phase (which then begins). Returns what it took. */
+        float takeDamage(Fighter& f, float damage);
+        /** The bosses whose shields went up this step: their crystals rise once the step's hits are done. */
+        std::vector<int> crystalsDue;
+        /** Crystals for the shields that went up, and shields whose crystals are all broken come down. */
+        void stepPhases();
         float speedScale(const Fighter& f) const;
         float heightAboveGround(const Fighter& f) const;
         glm::vec3 touchedWall(const Fighter& f) const;

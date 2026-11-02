@@ -1,6 +1,8 @@
 // The Stone Warden, the arena's boss: huge, slow, armored through its attacks, every one of them heavy
 // and told in red. Its core hums with charge: volt cracks it (1.5 times the damage), fire barely warms
-// it. Under half its health it gets angry: shorter rests, and it sweeps.
+// it. Three phases: at two thirds and at one third of its health it shields itself, and four crystals rise
+// around the arena; break them all and it reels. Angry from its second phase (shorter rests, and it
+// sweeps), furious in its third.
 //   slam: overhead, breaks the ground. sweep: all around it, roll through or get out. charge: a long,
 //   fast rush that smashes walls; step aside. throw: a rock lobbed at you when you keep away.
 {
@@ -23,6 +25,7 @@
     "score": 300,
     "drops": 40,
     "weakness": { "volt": 1.5, "fire": 0.6 },
+    "phases": { "at": [0.66, 0.33], "crystal": "crystal", "crystals": 4, "radius": 11, "stagger": 180 },
 
     "script": "warden",
     "params": {

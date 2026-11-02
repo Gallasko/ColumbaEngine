@@ -5,6 +5,8 @@
 //   me.distance      metres to the player (feet to feet, horizontal)
 //   me.angle         degrees from my facing to the player, + = player on my right
 //   me.hp, me.maxHp, me.poise
+//   me.phase         a boss: the phases it has gone into, 0 at first (see "phases" in enemies/warden.json)
+//   me.shielded      a boss: true while its shield is up (its crystals still stand)
 //   me.sinceAttack   seconds since my last attack ended
 //   me.sinceHit      seconds since I was last hit
 //   me.time, me.dt   seconds since the arena started, length of a frame

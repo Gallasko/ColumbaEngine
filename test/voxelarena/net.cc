@@ -21,9 +21,18 @@ using namespace arena::net;
 
 namespace
 {
-    constexpr double STEP_MS = 1000.0 / 60.0;
+    /** A step in the simulated link's milliseconds: the base tuning's game speed makes it longer than 1/60 s. */
+    double stepMs()
+    {
+        static const double ms = [] {
+            const Content content = loadContent(VOXELARENA_MODS_DIR);
+            ContentReport r;
+            return stepRealMs(readTuning(content.tuning, content.tuningFile, r));
+        }();
+        return ms;
+    }
 
-    /** A server and its clients on a simulated link, stepped together at 60 per second. */
+    /** A server and its clients on a simulated link, stepped together at 60 steps per game second. */
     struct Session
     {
         Content content;
@@ -87,7 +96,7 @@ namespace
 
             server->poll();
             server->step(nullptr);
-            hub.advance(STEP_MS);
+            hub.advance(stepMs());
 
             for (auto& p : peers)
                 p->client->updateDisplay(hub.time());
@@ -409,7 +418,7 @@ TEST(arena_net, a_client_with_different_content_is_refused)
         c.poll(s.hub.time());
         s.server->poll();
         s.server->step(nullptr);
-        s.hub.advance(STEP_MS);
+        s.hub.advance(stepMs());
     }
 
     EXPECT_EQ(c.state, NetClient::State::Refused);
@@ -431,7 +440,7 @@ TEST(arena_net, a_client_with_different_content_gets_the_servers_mods_and_joins)
             c.poll(s.hub.time());
             s.server->poll();
             s.server->step(nullptr);
-            s.hub.advance(STEP_MS);
+            s.hub.advance(stepMs());
         }
     };
 
@@ -474,7 +483,7 @@ TEST(arena_net, a_client_still_different_after_the_mods_is_refused)
             c.poll(s.hub.time());
             s.server->poll();
             s.server->step(nullptr);
-            s.hub.advance(STEP_MS);
+            s.hub.advance(stepMs());
         }
     };
 
@@ -628,7 +637,7 @@ TEST(arena_net, the_others_actions_play_smoothly_between_snapshots)
 
         // A quarter step later, a quarter frame further
         const float now = a.client->displayFrame.at(bId);
-        a.client->updateDisplay(s.hub.time() + STEP_MS * 0.25);
+        a.client->updateDisplay(s.hub.time() + stepMs() * 0.25);
         EXPECT_NEAR(a.client->displayFrame.at(bId) - now, 0.25f, 0.05f);
         a.client->updateDisplay(s.hub.time());
     }
@@ -723,7 +732,7 @@ TEST(arena_net, the_others_events_play_when_they_are_seen_your_own_at_once)
         }
         return 999;
     };
-    const int latency = static_cast<int>(std::ceil(10.0 / STEP_MS));
+    const int latency = static_cast<int>(std::ceil(10.0 / stepMs()));
 
     // A block breaking (nobody's): when the others, drawn INTERP_TICKS behind the server's present,
     // reach it. It arrived well before (after the latency), and waited
@@ -1013,7 +1022,7 @@ TEST(arena_net, a_hit_lands_on_the_enemy_where_you_saw_it)
                 hits += h.target == id;
             s.serverWorld.hits.clear();
 
-            s.hub.advance(STEP_MS);
+            s.hub.advance(stepMs());
             a.client->updateDisplay(s.hub.time());
         }
 
@@ -1201,7 +1210,7 @@ TEST(arena_net, a_listen_servers_lobby_has_its_host_first)
         client.step(InputFrame{}, hub.time());
         server.poll();
         server.step(nullptr);
-        hub.advance(STEP_MS);
+        hub.advance(stepMs());
     }
 
     ASSERT_EQ(client.lobby.players.size(), 2u);
@@ -1217,7 +1226,7 @@ TEST(arena_net, a_listen_servers_lobby_has_its_host_first)
         client.poll(hub.time());
         server.poll();
         server.step(nullptr);
-        hub.advance(STEP_MS);
+        hub.advance(stepMs());
     }
     EXPECT_EQ(host.run.phase, RunPhase::Off);
 }
@@ -1281,7 +1290,7 @@ namespace
 
             s.server->poll();
             s.server->step(nullptr);
-            s.hub.advance(STEP_MS);
+            s.hub.advance(stepMs());
         }
     }
 }
@@ -1508,7 +1517,7 @@ TEST(arena_net, a_host_that_is_not_stepping_still_lets_someone_in)
     Session s;
     RawPeer raw(s);
 
-    s.hub.advance(STEP_MS);
+    s.hub.advance(stepMs());
     s.server->poll();
     EXPECT_EQ(s.server->peerCount(), 1u);    // what wakes the world up, joined or not
     EXPECT_EQ(s.server->clientCount(), 0u);
@@ -1517,7 +1526,7 @@ TEST(arena_net, a_host_that_is_not_stepping_still_lets_someone_in)
 
     for (int i = 0; i < 5; ++i)
     {
-        s.hub.advance(STEP_MS);
+        s.hub.advance(stepMs());
         s.server->poll();
     }
 

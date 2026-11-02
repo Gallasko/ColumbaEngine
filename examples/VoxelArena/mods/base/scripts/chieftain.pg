@@ -1,6 +1,7 @@
 // The Brute Chieftain's brain (see brute.pg for what the game puts in `me` and what it reads back).
 // Close in front: a slam. Crowded, or angry and close: a stomp all around. Middle: a leap.
-// Under `angryAt` of its health it rests less between attacks.
+// From its second phase (or under `angryAt` of its health) it rests less between attacks, and less again
+// in its third.
 
 import "math"
 import "random"
@@ -14,10 +15,14 @@ fun think(me)
         me.side = 1
     }
 
-    var angry = me.hp < me.maxHp * p.angryAt
+    var angry = me.phase >= 1 or me.hp < me.maxHp * p.angryAt
     var rest = p.cooldown
 
-    if (angry)
+    if (me.phase >= 2)
+    {
+        rest = p.cooldown * 0.45
+    }
+    else if (angry)
     {
         rest = p.cooldown * 0.6
     }

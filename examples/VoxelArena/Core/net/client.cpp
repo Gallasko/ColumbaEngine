@@ -38,7 +38,7 @@ namespace arena::net
             return 0.0;
 
         // The newest snapshot was the server's tick some half round trip ago
-        return lastSnapshotTick + (nowMs - lastSnapshotAt + rttMs * 0.5) / (STEP_SECONDS * 1000.0);
+        return lastSnapshotTick + (nowMs - lastSnapshotAt + rttMs * 0.5) / stepRealMs(tuning);
     }
 
     void NetClient::sayHello()
@@ -502,7 +502,7 @@ namespace arena::net
 
         // Projectiles fly straight between snapshots: from the newest, moved on by their speed
         const SnapshotMsg& newest = snapshots.back();
-        const float since = static_cast<float>(nowMs - lastSnapshotAt) / 1000.0f;
+        const float since = static_cast<float>(nowMs - lastSnapshotAt) / 1000.0f * tuning.feel.gameSpeed;   // in the game's seconds
         world.projectiles.clear();
 
         for (const auto& p : newest.projectiles)

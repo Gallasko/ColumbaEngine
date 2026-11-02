@@ -74,6 +74,9 @@ namespace arena
             f.boon.xpGain += u.xpGain * k;
             f.boon.shardChance += u.shardChance * k;
         }
+
+        // Stacked damage items help less and less (run.json damageFalloff)
+        f.boon.damage = damageFalloff(f.boon.damage);
     }
 
     bool ArenaWorld::itemMaxed(const Fighter& f, const UpgradeDef& u) const
@@ -257,7 +260,10 @@ namespace arena
             r.tweak.add(branch->boost);
             beyond = std::max(0, beyond - 1);
         }
-        r.tweak.add(content->run.mastery, static_cast<float>(beyond));
+
+        // Mastery and the tag items: their damage together, with diminishing returns
+        SpellTweak extra;
+        extra.add(content->run.mastery, static_cast<float>(beyond));
 
         if (f)
         {
@@ -266,9 +272,11 @@ namespace arena
                 for (const auto& t : branch->tags)
                     if (std::find(tags.begin(), tags.end(), t) == tags.end())
                         tags.push_back(t);
-            r.tweak.add(tagBoost(*f, tags));
+            extra.add(tagBoost(*f, tags));
         }
 
+        extra.damage = damageFalloff(extra.damage);
+        r.tweak.add(extra);
         return r;
     }
 
@@ -296,9 +304,13 @@ namespace arena
             t.add(a.branches[static_cast<size_t>(branch)].boost);
             beyond = std::max(0, beyond - 1);
         }
-        t.add(content->run.mastery, static_cast<float>(beyond));
 
-        t.add(tagBoost(f, techniqueTags(a, branch)));
+        // Mastery and the tag items: their damage together, with diminishing returns
+        SpellTweak extra;
+        extra.add(content->run.mastery, static_cast<float>(beyond));
+        extra.add(tagBoost(f, techniqueTags(a, branch)));
+        extra.damage = damageFalloff(extra.damage);
+        t.add(extra);
         return t;
     }
 
@@ -417,6 +429,16 @@ namespace arena
     {
         const DifficultyDef& d = difficulty();
         return d.damage * (1.0f + d.damageGrowth * static_cast<float>(std::max(0, wave - 1)));
+    }
+
+    float ArenaWorld::damageFalloff(float extra) const
+    {
+        const auto& d = content->run.damageFalloff;
+        if (extra <= d.from)
+            return extra;
+
+        const float past = extra - d.from;
+        return d.from + past / (1.0f + d.rate * past);
     }
 
     float ArenaWorld::teamHorde() const
@@ -1509,8 +1531,10 @@ namespace arena
                         if (s.boss)
                             run.bossId = id;
 
-                        // Tougher as the run goes on, and at the harder levels
+                        // Tougher as the run goes on, and at the harder levels; a boss with more players too
                         e->maxHealth *= enemyHealthScale(run.wave);
+                        if (s.boss)
+                            e->maxHealth *= 1.0f + def.bossCoopHealth * static_cast<float>(std::max(0, players - 1));
                         e->health = e->maxHealth;
 
                         // An elite: tougher, harder hitting (applyHit), worth more

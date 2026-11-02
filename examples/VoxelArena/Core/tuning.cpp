@@ -1,5 +1,6 @@
 #include "tuning.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace arena
@@ -102,6 +103,7 @@ namespace arena
         f("feel.hitstopScale", feel.hitstopScale);
         f("feel.knockbackFriction", feel.knockbackFriction);
         f("feel.landingShake", feel.landingShake);
+        f("feel.gameSpeed", feel.gameSpeed);
 
         f("terrain.gravity", terrain.gravity);
         f("terrain.crushDamage", terrain.crushDamage);
@@ -267,6 +269,7 @@ namespace arena
             if (readNumber(path, v))
                 value = static_cast<float>(v);
         });
+        t.feel.gameSpeed = std::clamp(t.feel.gameSpeed, 0.25f, 2.0f);
 
         t.forEachInt([&](const std::string& path, int& value) {
             double v;

@@ -61,11 +61,11 @@ namespace arena
 
         struct Marker
         {
-            enum class Kind { Spawn, Elite, Boss };
+            enum class Kind { Spawn, Elite, Boss, Crystal };
             Kind kind = Kind::Spawn;
             bool right = true;       // the screen side it is on
             float y = 360.0f;        // base layout
-            std::string name;        // a boss's
+            std::string name;        // a boss's, a crystal's
             float distance = 0.0f;   // m
         };
 
@@ -101,6 +101,9 @@ namespace arena
             bool boss = false, enraged = false;
             std::string bossName;
             float bossHealth = 1.0f, bossPoise = 1.0f;
+            std::vector<float> bossPhases;   // the health shares its phases begin at (lines on its bar)
+            bool bossShielded = false;       // its shield is up ...
+            int crystalsLeft = 0;            // ... held by this many crystals
 
             std::vector<EnemyBar> enemies;
             std::vector<Marker> markers;

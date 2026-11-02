@@ -439,6 +439,7 @@ namespace arena
         float turnSpeed = 360.0f;        // degrees per second
         float respawnSeconds = 3.0f;
         bool regenerates = false;        // a training dummy refills its health
+        bool anchored = false;           // nothing pushes it about (a boss's crystal)
 
         // The arena run: damage taken by element (volt 1.5: weak to volt), points for the kill, a boss
         float weakness[4] = {1, 1, 1, 1};
@@ -446,6 +447,22 @@ namespace arena
         bool boss = false;
 
         int drops = 1;                   // shards dropped in a run
+
+        /**
+         * A boss's phases: as its health reaches each share of `at` (no hit takes it past one), it shields
+         * itself and `crystals` crystals (the enemy `crystal`) rise `radius` m around the arena's middle.
+         * Nothing hurts it until every one of them is broken; then it reels for `stagger` frames.
+         */
+        struct Phases
+        {
+            std::vector<float> at;            // health shares, highest first (0.66, 0.33)
+            std::string crystal;
+            int crystals = 3;
+            float radius = 9.0f;
+            int stagger = 150;
+
+            bool any() const { return not at.empty() and not crystal.empty(); }
+        } phases;
 
         std::string script;              // script id, "base:brute"; empty = stands still
         Json params;                     // handed to the script as me.params
@@ -657,6 +674,13 @@ namespace arena
         // The economy: shards dropped (each enemy's "drops"), picked up in range, money and XP
         float pickupRange = 2.5f;
         float shardFalloff = 0.0f;    // the players' extra shard chances (greed) add up to t, counted as t / (1 + shardFalloff x t)
+        /** Extra damage from items and mastery: the first `from` counts whole, the rest e as e / (1 + rate x e). */
+        struct Falloff
+        {
+            float from = 0.4f;
+            float rate = 0.6f;
+        } damageFalloff;
+        float bossCoopHealth = 0.75f; // a boss's health up this much per player past the first
         int xpBase = 10, xpStep = 6;  // shards to the next level: base + step x (level - 1)
         std::string startWeapon = "base:sword";
         std::vector<std::string> startOwned = {"element:fire", "base:bolt"};

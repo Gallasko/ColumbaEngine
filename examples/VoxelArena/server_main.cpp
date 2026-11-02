@@ -111,9 +111,9 @@ int main(int argc, char* argv[])
         portMapper.start(port, static_cast<uint16_t>(port + 1), "Voxel Arena server", arena::net::PortMapper::parsePorts(upnpPorts));
     auto routerState = arena::net::PortMapper::State::Off;
 
-    // 60 steps a second, on a fixed schedule (a late step is caught up, a far behind one skipped)
+    // 60 steps a second (times the tuning's game speed), on a fixed schedule (a late step is caught up, a far behind one skipped)
     using clock = std::chrono::steady_clock;
-    const auto stepLength = std::chrono::duration_cast<clock::duration>(std::chrono::duration<double>(arena::STEP_SECONDS));
+    const auto stepLength = std::chrono::duration_cast<clock::duration>(std::chrono::duration<double, std::milli>(arena::stepRealMs(world.tuning)));
     auto next = clock::now();
 
     while (running)

@@ -561,6 +561,7 @@ namespace arena
         fighters.erase(std::remove_if(fighters.begin(), fighters.end(), [](const Fighter& f) { return f.gone; }), fighters.end());
         resolvePendingHits();
         resolveHits();
+        stepPhases();
         terrainFromAttacks();
         stepTerrain();
         recordHistory();
@@ -1854,6 +1855,7 @@ namespace arena
             return base;
 
         SpellTweak boost = tagBoost(f, attackTags(f, *base));
+        boost.damage = damageFalloff(boost.damage);
         boost.cooldown = boost.cost = boost.duration = 0.0f;
         boost.count = 0;
         const float quicker = f.boon.attackSpeed;
@@ -3307,6 +3309,13 @@ namespace arena
             if (auto def = content->enemies.find(target.type); def != content->enemies.end())
                 damage *= def->second.weakness[static_cast<int>(a.element)];
 
+        // A boss behind its shield takes nothing; no hit takes one past its next phase
+        const bool shielded = target.shielded;
+        if (shielded)
+            damage = 0.0f;
+        else if (const float floor = phaseFloor(target); floor > 0.0f)
+            damage = std::min(damage, std::max(0.0f, target.health - floor));
+
         HitEvent e;
         e.attacker = attacker.id;
         e.target = target.id;
@@ -3324,7 +3333,7 @@ namespace arena
                 if (Fighter* by = find(attacker.id))
                     by->stats.damage += std::clamp(damage, 0.0f, std::max(0.0f, target.health));
 
-            target.health -= damage;
+            takeDamage(target, damage);
         }
 
         // Life on hit: whole from a direct hit, a share from an area's, a zone's or a chain's (they hit many, or often)
@@ -3337,7 +3346,8 @@ namespace arena
         // Poise: an attack in progress may add armor, so a big swing is not interrupted by a jab
         const AttackDef* targetAttack = currentAttack(target);
         const float armor = targetAttack ? targetAttack->armor : 0.0f;
-        target.poise -= a.poiseDamage;
+        if (not shielded)
+            target.poise -= a.poiseDamage;
 
         if (target.poise + armor <= 0.0f)
         {
@@ -3390,7 +3400,7 @@ namespace arena
         hits.push_back(e);
         if (crit)
             event("crit", chest(target), e.damage, target.id, AIR, e.attacker);
-        event(e.killed ? "kill" : (e.staggered ? "stagger" : "hit"), target.body.position + glm::vec3(0, target.body.height * 0.6f, 0), e.damage, target.id, AIR, e.attacker);
+        event(e.killed ? "kill" : (e.staggered ? "stagger" : (shielded ? "shield_hit" : "hit")), target.body.position + glm::vec3(0, target.body.height * 0.6f, 0), e.damage, target.id, AIR, e.attacker);
 
         if (e.killed)
             die(target, attacker.id);
@@ -3531,7 +3541,7 @@ namespace arena
             // Damage over time: the server's to deal (a client only counts the time down)
             if (authority and defIt != content->statuses.end() and defIt->second.damagePerSecond > 0.0f and not (godMode and f.team == Team::Player))
             {
-                f.health -= defIt->second.damagePerSecond * static_cast<float>(it->stacks) * STEP_SECONDS;
+                takeDamage(f, defIt->second.damagePerSecond * static_cast<float>(it->stacks) * STEP_SECONDS);
 
                 if (f.health <= 0.0f)
                 {
@@ -3548,6 +3558,125 @@ namespace arena
 
             it->remaining -= STEP_SECONDS;
             it = it->remaining <= 0.0f ? f.statuses.erase(it) : std::next(it);
+        }
+    }
+
+    float ArenaWorld::phaseFloor(const Fighter& f, int* phase) const
+    {
+        if (f.team != Team::Enemy)
+            return 0.0f;
+
+        auto def = content->enemies.find(f.type);
+        if (def == content->enemies.end() or not def->second.phases.any())
+            return 0.0f;
+
+        const auto& at = def->second.phases.at;
+        for (size_t k = static_cast<size_t>(std::max(0, f.phase)); k < at.size(); ++k)
+        {
+            const float line = at[k] * f.maxHealth;
+            if (line < f.health)
+            {
+                if (phase)
+                    *phase = static_cast<int>(k) + 1;
+                return line;
+            }
+        }
+
+        return 0.0f;
+    }
+
+    float ArenaWorld::takeDamage(Fighter& f, float damage)
+    {
+        if (f.shielded or damage <= 0.0f)
+            return 0.0f;
+
+        int next = 0;
+        const float floor = phaseFloor(f, &next);
+        const float before = f.health;
+        f.health = floor > 0.0f ? std::max(floor, f.health - damage) : f.health - damage;
+
+        // Down to the next phase: the shield goes up at once (nothing more gets through this step), the
+        // crystals rise once the step's hits are done
+        if (floor > 0.0f and f.health <= floor and f.alive())
+        {
+            f.phase = next;
+            f.shielded = true;
+            f.crystals.clear();
+            crystalsDue.push_back(f.id);
+            event("boss_shield", chest(f), static_cast<float>(f.phase), f.id);
+        }
+
+        return before - f.health;
+    }
+
+    void ArenaWorld::stepPhases()
+    {
+        for (int id : crystalsDue)
+        {
+            Fighter* boss = find(id);
+            auto def = boss ? content->enemies.find(boss->type) : content->enemies.end();
+            if (not boss or def == content->enemies.end())
+                continue;
+
+            // Evenly round the arena's middle (inside its spawn ring), from a turn of the run's dice; each on
+            // the floor nearest the middle's height there
+            const EnemyDef::Phases& ph = def->second.phases;
+            const glm::vec3 centre = inRun() ? arena().centre : boss->body.position;
+            const float radius = inRun() ? std::min(ph.radius, arena().spawnRadius * 0.85f) : ph.radius;
+            const float turn = static_cast<float>(runRandom() % 3600) / 3600.0f * 6.2831853f;
+            std::vector<int> ids;
+
+            for (int k = 0; k < ph.crystals; ++k)
+            {
+                const float a = turn + 6.2831853f * static_cast<float>(k) / static_cast<float>(ph.crystals);
+                glm::vec3 at = centre + glm::vec3(std::cos(a), 0.0f, std::sin(a)) * radius;
+                at.x = std::clamp(at.x, 2.0f, static_cast<float>(grid.width()) - 3.0f);
+                at.z = std::clamp(at.z, 2.0f, static_cast<float>(grid.depth()) - 3.0f);
+                at = groundNear(at);
+
+                const int crystal = spawnEnemy(ph.crystal, at, 0.0f);
+                if (Fighter* c = find(crystal))
+                {
+                    if (inRun())
+                    {
+                        c->maxHealth *= enemyHealthScale(run.wave);
+                        c->health = c->maxHealth;
+                    }
+                    ids.push_back(crystal);
+                    event("spawn", at, 1.0f, crystal);
+                }
+            }
+
+            // Found again: spawning may have moved the fighters about in memory
+            if (Fighter* b = find(id))
+                b->crystals = ids;
+        }
+        crystalsDue.clear();
+
+        for (auto& f : fighters)
+        {
+            if (not f.shielded or not f.alive())
+                continue;
+
+            const bool holding = std::any_of(f.crystals.begin(), f.crystals.end(), [this](int id) {
+                const Fighter* c = find(id);
+                return c and c->alive() and not c->gone;
+            });
+
+            if (holding)
+                continue;
+
+            // Every crystal broken: the shield falls and the boss reels
+            auto def = content->enemies.find(f.type);
+            f.shielded = false;
+            f.crystals.clear();
+            f.action = Action::Stagger;
+            f.frame = 0;
+            f.actionLength = def != content->enemies.end() ? def->second.phases.stagger : 120;
+            f.poise = f.maxPoise;
+            f.queued = 0;
+            f.heavyStagger = true;
+            event("shield_break", chest(f), static_cast<float>(f.phase), f.id);
         }
     }
 
@@ -3583,10 +3712,20 @@ namespace arena
                 d = dist > 1e-4f ? d / dist : glm::vec3(1, 0, 0);
                 const float overlap = minDist - dist;
 
-                // Only the horizontal push, through the physics so nobody is pushed into a wall
+                // Only the horizontal push, through the physics so nobody is pushed into a wall. Something
+                // anchored (a boss's crystal) stays put: the other one moves the whole way
+                auto anchored = [this](const Fighter& f) {
+                    auto def = f.team == Team::Enemy ? content->enemies.find(f.type) : content->enemies.end();
+                    return def != content->enemies.end() and def->second.anchored;
+                };
+                const bool aStays = anchored(a), bStays = anchored(b);
+                if (aStays and bStays)
+                    continue;
+
+                const float aShare = aStays ? 0.0f : (bStays ? 1.0f : 0.5f);
                 const bool aOnGround = a.body.onGround, bOnGround = b.body.onGround;
-                moveBody(grid, content->blockTable, a.body, -d * overlap * 0.5f);
-                moveBody(grid, content->blockTable, b.body, d * overlap * 0.5f);
+                moveBody(grid, content->blockTable, a.body, -d * overlap * aShare);
+                moveBody(grid, content->blockTable, b.body, d * overlap * (1.0f - aShare));
                 a.body.onGround = aOnGround;
                 b.body.onGround = bOnGround;
             }

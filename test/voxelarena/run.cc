@@ -722,6 +722,129 @@ TEST(arena_run, boss_waves_last_until_the_boss_falls_and_the_last_is_a_victory)
     EXPECT_GE(r.world.run.score, score + r.content.run.victoryScore + r.content.run.waveScore * 20);
 }
 
+TEST(arena_run, a_boss_shields_itself_at_each_phase_until_its_crystals_are_broken)
+{
+    RunArena r;
+    r.world.startRun(13);
+    r.world.skipToWave(20);
+    r.past(2.5f);
+    Fighter* boss = r.world.find(r.world.run.bossId);
+    ASSERT_TRUE(boss);
+    const EnemyDef::Phases& ph = r.content.enemies.at("base:warden").phases;
+    ASSERT_EQ(ph.at.size(), 2u);
+    const int bossId = boss->id;
+    const float most = boss->maxHealth;
+
+    AttackDef blow;
+    blow.name = "test";
+    blow.damage = most * 10.0f;
+    auto crystals = [&] {
+        std::vector<int> ids;
+        for (const auto& f : r.world.fighters)
+            if (f.type == ph.crystal and f.alive())
+                ids.push_back(f.id);
+        return ids;
+    };
+    auto breakAll = [&] {
+        for (int id : crystals())
+            if (Fighter* c = r.world.find(id))
+                r.world.applyHit(r.player(), *c, blow);
+        r.run(2);
+    };
+
+    // A blow that would kill it stops at its first phase: the shield goes up, the crystals rise
+    r.world.applyHit(r.player(), *boss, blow);
+    boss = r.world.find(bossId);
+    EXPECT_FLOAT_EQ(boss->health, most * ph.at[0]);
+    EXPECT_EQ(boss->phase, 1);
+    EXPECT_TRUE(boss->shielded);
+    r.run(1);
+    EXPECT_EQ(static_cast<int>(crystals().size()), ph.crystals);
+
+    // Nothing gets through the shield: neither a blow nor a burn
+    boss = r.world.find(bossId);
+    r.world.applyHit(r.player(), *boss, blow);
+    r.world.applyStatus(*r.world.find(bossId), "base:burn", 3);
+    r.past(1.0f);
+    boss = r.world.find(bossId);
+    EXPECT_FLOAT_EQ(boss->health, most * ph.at[0]);
+    EXPECT_TRUE(boss->shielded);
+
+    // Every crystal broken: the shield falls and it reels
+    breakAll();
+    boss = r.world.find(bossId);
+    EXPECT_FALSE(boss->shielded);
+    EXPECT_EQ(boss->action, Action::Stagger);
+    EXPECT_TRUE(crystals().empty());
+
+    // The second phase the same way, then it can fall
+    boss->statuses.clear();
+    r.world.applyHit(r.player(), *boss, blow);
+    boss = r.world.find(bossId);
+    EXPECT_FLOAT_EQ(boss->health, most * ph.at[1]);
+    EXPECT_EQ(boss->phase, 2);
+    EXPECT_TRUE(boss->shielded);
+    r.run(1);
+    breakAll();
+
+    boss = r.world.find(bossId);
+    ASSERT_TRUE(boss);
+    EXPECT_FALSE(boss->shielded);
+    r.world.applyHit(r.player(), *boss, blow);
+    r.run(2);
+    EXPECT_EQ(r.world.run.phase, RunPhase::Victory);
+}
+
+TEST(arena_run, a_boss_has_more_health_with_more_players)
+{
+    auto bossHealth = [](int players) {
+        RunArena r;
+        for (int k = 1; k < players; ++k)
+            r.world.addPlayer(k);
+        r.world.startRun(13);
+        r.world.skipToWave(10);
+        r.past(2.5f);
+        const Fighter* boss = r.world.find(r.world.run.bossId);
+        return boss ? boss->maxHealth : 0.0f;
+    };
+
+    RunArena r;
+    const float solo = bossHealth(1);
+    ASSERT_GT(solo, 0.0f);
+    EXPECT_FLOAT_EQ(bossHealth(2), solo * (1.0f + r.content.run.bossCoopHealth));
+    EXPECT_FLOAT_EQ(bossHealth(3), solo * (1.0f + 2.0f * r.content.run.bossCoopHealth));
+}
+
+TEST(arena_run, stacked_damage_items_help_less_and_less)
+{
+    RunArena r;
+    r.world.startRun(7);
+    Fighter& p = r.player();
+    const auto& falloff = r.content.run.damageFalloff;
+    const float keen = r.content.upgrades.at("base:keen").damage;
+
+    // One counts whole
+    p.boons = {Fighter::Boon("base:keen")};
+    r.world.sumBoons(p);
+    EXPECT_FLOAT_EQ(p.boon.damage, keen);
+
+    // Twenty: past `from`, each bit less, and never past from + 1 / rate
+    p.boons.assign(20, Fighter::Boon("base:keen"));
+    r.world.sumBoons(p);
+    const float past = keen * 20.0f - falloff.from;
+    EXPECT_NEAR(p.boon.damage, falloff.from + past / (1.0f + falloff.rate * past), 1e-4f);
+    EXPECT_LT(p.boon.damage, keen * 20.0f);
+    EXPECT_LT(p.boon.damage, falloff.from + 1.0f / falloff.rate);
+}
+
+TEST(arena_run, the_game_speed_comes_from_the_tuning)
+{
+    RunArena r;
+    EXPECT_GT(r.tuning.feel.gameSpeed, 0.0f);
+    EXPECT_LE(r.tuning.feel.gameSpeed, 1.0f);
+    EXPECT_NEAR(stepRealMs(r.tuning), 1000.0 / 60.0 / r.tuning.feel.gameSpeed, 1e-3);
+}
+
 TEST(arena_run, falling_is_a_defeat_and_start_plays_again_from_the_beginning)
 {
     RunArena r;

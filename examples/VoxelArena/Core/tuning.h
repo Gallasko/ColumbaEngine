@@ -161,6 +161,7 @@ namespace arena
             float hitstopScale = 1.0f;     // multiplies every attack's hitstop
             float knockbackFriction = 16.0f; // m/s^2 that knockback loses on the ground
             float landingShake = 0.0f;     // trauma from landing a big fall
+            float gameSpeed = 1.0f;        // the whole game's pace: 0.85 plays every step 15% slower (0.25 to 2)
         } feel;
 
         struct Combat

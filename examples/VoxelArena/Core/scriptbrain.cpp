@@ -325,6 +325,8 @@ namespace arena
         // What the enemy sees
         me->setField("hp", makeDoubleValue(self.health));
         me->setField("maxHp", makeDoubleValue(self.maxHealth));
+        me->setField("phase", makeIntValue(self.phase));          // a boss: the phases it has gone into (0 at first)
+        me->setField("shielded", makeBoolValue(self.shielded));
         me->setField("poise", makeDoubleValue(self.poise));
         me->setField("distance", makeDoubleValue(view.distance));
         me->setField("angle", makeDoubleValue(view.angle));

@@ -1,6 +1,7 @@
 // The Stone Warden's brain (see brute.pg for what the game puts in `me` and what it reads back).
 // Close: a slam in front, a sweep all around once it is angry. Middle: a charge. Far: a rock.
-// Under `angryAt` of its health it rests less between attacks.
+// Angry from its second phase (or under `angryAt` of its health): it rests less and sweeps. Furious in its
+// third: it rests less again.
 
 import "math"
 import "random"
@@ -14,10 +15,14 @@ fun think(me)
         me.side = 1
     }
 
-    var angry = me.hp < me.maxHp * p.angryAt
+    var angry = me.phase >= 1 or me.hp < me.maxHp * p.angryAt
     var rest = p.cooldown
 
-    if (angry)
+    if (me.phase >= 2)
+    {
+        rest = p.cooldown * 0.4
+    }
+    else if (angry)
     {
         rest = p.cooldown * 0.55
     }

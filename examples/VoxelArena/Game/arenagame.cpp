@@ -1400,7 +1400,7 @@ namespace arena
 
         // Paused while the spellbook is open, playing alone (a shared game goes on)
         if (not paused and not ((bookOpen or titleOpen or optionsOpen) and alone()))
-            accumulator += static_cast<double>(frameSeconds) * timeScale;
+            accumulator += static_cast<double>(frameSeconds) * timeScale * tuning.feel.gameSpeed;
 
         int steps = 0;
 
@@ -1760,6 +1760,16 @@ namespace arena
             v.bossPoise = boss->poise / std::max(1.0f, boss->maxPoise);
             const float angryAt = def != content.enemies.end() ? static_cast<float>(def->second.params.num("angryAt", 0.0)) : 0.0f;
             v.enraged = angryAt > 0.0f and v.bossHealth < angryAt;
+
+            // Its phases: lines on the bar, and while its shield is up, the crystals still standing
+            if (def != content.enemies.end() and def->second.phases.any())
+            {
+                v.bossPhases = def->second.phases.at;
+                v.bossShielded = boss->shielded;
+                if (boss->shielded)
+                    for (const auto& f : world.fighters)
+                        v.crystalsLeft += f.type == def->second.phases.crystal and f.alive() ? 1 : 0;
+            }
         }
 
         // The final duel: its name and a count down to the fight, then FIGHT
@@ -1828,7 +1838,8 @@ namespace arena
 
         // Something near, out of view: an arrow at the left or right edge, level with where it is
         auto point = [&](const glm::vec3& at, Hud::Marker::Kind kind, const std::string& name) {
-            if ((kind != Hud::Marker::Kind::Boss and glm::length(at - me->body.position) > 30.0f) or v.markers.size() >= 10)
+            const bool always = kind == Hud::Marker::Kind::Boss or kind == Hud::Marker::Kind::Crystal;
+            if ((not always and glm::length(at - me->body.position) > 30.0f) or v.markers.size() >= 10)
                 return;
 
             const glm::vec4 clip = proj * view * glm::vec4(at + glm::vec3(0, 0.8f, 0), 1.0f);
@@ -1870,8 +1881,18 @@ namespace arena
             point(m.position, kind, name);
         }
 
+        // A shielded boss's crystals, wherever they are (shown as crystals, not as new enemies)
+        const Fighter* shielded = world.run.bossId ? world.find(world.run.bossId) : nullptr;
+        auto bossDef = shielded ? content.enemies.find(shielded->type) : content.enemies.end();
+        const std::string crystal = bossDef != content.enemies.end() ? bossDef->second.phases.crystal : "";
+
+        if (shielded and shielded->shielded and not crystal.empty())
+            for (const auto& f : world.fighters)
+                if (f.type == crystal and f.alive())
+                    point(f.body.position, Hud::Marker::Kind::Crystal, "Crystal");
+
         for (const auto& ping : spawnPings)
-            if (const Fighter* f = world.find(ping.fighter))
+            if (const Fighter* f = world.find(ping.fighter); f and (crystal.empty() or f->type != crystal))
             {
                 const bool boss = f->id == world.run.bossId;
                 point(f->body.position, boss ? Hud::Marker::Kind::Boss : (f->elite ? Hud::Marker::Kind::Elite : Hud::Marker::Kind::Spawn), boss ? bossName(f->type) : "");
@@ -3996,6 +4017,8 @@ namespace arena
                 flash = glm::vec4(0.65f, 0.85f, 1.0f, charge >= 1.0f ? 0.55f + 0.2f * std::sin(simTime * 20.0f) : 0.15f + 0.4f * charge);
             else if (f.flash > 0)
                 flash = glm::vec4(1.0f, 1.0f, 1.0f, 0.85f * static_cast<float>(f.flash) / static_cast<float>(std::max(1, tuning.feel.hitFlashFrames)));
+            else if (f.shielded)
+                flash = glm::vec4(0.55f, 0.9f, 1.0f, 0.35f + 0.15f * std::sin(simTime * 6.0f));
             else if (look)
                 flash = glm::vec4(look->tint, heldStill(f) ? 0.6f : 0.32f + 0.12f * std::sin(simTime * 9.0f + static_cast<float>(f.id)));
             else if (attack and f.team == Team::Enemy and frame < attack->startup)
@@ -4192,6 +4215,54 @@ namespace arena
                                          glm::rotate(glm::mat4(1.0f), 45.0f * DEG, glm::vec3(0, 0, 1)) * glm::scale(glm::mat4(1.0f), glm::vec3(0.24f)) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f));
                 pushInstance(danger, view, marker, glm::vec4(1.0f, 0.2f, 0.12f, 0.6f + 0.35f * progress), glm::vec4(0.0f));
             }
+        }
+
+        // A shielded boss: a ring of light round its feet, and a beam to it from each crystal holding the shield
+        {
+            std::vector<float> rings, beams;
+
+            for (const auto& f : world.fighters)
+            {
+                auto def = f.shielded and f.alive() ? content.enemies.find(f.type) : content.enemies.end();
+                if (def == content.enemies.end())
+                    continue;
+
+                glm::vec3 pos = f.body.position;
+                if (auto it = previous.find(f.id); it != previous.end())
+                    pos = glm::mix(it->second.position, f.body.position, alpha);
+
+                const float pulse = 0.5f + 0.5f * std::sin(simTime * 6.0f);
+                const float r = std::max(f.body.width, 1.0f) * 1.4f;
+                const glm::vec4 light(0.55f, 0.9f, 1.0f, 1.0f);
+
+                if (seen.sees(pos, r))
+                    pushInstance(rings, view, glm::translate(glm::mat4(1.0f), pos + glm::vec3(0, 0.06f, 0)) * glm::scale(glm::mat4(1.0f), glm::vec3(r * 2.0f, 1.0f, r * 2.0f)),
+                                 glm::vec4(glm::vec3(light), 0.45f + 0.35f * pulse), glm::vec4(0.0f));
+
+                const glm::vec3 to = pos + glm::vec3(0, f.body.height * 0.6f, 0);
+                for (const auto& c : world.fighters)
+                {
+                    if (c.type != def->second.phases.crystal or not c.alive())
+                        continue;
+
+                    const glm::vec3 from = c.body.position + glm::vec3(0, c.body.height * 0.8f, 0);
+                    const glm::vec3 d = to - from;
+                    const float length = glm::length(d);
+                    if (length < 0.1f)
+                        continue;
+
+                    const glm::vec3 dir = d / length;
+                    const float yaw = std::atan2(dir.x, dir.z) / DEG;
+                    const float pitch = -std::asin(glm::clamp(dir.y, -1.0f, 1.0f)) / DEG;
+                    const float width = 0.06f + 0.03f * pulse;
+                    const glm::mat4 m = glm::translate(glm::mat4(1.0f), from) * rotY(yaw) * rotX(pitch) * glm::scale(glm::mat4(1.0f), glm::vec3(width, width, length)) *
+                                        glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f, -0.5f, 0.0f));
+                    pushInstance(beams, view, m, glm::vec4(glm::vec3(light), 0.35f + 0.3f * pulse), glm::vec4(glm::vec3(light), 0.6f));
+                }
+            }
+
+            add(ringMesh, debugMaterial, OpacityType::Normal, std::move(rings));
+            add(boxMesh, debugMaterial, OpacityType::Normal, std::move(beams));
         }
 
         // Spell zones: a disc on the ground in the element's colour (effects.json "zone:<element>"), fading at the end.
@@ -4494,7 +4565,7 @@ namespace arena
         {
             return "reload | tune <key> [value] | tunes [prefix] | spawn <enemy> [count] | clear | reset\n"
                    "place x y z <block|air> | fill x0 y0 z0 x1 y1 z1 <block|air>\n"
-                   "view [first|third] | weapon <id> | item <id|all> [rarity] | bot | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | map [arena] | training | difficulty <n> | wave <n> | duel | timeup | join <address> | leave | shards <n> | kill | options | mods | errors | warnings\n"
+                   "view [first|third] | weapon <id> | item <id|all> [rarity] | bot | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | map [arena] | training | difficulty <n> | wave <n> | duel | timeup | join <address> | leave | shards <n> | kill | hurt <damage> | options | mods | errors | warnings\n"
                    "scripted input: mouse [on|off] | click <x> <y> | hover <x> <y> | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
         }
 
@@ -4792,6 +4863,25 @@ namespace arena
             return std::to_string(n) + " enemies fall";
         }
 
+        if (cmd == "hurt")
+        {
+            // A blow from you on every enemy, as any blow lands: a boss stops at its phases, a shield takes nothing
+            if (not p or args.size() < 2)
+                return "hurt <damage>: a blow from you on every enemy";
+
+            AttackDef blow;
+            blow.name = "hurt";
+            blow.damage = std::max(0.0f, static_cast<float>(std::atof(args[1].c_str())));
+            int n = 0;
+            for (size_t i = 0; i < world.fighters.size(); ++i)
+                if (world.fighters[i].team == Team::Enemy and world.fighters[i].alive())
+                {
+                    world.applyHit(*p, world.fighters[i], blow);
+                    ++n;
+                }
+            return std::to_string(n) + " enemies hit";
+        }
+
         if (cmd == "shards")
         {
             if (not p or args.size() < 2)
@@ -4895,7 +4985,7 @@ namespace arena
         // The world belongs to the server: a client asking to change it would only change its own view
         if (client and (cmd == "reload" or cmd == "spawn" or cmd == "clear" or cmd == "reset" or cmd == "place" or cmd == "fill" or
                         cmd == "god" or cmd == "stamina" or cmd == "mana" or cmd == "ai" or cmd == "tune" or cmd == "wave" or cmd == "teleport" or cmd == "pause" or
-                        cmd == "step" or cmd == "slowmo" or cmd == "shards" or cmd == "timeup" or cmd == "kill" or cmd == "duel" or cmd == "item"))
+                        cmd == "step" or cmd == "slowmo" or cmd == "shards" or cmd == "timeup" or cmd == "kill" or cmd == "hurt" or cmd == "duel" or cmd == "item"))
             return cmd + ": only the host can do that";
 
         // Every machine must run the same content (the fingerprint): no reload once others have joined

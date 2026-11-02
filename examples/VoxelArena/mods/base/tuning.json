@@ -113,6 +113,8 @@
     },
 
     "feel": {
+        // The whole game's pace: every step plays this much slower (0.85) or faster, the same on every machine
+        "gameSpeed": 0.85,
         "hitFlashFrames": 7,
         "hitstopScale": 1.0,
         "shakeDecay": 2.2,

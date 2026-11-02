@@ -153,8 +153,16 @@ and enemies that come back), **O** for the options.
   mod's pieces come from `tools/make_looks.py`. Console: `item <id|all> [rarity]` gives you items.
 - **Bosses**: the **Brute Chieftain** on wave 10 (a brute twice the size: a slam, a stomp all around
   when crowded, a rush when you keep away) and the **Stone Warden** on wave 20 (a slam, a sweep all
-  around, a long charge, a thrown rock; volt cracks it, fire barely warms it, under half its health it
-  gets angry). A boss wave lasts until the boss falls, with fewer others around it.
+  around, a long charge, a thrown rock; volt cracks it, fire barely warms it). A boss wave lasts until
+  the boss falls, with fewer others around it. Each boss has **three phases**. At two thirds and at one
+  third of its health it shields itself (no hit takes it past that line), and crystals rise around the
+  arena: three for the Chieftain, four for the Warden. Arrows at the edge of the screen point to them.
+  While the shield is up nothing hurts it. Break every crystal and the shield falls and the boss reels.
+  It gets angrier with each phase. A boss has three quarters more health for each player past the first
+  (`bossCoopHealth`). A boss's `phases` in its enemy file sets this up.
+- **Stacked damage helps less and less**: extra damage from stat items counts in full up to +40%, then
+  less and less, never past about +207%. Tag items and mastery together work the same way, on their own
+  (`damageFalloff` in run.json). Enemies have 8% more health each wave.
 - **The final duel**, in multiplayer: after the last wave, instead of the victory at once, everyone for
   themselves. In the Crucible, everyone is back up at full in a ring around its middle, facing
   it; FINAL DUEL counts down 3 s (no one can hurt anyone yet), then FIGHT. Every hit, spell, arrow and
@@ -318,7 +326,8 @@ Each one is a JSON file in `mods/base/enemies/` and a pgscript brain in `mods/ba
 | Brute | Tank | Slow, tough, one big slam with a long wind-up. Smashes walls in its way. |
 | Archer | Ranged | Keeps 6 to 14 m away, backs off when you close in, moves sideways to find a line of fire when a block is in the way, shoots sooner while you are busy. |
 | Skulker | Flanker | Fast and weak. Goes round to your back while someone else holds your attention, bites when you cannot see it, backs off after each bite. |
-| Stone Warden | Boss | Slow and huge. Slams, sweeps all around once angry, charges from the middle distance, throws rocks when you keep away. Weak to volt, resists fire. |
+| Stone Warden | Boss | Slow and huge. Slams, sweeps all around once angry, charges from the middle distance, throws rocks when you keep away. Weak to volt, resists fire. Three phases, shielded by four crystals between them. |
+| Shield Crystal | Object | Rises around the arena when a boss shields itself. Never moves or fights. Break them all to drop the shield. |
 
 Scripts work as a group through what the game puts in `me`: `alliesNear`, `alliesAttacking`,
 `alliesNearTarget` (other enemies close to you) and `targetFacing` (0 = in front of you, 180 =
@@ -539,14 +548,14 @@ content API version the mod was written for. The API is unstable: a mismatch is 
 | `keywords.json` | the keywords of spells: forms (`shape`: bolt, zone, nova, beam) and modifiers | `mymod:<key>` |
 | `spells/<name>.json` | a ready-made spell: `name`, `text`, `recipe` (`["fire", "bolt", "zone"]`), `levels` (what each level after the first adds: `[["enlarge"], ["extend"]]`), `branches` (`name`, `text`, `keywords` added to the recipe, `tags`, `boost`) | `mymod:<name>` |
 | `upgrades.json` | the items of a run's shop: what a stat item adds (`maxHealth`, `damage`, `armor`, `crit`, `regen`, `pickupRange`, `dashCharges`, `horde`, `xpGain`, `shardChance`...) or a tag item does to everything of the player with its `tag` (`"boost": { "damage", "area", "cooldown", "cost", "duration", "speed", "count" }`), its `price`, how many one can have (`most`: none by default), the rarities it comes at (`tiers`: `["Rare"]`; none: any), its `look` | `mymod:<key>` |
-| `run.json` | the arena run: waves, spawn pools and `spawnScale`, elites, bosses, XP, the start kit and spells, `levelSkills`, `branchLevel`, `mastery`, `presents`, `intermission`, the shop (`priceScale`, `coopPrice`, `interest`, `rarities`), score, the `arenas` by wave and the duel's, the `difficulties` (each a `name`, `waves`, enemy `health`, `damage`, `healthGrowth`, `damageGrowth`, `spawn`, `eliteChance`; winning one opens the next) (the last mod with one wins) | |
+| `run.json` | the arena run: waves, spawn pools and `spawnScale`, elites, bosses, XP, the start kit and spells, `levelSkills`, `branchLevel`, `mastery`, `presents`, `intermission`, the shop (`priceScale`, `coopPrice`, `interest`, `rarities`), score, `damageFalloff`, `bossCoopHealth`, the `arenas` by wave and the duel's, the `difficulties` (each a `name`, `waves`, enemy `health`, `damage`, `healthGrowth`, `damageGrowth`, `spawn`, `eliteChance`; winning one opens the next) (the last mod with one wins) | |
 | `arenas/<name>.json` | an arena for the run: `name`, `size`, `shapes`, `scatter` (decorations sown by chance: `[{ "block", "on", "chance" }]`), `playerSpawn`, `centre`, `spawnRadius` | `mymod:<name>` |
 | `weapons/<name>.json` | a weapon and its moveset | `mymod:<name>` |
-| `enemies/<name>.json` | an enemy: stats, moveset, script, params | `mymod:<name>` |
+| `enemies/<name>.json` | an enemy: stats, moveset, script, params; a boss's `phases` (`at`, `crystal`, `crystals`, `radius`, `stagger`); `anchored`: nothing pushes it | `mymod:<name>` |
 | `models/<name>.vxl.json` | a voxel model (saved by the VoxelTest editor) | `mymod:<name>` |
 | `textures/<name>.png` | a block texture (16 x 16 pixel art, any square size works); see-through pixels are not drawn | `mymod:<name>` |
 | `scripts/<name>.pg` | an enemy brain | `mymod:<name>` |
-| `tuning.json` | numbers merged over the tuning of earlier mods | |
+| `tuning.json` | numbers merged over the tuning of earlier mods (`feel.gameSpeed`: the whole game's pace, 0.85 in the base mod) | |
 | `arena.json` | the training arena (the last mod with one wins) | |
 | `patches/*.json` | changes to content of other mods | |
 
@@ -660,6 +669,7 @@ Open with `` ` ``. `help` lists the commands.
 | `arena`, `training`, `wave <n>` | Start the arena run, go back to training, jump to a wave of the run (and its arena) |
 | `map [arena]` | Outside a run: the training ground becomes that arena (`map gorge`, `map training`); alone, the list |
 | `timeup`, `kill`, `shards <n>` | End the wave now (a boss wave: its boss falls), kill every enemy (they drop their shards), get shards (and their XP) |
+| `hurt <damage>` | Hit every enemy for that much, as a real hit lands (a boss stops at its phases, a shield takes nothing) |
 | `pacer [n\|off [fps]]` | The engine's update pacing: n updates per drawn frame (2 by default), or off (as fast as it can, or capped at fps) |
 
 Scripted input, for tests and for checking frame data: `mouse off` (ignore the real mouse and let go of the cursor), `click <x> <y>` (a click on the

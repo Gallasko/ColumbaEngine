@@ -261,7 +261,14 @@ namespace arena
 
         const float nameW = ui.textShadow(640, 18, v.bossName, Font::Display, 34, v.enraged ? BOSS_NAME_ENRAGED : TEXT, 3.0f, Align::Centre, 2.0f);
 
-        if (v.enraged)
+        if (v.bossShielded)
+        {
+            const float tx = 640.0f + nameW * 0.5f + 10.0f;
+            const float tw = std::ceil(ui.measure("SHIELDED", Font::Display, 18)) + 12.0f;
+            ui.rect(tx, 25, tw, 20, ICE);
+            ui.text(tx + 6, 26, "SHIELDED", Font::Display, 18, INK);
+        }
+        else if (v.enraged)
         {
             const float tx = 640.0f + nameW * 0.5f + 10.0f;
             const float tw = std::ceil(ui.measure("ENRAGED", Font::Display, 18)) + 12.0f;
@@ -270,7 +277,7 @@ namespace arena
         }
 
         ui.rect(339, 53, 602, 18, INK);
-        const Colour full = v.enraged ? BOSS_ENRAGED : BOSS;
+        const Colour full = v.bossShielded ? ICE : (v.enraged ? BOSS_ENRAGED : BOSS);
         const float filled = std::clamp(v.bossHealth, 0.0f, 1.0f) * 20.0f;
 
         for (int i = 0; i < 20; ++i)
@@ -282,9 +289,18 @@ namespace arena
                 ui.rect(x, 55, std::max(2.0f, std::round(28.0f * part)), 14, full);
         }
 
-        ui.rect(639, 49, 2, 26, TEXT);
+        // Where its phases begin (or, without any, the middle)
+        if (v.bossPhases.empty())
+            ui.rect(639, 49, 2, 26, TEXT);
+        for (float at : v.bossPhases)
+            ui.rect(std::round(339.0f + 602.0f * std::clamp(at, 0.0f, 1.0f)) - 1.0f, 49, 2, 26, TEXT);
+
         ui.rect(339, 75, 602, 3, withAlpha(INK, 0.7f));
         ui.rect(339, 75, std::round(602.0f * std::clamp(v.bossPoise, 0.0f, 1.0f)), 3, POISE);
+
+        if (v.bossShielded)
+            ui.textShadow(640, 84, v.crystalsLeft == 1 ? "Break the last crystal to drop its shield" : "Break the " + std::to_string(v.crystalsLeft) + " crystals to drop its shield",
+                          Font::Text700, 15, ICE, 2.0f, Align::Centre);
     }
 
     // ---- 4.5: the body --------------------------------------------------------------------------
@@ -616,14 +632,14 @@ namespace arena
         for (const auto& m : v.markers)
         {
             const auto itemScope = ui.scope(static_cast<uint64_t>(&m - v.markers.data()));
-            const Colour c = m.kind == Marker::Kind::Boss ? BOSS : (m.kind == Marker::Kind::Elite ? GOLD : WARNING);
+            const Colour c = m.kind == Marker::Kind::Boss ? BOSS : (m.kind == Marker::Kind::Crystal ? ICE : (m.kind == Marker::Kind::Elite ? GOLD : WARNING));
             const float y = std::clamp(m.y, 80.0f, 560.0f) - 17.0f;
 
             ui.anchor(m.right ? Anchor::Right : Anchor::Left);
             const float x = m.right ? 1280.0f - 12.0f - 35.0f : 12.0f;
             ui.icon(m.right ? "arrow_right" : "arrow_left", x, y, 5.0f, c, 2.0f);
 
-            if (m.kind == Marker::Kind::Boss and not m.name.empty())
+            if ((m.kind == Marker::Kind::Boss or m.kind == Marker::Kind::Crystal) and not m.name.empty())
             {
                 const std::string dist = std::to_string(static_cast<int>(std::round(m.distance))) + " m";
                 if (m.right)

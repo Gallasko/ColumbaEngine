@@ -19,7 +19,7 @@ namespace arena::net
             "volt_burst", "fire_nova", "ice_nova", "volt_nova", "fire_zone", "ice_zone", "volt_zone", "fire_beam", "ice_beam", "volt_beam",
             "run_start", "spawn_warn", "boss_warn", "spawn", "boss_spawn", "wave_clear", "run_victory", "run_defeat", "boon",
             "wave_start", "arena_reset", "arena_change", "despawn", "elite_warn", "pickup", "level_up", "buy", "crit", "present", "present_drop",
-            "difficulty_pick",
+            "difficulty_pick", "boss_shield", "shield_break", "shield_hit",
         };
 
         const char* const AI_MOVES[] = { "hold", "chase", "strafe", "retreat", "flank" };
@@ -607,6 +607,7 @@ namespace arena::net
 
         w.u8(static_cast<uint8_t>(std::clamp(f.chargeFrames, 0, 255)));   // a charge shows
         w.boolean(f.elite);
+        w.u8(static_cast<uint8_t>(std::clamp(f.phase, 0, 127)) | (f.shielded ? 0x80 : 0));   // a boss's phase, its shield
 
         // Statuses: they slow and they show
         w.u8(static_cast<uint8_t>(std::min<size_t>(f.statuses.size(), 16)));
@@ -766,6 +767,9 @@ namespace arena::net
 
         f.chargeFrames = r.u8();
         f.elite = r.boolean();
+        const uint8_t phase = r.u8();
+        f.phase = phase & 0x7F;
+        f.shielded = (phase & 0x80) != 0;
 
         f.statuses.clear();
         const uint8_t statuses = r.u8();

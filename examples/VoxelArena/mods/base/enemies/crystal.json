@@ -1,0 +1,20 @@
+// A crystal holding a boss's shield (see a boss's "phases"): it stands where it rose, never moves, never
+// fights back. Break every one of them and the shield falls.
+{
+    "name": "Shield Crystal",
+    "model": "crystal",
+    "modelScale": 0.125,
+    "size": [1.0, 2.2],
+
+    "health": 90,
+    "poise": 9999,
+    "knockbackScale": 0,
+    "anchored": true,
+
+    "walkSpeed": 0,
+    "turnSpeed": 0,
+    "respawnSeconds": 100000,
+
+    "score": 25,
+    "drops": 0
+}
