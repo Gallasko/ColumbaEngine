@@ -1536,7 +1536,7 @@ namespace arena
                 const Json& j = raw.data;
                 checkKeys(j, {"name", "text", "maxHealth", "damage", "dashCharges", "manaCost", "manaRegen", "staminaRegen", "speed", "cooldown", "lifeOnHit",
                               "statusStacks", "most", "armor", "crit", "pickupRange", "regen", "attackSpeed", "horde", "xpGain", "shardChance",
-                              "price", "tag", "boost", "look"},
+                              "price", "tag", "boost", "look", "tiers"},
                           raw.file, report, "boon " + id);
 
                 UpgradeDef u;
@@ -1564,6 +1564,17 @@ namespace arena
                 readNum(j, "xpGain", u.xpGain, raw.file, report);
                 readNum(j, "shardChance", u.shardChance, raw.file, report);
                 readInt(j, "price", u.price, raw.file, report);
+
+                // "tiers": ["Rare"]: it only comes at these rarities (checked against run.json's once it is read)
+                if (const Json* tiers = j.find("tiers"))
+                {
+                    if (tiers->isString())
+                        u.tiers.push_back(tiers->string);
+                    else
+                        for (const auto& t : tiers->array)
+                            if (t.isString())
+                                u.tiers.push_back(t.string);
+                }
 
                 // A tag item: "tag": "fire", "boost": { "damage": 0.2 }: for everything of the player with the tag
                 readStr(j, "tag", u.tag, raw.file, report);
@@ -1617,6 +1628,24 @@ namespace arena
                 }
 
                 content.upgrades[id] = u;
+            }
+        }
+
+        /** An item's tiers name the run's rarities. */
+        void checkTiers(Content& content)
+        {
+            for (auto& [id, u] : content.upgrades)
+            {
+                for (const auto& t : u.tiers)
+                    if (std::none_of(content.run.rarities.begin(), content.run.rarities.end(), [&](const RarityDef& r) { return r.name == t; }))
+                        content.report.error(content.raw["upgrade"][id].file, content.raw["upgrade"][id].data.line,
+                                             "boon \"" + id + "\": no rarity \"" + t + "\" in run.json's shop.rarities");
+
+                // None of them there: it comes at any
+                if (std::none_of(u.tiers.begin(), u.tiers.end(), [&](const std::string& t) {
+                        return std::any_of(content.run.rarities.begin(), content.run.rarities.end(), [&](const RarityDef& r) { return r.name == t; });
+                    }))
+                    u.tiers.clear();
             }
         }
 
@@ -2596,6 +2625,7 @@ namespace arena
         typeUpgrades(content);
         typeArenas(content);
         typeRun(content);
+        checkTiers(content);
         typeArena(content);
 
         if (content.tuning.isNull())

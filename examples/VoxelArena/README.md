@@ -134,8 +134,11 @@ and enemies that come back), **O** for the options.
   Hover a card: a tooltip lists what buying it changes, before -> after (your numbers, each spell's
   and technique's). Each item comes at a **rarity**: Common, Rare (x1.5 its numbers), Epic (x2.1),
   Legendary (x3), shown by the card's colour, dearer the rarer; rarer ones come up more as the run
-  goes on (`run.json` `shop.rarities`). They add up through the run. **Prices** start at half and end
-  at one and a half times the written ones (`shop.priceScale`). **Interest**: the shards you keep
+  goes on (`run.json` `shop.rarities`). They add up through the run, with no limit: an item stops
+  coming only once one more would do nothing (armor at 70%, cooldowns and spell costs 70% off, crit at
+  100%), or for the few with a `most` (dash charges, status stacks, speed, attack speed, projectiles,
+  horde). Some come at one rarity only (`tiers`): Split shot, Nimble and Potent, whose +1 a rarity does not
+  make bigger, are always Rare. **Prices** start at half and end at one and a half times the written ones (`shop.priceScale`). **Interest**: the shards you keep
   through a shop grow by the next one as much as the prices did, so what you could buy and did not,
   you still can (shown under your shards). **Greed** (each shard of a kill may come with one more) adds
   up across the players with diminishing returns (`run.json` `shardFalloff`: a total of +100% counts as
@@ -529,7 +532,7 @@ content API version the mod was written for. The API is unstable: a mismatch is 
 | `elements.json` | the elements of spells: `name`, `status`, `mana` (fire, ice, volt) | `mymod:<key>` |
 | `keywords.json` | the keywords of spells: forms (`shape`: bolt, zone, nova, beam) and modifiers | `mymod:<key>` |
 | `spells/<name>.json` | a ready-made spell: `name`, `text`, `recipe` (`["fire", "bolt", "zone"]`), `levels` (what each level after the first adds: `[["enlarge"], ["extend"]]`), `branches` (`name`, `text`, `keywords` added to the recipe, `tags`, `boost`) | `mymod:<name>` |
-| `upgrades.json` | the items of a run's shop: what a stat item adds (`maxHealth`, `damage`, `armor`, `crit`, `regen`, `pickupRange`, `dashCharges`, `horde`, `xpGain`, `shardChance`...) or a tag item does to everything of the player with its `tag` (`"boost": { "damage", "area", "cooldown", "cost", "duration", "speed", "count" }`), its `price`, how many one can have (`most`) | `mymod:<key>` |
+| `upgrades.json` | the items of a run's shop: what a stat item adds (`maxHealth`, `damage`, `armor`, `crit`, `regen`, `pickupRange`, `dashCharges`, `horde`, `xpGain`, `shardChance`...) or a tag item does to everything of the player with its `tag` (`"boost": { "damage", "area", "cooldown", "cost", "duration", "speed", "count" }`), its `price`, how many one can have (`most`: none by default), the rarities it comes at (`tiers`: `["Rare"]`; none: any), its `look` | `mymod:<key>` |
 | `run.json` | the arena run: waves, spawn pools and `spawnScale`, elites, bosses, XP, the start kit and spells, `levelSkills`, `branchLevel`, `mastery`, `presents`, `intermission`, the shop (`priceScale`, `interest`, `rarities`), score, the `arenas` by wave and the duel's, the `difficulties` (each a `name`, `waves`, enemy `health`, `damage`, `healthGrowth`, `damageGrowth`, `spawn`, `eliteChance`; winning one opens the next) (the last mod with one wins) | |
 | `arenas/<name>.json` | an arena for the run: `name`, `size`, `shapes`, `scatter` (decorations sown by chance: `[{ "block", "on", "chance" }]`), `playerSpawn`, `centre`, `spawnRadius` | `mymod:<name>` |
 | `weapons/<name>.json` | a weapon and its moveset | `mymod:<name>` |

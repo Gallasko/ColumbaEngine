@@ -586,6 +586,8 @@ namespace arena
         void takeBoon(Fighter& f, const Fighter::Boon& boon);
         /** What a fighter's boons add up to (from its list: a client works it out the same way). */
         void sumBoons(Fighter& f) const;
+        /** Whether one more of an item would do nothing for a player: every number of it at its cap (armor, cooldowns, costs, crit). */
+        bool itemMaxed(const Fighter& f, const UpgradeDef& item) const;
         /** What a rarity multiplies an item's numbers by (the run's rarities; 1 without). */
         float rarityPower(int rarity) const;
 

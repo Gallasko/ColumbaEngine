@@ -1,7 +1,12 @@
 // The items of an arena run: the shop sells them between waves (for `price` shards, times run.json's
 // shop.priceScale for the wave and the item's rarity), and a present gives one free. Their numbers add up with each one
-// taken (most: how many one can have in a run). damage 0.15 is 15% more, manaCost 0.15 is 15% cheaper
-// spells, cooldown 0.2 is 20% shorter skill and spell cooldowns, speed 0.08 is 8% faster, armor 0.06
+// taken, with no limit: an item stops coming only when one more would do nothing (armor at 70%, cooldowns and spell
+// costs 70% off, crit at 100%; a tag item's cooldown and cost 80% off). most: how many one can have in a run, for
+// the few where more would break the game (dash charges, status stacks, speed, attack speed, projectiles, horde).
+// tiers: the rarities it comes at (run.json shop.rarities, by name; none: any). The items of whole numbers (a dash
+// charge, a status stack, a projectile) are not made bigger by a rarity: they come as Rare only.
+// damage 0.15 is 15% more, manaCost 0.15 is 15% cheaper spells, cooldown 0.2 is 20% shorter skill and spell
+// cooldowns, speed 0.08 is 8% faster, armor 0.06
 // takes 6% off the damage taken (70% at most), crit 0.06 is a 6% chance of a hit doing twice the
 // damage, pickupRange in metres, regen in health a second, attackSpeed 0.1 makes the weapon's light and
 // heavy attacks 10% quicker (their frames fewer, their lunges as far). horde 0.15 brings 15% more enemies,
@@ -15,43 +20,43 @@
 // voxels in m, 0.0625 by default) }, or a list of them; or a gem circling the player: { "orbit": [r, g, b] }.
 // The base mod's pieces are made by tools/make_looks.py, which prints where they go.
 {
-    "tough":      { "name": "Tough",        "text": "+25 max health",                       "maxHealth": 25,     "most": 5, "price": 10,
+    "tough":      { "name": "Tough",        "text": "+25 max health",                       "maxHealth": 25,     "price": 10,
                     "look": [{ "model": "look_pauldron", "part": "arm_r", "at": [0.25, 11, 2.5] }, { "model": "look_pauldron", "part": "arm_l", "at": [6.75, 11, 2.5] }] },
-    "keen":       { "name": "Keen edge",    "text": "+15% damage on all attacks and spells", "damage": 0.15,      "most": 5, "price": 14,
+    "keen":       { "name": "Keen edge",    "text": "+15% damage on all attacks and spells", "damage": 0.15,      "price": 14,
                     "look": { "model": "look_bracer", "part": "arm_r", "at": [0.25, 6, 2.5] } },
-    "nimble":     { "name": "Nimble",       "text": "+1 dash charge",                        "dashCharges": 1,    "most": 2, "price": 20,
+    "nimble":     { "name": "Nimble",       "text": "+1 dash charge",                        "dashCharges": 1,    "most": 3, "price": 14, "tiers": ["Rare"],
                     "look": [{ "model": "look_wing", "part": "leg_r", "at": [0.75, 1, 1.75] }, { "model": "look_wing", "part": "leg_l", "at": [6.25, 1, 1.75] }] },
-    "focus":      { "name": "Focus",        "text": "Spells cost 15% less",                  "manaCost": 0.15,    "most": 3, "price": 12,
+    "focus":      { "name": "Focus",        "text": "Spells cost 15% less",                  "manaCost": 0.15,    "price": 12,
                     "look": { "model": "look_gem", "part": "head", "at": [3.5, 13.75, 5.25] } },
-    "wellspring": { "name": "Wellspring",   "text": "+40% mana regeneration",                "manaRegen": 0.4,    "most": 3, "price": 12,
+    "wellspring": { "name": "Wellspring",   "text": "+40% mana regeneration",                "manaRegen": 0.4,    "price": 12,
                     "look": { "model": "look_flask", "part": "body", "at": [5.25, 5, 0.75] } },
-    "second_wind":{ "name": "Second wind",  "text": "+35% stamina regeneration",             "staminaRegen": 0.35,"most": 3, "price": 10,
+    "second_wind":{ "name": "Second wind",  "text": "+35% stamina regeneration",             "staminaRegen": 0.35,"price": 10,
                     "look": { "model": "look_scarf", "part": "body", "at": [3.5, 8.25, 2.5] } },
-    "swift":      { "name": "Swift",        "text": "+8% move speed",                        "speed": 0.08,       "most": 3, "price": 12,
+    "swift":      { "name": "Swift",        "text": "+8% move speed",                        "speed": 0.08,       "most": 5, "price": 12,
                     "look": [{ "model": "look_knee", "part": "leg_r", "at": [2, 3, 4.25] }, { "model": "look_knee", "part": "leg_l", "at": [5, 3, 4.25] }] },
-    "quick":      { "name": "Quick hands",  "text": "-20% cooldown on all skills and spells", "cooldown": 0.2,     "most": 2, "price": 18,
+    "quick":      { "name": "Quick hands",  "text": "-20% cooldown on all skills and spells", "cooldown": 0.2,     "price": 18,
                     "look": { "model": "look_hourglass", "part": "body", "at": [5, 5, 4.25] } },
-    "leech":      { "name": "Leech",        "text": "Heal 2 on every hit",                   "lifeOnHit": 2,      "most": 3, "price": 16,
+    "leech":      { "name": "Leech",        "text": "Heal 2 on every hit",                   "lifeOnHit": 2,      "price": 16,
                     "look": { "model": "look_fangs", "part": "body", "at": [3.5, 9, 4.5] } },
-    "potent":     { "name": "Potent",       "text": "Your statuses land 1 stack deeper",     "statusStacks": 1,   "most": 2, "price": 18,
+    "potent":     { "name": "Potent",       "text": "Your statuses land 1 stack deeper",     "statusStacks": 1,   "most": 2, "price": 13, "tiers": ["Rare"],
                     "look": { "model": "look_vial", "part": "body", "at": [1.75, 5.25, 4.25] } },
-    "plated":     { "name": "Plated",       "text": "Take 6% less damage",                   "armor": 0.06,       "most": 5, "price": 12,
+    "plated":     { "name": "Plated",       "text": "Take 6% less damage",                   "armor": 0.06,       "price": 12,
                     "look": { "model": "look_plate", "part": "body", "at": [3.5, 7, 4.25] } },
-    "precise":    { "name": "Precise",      "text": "+6% chance of a double damage hit",     "crit": 0.06,        "most": 5, "price": 12,
+    "precise":    { "name": "Precise",      "text": "+6% chance of a double damage hit",     "crit": 0.06,        "price": 12,
                     "look": { "model": "look_monocle", "part": "head", "at": [2.5, 11.5, 5.25] } },
-    "magnet":     { "name": "Magnet",       "text": "Pick up shards 1.5 m further",          "pickupRange": 1.5,  "most": 3, "price": 6,
+    "magnet":     { "name": "Magnet",       "text": "Pick up shards 1.5 m further",          "pickupRange": 1.5,  "price": 6,
                     "look": { "model": "look_magnet", "part": "body", "at": [3.5, 8, 0.75] } },
-    "mending":    { "name": "Mending",      "text": "Regenerate 0.6 health a second",        "regen": 0.6,        "most": 4, "price": 12,
+    "mending":    { "name": "Mending",      "text": "Regenerate 0.6 health a second",        "regen": 0.6,        "price": 12,
                     "look": { "model": "look_bandage", "part": "arm_l", "at": [6.5, 6, 2.5] } },
-    "frenzy":     { "name": "Frenzy",       "text": "+10% attack speed",                     "attackSpeed": 0.1,  "most": 4, "price": 14,
+    "frenzy":     { "name": "Frenzy",       "text": "+10% attack speed",                     "attackSpeed": 0.1,  "most": 6, "price": 14,
                     "look": { "model": "look_headband", "part": "head", "at": [3.5, 12.5, 2.5] } },
 
     // More risk, more reward: more enemies, and more out of each one
-    "horde":      { "name": "Horde",        "text": "15% more enemies come",                 "horde": 0.15,       "most": 3, "price": 8,
+    "horde":      { "name": "Horde",        "text": "15% more enemies come",                 "horde": 0.15,       "most": 5, "price": 8,
                     "look": { "model": "look_horns", "part": "head", "at": [3.5, 15, 2.5] } },
-    "scholar":    { "name": "Scholar",      "text": "+15% XP from each shard",               "xpGain": 0.15,      "most": 4, "price": 12,
+    "scholar":    { "name": "Scholar",      "text": "+15% XP from each shard",               "xpGain": 0.15,      "price": 12,
                     "look": { "model": "look_book", "part": "body", "at": [3.5, 6.25, 0.5] } },
-    "greed":      { "name": "Greed",        "text": "Enemies drop 7% more shards",           "shardChance": 0.07, "most": 3, "price": 14,
+    "greed":      { "name": "Greed",        "text": "Enemies drop 7% more shards",           "shardChance": 0.07, "price": 14,
                     "look": { "model": "look_pouch", "part": "body", "at": [3.25, 5.25, 4.25] } },
 
     // Tag items: a boost for every spell and technique of yours with the tag. Spells have "spell", their
@@ -61,18 +66,18 @@
     // "support"), its type ("sword") and "projectile" when they shoot (they take damage, area and
     // projectile speed, not more projectiles). A boost: damage, area, cooldown, cost (mana or stamina), duration, speed (projectile
     // speed), count (more projectiles: not scaled by rarity). Offered only when something of yours has the tag.
-    "searing":    { "name": "Searing",      "tag": "fire",       "boost": { "damage": 0.2 },   "most": 4, "price": 12, "look": { "orbit": [255, 106, 61] } },
-    "frostbite":  { "name": "Frostbite",    "tag": "ice",        "boost": { "damage": 0.2 },   "most": 4, "price": 12, "look": { "orbit": [158, 232, 255] } },
-    "overcharge": { "name": "Overcharge",   "tag": "volt",       "boost": { "damage": 0.2 },   "most": 4, "price": 12, "look": { "orbit": [255, 225, 74] } },
-    "split_shot": { "name": "Split shot",   "tag": "projectile", "boost": { "count": 1 },      "most": 3, "price": 24, "look": { "orbit": [232, 232, 240] } },
-    "fleet":      { "name": "Fleet",        "tag": "projectile", "boost": { "speed": 0.25 },   "most": 2, "price": 8, "look": { "orbit": [156, 240, 122] } },
-    "widening":   { "name": "Widening",     "tag": "area",       "boost": { "area": 0.2 },     "most": 3, "price": 12, "look": { "orbit": [255, 160, 74] } },
-    "lingering":  { "name": "Lingering",    "tag": "zone",       "boost": { "duration": 0.3 }, "most": 3, "price": 10, "look": { "orbit": [176, 122, 255] } },
-    "hastened":   { "name": "Hastened",     "tag": "spell",      "boost": { "cooldown": 0.15 },"most": 3, "price": 14, "look": { "orbit": [106, 168, 255] } },
-    "frugal":     { "name": "Frugal",       "tag": "spell",      "boost": { "cost": 0.2 },     "most": 3, "price": 10, "look": { "orbit": [90, 224, 200] } },
-    "honed":      { "name": "Honed",        "tag": "melee",      "boost": { "damage": 0.2 },   "most": 4, "price": 12, "look": { "orbit": [208, 72, 72] } },
-    "whetstone":  { "name": "Whetstone",    "tag": "attack",     "boost": { "damage": 0.15 },  "most": 4, "price": 12, "look": { "orbit": [168, 176, 192] } },
-    "drilled":    { "name": "Drilled",      "tag": "technique",  "boost": { "cooldown": 0.15 },"most": 3, "price": 14, "look": { "orbit": [200, 240, 80] } },
-    "tireless":   { "name": "Tireless",     "tag": "technique",  "boost": { "cost": 0.2 },     "most": 3, "price": 10, "look": { "orbit": [240, 192, 80] } },
-    "blessed":    { "name": "Blessed",      "tag": "heal",       "boost": { "damage": 0.25 },  "most": 3, "price": 12, "look": { "orbit": [255, 184, 224] } }
+    "searing":    { "name": "Searing",      "tag": "fire",       "boost": { "damage": 0.2 },   "price": 12, "look": { "orbit": [255, 106, 61] } },
+    "frostbite":  { "name": "Frostbite",    "tag": "ice",        "boost": { "damage": 0.2 },   "price": 12, "look": { "orbit": [158, 232, 255] } },
+    "overcharge": { "name": "Overcharge",   "tag": "volt",       "boost": { "damage": 0.2 },   "price": 12, "look": { "orbit": [255, 225, 74] } },
+    "split_shot": { "name": "Split shot",   "tag": "projectile", "boost": { "count": 1 },      "most": 3, "price": 17, "tiers": ["Rare"], "look": { "orbit": [232, 232, 240] } },
+    "fleet":      { "name": "Fleet",        "tag": "projectile", "boost": { "speed": 0.25 },   "most": 4, "price": 8, "look": { "orbit": [156, 240, 122] } },
+    "widening":   { "name": "Widening",     "tag": "area",       "boost": { "area": 0.2 },     "price": 12, "look": { "orbit": [255, 160, 74] } },
+    "lingering":  { "name": "Lingering",    "tag": "zone",       "boost": { "duration": 0.3 }, "price": 10, "look": { "orbit": [176, 122, 255] } },
+    "hastened":   { "name": "Hastened",     "tag": "spell",      "boost": { "cooldown": 0.15 },"price": 14, "look": { "orbit": [106, 168, 255] } },
+    "frugal":     { "name": "Frugal",       "tag": "spell",      "boost": { "cost": 0.2 },     "price": 10, "look": { "orbit": [90, 224, 200] } },
+    "honed":      { "name": "Honed",        "tag": "melee",      "boost": { "damage": 0.2 },   "price": 12, "look": { "orbit": [208, 72, 72] } },
+    "whetstone":  { "name": "Whetstone",    "tag": "attack",     "boost": { "damage": 0.15 },  "price": 12, "look": { "orbit": [168, 176, 192] } },
+    "drilled":    { "name": "Drilled",      "tag": "technique",  "boost": { "cooldown": 0.15 },"price": 14, "look": { "orbit": [200, 240, 80] } },
+    "tireless":   { "name": "Tireless",     "tag": "technique",  "boost": { "cost": 0.2 },     "price": 10, "look": { "orbit": [240, 192, 80] } },
+    "blessed":    { "name": "Blessed",      "tag": "heal",       "boost": { "damage": 0.25 },  "price": 12, "look": { "orbit": [255, 184, 224] } }
 }

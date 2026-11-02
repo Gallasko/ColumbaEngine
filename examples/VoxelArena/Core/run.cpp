@@ -76,6 +76,37 @@ namespace arena
         }
     }
 
+    bool ArenaWorld::itemMaxed(const Fighter& f, const UpgradeDef& u) const
+    {
+        // The caps the game puts on them (armor 70%, cooldowns and costs 70% off for a stat item, 80% for a tag's, crit 100%)
+        bool more = false;
+        auto capped = [&](float amount, float has, float cap) {
+            if (amount > 0.0f and has < cap - 1e-4f)
+                more = true;
+        };
+
+        if (u.forTag())
+        {
+            const SpellTweak& b = u.boost;
+            const SpellTweak has = tagBoost(f, {u.tag});
+            capped(b.cooldown, has.cooldown, 0.8f);
+            capped(b.cost, has.cost, 0.8f);
+            more = more or b.damage > 0.0f or b.area > 0.0f or b.duration > 0.0f or b.speed > 0.0f or b.count > 0;
+            return not more;
+        }
+
+        capped(u.armor, f.boon.armor, 0.7f);
+        capped(u.cooldown, f.boon.cooldown, 0.7f);
+        capped(u.manaCost, f.boon.manaCost, 0.7f);
+        capped(u.crit, f.boon.crit, 1.0f);
+
+        // Any other number always does a little more
+        more = more or u.maxHealth > 0.0f or u.damage > 0.0f or u.dashCharges > 0 or u.manaRegen > 0.0f or u.staminaRegen > 0.0f or
+               u.speed > 0.0f or u.lifeOnHit > 0.0f or u.statusStacks > 0 or u.pickupRange > 0.0f or u.regen > 0.0f or u.attackSpeed > 0.0f or
+               u.horde > 0.0f or u.xpGain > 0.0f or u.shardChance > 0.0f;
+        return not more;
+    }
+
     float ArenaWorld::rarityPower(int rarity) const
     {
         const auto& rarities = content->run.rarities;
@@ -1038,7 +1069,7 @@ namespace arena
 
         for (const auto& [id, u] : content->upgrades)
         {
-            if (taken(id) >= u.most or offered(id))
+            if ((u.most > 0 and taken(id) >= u.most) or offered(id) or itemMaxed(f, u))
                 continue;
             if (u.forTag() and std::find(tags.begin(), tags.end(), u.tag) == tags.end())
                 continue;
@@ -1069,23 +1100,30 @@ namespace arena
         for (size_t i = open.size(); i > 1; --i)
             std::swap(open[i - 1], open[runRandom() % i]);
 
-        // Each item's rarity: rarer ones come up more as the waves go on
+        // Each item's rarity, among the ones it comes at: rarer ones come up more as the waves go on
         const int rarities = static_cast<int>(def.rarities.size());
-        auto rollRarity = [&]() {
+        auto rollRarity = [&](const UpgradeDef& u) {
+            auto weight = [&](int k) { return u.comesAt(def.rarities[static_cast<size_t>(k)].name) ? def.rarityWeight(k, run.wave) : 0.0f; };
+
             float total = 0.0f;
+            int first = -1;
             for (int k = 0; k < rarities; ++k)
-                total += def.rarityWeight(k, run.wave);
+            {
+                total += weight(k);
+                if (first < 0 and u.comesAt(def.rarities[static_cast<size_t>(k)].name))
+                    first = k;
+            }
             if (total <= 0.0f)
-                return 0;
+                return std::max(0, first);
 
             float roll = static_cast<float>(runRandom() % 100000) / 100000.0f * total;
             for (int k = 0; k < rarities; ++k)
             {
-                roll -= def.rarityWeight(k, run.wave);
-                if (roll < 0.0f)
+                roll -= weight(k);
+                if (roll < 0.0f and weight(k) > 0.0f)
                     return k;
             }
-            return 0;
+            return std::max(0, first);
         };
 
         std::vector<Fighter::ShopOffer> out;
@@ -1095,7 +1133,7 @@ namespace arena
             if (static_cast<int>(out.size()) >= n)
                 break;
 
-            const int rarity = o.item ? rollRarity() : 0;
+            const int rarity = o.item ? rollRarity(content->upgrades.at(o.id)) : 0;
             const float rarityPrice = o.item and rarity < static_cast<int>(def.rarities.size()) ? def.rarities[static_cast<size_t>(rarity)].price : 1.0f;
             Fighter::ShopOffer offer;
             offer.id = o.id;

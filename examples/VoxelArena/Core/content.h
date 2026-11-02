@@ -581,7 +581,10 @@ namespace arena
         SpellTweak boost;
         bool forTag() const { return not tag.empty(); }
 
-        int most = 3;                 // bought at most this many times in a run (a spell item: for each spell)
+        int most = 0;                 // bought at most this many times in a run (0: no limit; it stops when it would do nothing more)
+        std::vector<std::string> tiers;   // the rarities (run.json shop.rarities, by name) it comes at; none: any
+        /** Whether it may come at a rarity of the run. */
+        bool comesAt(const std::string& rarity) const { return tiers.empty() or std::find(tiers.begin(), tiers.end(), rarity) != tiers.end(); }
         int price = 10;               // in shards, at the shop (it goes up with the waves)
     };
 

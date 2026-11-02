@@ -1661,6 +1661,78 @@ TEST(arena_run, each_player_keeps_what_they_did_for_the_recap)
     EXPECT_EQ(r.player().stats.items, 0);
 }
 
+TEST(arena_run, items_have_no_limit_until_one_more_would_do_nothing)
+{
+    RunArena r;
+    r.world.startRun(9);
+    Fighter& p = r.player();
+
+    auto offered = [&](const std::string& id) {
+        for (int k = 0; k < 200; ++k)
+        {
+            r.world.rollShop(p);
+            for (const auto& o : p.shop)
+                if (o.id == id)
+                    return true;
+        }
+        return false;
+    };
+
+    // Tough has no limit: still in the shop after ten
+    for (int k = 0; k < 10; ++k)
+        r.world.takeBoon(p, {"base:tough"});
+    EXPECT_TRUE(offered("base:tough"));
+
+    // Armor stops at 70%: past it, Plated no longer comes
+    EXPECT_TRUE(offered("base:plated"));
+    while (p.boon.armor < 0.7f)
+        r.world.takeBoon(p, {"base:plated"});
+    EXPECT_TRUE(r.world.itemMaxed(p, r.content.upgrades.at("base:plated")));
+    EXPECT_FALSE(offered("base:plated"));
+
+    // A limit written in the item still holds
+    const int most = r.content.upgrades.at("base:nimble").most;
+    ASSERT_GT(most, 0);
+    for (int k = 0; k < most; ++k)
+        r.world.takeBoon(p, {"base:nimble"});
+    EXPECT_FALSE(offered("base:nimble"));
+}
+
+TEST(arena_run, an_item_with_tiers_only_comes_at_those_rarities)
+{
+    RunArena r;
+    r.world.startRun(9);
+    r.world.skipToWave(r.world.run.waves);   // the rarer ones are likeliest at the end
+    Fighter& p = r.player();
+
+    ASSERT_EQ(r.content.upgrades.at("base:split_shot").tiers, std::vector<std::string>({"Rare"}));
+    int rare = -1;
+    for (size_t k = 0; k < r.content.run.rarities.size(); ++k)
+        if (r.content.run.rarities[k].name == "Rare")
+            rare = static_cast<int>(k);
+    ASSERT_GE(rare, 0);
+
+    // Split shot needs something that shoots: a bow
+    r.world.chooseWeapon(p, "base:bow");
+    int seen = 0, others = 0;
+    for (int k = 0; k < 400; ++k)
+    {
+        r.world.rollShop(p);
+        for (const auto& o : p.shop)
+        {
+            if (o.id == "base:split_shot")
+            {
+                ++seen;
+                EXPECT_EQ(o.rarity, rare);
+            }
+            else if (o.rarity != rare)
+                ++others;
+        }
+    }
+    EXPECT_GT(seen, 0);
+    EXPECT_GT(others, 0);   // the rest still come at every rarity
+}
+
 TEST(arena_run, scholar_gives_more_xp_per_shard_and_greed_more_shards)
 {
     RunArena r;
