@@ -254,7 +254,68 @@ var paths = [
     {id: "renegade", name: "The Greenwood", flag: "renegade"}
 ]
 
-var activities = [
+// The rows that answer each event, by its id. The rows a run makes answer none
+fun answersIn(rows)
+{
+    var answers = {}
+
+    for (var w = 0; w < len(rows); w++)
+    {
+        var answering = lookup(rows[w], "event", "")
+
+        if (answering != "")
+        {
+            if (not contain(answers, answering))
+            {
+                answers[answering] = []
+            }
+
+            push(answers[answering], rows[w])
+        }
+    }
+
+    return answers
+}
+
+// What doing each activity closes, by its id: the names of the rows whose `unless` names it, in
+// the table's order. Read off once: asked of every row about every other, it was most of the run
+// (a `closedBy` for each pair). The rows a run makes shut nothing
+fun closersOf(rows)
+{
+    var closers = {}
+
+    for (var cr = 0; cr < len(rows); cr++)
+    {
+        var closerRow = rows[cr]
+
+        if (contain(closerRow, "unless"))
+        {
+            var closerIds = asList(closerRow.unless)
+            var closerSeen = {}
+
+            for (var cu = 0; cu < len(closerIds); cu++)
+            {
+                var closedId = closerIds[cu]
+
+                if (not contain(closerSeen, closedId))
+                {
+                    closerSeen[closedId] = true
+
+                    if (not contain(closers, closedId))
+                    {
+                        closers[closedId] = []
+                    }
+
+                    push(closers[closedId], closerRow.name)
+                }
+            }
+        }
+    }
+
+    return closers
+}
+
+constexpr activityRows = [
     // His sixth year, the opening of every life: short works, a month or two each, that shape
     // him before the town's own work is his at seven. The first four come one at a time
     // (`showAfter`), in every life: a first one has its guide to walk it through them. What he
@@ -1305,16 +1366,16 @@ var activities = [
     // What is left to an old man, whatever he was: nothing closes it, and it asks nothing. Listed
     // a year before his prime ends, so its last months, too short for any other work, are never
     // without something to do
-    {id: "tales", group: "Old age", name: "Tell Tales at the Inn", glyph: "town", months: 2, rank: "", each: "RATIONS UP FRONT", path: "", board: true, fromAge: lastAge - 1, finishBy: anyAge,
+    {id: "tales", group: "Old age", name: "Tell Tales at the Inn", glyph: "town", months: 2, rank: "", each: "RATIONS UP FRONT", path: "", board: true, fromAge: 0, finishBy: anyAge,
      about: "Your knees are tired, but your stories aren't. The inn feeds whoever keeps the fire company.",
      gains: [{stat: "coin", amount: 2}],
      requires: [],
      bonus: [{stat: "town.inn", fromAge: 26}]},
-    {id: "garden", group: "Old age", name: "Tend a Garden", glyph: "work", months: 3, rank: "", each: "", path: "", fromAge: lastAge - 1, fromMonths: 4, finishBy: anyAge,
+    {id: "garden", group: "Old age", name: "Tend a Garden", glyph: "work", months: 3, rank: "", each: "", path: "", fromAge: 0, fromMonths: 4, finishBy: anyAge,
      about: "A small patch of beans and cabbages behind the house. It feeds you a little, and asks very little of you.",
      gains: [{stat: "rations", amount: 4}],
      requires: []},
-    {id: "teach", group: "Old age", name: "Teach the Young", glyph: "academy", months: 4, rank: "", each: "", path: "", fromAge: lastAge - 1, fromMonths: 8, finishBy: anyAge,
+    {id: "teach", group: "Old age", name: "Teach the Young", glyph: "academy", months: 4, rank: "", each: "", path: "", fromAge: 0, fromMonths: 8, finishBy: anyAge,
      about: "The young come to hear what you know, and their parents pay a few coins for it.",
      gains: [{stat: "coin", amount: 6}],
      requires: [],
@@ -1356,7 +1417,11 @@ for (var z = 0; z < len(walkZones); z++)
                     gains: [], requires: entriesCopied(zone.requires), bonus: sooner})
 }
 
-var tabled = activities
+var tabled = activityRows
+
+// The work of old age opens by the end of his prime, which is not the same in every life: the table
+// says 0 and the run sets it, a year from there
+var fromPrimeEnd = {tales: -1, garden: -1, teach: -1}
 var walksPlaced = false
 
 // What he gathers by hand stands right after the last of the Work rows. Each is a copy, with its
@@ -1501,7 +1566,7 @@ var drying = {id: "dry.berries", group: "Scavenge", name: "Dry berries", glyph: 
               gains: [{stat: "rations", amount: 1}], requires: [],
               costs: [{stat: "berries", amount: 3}]}
 
-activities = []
+var tabledAll = []
 
 for (var t = 0; t < len(tabled); t++)
 {
@@ -1509,36 +1574,44 @@ for (var t = 0; t < len(tabled); t++)
     {
         for (var w = 0; w < len(walkRows); w++)
         {
-            push(activities, walkRows[w])
+            push(tabledAll, walkRows[w])
         }
 
         walksPlaced = true
     }
 
-    push(activities, tabled[t])
+    var row = tabled[t]
+
+    if (contain(fromPrimeEnd, row.id))
+    {
+        row = copy(row)
+        row.fromAge = lastAge + fromPrimeEnd[row.id]
+    }
+
+    push(tabledAll, row)
 
     if (t == lastWork)
     {
         for (var s = 0; s < len(scavenges); s++)
         {
-            push(activities, scavenges[s])
+            push(tabledAll, scavenges[s])
         }
 
-        push(activities, drying)
+        push(tabledAll, drying)
 
         for (var s = 0; s < len(storeCopies); s++)
         {
-            push(activities, storeCopies[s])
+            push(tabledAll, storeCopies[s])
         }
 
         for (var s = 0; s < len(bindCopies); s++)
         {
-            push(activities, bindCopies[s])
+            push(tabledAll, bindCopies[s])
         }
 
         for (var s = 0; s < len(drawCopies); s++)
         {
-            push(activities, drawCopies[s])
+            push(tabledAll, drawCopies[s])
         }
     }
 }
@@ -1547,7 +1620,7 @@ if (not walksPlaced)
 {
     for (var w = 0; w < len(walkRows); w++)
     {
-        push(activities, walkRows[w])
+        push(tabledAll, walkRows[w])
     }
 }
 
@@ -1560,7 +1633,7 @@ for (var w = 0; w < len(walkItems); w++)
 
     if (thing.kind == "sold")
     {
-        push(activities, {id: "sell." + thing.id, group: "Market", name: "Sell " + toLowerCase(thing.name), glyph: "gold", months: 0, rank: "", each: "AT THE MARKET", path: "",
+        push(tabledAll, {id: "sell." + thing.id, group: "Market", name: "Sell " + toLowerCase(thing.name), glyph: "gold", months: 0, rank: "", each: "AT THE MARKET", path: "",
                           finishBy: anyAge, showFrom: 100 / thing.lot, place: "market", trade: "sell",
                           gains: [{stat: "coin", amount: thing.coin}],
                           requires: [{stat: thing.id, label: thing.name + " to sell", needed: thing.lot}],
@@ -1577,7 +1650,7 @@ for (var b = 0; b < len(basicResources); b++)
 
     if (lookup(basic, "lot", 0) > 0)
     {
-        push(activities, {id: "sell." + basic.id, group: "Market", name: "Sell " + toLowerCase(basic.name), glyph: "gold", months: 0, rank: "", each: "AT THE MARKET", path: "",
+        push(tabledAll, {id: "sell." + basic.id, group: "Market", name: "Sell " + toLowerCase(basic.name), glyph: "gold", months: 0, rank: "", each: "AT THE MARKET", path: "",
                           finishBy: anyAge, showFrom: 100 / basic.lot, place: "market", trade: "sell",
                           gains: [{stat: "coin", amount: basic.coin}],
                           requires: [{stat: basic.id, label: basic.name + " to sell", needed: basic.lot}],
@@ -1585,7 +1658,7 @@ for (var b = 0; b < len(basicResources); b++)
 
         if (lookup(basic, "price", 0) > 0)
         {
-            push(activities, {id: "buy." + basic.id, group: "Market", name: "Buy " + toLowerCase(basic.name), glyph: basic.glyph, months: 0, rank: "", each: "AT THE MARKET", path: "",
+            push(tabledAll, {id: "buy." + basic.id, group: "Market", name: "Buy " + toLowerCase(basic.name), glyph: basic.glyph, months: 0, rank: "", each: "AT THE MARKET", path: "",
                               finishBy: anyAge, showFrom: 100, place: "market", trade: "buy",
                               gains: [{stat: basic.id, amount: basic.lot}],
                               requires: [{stat: "town_known", label: "The town"}],
@@ -1595,21 +1668,21 @@ for (var b = 0; b < len(basicResources); b++)
 }
 
 // And wortleaf is what a remedy is made of
-push(activities, {id: "brew.remedy", group: "Market", name: "Brew a remedy", glyph: "vitality", months: 0, rank: "", each: "FROM WORTLEAF", path: "",
+push(tabledAll, {id: "brew.remedy", group: "Market", name: "Brew a remedy", glyph: "vitality", months: 0, rank: "", each: "FROM WORTLEAF", path: "",
                   finishBy: anyAge, showFrom: 100, place: "market", trade: "make",
                   gains: [{stat: "remedy", amount: 1}],
                   requires: [{stat: "wortleaf", label: "Wortleaf to brew"}],
                   costs: [{stat: "wortleaf", amount: 2}, {stat: "water", amount: 1}]})
 
 // What a fight spends: a fire flask mixed of firewood a walk brought home, and the chapel's oil
-push(activities, {id: "brew.flask", group: "Market", name: "Mix a fire flask", glyph: "magic", months: 0, rank: "", each: "FROM FIREWOOD", path: "",
+push(tabledAll, {id: "brew.flask", group: "Market", name: "Mix a fire flask", glyph: "magic", months: 0, rank: "", each: "FROM FIREWOOD", path: "",
                   finishBy: anyAge, showFrom: 100, place: "market", trade: "make",
                   about: "Firewood burned down to tar in a clay bottle, and a rag to light it. Thrown in a fight, it burns whatever it breaks on, hide or no hide.",
                   gains: [{stat: "flask", amount: 1}],
                   requires: [{stat: "firewood", label: "Firewood to mix"}],
                   costs: [{stat: "firewood", amount: 2}, {stat: "coin", amount: 2}]})
 
-push(activities, {id: "buy.oil", group: "Market", name: "Buy blessed oil", glyph: "relic", months: 0, rank: "", each: "FROM THE CHAPEL", path: "",
+push(tabledAll, {id: "buy.oil", group: "Market", name: "Buy blessed oil", glyph: "relic", months: 0, rank: "", each: "FROM THE CHAPEL", path: "",
                   finishBy: anyAge, showFrom: 100, place: "market", trade: "buy", onlyWith: "walked.millpond",
                   about: "A small flask the chapel blesses for travellers. On a blade, every blow of the fight is holy.",
                   gains: [{stat: "oil", amount: 1}],
@@ -1635,7 +1708,7 @@ for (var g = 0; g < len(gearPieces); g++)
         forgeRow.onlyWith = piece.forge.onlyWith
     }
 
-    push(activities, forgeRow)
+    push(tabledAll, forgeRow)
 }
 
 // The works that raise a place of the town, one a level, made from towntable.pg: the scene lists
@@ -1676,7 +1749,7 @@ for (var t = 0; t < len(townPlaces); t++)
             says = "COSTS " + toString(step.years) + " YEARS"
         }
 
-        push(activities, {id: "raise." + place.id + "." + toString(l + 1), group: "The town", name: step.work, glyph: place.glyph, months: step.months, rank: "", each: says, path: "",
+        push(tabledAll, {id: "raise." + place.id + "." + toString(l + 1), group: "The town", name: step.work, glyph: place.glyph, months: step.months, rank: "", each: says, path: "",
                           finishBy: anyAge, raises: place.id, level: l + 1, years: lookup(step, "years", 0),
                           gains: [], requires: [], costs: asked})
     }
@@ -1723,7 +1796,7 @@ for (var k : done)
 // The table by id, now that it is whole: what a row says of another (the event it is shut by,
 // what it follows, a window's activity) is looked up here rather than searched for. The first of
 // an id, as a search would find it
-var activityById = indexBy(activities, "id")
+var rowById = indexBy(tabledAll, "id")
 
 // The events he has stood by in this life (lib.pg's `lifeEvents`: he holds the flag of each
 // since the month resources.pg settled it), and what each has shut: the id of a row -> the line
@@ -1734,22 +1807,7 @@ var warnsOf = {}
 
 // The answers of each event, by its id, in the table's order: gathered once rather than searched
 // for in the whole table by every event
-var answersOf = {}
-
-for (var w = 0; w < len(activities); w++)
-{
-    var answering = lookup(activities[w], "event", "")
-
-    if (answering != "")
-    {
-        if (not contain(answersOf, answering))
-        {
-            answersOf[answering] = []
-        }
-
-        push(answersOf[answering], activities[w])
-    }
-}
+constexpr answersOf = answersIn(activityRows)
 
 for (var e = 0; e < len(lifeEvents); e++)
 {
@@ -1800,7 +1858,7 @@ for (var e = 0; e < len(lifeEvents); e++)
 
     for (var s = 0; s < len(ev.shuts); s++)
     {
-        var shutRow = lookup(activityById, ev.shuts[s], {id: ""})
+        var shutRow = lookup(rowById, ev.shuts[s], {id: ""})
 
         if (shutRow.id == "")
         {
@@ -1840,9 +1898,9 @@ for (var e = 0; e < len(lifeEvents); e++)
 var waysLeft = false
 var entering = false
 
-for (var w = 0; w < len(activities); w++)
+for (var w = 0; w < len(tabledAll); w++)
 {
-    var way = activities[w]
+    var way = tabledAll[w]
 
     if (lookup(way, "enters", false))
     {
@@ -1858,57 +1916,23 @@ for (var w = 0; w < len(activities); w++)
     }
 }
 
-// The forecast asks after one activity: only that one is shaped. The table whole, as it is
-// written, stays in `tabledAll`: for what one activity says of another (its `unless`)
-var tabledAll = activities
+// What doing each activity closes, by its id: read off the table once
+constexpr shutNames = closersOf(activityRows)
 
-// What doing each activity closes, by its id: the names of the rows whose `unless` names it, in
-// the table's order. Read off once a run: asked of every row about every other, it was most of
-// the run (a `closedBy` for each pair)
-var shutNames = {}
+// What is shaped below is written on copies: the table as it is written stays in `tabledAll`, for
+// what one activity says of another (its `unless`), and in `rowById`. The forecast asks after one
+// activity: only that one is copied and shaped
+var activities = []
 
-for (var cr = 0; cr < len(tabledAll); cr++)
+for (var i = 0; i < len(tabledAll); i++)
 {
-    var closerRow = tabledAll[cr]
-
-    if (contain(closerRow, "unless"))
+    if (activityId == "" or tabledAll[i].id == activityId)
     {
-        var closerIds = asList(closerRow.unless)
-        var closerSeen = {}
-
-        for (var cu = 0; cu < len(closerIds); cu++)
-        {
-            var closedId = closerIds[cu]
-
-            if (not contain(closerSeen, closedId))
-            {
-                closerSeen[closedId] = true
-
-                if (not contain(shutNames, closedId))
-                {
-                    shutNames[closedId] = []
-                }
-
-                push(shutNames[closedId], closerRow.name)
-            }
-        }
+        push(activities, deepCopy(tabledAll[i]))
     }
 }
 
-if (activityId != "")
-{
-    var shaped = []
-
-    for (var i = 0; i < len(activities); i++)
-    {
-        if (activities[i].id == activityId)
-        {
-            push(shaped, activities[i])
-        }
-    }
-
-    activities = shaped
-}
+var activityById = indexBy(activities, "id")
 
 // What each activity still asks of this character
 for (var i = 0; i < len(activities); i++)
@@ -2530,11 +2554,11 @@ for (var i = 0; i < len(activities); i++)
 
         for (var b = 0; b < len(befores); b++)
         {
-            if (not contain(activityById, befores[b]))
+            if (not contain(rowById, befores[b]))
             {
                 push(errors, "activity " + a.id + ": follows unknown activity " + befores[b])
             }
-            else if (not behindHim(activityById, befores[b], done, lived, lastAge) and not has(barredBy, befores[b]))
+            else if (not behindHim(rowById, befores[b], done, lived, lastAge) and not has(barredBy, befores[b]))
             {
                 a.listed = false
             }
