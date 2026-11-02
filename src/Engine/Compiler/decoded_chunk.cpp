@@ -473,8 +473,11 @@ namespace pg
 
         // A store consumer is either the fused OP_Set_Local_Pop (legacy
         // bytecode) or the plain OP_Set_Local + OP_Pop pair the compiler
-        // emits now that the bytecode-level fusion passes are gone.
-        struct StoreConsumer { bool found = false; uint8_t dst = 0; size_t len = 0; };
+        // emits now that the bytecode-level fusion passes are gone. That Pop may
+        // have merged with those of the locals a body ends on: the store then
+        // takes one off the PopN that stays (`popN`: its index, 0 for none). A
+        // jump landing on it comes with all of it to pop, so it is left whole.
+        struct StoreConsumer { bool found = false; uint8_t dst = 0; size_t len = 0; size_t popN = 0; };
         auto storeConsumerAt = [&](size_t idx) -> StoreConsumer {
             if (idx >= n)
                 return {};
@@ -484,6 +487,12 @@ namespace pg
                 and im[idx].originalOpcode == static_cast<uint8_t>(OpCode::OP_Set_Local)
                 and im[idx + 1].originalOpcode == static_cast<uint8_t>(OpCode::OP_Pop))
                 return {true, in[idx].operands.byte, 2};
+            if (idx + 1 < n
+                and im[idx].originalOpcode == static_cast<uint8_t>(OpCode::OP_Set_Local)
+                and im[idx + 1].originalOpcode == static_cast<uint8_t>(OpCode::OP_PopN)
+                and in[idx + 1].operands.byte >= 2
+                and not isTarget(idx + 1))
+                return {true, in[idx].operands.byte, 1, idx + 1};
             return {};
         };
 
@@ -514,6 +523,7 @@ namespace pg
             // indexed-access sweep. 0xFF = unknown (scan barrier).
             uint8_t winPops = 0xFF;
             uint8_t winPushes = 0xFF;
+            size_t  reducedPopN = 0; // StoreConsumer::popN of the store taken
 
             auto stackSrcCount = [](Src a, Src b) -> uint8_t {
                 return static_cast<uint8_t>((a == Src::Stack ? 1 : 0)
@@ -539,6 +549,7 @@ namespace pg
                         fusedName = compoundFusionName(op, compoundB);
                         winPops = (compoundB == Src::Stack) ? 1 : 0;
                         winPushes = 0;
+                        reducedPopN = sc.popN;
                         return true;
                     }
                     if (buildBinary(op, a, b, Sink::Store, sc.dst, fused))
@@ -547,6 +558,7 @@ namespace pg
                         fusedName = fusionName(op, a.kind, b.kind, Sink::Store);
                         winPops = stackSrcCount(a.kind, b.kind);
                         winPushes = 0;
+                        reducedPopN = sc.popN;
                         return true;
                     }
                 }
@@ -686,19 +698,23 @@ namespace pg
             }
 
             // F) bare Set_Local + Pop → the existing op_set_local_pop_decoded
-            //    handler (replaces the removed SetLocalPopFusion bytecode pass)
-            if (windowLen == 0 and i + 1 < n
-                and im[i].originalOpcode == static_cast<uint8_t>(OpCode::OP_Set_Local)
-                and im[i + 1].originalOpcode == static_cast<uint8_t>(OpCode::OP_Pop)
-                and windowSafe(i, 2))
+            //    handler (replaces the removed SetLocalPopFusion bytecode pass),
+            //    the Set_Local alone when its Pop merged into a PopN
+            if (windowLen == 0 and im[i].originalOpcode == static_cast<uint8_t>(OpCode::OP_Set_Local))
             {
-                fused = DecodedInstruction{};
-                fused.decodedHandler = op_set_local_pop_decoded;
-                fused.operands.byte = in[i].operands.byte;
-                windowLen = 2;
-                winPops = 1;
-                winPushes = 0;
-                fusedName = internFusionName("FUSED_SetLocalPop");
+                const StoreConsumer sc = storeConsumerAt(i);
+
+                if (sc.found and windowSafe(i, sc.len))
+                {
+                    fused = DecodedInstruction{};
+                    fused.decodedHandler = op_set_local_pop_decoded;
+                    fused.operands.byte = in[i].operands.byte;
+                    windowLen = sc.len;
+                    winPops = 1;
+                    winPushes = 0;
+                    reducedPopN = sc.popN;
+                    fusedName = internFusionName("FUSED_SetLocalPop");
+                }
             }
 
             // G) Short_Int slot + Post_Incr/Decr_Local → fused in-place local
@@ -725,9 +741,57 @@ namespace pg
                 }
             }
 
-            // --- Emit -------------------------------------------------------
-            if (windowLen >= 2)
+            // H) Pop or PopN + the increment G fuses. A `continue` lands on the
+            //    increment, after popping for itself: windowSafe then keeps them
+            //    apart. A Pop right after a Set_Index is the one fuseIndexedAccess
+            //    absorbs (of a PopN, it takes one off the count). The release can
+            //    run anything a Pop can: a barrier for that sweep, as the Pop is.
+            const bool plainPop = im[i].originalOpcode == static_cast<uint8_t>(OpCode::OP_Pop);
+            const bool popN = im[i].originalOpcode == static_cast<uint8_t>(OpCode::OP_PopN);
+            if (windowLen == 0 and i + 2 < n and (popN or plainPop)
+                and not (plainPop and i > 0 and im[i - 1].originalOpcode == static_cast<uint8_t>(OpCode::OP_Set_Index))
+                and im[i + 1].originalOpcode == static_cast<uint8_t>(OpCode::OP_Short_Int)
+                and windowSafe(i, 3))
             {
+                const uint8_t next = im[i + 2].originalOpcode;
+                const bool incr = (next == static_cast<uint8_t>(OpCode::OP_Post_Incr_Local));
+                const bool decr = (next == static_cast<uint8_t>(OpCode::OP_Post_Decr_Local));
+                if (incr or decr)
+                {
+                    fused = DecodedInstruction{};
+                    fused.decodedHandler = incr ? &fusedPopIncrDecrLocal<true>
+                                                : &fusedPopIncrDecrLocal<false>;
+                    fused.operands.indexed.byte1 = in[i + 1].operands.byte; // slot
+                    fused.operands.indexed.byte2 = popN ? in[i].operands.byte : 1;
+                    windowLen = 3;
+                    fusedName = internFusionName(incr ? "FUSED_Pop+IncrLocal"
+                                                      : "FUSED_Pop+DecrLocal");
+                }
+            }
+
+            // I) Get_Local + Get_Property → a read of the field through the slot.
+            //    Its effect stays unknown: __get may run, the indexed sweep must
+            //    stop here.
+            if (windowLen == 0 and p1 == Producer::Local and i + 1 < n
+                and im[i + 1].originalOpcode == static_cast<uint8_t>(OpCode::OP_Get_Property)
+                and windowSafe(i, 2))
+            {
+                fused = DecodedInstruction{};
+                fused.decodedHandler = &fusedGetPropertyLocal;
+                fused.propertyCache = in[i + 1].propertyCache;
+                fused.operands.indexed.byte1 = in[i].operands.byte; // slot
+                windowLen = 2;
+                fusedName = internFusionName("FUSED_GetProperty(L)");
+            }
+
+            // --- Emit -------------------------------------------------------
+            // (a store whose Pop is in a PopN: one instruction, the Set_Local alone)
+            if (windowLen >= 2 or reducedPopN != 0)
+            {
+                // Not reached yet: it is read from `in` with its new count
+                if (reducedPopN != 0)
+                    decoded->instructions[reducedPopN].operands.byte -= 1;
+
                 const size_t newIdx = outI.size();
                 for (size_t k = 0; k < windowLen; ++k)
                     oldToNew[i + k] = newIdx;
@@ -965,19 +1029,37 @@ namespace pg
 
                 // Write access: handle below index + value; the generic
                 // Set_Index leaves the handle on the stack for the trailing
-                // Pop — both are absorbed by the fused form.
-                if (plain and op == OpCode::OP_Set_Index and depth == 2
+                // Pop — both are absorbed by the fused form. A Pop merged with
+                // those of the locals that follow comes off their count.
+                const bool setIndex = plain and op == OpCode::OP_Set_Index and depth == 2
                     and ins[j].decodedHandler == &op_set_index_decoded
-                    and j + 1 < n
-                    and im[j + 1].fusedLength < 2
-                    and static_cast<OpCode>(im[j + 1].originalOpcode) == OpCode::OP_Pop
-                    and not isTarget(j + 1))
+                    and j + 1 < n and not isTarget(j + 1);
+
+                const bool lonePop = setIndex and im[j + 1].fusedLength < 2
+                    and static_cast<OpCode>(im[j + 1].originalOpcode) == OpCode::OP_Pop;
+
+                uint8_t* popCount = nullptr;
+
+                if (setIndex and ins[j + 1].decodedHandler == &op_pop_n_decoded)
+                    popCount = &ins[j + 1].operands.byte;
+                else if (setIndex and (ins[j + 1].decodedHandler == &fusedPopIncrDecrLocal<true>
+                                       or ins[j + 1].decodedHandler == &fusedPopIncrDecrLocal<false>))
+                    popCount = &ins[j + 1].operands.indexed.byte2;
+
+                if (lonePop or (popCount != nullptr and *popCount >= 2))
                 {
                     ins[j].decodedHandler = &fusedSetIndexLocal;
                     ins[j].operands.indexed.byte1 = slot;
                     im[j].fusedName = internFusionName("FUSED_SetIndex(L,S,S)");
-                    ins[j + 1].decodedHandler = &fusedElidedProducer;
-                    im[j + 1].fusedName = internFusionName("ELIDED_Pop");
+
+                    if (lonePop)
+                    {
+                        ins[j + 1].decodedHandler = &fusedElidedProducer;
+                        im[j + 1].fusedName = internFusionName("ELIDED_Pop");
+                    }
+                    else
+                        *popCount -= 1;
+
                     ins[i].decodedHandler = &fusedElidedProducer;
                     im[i].fusedName = internFusionName("ELIDED_Producer");
                     ++rewrites;

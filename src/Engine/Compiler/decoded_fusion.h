@@ -314,6 +314,32 @@ namespace fusion
         return next;
     }
 
+    // r.x with r in a local: the slot keeps the instance alive, so it is neither retained nor
+    // released and never goes through the stack. Only a field this read has learned the slot of is
+    // done here; any other shape, a proxy, __get, a method or what is no instance delegates to the
+    // generic handler with an OWNED handle on the stack, which it consumes (and whose frame, for
+    // __get, resumes after this instruction). That may run script code: this read is a barrier
+    // for fuseIndexedAccess, as the Get_Property it replaces.
+    inline const DecodedInstruction* fusedGetPropertyLocal(VM* vm, const DecodedInstruction& instr)
+    {
+        const Value target = vm->currentFrame->slots[instr.operands.indexed.byte1];
+
+        if (IS_INSTANCE(target))
+        {
+            ObjInstance* instance = vm->asInstance(target);
+            const PropertyCache* cache = instr.propertyCache;
+
+            if (cache->shape != nullptr and instance->layout() == cache->shape and instance->proxyMeta == nullptr)
+            {
+                vm->push(vm->retainValue(instance->fieldValue(cache->slot)));
+                return &instr + 1;
+            }
+        }
+
+        vm->push(vm->retainValue(target));
+        return op_get_property_decoded(vm, instr);
+    }
+
     // ------------------------------------------------------------------
     // Source readers
     // ------------------------------------------------------------------
@@ -587,6 +613,21 @@ namespace fusion
         val = newValue;
 
         return &instr + 1;
+    }
+
+    // The Pop or PopN that ends a loop's body with its locals (byte2 of them),
+    // then the loop's increment: one dispatch for both.
+    template <bool Increment>
+    const DecodedInstruction* fusedPopIncrDecrLocal(VM* vm, const DecodedInstruction& instr)
+    {
+        for (uint8_t left = instr.operands.indexed.byte2; left > 0; --left)
+        {
+            const Value popped = vm->pop();
+            if (requiresRefCount(popped))
+                vm->releaseAndDelete(popped);
+        }
+
+        return fusedIncrDecrLocal<Increment>(vm, instr);
     }
 
     // Unary over a local (Const/ShortInt inputs are constant-folded by the
