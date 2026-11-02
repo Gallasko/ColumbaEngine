@@ -863,6 +863,23 @@ namespace arena
 
         for (const auto& p : presses)
         {
+            // The debug layers, over any screen (a menu eats every other key); not while a key is being rebound
+            if ((p.scancode == SDL_SCANCODE_F1 or p.scancode == SDL_SCANCODE_F2) and not (controlsOpen and not rebinding.empty()))
+            {
+                if (p.repeat)
+                    continue;
+
+                if (p.scancode == SDL_SCANCODE_F1)
+                {
+                    showOverlay = not showOverlay;
+                    prefs.overlay = showOverlay;
+                    saveOptions(optionsPath(), prefs);
+                }
+                else
+                    showBoxes = not showBoxes;
+                continue;
+            }
+
             if (p.scancode == SDL_SCANCODE_GRAVE and not p.repeat)
             {
                 consoleOpen = not consoleOpen;
@@ -1140,12 +1157,6 @@ namespace arena
 
             switch (p.scancode)
             {
-                case SDL_SCANCODE_F1:
-                    showOverlay = not showOverlay;
-                    prefs.overlay = showOverlay;
-                    saveOptions(optionsPath(), prefs);
-                    break;
-                case SDL_SCANCODE_F2: showBoxes = not showBoxes; break;
                 case SDL_SCANCODE_F5: print(runCommand("reload")); break;
                 // Esc: the options, and the game waits (alone); Esc again goes back. Left Alt held frees the mouse
                 case SDL_SCANCODE_ESCAPE: setOptionsOpen(true); break;
