@@ -61,9 +61,8 @@ namespace pg
             int64_t outOf(const std::string& name, bool wholeProgram)
             {
                 EntitySystem ecs;
-                ecs.setVMOptimizationLevel(VmOptimizationLevel::O3);
+                ecs.setVMOptimizationLevel(wholeProgram ? VmOptimizationLevel::O3 : VmOptimizationLevel::O2);
                 ecs.setVMFrontEnd(ScriptFrontEnd::Ast);
-                ecs.setWholeProgramAnalysis(wholeProgram);
 
                 VM vm;
                 ecs.setupVm(vm);

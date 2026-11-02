@@ -1714,7 +1714,7 @@ int main(int argc, char* argv[])
     if (argc < 3)
     {
         std::fprintf(stderr, "usage: ChronicleSolver <rules dir> <solver.pg> [args...] [threads=N]\n");
-        std::fprintf(stderr, "       CHRONICLE_SOLVER_ANALYSIS=1 compiles the rules and <solver.pg> with the whole-program analysis\n");
+        std::fprintf(stderr, "       CHRONICLE_SOLVER_ANALYSIS=0 compiles the rules and <solver.pg> without the whole-program analysis (O2)\n");
         return 2;
     }
 
@@ -1734,9 +1734,9 @@ int main(int argc, char* argv[])
     host->rulesDir = argv[1];
     host->scriptPath = argv[2];
 
-    // The analysis costs a compile: on only when asked
-    if (const char* analysis = std::getenv("CHRONICLE_SOLVER_ANALYSIS"))
-        host->ecs.setWholeProgramAnalysis(std::string(analysis) == "1");
+    // The whole-program analysis is on, as everywhere: CHRONICLE_SOLVER_ANALYSIS=0 to compare without it
+    if (const char* analysis = std::getenv("CHRONICLE_SOLVER_ANALYSIS"); analysis and std::string(analysis) == "0")
+        host->ecs.setVMOptimizationLevel(VmOptimizationLevel::O2);
 
     // As the CLI hands them: 0 the program, 1 the script, then the user's
     host->argv.push_back(argv[0]);

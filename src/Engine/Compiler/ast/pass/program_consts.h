@@ -4,9 +4,8 @@
  * @file program_consts.h
  * @brief AST pass: what the whole program shows to be made once, read before any pass rewrites it.
  *
- * Runs first, and only for an ahead-of-time compile (EntitySystem::setWholeProgramAnalysis), so
- * that the analysis and what it decides see the same statements. For the script compiled and every
- * module it imports (ast::ProgramEffects):
+ * Runs first, at O3 only (VmOptimizationLevel), so that the analysis and what it decides see the
+ * same statements. For the script compiled and every module it imports (ast::ProgramEffects):
  *
  * - A top-level `var` the program defines once, never rebinds and never writes into, made of what
  *   is the same on every run, is a const (VariableStatement::inferredConst).

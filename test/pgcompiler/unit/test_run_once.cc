@@ -165,16 +165,15 @@ namespace pg
                     std::ofstream((dir / name).string()) << text;
 
                 EntitySystem ecs;
-                ecs.setVMOptimizationLevel(VmOptimizationLevel::O3);
+                ecs.setVMOptimizationLevel(analysis ? VmOptimizationLevel::O3 : VmOptimizationLevel::O2);
                 ecs.setVMFrontEnd(ScriptFrontEnd::Ast);
-                ecs.setWholeProgramAnalysis(analysis);
 
                 const std::string compiled = (dir / "out.pgc").string();
 
                 if (not precompiled.empty())
                 {
                     EntitySystem plain;
-                    plain.setVMOptimizationLevel(VmOptimizationLevel::O3);
+                    plain.setVMOptimizationLevel(VmOptimizationLevel::O2);
                     plain.setVMFrontEnd(ScriptFrontEnd::Ast);
 
                     VM compiler;
@@ -536,6 +535,46 @@ namespace pg
 
             EXPECT_EQ(threeRuns({{"main.pg", source}}, false, {"out"}), expected);
             EXPECT_EQ(threeRuns({{"main.pg", source}}, true, {"out"}), expected);
+        }
+
+        TEST(ProgramConstsPass, TheDefaultLevelHasTheAnalysisAndO2DoesNot)
+        {
+            // The fill joins the const at O3 and runs once; at O2 it runs on every run
+            const auto twoRuns = [](bool setO2)
+            {
+                namespace fs = std::filesystem;
+                const fs::path tmp = fs::temp_directory_path() / ("pg_run_once_" + std::to_string(counter.fetch_add(1)) + ".pgc");
+
+                EntitySystem ecs;
+                ecs.setVMFrontEnd(ScriptFrontEnd::Ast);
+
+                if (setO2)
+                    ecs.setVMOptimizationLevel(VmOptimizationLevel::O2);
+
+                {
+                    VM compiler;
+                    ecs.setupVm(compiler);
+                    EXPECT_EQ(compiler.interpretFromText("const count = {n: 0}\ncount.n = count.n + 1\nvar out = count.n\n", true, tmp.string()), InterpretResult::OK);
+                }
+
+                std::ifstream in(tmp, std::ios::binary);
+                const std::vector<char> bytes{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+                in.close();
+                fs::remove(tmp);
+
+                VM vm;
+                ecs.setupVm(vm);
+                ObjFunction* fn = vm.prepareCachedFunction(bytes, "levels");
+                EXPECT_NE(fn, nullptr);
+
+                EXPECT_EQ(vm.runPreparedFunction(fn, 0, "levels"), InterpretResult::OK);
+                EXPECT_EQ(vm.runPreparedFunction(fn, 0, "levels"), InterpretResult::OK);
+
+                return AS_INT(vm.findGlobal("out"));
+            };
+
+            EXPECT_EQ(twoRuns(false), 1);
+            EXPECT_EQ(twoRuns(true), 2);
         }
 
         TEST(ProgramConstsPass, NothingRunsBeforeAFunctionItCalls)

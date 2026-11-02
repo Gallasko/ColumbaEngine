@@ -22,8 +22,8 @@ int main(int argc, char* argv[])
 
     pg::EntitySystem ecs;
 
-    // The whole-program analysis is what the shipped rules are compiled with; off only for timing
-    ecs.setWholeProgramAnalysis(argc == 3);
+    // O3, with the whole-program analysis, is what the shipped rules are compiled with; off only for timing
+    ecs.setVMOptimizationLevel(argc == 3 ? pg::VmOptimizationLevel::O3 : pg::VmOptimizationLevel::O2);
     std::vector<std::string> errors;
 
     if (not chronicle::precompileRules(&ecs, argv[1], argv[2], errors))

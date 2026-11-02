@@ -40,6 +40,9 @@ extern std::unordered_map<std::string, size_t> _systemExecutionCounts;
 
 namespace pg
 {
+    // O2 is every pass that reads one file at a time. O3, the default, also reads the whole program
+    // for what it never changes (ProgramConstsPass): a program that counts on a const filled after
+    // its definition being filled again on every run compiles at O2
     enum class VmOptimizationLevel
     {
         O0 = 0,
@@ -884,9 +887,6 @@ namespace pg
             vmOptimizationLevel = level;
         }
 
-        // Whether the scripts' compile reads the whole program for what it never changes (ProgramConstsPass)
-        inline void setWholeProgramAnalysis(bool on) { wholeProgramAnalysis = on; }
-
         /**
          * @brief Select the compiler front-end (Pratt or AST) used by every
          * VM this ECS sets up, including ScriptRegistry compilations.
@@ -1086,8 +1086,6 @@ namespace pg
         std::atomic<bool> stopRequested{false};
 
         VmOptimizationLevel vmOptimizationLevel = VmOptimizationLevel::O3;
-
-        bool wholeProgramAnalysis = false;
 
         ScriptFrontEnd vmFrontEnd = ScriptFrontEnd::Ast;
 

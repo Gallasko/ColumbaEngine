@@ -1097,8 +1097,10 @@ namespace pg
 
     void EntitySystem::setOptimizationPasses(VM &vm)
     {
-        if (vmOptimizationLevel == VmOptimizationLevel::O3)
+        if (vmOptimizationLevel >= VmOptimizationLevel::O2)
         {
+            const bool wholeProgramAnalysis = vmOptimizationLevel == VmOptimizationLevel::O3;
+
             vm.enableBytecodeOptimization();
 
             // Operand-elision specialization (the old BasicOperatorLocal-
@@ -1136,8 +1138,7 @@ namespace pg
 
             // AST-level passes: only run on the AST front-end path (between
             // parse and emission); the Pratt front-end never sees them.
-            // What the whole program makes once, read before anything rewrites it (ahead-of-time
-            // compiles only: ProgramConstsPass)
+            // What the whole program makes once, read before anything rewrites it
             if (wholeProgramAnalysis)
                 vm.addAstPass(std::make_unique<ProgramConstsPass>());
 
