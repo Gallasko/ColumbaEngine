@@ -70,6 +70,7 @@ namespace pg
             auto begin() const { return items.begin(); }
             auto end() const { return items.end(); }
             size_t size() const { return items.size(); }
+            bool operator<(const ObjectSet& other) const { return items < other.items; }
             bool empty() const { return items.empty(); }
 
             size_t count(analysis::LocId object) const;
@@ -212,6 +213,8 @@ namespace pg
             mutable analysis::Locations locs;
             mutable std::unordered_map<analysis::LocId, Objects> objectsMemo;
             mutable std::unordered_map<analysis::LocId, Objects> reachableMemo;
+            mutable std::map<Objects, Objects> reachableOfSet;                              // Many locations hold the same objects
+            mutable std::map<std::pair<Objects, analysis::KeyId>, Objects> fieldOfSet;      // And are the same field of them
             mutable std::unordered_map<analysis::LocId, analysis::LocId> namedObjects;
             mutable std::vector<uint32_t> addedAt;  // By location: the last round that added it
             mutable uint32_t addRound = 0;

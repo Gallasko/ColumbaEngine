@@ -287,7 +287,7 @@ namespace pg
             if (fields == heap.end())
                 return;
 
-            if (key == Locations::AnyKey or locs.isParamKey(key))
+            if (key == Locations::AnyKey)
             {
                 for (const auto& [name, held] : fields->second)
                 {
@@ -312,6 +312,12 @@ namespace pg
 
         ProgramEffects::Objects ProgramEffects::reachableFrom(const Objects& objects) const
         {
+            // Many locations hold the same objects
+            auto memo = reachableOfSet.find(objects);
+
+            if (memo != reachableOfSet.end())
+                return memo->second;
+
             std::vector<LocId> reached(objects.begin(), objects.end());
 
             ++addRound;
@@ -336,7 +342,7 @@ namespace pg
                 }
             }
 
-            return Objects(std::move(reached));
+            return reachableOfSet[objects] = Objects(std::move(reached));
         }
 
         const ProgramEffects::Objects& ProgramEffects::objectsAt(LocId l) const
@@ -365,14 +371,24 @@ namespace pg
             else
             {
                 const Objects& parents = objectsAt(locs.parent(l));
-                std::vector<LocId> found;
+                const KeyId key = locs.isParamKey(locs.keyOf(l)) ? Locations::AnyKey : locs.keyOf(l);
 
-                ++addRound;
+                // Many locations are the same field of the same objects
+                auto [memoField, added] = fieldOfSet.try_emplace({parents, key});
 
-                for (auto o : parents)
-                    addFieldsOf(o, locs.keyOf(l), found);
+                if (added)
+                {
+                    std::vector<LocId> found;
 
-                out = Objects(std::move(found));
+                    ++addRound;
+
+                    for (auto o : parents)
+                        addFieldsOf(o, key, found);
+
+                    memoField->second = Objects(std::move(found));
+                }
+
+                out = memoField->second;
                 out.insert(anywhere);
 
                 if (locs.deep(l))
@@ -418,6 +434,18 @@ namespace pg
             return out;
         }
 
+        namespace
+        {
+            // The edges of a location
+            struct EdgesAt
+            {
+                LocId at;
+                bool all;                   // It stands for all that is reachable
+                std::vector<LocId> values;
+                size_t read;                // How much it read when last made: what it reads only grows
+            };
+        }
+
         void ProgramEffects::resolveEdges(const std::vector<Edge>& all)
         {
             // The same edges come from every statement that calls the same functions
@@ -445,7 +473,23 @@ namespace pg
                     reachingAll.insert(e.at);
             }
 
-            // Each edge holds at every object its location may name, itself found through the edges
+            // What each location is given, every edge of it at once: a location has thousands of them
+            std::vector<EdgesAt> stores;
+            std::unordered_map<LocId, size_t> storeAt;
+
+            for (const auto& e : edges)
+            {
+                auto [it, added] = storeAt.try_emplace(e.at, stores.size());
+
+                if (added)
+                    stores.push_back({e.at, locs.depth(e.at) > 0 and reachesAll(e.at), {}, 0});
+
+                stores[it->second].values.push_back(e.value);
+            }
+
+            // Each edge holds at every object its location may name, itself found through the edges.
+            // All are read as the last round left them. What a store reads only grows: read the same
+            // as when it was last made, it has nothing to add
             bool grew = true;
 
             while (grew)
@@ -453,36 +497,71 @@ namespace pg
                 grew = false;
                 objectsMemo.clear();
                 reachableMemo.clear();
+                reachableOfSet.clear();
+                fieldOfSet.clear();
 
-                for (const auto& e : edges)
+                for (auto& store : stores)
                 {
-                    const bool all = locs.depth(e.at) > 0 and reachesAll(e.at);
-                    const Objects& given = all ? reachableAt(e.value) : objectsAt(e.value);
+                    const bool all = store.all;
+                    const LocId at = store.at;
 
-                    if (given.empty())
+                    auto given = [&](LocId value) -> const Objects& { return all ? reachableAt(value) : objectsAt(value); };
+
+                    size_t read = 0;
+
+                    for (auto value : store.values)
+                        read += given(value).size();
+
+                    const bool slot = locs.depth(at) > 0 and locs.rootKind(at) != RootKind::Unknown;
+
+                    if (slot)
+                        read += all ? reachableAt(locs.parent(at)).size() : objectsAt(locs.parent(at)).size();
+
+                    if (read == store.read)
                         continue;
 
-                    if (locs.rootKind(e.at) == RootKind::Unknown)
-                        grew = anywhere.insert(given) or grew;
-                    else if (locs.depth(e.at) == 0)
-                        grew = holds[e.at].insert(given) or grew;
+                    store.read = read;
+
+                    // All read above: nothing below reads anew
+                    std::vector<LocId> everyValue;
+
+                    ++addRound;
+
+                    for (auto value : store.values)
+                    {
+                        for (auto o : given(value))
+                        {
+                            if (addedNow(o))
+                                everyValue.push_back(o);
+                        }
+                    }
+
+                    const Objects values(std::move(everyValue));
+
+                    if (values.empty())
+                        continue;
+
+                    if (locs.rootKind(at) == RootKind::Unknown)
+                        grew = anywhere.insert(values) or grew;
+                    else if (locs.depth(at) == 0)
+                        grew = holds[at].insert(values) or grew;
                     else
                     {
-                        const Objects& parents = objectsAt(locs.parent(e.at));
+                        const Objects& parents = objectsAt(locs.parent(at));
 
                         // A field named by a parameter may be any field
-                        const KeyId key = all or locs.isParamKey(locs.keyOf(e.at)) ? Locations::AnyKey : locs.keyOf(e.at);
+                        const KeyId key = all or locs.isParamKey(locs.keyOf(at)) ? Locations::AnyKey : locs.keyOf(at);
 
                         // No object known: it is in the global the path starts from
-                        const Objects root = parents.empty() ? Objects{locs.rootOf(e.at)} : Objects();
-                        const Objects& held = parents.empty() ? root : all ? reachableAt(locs.parent(e.at)) : parents;
+                        const Objects root = parents.empty() ? Objects{locs.rootOf(at)} : Objects();
+                        const Objects& held = parents.empty() ? root : all ? reachableAt(locs.parent(at)) : parents;
 
                         for (auto o : held)
                         {
                             if (locs.rootKind(o) == RootKind::Unknown)
-                                grew = anywhere.insert(given) or grew;
+                                grew = anywhere.insert(values) or grew;
                             else
-                                grew = heap[o][key].insert(given) or grew;
+                                grew = heap[o][key].insert(values) or grew;
                         }
                     }
                 }
