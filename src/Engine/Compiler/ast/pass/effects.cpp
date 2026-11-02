@@ -28,12 +28,6 @@ namespace pg
                 s.erase(std::unique(s.begin(), s.end()), s.end());
             }
 
-            // A function that runs behind a field read or a loop, which no body shows as a call
-            bool isMetamethod(const std::string& name)
-            {
-                return name == "__get" or name == "__set" or name == "__iter" or name == "__next";
-            }
-
             // Whether a class is defined anywhere but at the top level
             bool definesClassBelow(const StatementPtr& s)
             {
@@ -55,15 +49,7 @@ namespace pg
             {
                 std::string why;
 
-                auto isMethodOrMetamethod = [&](const std::string& name) {
-                    return isMetamethod(name) or model.methods.count(name) > 0;
-                };
-
-                for (const auto& [method, runs] : model.methods)
-                {
-                    if (isMetamethod(method))
-                        return "a class's metamethod runs behind what the code shows";
-                }
+                auto isMethod = [&](const std::string& name) { return model.methods.count(name) > 0; };
 
                 std::unordered_set<const Expression*> called;
 
@@ -72,14 +58,14 @@ namespace pg
 
                     if (type == AstKind::CallExpression)
                         called.insert(std::static_pointer_cast<CallExpression>(e)->caller.get());
-                    else if (type == AstKind::Set and isMethodOrMetamethod(std::static_pointer_cast<Set>(e)->name.text))
-                        why = "a class has a method or a metamethod of the name of a field: `" + std::static_pointer_cast<Set>(e)->name.text + "`";
+                    else if (type == AstKind::Set and isMethod(std::static_pointer_cast<Set>(e)->name.text))
+                        why = "a class has a method of the name of a field: `" + std::static_pointer_cast<Set>(e)->name.text + "`";
                     else if (type == AstKind::Atom)
                     {
                         const auto& value = std::static_pointer_cast<Atom>(e)->value;
 
-                        if (value.type == UnionType::STRING and isMethodOrMetamethod(value.toString()))
-                            why = "a class has a method or a metamethod of the name of a field: `" + value.toString() + "`";
+                        if (value.type == UnionType::STRING and isMethod(value.toString()))
+                            why = "a class has a method of the name of a field: `" + value.toString() + "`";
                     }
                     else if (type == AstKind::List)
                     {
@@ -89,8 +75,8 @@ namespace pg
                         {
                             const auto& entry = entries.front();
 
-                            if (entry.explicitKey and entry.key and isMethodOrMetamethod(entry.key->getName()))
-                                why = "a class has a method or a metamethod of the name of a field: `" + entry.key->getName() + "`";
+                            if (entry.explicitKey and entry.key and isMethod(entry.key->getName()))
+                                why = "a class has a method of the name of a field: `" + entry.key->getName() + "`";
                         }
                     }
                     else if (type == AstKind::Var and not called.count(e.get()))
@@ -1264,6 +1250,7 @@ namespace pg
                     programFiles.back().push_back(s);
                     returnsEarly = returnsEarly or holdsStatement(s, AstKind::ReturnStatement, false);
                     classBelow = classBelow or definesClassBelow(s);
+                    hiddenCode = hiddenCode or namesMetamethod(s);
 
                     if (s->kind() == AstKind::VariableStatement)
                     {
@@ -1280,7 +1267,6 @@ namespace pg
                         const std::string& name = std::static_pointer_cast<FunctionStatement>(s)->name.text;
                         ++defined[name];
                         ++functions[name];
-                        hiddenCode = hiddenCode or isMetamethod(name);
                     }
                     else if (s->kind() == AstKind::ClassStatement)
                     {

@@ -91,6 +91,7 @@ namespace pg
         struct Ownership
         {
             std::map<std::string, int> listDecls;          // `var name = [...]`
+            std::set<std::string> tableLiterals;           // Given `{...}` or `[key: ...]`
             std::set<std::string> otherWrites;             // Declared or assigned anything else, a parameter, a loop variable
             std::set<std::string> escaped;                 // Read anywhere a list could leave the function
             std::set<std::string> given;                   // Given a value that is not fresh: its rows may be another's
@@ -115,6 +116,12 @@ namespace pg
             {
                 auto it = listDecls.find(name);
                 return it != listDecls.end() and it->second == 1 and not otherWrites.count(name) and not escaped.count(name);
+            }
+
+            // Only ever given `[...]`: whatever else may name it, it is no table
+            bool holdsList(const std::string& name) const
+            {
+                return listDecls.count(name) and not otherWrites.count(name) and not tableLiterals.count(name);
             }
 
             // Owned with all it holds, down to the last row
@@ -193,6 +200,13 @@ namespace pg
                 return true;
             }
 
+            // Whether a path is a list by what its function shows: no field write lengthens it, as a
+            // field write on a list stops the script. Only a local: a function could give a global anything
+            bool isList(const ExprPtr& path) const
+            {
+                return path->kind() == AstKind::Var and locals.count(varName(path)) and ownership.holdsList(varName(path));
+            }
+
             // Whether no write but those that name it can reach what a path measures: a list that
             // never left the function, or no table at all
             bool beyondWrites(const ExprPtr& path) const
@@ -223,6 +237,7 @@ namespace pg
             const std::string& x;       // The path's root
             const bool beyondWrites;    // FunctionScope::beyondWrites
             const bool slotOnly = false;  // Only what x holds at the path matters, not how long it is
+            const bool noFields = false;  // No field write can change what the path measures
             bool ok = true;
 
             // Whether writing into a list leaves the path alone

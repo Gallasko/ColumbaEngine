@@ -352,7 +352,7 @@ namespace pg
             const std::string error = errorOf("class Thing {\n    __get(key) {\n        return 1\n    }\n}\nconstexpr rows = {n: 1}\n");
 
             EXPECT_TRUE(says(error, "cannot be proved")) << error;
-            EXPECT_TRUE(says(error, "class")) << error;
+            EXPECT_TRUE(says(error, "metamethod")) << error;
         }
 
         TEST(Constexpr, AClassMayMakeIt)

@@ -111,7 +111,7 @@ namespace pg
 
                 const std::string root = rootOf(x);
 
-                RegionCheck check{ctx, root, ctx.beyondWrites(x)};
+                RegionCheck check{ctx, root, ctx.beyondWrites(x), false, ctx.isList(x)};
                 check.stmt(s);
 
                 if (not check.ok)

@@ -391,6 +391,8 @@ void CompilerApp::runFile(bool needCompile)
             LOG_ERROR(DOM, "Compile error occurred");
             break;
         case InterpretResult::RUNTIME_ERROR:
+            // What ran before the error still printed
+            std::cout << vm->testOutput << std::endl;
             LOG_ERROR(DOM, "Runtime error occurred");
             break;
     }

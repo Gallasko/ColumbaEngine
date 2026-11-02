@@ -416,10 +416,11 @@ namespace pg
 
             scriptNames = program.scriptNames();
             programComplete = program.complete;
+            metamethods = program.namesMetamethod;
         }
 
-        // A module read as bytecode only could define `len` or `push`
-        if (not programComplete)
+        // A module read as bytecode only could define `len` or `push`. A read may run code
+        if (not programComplete or metamethods)
             return false;
 
         Rows ctx{{scriptNames}};
@@ -443,6 +444,6 @@ namespace pg
 
     std::string RowHoistingPass::factsAbout(const std::set<std::string>& names, std::vector<std::shared_ptr<const void>>&) const
     {
-        return listNativeFacts(names, scriptNames, programComplete);
+        return (metamethods ? "metamethods;" : "") + listNativeFacts(names, scriptNames, programComplete);
     }
 }

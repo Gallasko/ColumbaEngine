@@ -706,6 +706,163 @@ protected:
     }
 };
 
+TEST_F(CompoundAssignment, LenCountsATable)
+{
+    MockLogger<TerminalSink> logger;
+
+    expectPrints("var t = {}\n__dprint(len(t))\nt.a = 1\nt[\"b\"] = 2\nt.a = 3\n__dprint(len(t))\n__dprint(len({x: 1, y: 2, z: 3}))\n", "0\n2\n3\n");
+
+    // Counted the way a loop over it counts
+    expectPrints(
+        "var t = {}\n"
+        "for (var i = 0; i < 20; i++)\n"
+        "{\n"
+        "    t[toString(i)] = true\n"
+        "}\n"
+        "var n = 0\n"
+        "for (var k : t)\n"
+        "{\n"
+        "    n++\n"
+        "}\n"
+        "__dprint(n)\n"
+        "__dprint(len(t))\n", "20\n20\n");
+
+    // Lists and strings are what they were, an instance of a class is no table
+    expectPrints("__dprint(len([1, 2]))\n__dprint(len(\"abc\"))\n", "2\n3\n");
+
+    EntitySystem ecs;
+    ecs.setVMFrontEnd(ScriptFrontEnd::Ast);
+
+    VM vm;
+    ecs.setupVm(vm);
+
+    EXPECT_EQ(vm.interpretFromText(withImports("class Box\n{\n    size()\n    {\n        return 1\n    }\n}\n__dprint(len(Box()))\n")), InterpretResult::RUNTIME_ERROR);
+}
+
+TEST_F(LengthHoisting, ATableGrowsByItsFields)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::vector<std::string> sources = {
+        "fun f(t)\n{\n    var n = 0\n    for (var i = 0; i < len(t); i++)\n    {\n        n++\n        if (i < 3)\n        {\n            t.a = 1\n            t.b = 2\n        }\n    }\n    return n\n}\n__dprint(f({z: 1}))\n",
+
+        // By another name
+        "fun f(t, o)\n{\n    var n = 0\n    for (var i = 0; i < len(t); i++)\n    {\n        n++\n        if (i < 3)\n        {\n            o.a = 1\n            o.b = 2\n        }\n    }\n    return n\n}\nvar l = {z: 1}\n__dprint(f(l, l))\n",
+
+        // A row that is a table
+        "fun f(t, o)\n{\n    var n = 0\n    for (var i = 0; i < len(t[0]); i++)\n    {\n        n++\n        if (i < 3)\n        {\n            o.a = 1\n            o.b = 2\n        }\n    }\n    return n\n}\nvar l = {z: 1}\n__dprint(f([l], l))\n",
+    };
+
+    for (const auto& source : sources)
+    {
+        EXPECT_EQ(hoisted(source), 0) << source;
+        expectSameRun(source);
+    }
+}
+
+TEST_F(LengthHoisting, AFieldWriteCannotLengthenAList)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::vector<std::string> measured = {
+        "fun f()\n{\n    var rows = [{a: 1}, {a: 2}]\n    var n = 0\n    for (var i = 0; i < len(rows); i++)\n    {\n        var r = rows[i]\n        r.a = i\n        r.b = i\n        n++\n    }\n    return n\n}\n__dprint(f())\n",
+
+        // In a block of the script, as a list that is filled first
+        "for (var k = 0; k < 2; k++)\n{\n    var rows = []\n    push(rows, {a: 1})\n    push(rows, {a: 2})\n    var n = 0\n    for (var i = 0; i < len(rows); i++)\n    {\n        var r = rows[i]\n        r.a = i\n        n++\n    }\n    __dprint(n)\n}\n",
+
+        // Given another list later
+        "fun f()\n{\n    var rows = [{a: 1}]\n    rows = [{a: 1}, {a: 2}]\n    var n = 0\n    for (var i = 0; i < len(rows); i++)\n    {\n        var r = rows[i]\n        r.a = i\n        n++\n    }\n    return n\n}\n__dprint(f())\n",
+    };
+
+    for (const auto& source : measured)
+    {
+        EXPECT_EQ(hoisted(source), 1) << source;
+        expectSameRun(source);
+    }
+
+    // All of these may be a table
+    const std::vector<std::string> tables = {
+        // Given one later, with no key written, or with one
+        "fun f()\n{\n    var t = []\n    t = {z: 1}\n    var n = 0\n    for (var i = 0; i < len(t); i++)\n    {\n        n++\n        if (i < 3)\n        {\n            t.a = 1\n            t.b = 2\n        }\n    }\n    return n\n}\n__dprint(f())\n",
+        "fun f()\n{\n    var t = [z: 1]\n    var n = 0\n    for (var i = 0; i < len(t); i++)\n    {\n        n++\n        if (i < 3)\n        {\n            t.a = 1\n            t.b = 2\n        }\n    }\n    return n\n}\n__dprint(f())\n",
+
+        // Given one by a function it defines
+        "fun f()\n{\n    var t = []\n    var g = fun()\n    {\n        t = {z: 1}\n        return 1\n    }\n    g()\n    var n = 0\n    for (var i = 0; i < len(t); i++)\n    {\n        n++\n        if (i < 3)\n        {\n            t.a = 1\n            t.b = 2\n        }\n    }\n    return n\n}\n__dprint(f())\n",
+
+        // A global of that name, a list by its other declaration only
+        "var t = {z: 1}\nif (true)\n{\n    var t = []\n}\nvar n = 0\nfor (var i = 0; i < len(t); i++)\n{\n    n++\n    if (i < 3)\n    {\n        t.a = 1\n        t.b = 2\n    }\n}\n__dprint(n)\n",
+
+        // A row: nothing tells what it holds
+        "fun f()\n{\n    var l = {z: 1}\n    var t = [l]\n    var n = 0\n    for (var i = 0; i < len(t[0]); i++)\n    {\n        n++\n        if (i < 3)\n        {\n            l.a = 1\n            l.b = 2\n        }\n    }\n    return n\n}\n__dprint(f())\n",
+    };
+
+    for (const auto& source : tables)
+    {
+        EXPECT_EQ(hoisted(source), 0) << source;
+        expectSameRun(source);
+    }
+}
+
+TEST_F(RowHoisting, ATableMeasuredIsReadAsOne)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::string source =
+        "fun f(t)\n"
+        "{\n"
+        "    var n = len(t)\n"
+        "    var k = 1\n"
+        "    var total = 0\n"
+        "    for (var j = 0; j < 3; j++)\n"
+        "    {\n"
+        "        total = total + t[k]\n"
+        "    }\n"
+        "    return total + n\n"
+        "}\n"
+        "__dprint(f({a: 1}))\n";
+
+    expectSameEnd(source);
+}
+
+TEST_F(CompoundAssignment, AProgramNamingAMetamethodIsLeftAlone)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::string loop =
+        "fun f(t)\n"
+        "{\n"
+        "    var n = len(t)\n"
+        "    var k = 5\n"
+        "    var total = 0\n"
+        "    for (var j = 0; j < 3; j++)\n"
+        "    {\n"
+        "        total = total + t[k]\n"
+        "    }\n"
+        "    return total + n\n"
+        "}\n"
+        "var calls = [0]\n"
+        "fun get(self, key)\n"
+        "{\n"
+        "    calls[0] = calls[0] + 1\n"
+        "    return 7\n"
+        "}\n"
+        "var t = {a: 1}\n";
+
+    const std::vector<std::string> sources = {
+        loop + "t.__get = get\n__dprint(f(t))\n__dprint(calls[0])\n",
+        loop + "t[\"__get\"] = get\n__dprint(f(t))\n__dprint(calls[0])\n",
+    };
+
+    for (const auto& source : sources)
+    {
+        EXPECT_EQ(rows(source), 0) << source;
+        expectSameEnd(source);
+    }
+
+    // Three reads at every level
+    expectPrints(sources[0], "23\n3\n");
+}
+
 TEST_F(CompoundAssignment, ModuloTakesTheRemainder)
 {
     MockLogger<TerminalSink> logger;

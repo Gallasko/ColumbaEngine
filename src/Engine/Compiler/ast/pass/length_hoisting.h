@@ -26,7 +26,7 @@
  *   script (len, lookup, toFloat, the string and math functions, ...): no script function, no
  *   method, nothing else. The name must be no function, variable or class of the program (read
  *   whole, as FunctionInlining reads it) and no local where it is called.
- * - push / insert / pop / removeAt and index writes only on a local list other than x's that is
+ * - push / insert / pop / removeAt, index and field writes only on a local list other than x's that is
  *   made from a literal in the function and never leaves it (only pushed to, indexed, measured,
  *   iterated, compared or returned; never passed elsewhere, stored or captured), so that x cannot
  *   be the same list. A row of that list counts when the list holds all it holds alone: only given
@@ -35,6 +35,9 @@
  * - Or x is beyond them, and any list other than x's may be written: x is such a list itself,
  *   which nothing else can name, or a local that only ever holds what is no table (a string, which
  *   no write changes).
+ * - A local only ever given `[...]` is no table, so no field write matters to it: a new field only
+ *   lengthens a table, and one written on a list stops the script (FunctionScope::isList). A row
+ *   may be a table, whatever its list is.
  *
  * Known (accepted) limits. As for LoopInvariantHoisting: field reads and writes on class instances
  * run __get / __set metamethods, which could change a list, and an operator metamethod could

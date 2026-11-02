@@ -2,6 +2,8 @@
 
 #include "program_view.h"
 
+#include "ast_analysis.h"
+
 #include "Compiler/vm.h"
 #include "Files/filemanager.h"
 #include "Interpreter/lexer.h"
@@ -360,6 +362,8 @@ namespace pg
                     if (not s)
                         continue;
 
+                    p.namesMetamethod = p.namesMetamethod or namesMetamethod(s);
+
                     if (s->kind() == AstKind::FunctionStatement)
                     {
                         auto f = std::static_pointer_cast<FunctionStatement>(s);
@@ -606,6 +610,53 @@ namespace pg
             filesOfStatements(baseDir, main, 0, visited, program);
 
             return program;
+        }
+
+        bool isMetamethod(const std::string& name)
+        {
+            return name == "__get" or name == "__set" or name == "__iter" or name == "__next";
+        }
+
+        bool namesMetamethod(const StatementPtr& s)
+        {
+            if (not s)
+                return false;
+
+            const AstKind kind = s->kind();
+
+            if (kind == AstKind::FunctionStatement and isMetamethod(std::static_pointer_cast<FunctionStatement>(s)->name.text))
+                return true;
+
+            if (kind == AstKind::ClassStatement)
+            {
+                for (const auto& m : listOf(std::static_pointer_cast<ClassStatement>(s)->methods))
+                {
+                    if (isMetamethod(m->name.text))
+                        return true;
+                }
+            }
+
+            bool named = false;
+
+            eachExpr(s, [&named](const ExprPtr& e) {
+                const AstKind type = e->kind();
+
+                if (type == AstKind::Set)
+                    named = named or isMetamethod(std::static_pointer_cast<Set>(e)->name.text);
+                else if (type == AstKind::Atom)
+                {
+                    const auto& value = std::static_pointer_cast<Atom>(e)->value;
+
+                    named = named or (value.type == UnionType::STRING and isMetamethod(value.toString()));
+                }
+                else if (type == AstKind::List)
+                {
+                    for (const auto& entry : listOf(std::static_pointer_cast<List>(e)->entries))
+                        named = named or (entry.explicitKey and entry.key and isMetamethod(entry.key->getName()));
+                }
+            }, true);
+
+            return named;
         }
 
         ProgramView readProgram(VM* vm, const std::queue<StatementPtr>& statements)

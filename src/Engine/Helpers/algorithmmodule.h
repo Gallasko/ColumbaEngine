@@ -571,15 +571,15 @@ namespace pg
         }
 
         /**
-         * Get the length of an array or string
-         * Usage: len(array) or len(string)
+         * Get the length of an array or string, or how many entries a table holds
+         * Usage: len(array), len(string) or len(table)
          * Returns: integer length
          */
         static Value nativeLen(VM* vm, int argCount, Value* args)
         {
             if (argCount != 1)
             {
-                throw std::runtime_error("len expects exactly 1 argument (array or string)");
+                throw std::runtime_error("len expects exactly 1 argument (array, table or string)");
             }
 
             if (IS_VECTOR(args[0]))
@@ -596,9 +596,13 @@ namespace pg
                 auto str = vm->asString(args[0]);
                 return makeIntValue(str.size());
             }
+            else if (IS_INSTANCE(args[0]) and vm->asInstance(args[0])->klass and vm->asInstance(args[0])->klass->name == "__Table")
+            {
+                return makeIntValue(vm->asInstance(args[0])->fieldCount());
+            }
             else
             {
-                throw std::runtime_error("len expects an array or string, got " + std::string(valueTypeName(args[0])));
+                throw std::runtime_error("len expects an array, a table or a string, got " + std::string(valueTypeName(args[0])));
             }
 
             return makeIntValue(0); // Unreachable, but silences compiler warning

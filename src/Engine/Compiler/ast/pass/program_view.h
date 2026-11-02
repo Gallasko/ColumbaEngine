@@ -31,6 +31,7 @@ namespace pg
             std::set<std::string> poisoned;                                    // Assigned, declared or a class somewhere
             std::set<std::string> visited;                                     // Files read
             bool complete = true;
+            bool namesMetamethod = false;                                      // namesMetamethod below, of any statement
 
             // Every name that may hold script code: a `fun`, or anything written
             std::set<std::string> scriptNames() const
@@ -45,6 +46,14 @@ namespace pg
         };
 
         ProgramView readProgram(VM* vm, const std::queue<StatementPtr>& statements);
+
+        // __get, __set, __iter, __next: code that runs behind a field read or a loop, which no body
+        // shows as a call. A table takes them too: `t.__get = f`
+        bool isMetamethod(const std::string& name);
+
+        // Whether a statement names one, in the bodies it defines too: a function, a method, a field, a
+        // key or a string. A name built while the script runs is not seen
+        bool namesMetamethod(const StatementPtr& s);
 
         // By file: the statements (their index, the parser's empty ones left aside) that import a file
         // first, and which

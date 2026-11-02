@@ -32,10 +32,12 @@
  *   a list that cannot be t (Ownership). A write into a row of t is not one when t holds all it
  *   holds alone: only then can a row of t not be t.
  * - The loop may never read it, so the read must not fail, and only a read that cannot run code or
- *   stop the script moves: t is a list or a string, and reading either with an integer gives none
- *   past its ends. t is known to be one when it is a local list made from a literal, or a local
- *   that never changes which a `len` that has run measured (len stops the script on anything
- *   else). k is known to be an integer when it is a local only ever given integers.
+ *   stop the script moves. A program that names a metamethod anywhere is left alone: even a plain
+ *   table runs `t.__get`, and one built while the script runs (`"__g" + "et"`) is an accepted limit.
+ *   t is a list, a table or a string, where an integer reads none past the ends or for a key not
+ *   there. t is known to be one when it is a local made from a literal, or a local that never
+ *   changes which a `len` that has run measured (len stops the script on anything else). k is known
+ *   to be an integer when it is a local only ever given integers.
  * - Or the hidden declaration right before the loop reads it anyway (`var @len0 = len(t[k])`).
  *
  * A statement that writes back what it reads, `t[a][k] += 1`, reads `t[a]` once, loop or not: the
@@ -66,5 +68,6 @@ namespace pg
         // Of the program being compiled: read anew for each outermost script
         std::set<std::string> scriptNames;
         bool programComplete = false;
+        bool metamethods = false;
     };
 }

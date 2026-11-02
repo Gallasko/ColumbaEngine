@@ -214,6 +214,14 @@ namespace pg
 
         void Ownership::wrote(const std::string& name, const ExprPtr& value)
         {
+            if (value and value->kind() == AstKind::List)
+            {
+                auto l = std::static_pointer_cast<List>(value);
+
+                if (l->braceForm or l->hasExplicitKeys)
+                    tableLiterals.insert(name);
+            }
+
             if (value and not noTable(value))
                 maybeTables.insert(name);
             else
@@ -784,8 +792,8 @@ namespace pg
             {
                 auto g = std::static_pointer_cast<Set>(e);
 
-                // A field does not change how long a list is, but it is a slot
-                if (slotOnly and not mayWrite(g->object))
+                // A new field makes a table longer, and any field is a slot
+                if (not noFields and not mayWrite(g->object))
                 {
                     ok = false;
                     return;
