@@ -312,6 +312,45 @@ TEST(arena_run, the_interest_keeps_what_could_be_bought_affordable)
     EXPECT_GE(p.shards, now);
 }
 
+TEST(arena_run, in_co_op_every_player_gets_every_shard_and_prices_go_up_to_match)
+{
+    RunArena r;
+    const int second = r.world.addPlayer(1);
+    r.world.startRun(5);
+
+    Fighter* other = r.world.find(second);
+    ASSERT_TRUE(other);
+    other->body.position = r.player().body.position + glm::vec3(12.0f, 0.0f, 0.0f);   // far out of pickup range
+
+    const int shards = r.player().shards, otherShards = other->shards;
+    const int xp = r.player().stats.xp, otherXp = other->stats.xp;
+
+    // The first player picks a shard up: both get it, money and XP; only the one who picked it up counts it
+    Pickup shard;
+    shard.id = 999;
+    shard.value = 4;
+    shard.position = r.player().body.position + glm::vec3(0.0f, 1.0f, 1.0f);
+    r.world.pickups.push_back(shard);
+    r.run(40);
+
+    other = r.world.find(second);
+    ASSERT_TRUE(other);
+    EXPECT_TRUE(r.world.pickups.empty());
+    EXPECT_EQ(r.player().shards, shards + 4);
+    EXPECT_EQ(other->shards, otherShards + 4);
+    EXPECT_EQ(r.player().stats.xp, xp + 4);
+    EXPECT_EQ(other->stats.xp, otherXp + 4);
+    EXPECT_EQ(r.player().stats.shards, 4);
+    EXPECT_EQ(other->stats.shards, 0);
+
+    // The prices, the reroll's too: half again with a second player
+    RunArena solo;
+    solo.world.startRun(5);
+    const float coop = 1.0f + r.content.run.coopPrice;
+    EXPECT_FLOAT_EQ(r.world.priceScale(5), solo.world.priceScale(5) * coop);
+    EXPECT_EQ(r.world.rerollPrice(r.player()), static_cast<int>(std::lround(static_cast<float>(solo.world.rerollPrice(solo.player())) * coop)));
+}
+
 TEST(arena_run, a_rarer_item_does_more)
 {
     RunArena r;

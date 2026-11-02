@@ -174,7 +174,7 @@ namespace arena
         struct RunStats
         {
             int kills = 0;            // enemies it finished off
-            int shards = 0, xp = 0;   // picked up, and the XP they gave
+            int shards = 0, xp = 0;   // picked up by this player (everyone gets them), and the XP it got
             int presents = 0;         // picked up
             int items = 0;            // bought in the shop
             int downs = 0;            // times it fell
@@ -574,8 +574,10 @@ namespace arena
         bool owns(const Fighter& f, const std::string& id) const;
         /** Shards to the next level. */
         int xpFor(int level) const;
-        /** Shards to a player: money and XP (its level ups with them). */
-        void collect(Fighter& f, int value);
+        /** Shards to a player: money and XP (its level ups with them). pickedUp: it picked them up itself (its run stats). */
+        void collect(Fighter& f, int value, bool pickedUp = true);
+        /** Shards a player picked up: every player gets them, money and XP (the prices go up with the players, see priceScale). */
+        void shareShards(Fighter& picker, int value);
         /** The shop's offers rolled anew (the locked ones kept), and a level up's picks. */
         void rollShop(Fighter& f);
         void rollLevel(Fighter& f);
@@ -622,7 +624,7 @@ namespace arena
         /** A level up's pick, split: "base:firebolt#1" is branch 1 of the firebolt (-1: none). */
         static std::string offerTarget(const std::string& offer, int& branch);
         const Fighter::RunSpell* runSkill(const Fighter& f, const std::string& abilityId) const;
-        /** Shop prices at a wave, times this (run.json shop.priceScale). */
+        /** Shop prices at a wave, times this (run.json shop.priceScale), and more with more players (shop.coopPrice). */
         float priceScale(int wave) const;
         /** The difficulty level of the run (outside one: of the next). */
         const DifficultyDef& difficulty() const { return content->run.difficulty(run.difficulty); }

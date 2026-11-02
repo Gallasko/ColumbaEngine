@@ -80,7 +80,8 @@ and enemies that come back), **O** for the options.
   then (35%, three a wave at most) a **present**: a gold box with a red ribbon. Each one picked up is a
   free shop item, picked among three after the level ups.
 - **Shards**: what the enemies drop. They fly to you within pickup range (and the ones left lying
-  are yours at the end of the wave). They are money and XP at once.
+  are yours at the end of the wave). They are money and XP at once. In co-op every player gets every
+  shard anyone picks up, money and XP.
 - **Spells and techniques come from levels**: no spell is made in a run. After the weapon, each
   player picks a **first spell** for key 1 (1-3 or a click; Backspace back to the weapons): Firebolt
   (fire: a bolt leaving a burning patch), Frostbolt (ice: a bolt bursting into a chilling blast) or
@@ -138,7 +139,8 @@ and enemies that come back), **O** for the options.
   coming only once one more would do nothing (armor at 70%, cooldowns and spell costs 70% off, crit at
   100%), or for the few with a `most` (dash charges, status stacks, speed, attack speed, projectiles,
   horde). Some come at one rarity only (`tiers`): Split shot, Nimble and Potent, whose +1 a rarity does not
-  make bigger, are always Rare. **Prices** start at half and end at one and a half times the written ones (`shop.priceScale`). **Interest**: the shards you keep
+  make bigger, are always Rare. **Prices** start at half and end at one and a half times the written ones (`shop.priceScale`). In co-op
+  they are half again for each player past the first (`shop.coopPrice`), the reroll too: everyone gets every shard. **Interest**: the shards you keep
   through a shop grow by the next one as much as the prices did, so what you could buy and did not,
   you still can (shown under your shards). **Greed** (each shard of a kill may come with one more) adds
   up across the players with diminishing returns (`run.json` `shardFalloff`: a total of +100% counts as
@@ -537,7 +539,7 @@ content API version the mod was written for. The API is unstable: a mismatch is 
 | `keywords.json` | the keywords of spells: forms (`shape`: bolt, zone, nova, beam) and modifiers | `mymod:<key>` |
 | `spells/<name>.json` | a ready-made spell: `name`, `text`, `recipe` (`["fire", "bolt", "zone"]`), `levels` (what each level after the first adds: `[["enlarge"], ["extend"]]`), `branches` (`name`, `text`, `keywords` added to the recipe, `tags`, `boost`) | `mymod:<name>` |
 | `upgrades.json` | the items of a run's shop: what a stat item adds (`maxHealth`, `damage`, `armor`, `crit`, `regen`, `pickupRange`, `dashCharges`, `horde`, `xpGain`, `shardChance`...) or a tag item does to everything of the player with its `tag` (`"boost": { "damage", "area", "cooldown", "cost", "duration", "speed", "count" }`), its `price`, how many one can have (`most`: none by default), the rarities it comes at (`tiers`: `["Rare"]`; none: any), its `look` | `mymod:<key>` |
-| `run.json` | the arena run: waves, spawn pools and `spawnScale`, elites, bosses, XP, the start kit and spells, `levelSkills`, `branchLevel`, `mastery`, `presents`, `intermission`, the shop (`priceScale`, `interest`, `rarities`), score, the `arenas` by wave and the duel's, the `difficulties` (each a `name`, `waves`, enemy `health`, `damage`, `healthGrowth`, `damageGrowth`, `spawn`, `eliteChance`; winning one opens the next) (the last mod with one wins) | |
+| `run.json` | the arena run: waves, spawn pools and `spawnScale`, elites, bosses, XP, the start kit and spells, `levelSkills`, `branchLevel`, `mastery`, `presents`, `intermission`, the shop (`priceScale`, `coopPrice`, `interest`, `rarities`), score, the `arenas` by wave and the duel's, the `difficulties` (each a `name`, `waves`, enemy `health`, `damage`, `healthGrowth`, `damageGrowth`, `spawn`, `eliteChance`; winning one opens the next) (the last mod with one wins) | |
 | `arenas/<name>.json` | an arena for the run: `name`, `size`, `shapes`, `scatter` (decorations sown by chance: `[{ "block", "on", "chance" }]`), `playerSpawn`, `centre`, `spawnRadius` | `mymod:<name>` |
 | `weapons/<name>.json` | a weapon and its moveset | `mymod:<name>` |
 | `enemies/<name>.json` | an enemy: stats, moveset, script, params | `mymod:<name>` |

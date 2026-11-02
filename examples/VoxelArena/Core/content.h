@@ -681,6 +681,7 @@ namespace arena
         int weaponPrice = 30;         // a weapon not in unlocks (another mod's) sells for this
         int rerollPrice = 2, rerollStep = 2;   // the first reroll of a shop, then this much more each
         glm::vec2 priceScale = glm::vec2(0.5f, 1.5f);   // prices times this, at the first wave and the last (in between, evenly)
+        float coopPrice = 0.5f;       // prices up this much per player after the first: every player gets every shard
         bool interest = true;         // shards kept through a shop grow with the prices: what could be bought still can
         int levelChoices = 3;         // picks offered for a level
         std::map<std::string, int> unlocks;   // weapons, skills, keywords, elements ("element:ice") -> price

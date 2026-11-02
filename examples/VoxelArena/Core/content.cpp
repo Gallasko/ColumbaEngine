@@ -1884,7 +1884,7 @@ namespace arena
 
             if (const Json* shop = j.find("shop"))
             {
-                checkKeys(*shop, {"slots", "reroll", "rerollStep", "priceScale", "interest", "levelChoices", "weaponPrice", "unlocks", "rarities"}, raw.file, report, "the run's shop");
+                checkKeys(*shop, {"slots", "reroll", "rerollStep", "priceScale", "coopPrice", "interest", "levelChoices", "weaponPrice", "unlocks", "rarities"}, raw.file, report, "the run's shop");
 
                 // Rarities, commonest first: [{ "name": "Rare", "power": 1.5, "price": 1.5, "weight": [25, 35] }]
                 if (const Json* rarities = shop->find("rarities"))
@@ -1913,6 +1913,8 @@ namespace arena
                     else
                         report.error(raw.file, ps->line, "\"priceScale\" is [at the first wave, at the last]");
                 }
+                readNum(*shop, "coopPrice", r.coopPrice, raw.file, report);
+                r.coopPrice = std::max(0.0f, r.coopPrice);
                 readBool(*shop, "interest", r.interest, raw.file, report);
                 readInt(*shop, "levelChoices", r.levelChoices, raw.file, report);
                 readInt(*shop, "weaponPrice", r.weaponPrice, raw.file, report);

@@ -399,7 +399,12 @@ namespace arena
     {
         const RunDef& def = content->run;
         const float t = def.waves > 1 ? std::clamp(static_cast<float>(wave - 1) / static_cast<float>(def.waves - 1), 0.0f, 1.0f) : 0.0f;
-        return def.priceScale.x + (def.priceScale.y - def.priceScale.x) * t;
+
+        // Every player gets every shard, and more enemies come with more players: dearer to match
+        const auto players = std::count_if(fighters.begin(), fighters.end(), [](const Fighter& f) { return f.team == Team::Player; });
+        const float coop = 1.0f + def.coopPrice * static_cast<float>(std::max<std::ptrdiff_t>(0, players - 1));
+
+        return (def.priceScale.x + (def.priceScale.y - def.priceScale.x) * t) * coop;
     }
 
     float ArenaWorld::enemyHealthScale(int wave) const
@@ -773,7 +778,7 @@ namespace arena
     {
         const RunDef& def = content->run;
 
-        // Whoever is left goes, the shards still lying about go to the nearest player
+        // Whoever is left goes, the shards still lying about go to everyone (picked up by the nearest player)
         for (const auto& f : fighters)
             if (f.team == Team::Enemy and f.alive())
                 event("despawn", chest(f), 1.0f);
@@ -801,7 +806,7 @@ namespace arena
                 ++nearest->stats.presents;
             }
             else if (nearest)
-                collect(*nearest, p.value);
+                shareShards(*nearest, p.value);
         }
 
         pickups.clear();
@@ -928,10 +933,18 @@ namespace arena
         }
     }
 
-    void ArenaWorld::collect(Fighter& f, int value)
+    void ArenaWorld::shareShards(Fighter& picker, int value)
+    {
+        for (auto& f : fighters)
+            if (f.team == Team::Player)
+                collect(f, value, f.id == picker.id);
+    }
+
+    void ArenaWorld::collect(Fighter& f, int value, bool pickedUp)
     {
         f.shards += value;
-        f.stats.shards += value;
+        if (pickedUp)
+            f.stats.shards += value;
 
         // More XP per shard comes in parts: what is short of a whole one waits for the next shard
         f.xpCarry += static_cast<float>(value) * (1.0f + std::max(0.0f, f.boon.xpGain));
@@ -1001,7 +1014,7 @@ namespace arena
                     }
                     else
                     {
-                        collect(*to, value);
+                        shareShards(*to, value);
                         event("pickup", at, static_cast<float>(value), to->id);
                     }
                     continue;
@@ -1324,7 +1337,10 @@ namespace arena
     int ArenaWorld::rerollPrice(const Fighter& f) const
     {
         const RunDef& def = content->run;
-        return def.rerollPrice + def.rerollStep * f.rerolls + run.wave / 2;
+        // Dearer with more players, as the items are (priceScale)
+        const auto players = std::count_if(fighters.begin(), fighters.end(), [](const Fighter& o) { return o.team == Team::Player; });
+        const float coop = 1.0f + def.coopPrice * static_cast<float>(std::max<std::ptrdiff_t>(0, players - 1));
+        return static_cast<int>(std::lround(static_cast<float>(def.rerollPrice + def.rerollStep * f.rerolls + run.wave / 2) * coop));
     }
 
     void ArenaWorld::shopPick(Fighter& f, int pick)

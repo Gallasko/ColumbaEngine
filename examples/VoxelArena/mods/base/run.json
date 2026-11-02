@@ -21,8 +21,9 @@
 // shop: offers a time (stat and tag items of upgrades.json, each of a rarity: its numbers times
 // `power`, its price times `price`, how often by `weight` [at the first wave, at the last]; and the
 // unlocks not owned yet, for their price: a mod's, the base run sells none). priceScale: every price
-// times this, [at the first wave, at the last]. interest: shards kept through a shop grow as the prices
-// do by the next one, so what could be bought then still can.
+// times this, [at the first wave, at the last]. coopPrice: every player gets every shard picked up, so
+// every price (the reroll's too) goes up this much per player past the first. interest: shards kept
+// through a shop grow as the prices do by the next one, so what could be bought then still can.
 // weaponPrice: what a weapon not in unlocks sells for (every mod's weapons are in the shop). The reroll's price (reroll, + rerollStep each time in a shop, + 1 every 2 waves).
 // levelChoices: picks offered for a level up.
 // spawnScale: the spawn rate and the most at once times this; coopScale: half again for each player
@@ -83,6 +84,7 @@
         "reroll": 2,
         "rerollStep": 2,
         "priceScale": [0.5, 1.5],
+        "coopPrice": 0.5,
         "interest": true,
         "levelChoices": 3,
         "unlocks": {},
