@@ -90,8 +90,7 @@ namespace pg
 
             std::string factsOf(VM* vm, const std::set<std::string>& names, const std::set<std::string>& identifiers, std::vector<std::shared_ptr<const void>>& keep)
             {
-                // No pass runs without optimizations: nothing they learnt reaches the module
-                if (not vm->enableOptimizations or not vm->astPassManager)
+                if (not vm->astPassManager)
                     return "";
 
                 return vm->astPassManager->moduleFacts(names, identifiers, keep);

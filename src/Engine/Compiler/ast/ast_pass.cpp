@@ -18,10 +18,13 @@ namespace pg
         passes.push_back(std::move(pass));
     }
 
-    void AstPassManager::runAllPasses(VM* vm, std::queue<StatementPtr>& statements)
+    void AstPassManager::runAllPasses(VM* vm, std::queue<StatementPtr>& statements, bool optimizing)
     {
         for (auto& pass : passes)
         {
+            if (not optimizing and not pass->required())
+                continue;
+
             debugPrint("Running AST pass: " + pass->getName());
 
             bool changed = pass->runPass(vm, statements);
@@ -30,7 +33,17 @@ namespace pg
             {
                 LOG_INFO(DOM, "AST pass '" << pass->getName() << "' transformed the program");
             }
+
+            for (auto& refused : pass->takeErrors())
+                errors.push_back(std::move(refused));
         }
+    }
+
+    std::vector<std::string> AstPassManager::takeErrors()
+    {
+        std::vector<std::string> taken;
+        taken.swap(errors);
+        return taken;
     }
 
     void AstPassManager::listPasses() const

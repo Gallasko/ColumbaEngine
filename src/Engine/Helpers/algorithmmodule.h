@@ -23,6 +23,7 @@ namespace pg
             addNativeFunction("findBy", nativeFindBy);
             addNativeFunction("indexBy", nativeIndexBy);
             addNativeFunction("copy", nativeCopy);
+            addNativeFunction("deepCopy", nativeDeepCopy);
             addNativeFunction("merge", nativeMerge);
             addNativeFunction("toInt", nativeToInt);
             addNativeFunction("toFloat", nativeToFloat);
@@ -311,6 +312,73 @@ namespace pg
 
             for (Value& value : to->allFieldValues())
                 vm->retainValue(value);
+
+            return copyValue;
+        }
+
+        /**
+         * A table or a list and all it holds made anew
+         * Usage: deepCopy(value)
+         * Returns: a value sharing no table or list with `value`
+         *
+         * What a `constexpr` table's rows are written through: a `copy` shares what is below its first
+         * level, and the compiler refuses a write there
+         */
+        static Value nativeDeepCopy(VM* vm, int argCount, Value* args)
+        {
+            if (argCount != 1)
+                throw std::runtime_error("deepCopy expects exactly 1 argument");
+
+            return deepCopyOf(vm, args[0], 0);
+        }
+
+        static Value deepCopyOf(VM* vm, const Value& value, int depth)
+        {
+            // A table that holds itself would never end
+            if (depth > 256)
+                throw std::runtime_error("deepCopy: tables nested too deep, or a table that holds itself");
+
+            if (IS_VECTOR(value))
+            {
+                Value copyValue = vm->createVector();
+                ObjVector* to = vm->asVector(copyValue);
+                const ObjVector* from = vm->asVector(value);
+
+                to->fields.reserve(from->fields.size());
+
+                for (const Value& entry : from->fields)
+                    to->fields.push_back(deepCopyOf(vm, entry, depth + 1));
+
+                return copyValue;
+            }
+
+            if (not IS_INSTANCE(value))
+                return vm->retainValue(value);
+
+            ObjInstance* from = vm->asInstance(value);
+
+            Value copyValue = vm->createTable();
+            ObjInstance* to = vm->asInstance(copyValue);
+
+            const size_t count = from->fieldCount();
+
+            if (Shape* shape = from->layout())
+            {
+                std::vector<Value> values;
+                values.reserve(count);
+
+                for (size_t slot = 0; slot < count; ++slot)
+                    values.push_back(deepCopyOf(vm, from->fieldValue(slot), depth + 1));
+
+                to->fillShaped(shape, values.data(), count, 1);
+            }
+            else
+            {
+                to->reserveFields(count);
+
+                for (size_t slot = 0; slot < count; ++slot)
+                    to->appendNewField(from->fieldName(slot), deepCopyOf(vm, from->fieldValue(slot), depth + 1));
+            }
 
             return copyValue;
         }

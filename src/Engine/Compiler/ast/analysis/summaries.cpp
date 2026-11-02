@@ -44,7 +44,7 @@ namespace pg
                 // A native of the Fresh kind whose result is a table a body may write: a list of its own
                 bool makesTable(const std::string& name)
                 {
-                    return name == "split" or name == "splitLines";
+                    return name == "split" or name == "splitLines" or name == "deepCopy";
                 }
 
                 uint32_t arityOf(const BodyIR& body)

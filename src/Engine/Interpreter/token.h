@@ -77,6 +77,7 @@ namespace pg
         INVALID,
 
         TOK_CONST,
+        TOK_CONSTEXPR,
         TOK_INCLUDE,
         TOK_IF,
         TOK_ELSE,

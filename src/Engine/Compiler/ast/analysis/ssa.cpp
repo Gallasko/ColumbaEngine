@@ -21,6 +21,7 @@ namespace pg
                     // algorithm
                     {"contain", NativeKind::Fresh}, {"lookup", NativeKind::Lookup}, {"pick", NativeKind::Lookup},
                     {"findBy", NativeKind::Entry}, {"indexBy", NativeKind::IndexBy}, {"copy", NativeKind::Copy},
+                    {"deepCopy", NativeKind::Fresh},
                     {"merge", NativeKind::Merge}, {"toInt", NativeKind::Fresh}, {"toFloat", NativeKind::Fresh},
                     {"typeOf", NativeKind::Fresh}, {"len", NativeKind::Fresh}, {"push", NativeKind::Push},
                     {"pop", NativeKind::Take}, {"insert", NativeKind::Insert}, {"removeAt", NativeKind::Take},

@@ -595,7 +595,92 @@ namespace pg
             }
         }
 
-        void ProgramEffects::settleConsts(const std::vector<Objects>& writers, const std::unordered_map<const Statement*, size_t>& writerOf)
+        bool ProgramEffects::staysInOwnTables(LocId write, const std::vector<Edge>& edges) const
+        {
+            if (locs.rootKind(write) != RootKind::Site or locs.deep(write))
+                return false;
+
+            std::vector<KeyId> path;
+
+            for (LocId l = write; locs.depth(l) > 0; l = locs.parent(l))
+                path.push_back(locs.keyOf(l));
+
+            // A step's holders: the tables it may hold, and the paths that name them
+            std::set<LocId> holders{locs.rootOf(write)};
+
+            for (size_t step = path.size() - 1; step > 0; --step)
+            {
+                const KeyId key = path[step];
+                std::set<LocId> next;
+
+                for (const auto& e : edges)
+                {
+                    if (locs.depth(e.at) == 0 or not holders.count(locs.parent(e.at)))
+                        continue;
+
+                    if (key != Locations::AnyKey and locs.keyOf(e.at) != Locations::AnyKey and locs.keyOf(e.at) != key)
+                        continue;
+
+                    if (locs.deep(e.at) or locs.rootKind(e.value) != RootKind::Site or locs.depth(e.value) != 0)
+                        return false;
+
+                    next.insert(e.at);
+                    next.insert(e.value);
+                }
+
+                holders = std::move(next);
+            }
+
+            return true;
+        }
+
+        std::string ProgramEffects::placeOf(const Statement* statement, unsigned line) const
+        {
+            for (size_t f = 0; f < programFiles.size(); ++f)
+            {
+                for (const auto& s : programFiles[f])
+                {
+                    if (s.get() != statement)
+                        continue;
+
+                    const std::string origin = f < origins.size() ? origins[f].substr(0, origins[f].rfind('#')) : "";
+
+                    return (origin.empty() ? "line " : origin + ":") + std::to_string(line);
+                }
+            }
+
+            return "line " + std::to_string(line);
+        }
+
+        std::string ProgramEffects::madeOfChange(const std::string& name, const std::map<std::string, std::vector<StatementPtr>>& making, std::set<std::string>& seen) const
+        {
+            if (not seen.insert(name).second)
+                return "";
+
+            if (not invariant(name))
+                return name;
+
+            auto statements = making.find(name);
+
+            if (statements == making.end())
+                return "";
+
+            for (const auto& s : statements->second)
+            {
+                for (const auto& read : effectsOf(s).reads)
+                {
+                    const std::string found = madeOfChange(read, making, seen);
+
+                    if (not found.empty())
+                        return found;
+                }
+            }
+
+            return "";
+        }
+
+        void ProgramEffects::settleConsts(const std::vector<Objects>& writers, const std::unordered_map<const Statement*, size_t>& writerOf,
+                                          const std::vector<std::string>& writerNames)
         {
             // Who writes what, by object
             std::unordered_map<LocId, std::vector<size_t>> writersOf;
@@ -688,12 +773,32 @@ namespace pg
                 }
             }
 
+            // What will join which const, by the walk the pass does
+            std::unordered_map<size_t, std::set<std::string>> joinedAmong;
+
+            auto makes = [&](size_t writer, const std::string& name)
+            {
+                auto joined = joinedAmong.find(writer);
+                return writer == writerOf.at(definitionOf.at(name)) or (joined != joinedAmong.end() and joined->second.count(name) > 0);
+            };
+
+            // A constexpr is written by nothing else, so what it holds is done by the time anything
+            // after it reads it: making it does not write what is made of it
+            auto makesOrCameBefore = [&](size_t writer, const std::string& name)
+            {
+                return makes(writer, name) or std::any_of(constexprs.begin(), constexprs.end(), [&](const std::string& earlier)
+                {
+                    return earlier != name and ranAt.at(definitionOf.at(earlier)) < ranAt.at(definitionOf.at(name)) and makes(writer, earlier);
+                });
+            };
+
             bool lost = true;
 
             while (lost)
             {
                 lost = false;
                 inferred.clear();
+                joinedAmong.clear();
 
                 // The vars as good as consts: defined once, never rebound, what they reach written by
                 // no other statement, their own made of what is the same on every run (found again as
@@ -723,9 +828,6 @@ namespace pg
                     }
                 }
 
-                // What will join which const, by the walk the pass does
-                std::unordered_map<size_t, std::set<std::string>> joinedAmong;
-
                 for (size_t f = 0; f < programFiles.size(); ++f)
                 {
                     const auto& file = programFiles[f];
@@ -743,14 +845,9 @@ namespace pg
                 // statement that took it for so may no longer join
                 for (auto it = invariantConsts.begin(); it != invariantConsts.end();)
                 {
-                    const size_t definition = writerOf.at(definitionOf[*it]);
                     const auto reaching = writersReaching(*it);
 
-                    const bool madeOnce = std::all_of(reaching.begin(), reaching.end(), [&](size_t writer)
-                    {
-                        auto joined = joinedAmong.find(writer);
-                        return writer == definition or (joined != joinedAmong.end() and joined->second.count(*it) > 0);
-                    });
+                    const bool madeOnce = std::all_of(reaching.begin(), reaching.end(), [&](size_t writer) { return makesOrCameBefore(writer, *it); });
 
                     if (madeOnce)
                         ++it;
@@ -764,6 +861,120 @@ namespace pg
 
             for (size_t f = 0; f < programFiles.size(); ++f)
                 decidedText.push_back(fileFacts(f));
+
+            if (constexprOrder.empty())
+                return;
+
+            // The statements that make each const or var: its definition, what joined it
+            std::map<std::string, std::vector<StatementPtr>> making;
+            std::unordered_map<const Statement*, size_t> fileOfStatement;
+            std::unordered_map<size_t, StatementPtr> statementOfWriter;
+
+            for (size_t f = 0; f < programFiles.size(); ++f)
+            {
+                const auto& file = programFiles[f];
+
+                for (size_t i = 0; i < file.size(); ++i)
+                {
+                    const std::string declared = file[i]->kind() == AstKind::VariableStatement ? declaredBy(file[i]) : "";
+
+                    if (not declared.empty())
+                        making[declared].push_back(file[i]);
+
+                    if (i < fileJoins[f].size() and fileJoins[f][i].joined)
+                        making[declaredBy(file[fileJoins[f][i].target])].push_back(file[i]);
+
+                    fileOfStatement[file[i].get()] = f;
+
+                    auto writer = writerOf.find(file[i].get());
+
+                    if (writer != writerOf.end())
+                        statementOfWriter[writer->second] = file[i];
+                }
+            }
+
+            for (const auto& name : constexprOrder)
+            {
+                const Statement* definition = definitionOf.at(name);
+                const auto& token = static_cast<const VariableStatement*>(definition)->name;
+                const std::string place = placeOf(definition, token.line);
+
+                auto refuse = [&](const std::string& why)
+                {
+                    problems.push_back({name, place + ": constexpr `" + name + "` " + why});
+                };
+
+                if (definitions(name) != 1)
+                {
+                    refuse("is defined more than once");
+                    continue;
+                }
+
+                if (rebinds.count(name))
+                {
+                    refuse("is assigned besides its definition");
+                    continue;
+                }
+
+                if (undecidedFiles.count(fileOfStatement.at(definition)))
+                {
+                    refuse("stands in a file the program cannot tell from another with the same statements");
+                    continue;
+                }
+
+                // Nothing but what makes it may write what it reaches
+                std::string outside;
+
+                for (const size_t writer : writersReaching(name))
+                {
+                    if (makesOrCameBefore(writer, name))
+                        continue;
+
+                    outside = "may be written by " + writerNames[writer];
+
+                    auto statement = statementOfWriter.find(writer);
+
+                    if (statement == statementOfWriter.end())
+                    {
+                        outside += ": a function may run at any time";
+                        break;
+                    }
+
+                    std::set<std::string> seen{name};
+                    std::string change;
+
+                    for (const auto& read : effectsOf(statement->second).reads)
+                    {
+                        change = change.empty() ? madeOfChange(read, making, seen) : change;
+                    }
+
+                    outside += change.empty() ? ", which is not part of making it: making it ends at the first statement that does something else"
+                                              : ", which reads `" + change + "`: that is not the same on every run";
+                    break;
+                }
+
+                if (not outside.empty())
+                {
+                    refuse(outside);
+                    continue;
+                }
+
+                std::set<std::string> seen;
+                const std::string change = madeOfChange(name, making, seen);
+
+                if (not change.empty())
+                {
+                    refuse("reads `" + change + "`: that is not the same on every run");
+                    continue;
+                }
+
+                const StatementEffects e = effectsOf(making.at(name).front());
+
+                if (e.unknown)
+                    refuse("calls something the compiler cannot follow");
+                else if (not onlyMakes(e, {name}))
+                    refuse("does more than make itself: its initializer writes or assigns something else");
+            }
         }
 
         int ProgramEffects::joinTarget(const std::vector<StatementPtr>& file, size_t statement, const std::vector<size_t>& open) const
@@ -836,7 +1047,22 @@ namespace pg
             return walkConsts(file,
                 [this](const VariableStatement& v) { return v.isConst or inferred.count(v.name.text) > 0; },
                 [this, &file](size_t target) { return invariantConsts.count(declaredBy(file[target])) > 0; },
-                [this, &file, twice](size_t statement, const std::vector<size_t>& open) { return twice ? -1 : joinTarget(file, statement, open); }, true);
+                [this, &file, twice](size_t statement, const std::vector<size_t>& open)
+                {
+                    if (not twice)
+                        return joinTarget(file, statement, open);
+
+                    // A constexpr is made once whatever runs its file
+                    std::vector<size_t> once;
+
+                    for (auto o : open)
+                    {
+                        if (constexprs.count(declaredBy(file[o])))
+                            once.push_back(o);
+                    }
+
+                    return once.empty() ? -1 : joinTarget(file, statement, once);
+                }, true);
         }
 
         void ProgramEffects::findRunOrder(const FileImports& imports)
@@ -957,6 +1183,9 @@ namespace pg
                         ++defined[v->name.text];
                         (v->isConst ? consts : vars).insert(v->name.text);
                         definitionOf[v->name.text] = v.get();
+
+                        if (v->isConstexpr and constexprs.insert(v->name.text).second)
+                            constexprOrder.push_back(v->name.text);
                     }
                     else if (s->kind() == AstKind::FunctionStatement)
                     {
@@ -976,14 +1205,16 @@ namespace pg
             // Code runs behind a field read or a loop, which the IR does not show
             if (hiddenCode)
             {
-                LOG_INFO(DOM, "Not analyzed: a class or a metamethod runs behind what the bodies show");
+                refused = "a class or a metamethod runs behind what the code shows";
+                LOG_INFO(DOM, "Not analyzed: " << refused);
                 return false;
             }
 
             // What runs after it depends on what the bodies do not show
             if (returnsEarly)
             {
-                LOG_INFO(DOM, "Not analyzed: a return at the top level decides what runs after it");
+                refused = "a return at the top level decides what runs after it";
+                LOG_INFO(DOM, "Not analyzed: " << refused);
                 return false;
             }
 
@@ -1074,6 +1305,7 @@ namespace pg
             std::vector<std::vector<LocId>> ownWrites;
             std::unordered_map<const Statement*, size_t> writerOf;
             std::vector<Edge> edges;
+            std::vector<std::string> writerNames;
 
             auto notAParameter = [this](LocId l) { return locs.rootKind(l) != RootKind::Param; };
 
@@ -1082,6 +1314,7 @@ namespace pg
                 Summary summary = evaluate(body, collapsedValues);
 
                 writerOf[statement] = ownWrites.size();
+                writerNames.push_back(placeOf(statement, statement->line));
                 ownWrites.emplace_back();
 
                 for (const auto& w : summary.writes)
@@ -1093,14 +1326,23 @@ namespace pg
 
             const size_t statementsWriting = ownWrites.size();
 
+            // By function: the writes that stay in what it made
+            std::vector<std::set<LocId>> inOwnTables;
+
             auto addFunction = [&](const Summary& summary)
             {
                 ownWrites.emplace_back();
+                inOwnTables.emplace_back();
 
                 for (const auto& w : summary.writes)
                 {
                     if (notAParameter(w.at))
+                    {
                         ownWrites.back().push_back(w.at);
+
+                        if (locs.depth(w.at) > 1 and staysInOwnTables(w.at, summary.edges))
+                            inOwnTables.back().insert(w.at);
+                    }
                 }
 
                 for (const auto& e : summary.edges)
@@ -1111,23 +1353,31 @@ namespace pg
             };
 
             for (const auto& [name, summary] : summaries)
+            {
                 addFunction(summary);
+                writerNames.push_back("function `" + name + "`");
+            }
 
             for (const auto& [name, body] : otherBodies)
+            {
                 addFunction(evaluate(body, collapsedValues));
+                writerNames.push_back("function `" + name + "`");
+            }
 
             resolveEdges(edges);
             findRegions();
 
             // A slot of a table a call makes is written in that table, no table of the program: stored in
-            // one, that is the store's write. Anything deeper may be below what that table holds
+            // one, that is the store's write. Anything deeper may be below what that table holds, unless
+            // all it holds on the way was made by the call too
             for (size_t i = statementsWriting; i < ownWrites.size(); ++i)
             {
                 auto& writes = ownWrites[i];
+                const auto& own = inOwnTables[i - statementsWriting];
 
-                writes.erase(std::remove_if(writes.begin(), writes.end(), [this](LocId w)
+                writes.erase(std::remove_if(writes.begin(), writes.end(), [this, &own](LocId w)
                 {
-                    return locs.rootKind(w) == RootKind::Site and locs.depth(w) == 1 and not reachesAll(w);
+                    return locs.rootKind(w) == RootKind::Site and (locs.depth(w) == 1 or own.count(w)) and not reachesAll(w);
                 }), writes.end());
             }
 
@@ -1136,7 +1386,7 @@ namespace pg
             for (const auto& writes : ownWrites)
                 writers.push_back(written(writes));
 
-            settleConsts(writers, writerOf);
+            settleConsts(writers, writerOf, writerNames);
 
             return true;
         }

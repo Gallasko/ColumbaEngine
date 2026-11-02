@@ -26,6 +26,10 @@
  *
  * What a top-level statement does (StatementEffects) is what it and every call it makes do: the
  * whole program runs from its top levels.
+ *
+ * A `constexpr` is what these say of it, as a proof: all it was made of, consts included, is the same
+ * on every run, and all that may write what it reaches joins it. A const is taken at its word, a
+ * constexpr is not: ProgramConstsPass refuses the program on what constexprProblems says.
  */
 
 #include "program_view.h"
@@ -82,6 +86,13 @@ namespace pg
             std::vector<analysis::LocId> items;
         };
 
+        // Why a constexpr of the program is not proved
+        struct ConstexprProblem
+        {
+            std::string name;
+            std::string message;  // Whole: where, what, why
+        };
+
         class ProgramEffects
         {
         public:
@@ -115,6 +126,12 @@ namespace pg
             // unknown, rebinds nothing, and writes only into what they reach or what it made itself
             // (reached by no global)
             bool onlyMakes(const StatementEffects& effects, const std::set<std::string>& targets) const;
+
+            // The constexprs of the program that could not be proved, in the order they are declared
+            const std::vector<ConstexprProblem>& constexprProblems() const { return problems; }
+
+            // Why `analyze` gave up, "" when it did not
+            const std::string& refusal() const { return refused; }
 
             // The top-level vars the program defines once and never changes, made of what is the
             // same on every run: as good as consts
@@ -170,6 +187,8 @@ namespace pg
 
             std::map<std::string, int> defined;  // Top-level definitions by name (var, const, fun, class)
             std::set<std::string> consts;
+            std::set<std::string> constexprs;
+            std::vector<std::string> constexprOrder;
             std::set<std::string> vars;
             std::set<std::string> rebinds;       // Globals assigned besides their definition
             std::map<std::string, const Statement*> definitionOf;  // A top-level var's statement
@@ -208,6 +227,9 @@ namespace pg
 
             std::set<std::string> inferred;
             size_t collapsedValues = 0;
+
+            std::vector<ConstexprProblem> problems;
+            std::string refused;
 
             // Every location is made where it is first needed, questions included
             mutable analysis::Locations locs;
@@ -264,9 +286,23 @@ namespace pg
             // declares nothing: nothing can be decided for it
             std::string fileFacts(size_t file) const;
 
-            // `writers`: the objects each statement or function writes into. The vars found to be consts
-            // and the consts found not to be rest on each other: both found again until none is lost
-            void settleConsts(const std::vector<Objects>& writers, const std::unordered_map<const Statement*, size_t>& writerOf);
+            // Whether a write of a function goes only through tables the function made, by what it stores
+            // (`edges`, its own): each step of the path holds nothing else, so it writes what this call
+            // made and nothing that was there before it
+            bool staysInOwnTables(analysis::LocId write, const std::vector<analysis::Edge>& edges) const;
+
+            // "path:line" of a statement of the program
+            std::string placeOf(const Statement* statement, unsigned line) const;
+
+            // The first name a const or a var was made of that is not the same on every run, "" when
+            // none is, all the way down: a const's word is not taken. `making`: its statements, by name
+            std::string madeOfChange(const std::string& name, const std::map<std::string, std::vector<StatementPtr>>& making, std::set<std::string>& seen) const;
+
+            // `writers`: the objects each statement or function writes into, `writerNames` what to call
+            // them. The vars found to be consts and the consts found not to be rest on each other: both
+            // found again until none is lost
+            void settleConsts(const std::vector<Objects>& writers, const std::unordered_map<const Statement*, size_t>& writerOf,
+                              const std::vector<std::string>& writerNames);
         };
     }
 }

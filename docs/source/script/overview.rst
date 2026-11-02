@@ -110,6 +110,29 @@ Example::
     var numbers = [5, 10, 15];
     print(numbers[0]);      // Output: 5
 
+Tables Built Once (constexpr)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A script's top-level code runs at every run. A ``constexpr`` is built on the first run of a VM and kept::
+
+    constexpr squares = []
+
+    for (var i = 0; i < 4; i++)
+    {
+        push(squares, i * i)
+    }
+
+    constexpr first = squares[0]
+
+The statements right after it that only build it are part of it. The compiler proves the rest, at every optimization level, and the script does not compile otherwise:
+
+* All it is made of is the same on every run: no value the host gives the script, and no ``var`` that changes.
+* Nothing but what builds it writes it, through any other name, in any file of the program.
+
+So it can only be proved when the whole program can be read: a class, a ``return`` at a file's top level, an import below a file's top level or a module that exists only as a ``.pgc`` refuse it. It stands at the top level of a script, and needs the AST front-end.
+
+To change a row, change a copy: ``deepCopy(table)`` shares nothing with the table. ``copy(table)`` shares what is below its first level, and a write there is refused.
+
 Module System
 ~~~~~~~~~~~~~
 

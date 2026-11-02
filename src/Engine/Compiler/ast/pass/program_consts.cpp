@@ -14,6 +14,22 @@ namespace pg
     namespace
     {
         const char* DOM = "ProgramConsts";
+
+        std::vector<std::string> constexprsOf(const std::vector<std::vector<StatementPtr>>& files)
+        {
+            std::vector<std::string> names;
+
+            for (const auto& file : files)
+            {
+                for (const auto& s : file)
+                {
+                    if (s and s->kind() == AstKind::VariableStatement and std::static_pointer_cast<VariableStatement>(s)->isConstexpr)
+                        names.push_back(std::static_pointer_cast<VariableStatement>(s)->name.text);
+                }
+            }
+
+            return names;
+        }
     }
 
     bool ProgramConstsPass::runPass(VM* vm, std::queue<StatementPtr>& statements)
@@ -28,11 +44,31 @@ namespace pg
 
             const ast::ProgramFiles files = ast::readProgramFiles(vm, statements);
 
-            analyzed = files.complete;
+            std::vector<std::string> declared = constexprsOf(files.files);
+
+            // Optimizations off, it is here for the constexprs alone
+            enabled = (everything and (not vm or vm->enableOptimizations)) or not declared.empty();
+            analyzed = enabled and files.complete;
 
             if (analyzed)
                 analyzed = effects.analyze(files.files, files.imports, files.origins);
+
+            if (not analyzed)
+            {
+                const std::string why = not files.complete ? "the whole program cannot be read (a module with only a .pgc, or an import below the top level of a file)" : effects.refusal();
+
+                for (const auto& name : declared)
+                    errors.push_back("constexpr `" + name + "` cannot be proved: " + why);
+            }
+            else
+            {
+                for (const auto& problem : effects.constexprProblems())
+                    errors.push_back(problem.message);
+            }
         }
+
+        if (not enabled)
+            return false;
 
         // By index, the empty statements of the parser left aside
         std::vector<StatementPtr> all, own;
@@ -87,6 +123,8 @@ namespace pg
                     changed = true;
                     ++inferred;
                 }
+
+                v->proven = v->isConstexpr and errors.empty() and analyzed;
             }
 
             if (join.joined)
@@ -103,6 +141,13 @@ namespace pg
         LOG_INFO(DOM, inferred << " vars made consts, joined " << joined << " statements to their const" << (plain ? " (plain fills)" : ""));
 
         return changed;
+    }
+
+    std::vector<std::string> ProgramConstsPass::takeErrors()
+    {
+        std::vector<std::string> taken;
+        taken.swap(errors);
+        return taken;
     }
 
     std::string ProgramConstsPass::factsAboutIdentifiers(const std::set<std::string>& identifiers) const

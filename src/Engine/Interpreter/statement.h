@@ -19,6 +19,8 @@ namespace pg
         virtual std::string prettyPrint() const = 0;
         virtual std::string getType() const = 0;
         virtual AstKind kind() const = 0;
+
+        unsigned line = 0;  // Where it starts, for what is said about it (Parser::declaration)
     };
 
     typedef std::shared_ptr<Statement> StatementPtr;
@@ -57,6 +59,12 @@ namespace pg
         // A `var` the whole-program analysis found to be as good as a const (ProgramConstsPass), `isConst`
         // set with it. It was written a var: the passes that follow what the source says treat it as one
         bool inferredConst = false;
+
+        // `constexpr name = ...`: a const the compiler must prove, at every level: made only of what is
+        // the same on every run, and written by nothing but what makes it (the statements right after
+        // it, joined). `isConst` set with it. What cannot be proved does not compile
+        bool isConstexpr = false;
+        bool proven = false;  // ProgramConstsPass proved it for this program
 
         // The top-level statements right after it that set its entries to constants, run with its
         // initializer and so kept with it (RunOncePass)

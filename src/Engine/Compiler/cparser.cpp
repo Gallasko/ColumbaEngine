@@ -744,6 +744,7 @@ namespace pg
         {TokenType::NOOP,         {NULL,        NULL,       Precedence::NONE}},
         {TokenType::INVALID,      {NULL,        NULL,       Precedence::NONE}},
         {TokenType::TOK_CONST,    {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::TOK_CONSTEXPR, {NULL,       NULL,       Precedence::NONE}},
         {TokenType::TOK_INCLUDE,  {NULL,        NULL,       Precedence::NONE}},
         {TokenType::TOK_IF,       {NULL,        NULL,       Precedence::NONE}},
         {TokenType::TOK_ELSE,     {NULL,        NULL,       Precedence::NONE}},
@@ -811,6 +812,10 @@ namespace pg
         else if (match(TokenType::TOK_CONST))
         {
             constDeclaration();
+        }
+        else if (match(TokenType::TOK_CONSTEXPR))
+        {
+            errorAt(previousToken, "constexpr is proved on the AST: this front-end cannot compile it");
         }
         else if (match(TokenType::TOK_FUN))
         {
@@ -2028,6 +2033,7 @@ namespace pg
                 case TokenType::TOK_FUN:
                 case TokenType::TOK_VAR:
                 case TokenType::TOK_CONST:
+                case TokenType::TOK_CONSTEXPR:
                 case TokenType::TOK_FOR:
                 case TokenType::TOK_IF:
                 case TokenType::TOK_WHILE:

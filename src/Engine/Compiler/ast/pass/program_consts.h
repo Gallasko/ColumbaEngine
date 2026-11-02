@@ -16,6 +16,11 @@
  *
  * A module is compiled from a parse of its own, of the same source as the one analyzed: what was
  * decided is applied by index. A file that does not line up has nothing applied.
+ *
+ * A `constexpr` is a promise the compiler checks, and what a program means rests on what joins it. So
+ * the pass runs at every level: below O3 (`everything` off) it reads the program for a constexpr, and
+ * only a program that has one is analyzed, then gets what O3 gets. One not proved does not compile
+ * (ast::ConstexprProblem).
  */
 
 #include "../ast_pass.h"
@@ -23,15 +28,22 @@
 
 #include <set>
 #include <string>
+#include <vector>
 
 namespace pg
 {
     class ProgramConstsPass : public AstPass
     {
     public:
-        std::string getName() const override { return "ProgramConsts"; }
+        explicit ProgramConstsPass(bool everything = true) : everything(everything) {}
+
+        std::string getName() const override { return everything ? "ProgramConsts" : "Constexpr"; }
 
         bool runPass(VM* vm, std::queue<StatementPtr>& statements) override;
+
+        bool required() const override { return true; }
+
+        std::vector<std::string> takeErrors() override;
 
         std::string factsAboutIdentifiers(const std::set<std::string>& identifiers) const override;
 
@@ -39,5 +51,8 @@ namespace pg
         // What the program's code reads and writes (when it could be read whole)
         ast::ProgramEffects effects;
         bool analyzed = false;
+        bool everything;
+        bool enabled = true;  // Whether this program is to be changed
+        std::vector<std::string> errors;
     };
 }

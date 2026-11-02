@@ -584,14 +584,23 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
+        const unsigned line = tokenList.front().line;
+
         try
         {
-            if (match(TokenType::TOK_VAR))   return varDeclaration();
-            if (match(TokenType::TOK_CONST)) return varDeclaration(true);
-            if (match(TokenType::TOK_FUN))   return funDeclaration();
-            if (match(TokenType::TOK_CLASS)) return classDeclaration();
+            StatementPtr declared;
 
-            return statement();
+            if (match(TokenType::TOK_VAR))            declared = varDeclaration();
+            else if (match(TokenType::TOK_CONST))     declared = varDeclaration(true);
+            else if (match(TokenType::TOK_CONSTEXPR)) declared = varDeclaration(true, true);
+            else if (match(TokenType::TOK_FUN))       declared = funDeclaration();
+            else if (match(TokenType::TOK_CLASS))     declared = classDeclaration();
+            else                                      declared = statement();
+
+            if (declared)
+                declared->line = line;
+
+            return declared;
         }
         catch (const std::exception& e)
         {
@@ -673,7 +682,7 @@ namespace pg
         return std::make_shared<FunctionStatement>(name, parameters, body);
     }
 
-    StatementPtr Parser::varDeclaration(bool isConst)
+    StatementPtr Parser::varDeclaration(bool isConst, bool isConstexpr)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -694,6 +703,7 @@ namespace pg
 
         auto statement = std::make_shared<VariableStatement>(name, initializer);
         statement->isConst = isConst;
+        statement->isConstexpr = isConstexpr;
 
         return statement;
     }

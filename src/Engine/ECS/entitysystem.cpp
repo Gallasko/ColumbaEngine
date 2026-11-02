@@ -1097,10 +1097,14 @@ namespace pg
 
     void EntitySystem::setOptimizationPasses(VM &vm)
     {
+        const bool wholeProgramAnalysis = vmOptimizationLevel == VmOptimizationLevel::O3;
+
+        // What the whole program makes once, read before anything rewrites it. Below O3 only for a
+        // constexpr, which is proved at every level
+        vm.addAstPass(std::make_unique<ProgramConstsPass>(wholeProgramAnalysis));
+
         if (vmOptimizationLevel >= VmOptimizationLevel::O2)
         {
-            const bool wholeProgramAnalysis = vmOptimizationLevel == VmOptimizationLevel::O3;
-
             vm.enableBytecodeOptimization();
 
             // Operand-elision specialization (the old BasicOperatorLocal-
@@ -1138,10 +1142,6 @@ namespace pg
 
             // AST-level passes: only run on the AST front-end path (between
             // parse and emission); the Pratt front-end never sees them.
-            // What the whole program makes once, read before anything rewrites it
-            if (wholeProgramAnalysis)
-                vm.addAstPass(std::make_unique<ProgramConstsPass>());
-
             // Entity-loop lowering runs FIRST of the others (it matches the pristine
             // ForIn(getEntities(...)) shape; its call-containing output is
             // skipped by the other passes anyway), then static evaluation so

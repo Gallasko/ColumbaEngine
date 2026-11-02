@@ -1874,6 +1874,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/pgcompiler/unit/test_loop_shapes.cc
             test/pgcompiler/unit/test_chunk_constants.cc
             test/pgcompiler/unit/test_run_once.cc
+            test/pgcompiler/unit/test_constexpr.cc
             test/pgcompiler/unit/test_effects.cc
             test/pgcompiler/unit/test_module_cache.cc
             test/pgcompiler/unit/test_shape_budget.cc

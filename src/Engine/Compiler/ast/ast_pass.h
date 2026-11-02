@@ -45,6 +45,12 @@ namespace pg
         /** Transform/annotate the program; return true if anything changed */
         virtual bool runPass(VM* vm, std::queue<StatementPtr>& statements) = 0;
 
+        /** Whether it runs with optimizations off too: what the program means rests on it */
+        virtual bool required() const { return false; }
+
+        /** Why the program must not compile, nothing when it may */
+        virtual std::vector<std::string> takeErrors() { return {}; }
+
         // A module is compiled below the script that imports it, with what the passes learnt from
         // that script's whole program. These two say what of it a module's compile can see, so a
         // module compiled once can be kept for the next program that tells it the same
@@ -83,7 +89,11 @@ namespace pg
     public:
         void addPass(std::unique_ptr<AstPass> pass);
 
-        void runAllPasses(VM* vm, std::queue<StatementPtr>& statements);
+        // `optimizing` off: only the passes a program's meaning needs (AstPass::required)
+        void runAllPasses(VM* vm, std::queue<StatementPtr>& statements, bool optimizing = true);
+
+        // Why the program compiled last must not compile, given once
+        std::vector<std::string> takeErrors();
 
         void setDebugOutput(bool enable) { enableDebugOutput = enable; }
 
@@ -103,6 +113,7 @@ namespace pg
         void debugPrint(const std::string& message) const;
 
         std::vector<std::unique_ptr<AstPass>> passes;
+        std::vector<std::string> errors;
         bool enableDebugOutput = false;
     };
 }

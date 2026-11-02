@@ -52,11 +52,17 @@ namespace pg
         // AST optimization passes: structure-level transformations only this
         // front-end can do (loop-invariant hoisting; later entity-loop and
         // component-access lowering). O0 / --no-opt disables them together
-        // with the bytecode passes.
-        if (vm->enableOptimizations)
+        // with the bytecode passes, but for those a program's meaning needs.
+        vm->astPassManager->runAllPasses(vm, statements, vm->enableOptimizations);
+
+        for (const auto& refused : vm->astPassManager->takeErrors())
         {
-            vm->astPassManager->runAllPasses(vm, statements);
+            LOG_ERROR(DOM, refused);
+            hadError = true;
         }
+
+        if (hadError)
+            return 0x0;
 
         return compileAst(std::move(statements));
     }
@@ -679,6 +685,19 @@ namespace pg
     void AstCompiler::visitStatement(VariableStatement* stmt)
     {
         setLine(stmt->name);
+
+        if (stmt->isConstexpr and Compiler::current->scopeDepth > 0)
+        {
+            error(stmt->name, "constexpr is for a script's top level: " + stmt->name.text);
+            return;
+        }
+
+        // Nothing may compile as a constexpr unproved (a VM without ProgramConstsPass)
+        if (stmt->isConstexpr and not stmt->proven)
+        {
+            error(stmt->name, "constexpr not proved: " + stmt->name.text);
+            return;
+        }
 
         // `const name = value` at the top of a script: the value is made only while no global of
         // that name is defined (the script's first run on this VM); later runs keep it
