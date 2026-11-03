@@ -1,0 +1,16 @@
+import "algorithm"
+
+fun print2DTable(table)
+{
+    for (var i = 0; i < len(table); i++)
+    {
+        var line = ""
+
+        for (var j = 0; j < len(table[i]); j++)
+        {
+            line += toString(table[i][j]) + " "
+        }
+
+        print(line)
+    }
+}

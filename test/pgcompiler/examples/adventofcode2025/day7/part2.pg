@@ -1,0 +1,73 @@
+import "file"
+import "string"
+import "algorithm"
+
+import "../common.pg"
+
+var path = "test/pgcompiler/examples/adventofcode2025/day7/"
+var files = ["aoc7small", "ex1", "aoc7full"]
+// var files = ["aoc7small", "ex1"]
+// var files = ["aoc7small", "aoc7full"]
+
+fun beamDown(table, i, j, val)
+{
+    if (i >= len(table) or j < 0 or j >= len(table[i]))
+        return val
+
+    var tableVal = table[i][j]
+
+    if (tableVal == 0)
+    {
+        return beamDown(table, i + 1, j, val)
+    }
+    else if (tableVal == 1)
+    {
+        var a = beamDown(table, i + 1, j - 1, val)
+        var b = beamDown(table, i + 1, j + 1, val)
+
+        table[i][j] = a + b
+
+        return a + b
+    }
+
+    return tableVal
+}
+
+for (var file : files)
+{
+    var f = readFile(path + file)
+
+    var lines = splitLines(f)
+
+    var table = []
+
+    for (var i = 0; i < len(lines); i++)
+    {
+        table.push([])
+
+        var line = lines[i]
+
+        for (var j = 0; j < strlen(line); j++)
+        {
+            if (line[j] == ".")
+                table[i][j] = 0
+            else if (line[j] == "^")
+                table[i][j] = 1
+            else if (line[j] == "S")
+                table[i][j] = 2
+        }
+    }
+
+    var res = 0
+
+    for (var i = 0; i < len(table[0]); i++)
+    {
+        if (table[0][i] == 2)
+            res += beamDown(table, 1, i, 1)
+    }
+
+    // print2DTable(table)
+
+    __dprint(res)
+    // table.push([])
+}

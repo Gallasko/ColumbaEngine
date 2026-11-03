@@ -5,21 +5,6 @@ import "algorithm"
 var path = "test/pgcompiler/examples/adventofcode2025/day6/"
 var files = ["aoc6small", "aoc6full"]
 
-fun print2DTable(table)
-{
-    for (var i = 0; i < len(table); i++)
-    {
-        var line = ""
-
-        for (var j = 0; j < len(table[i]); j++)
-        {
-            line += table[i][j] + " "
-        }
-
-        print(line)
-    }
-}
-
 for (var file : files)
 {
     var f = readFile(path + file)
