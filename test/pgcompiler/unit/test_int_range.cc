@@ -123,6 +123,19 @@ namespace pg
             expectOutput("__dprint(toInt(toFloat(\"70368744177663\")))\n", "70368744177663\n");
         }
 
+        TEST(int_range_test, conversions_allow_spaces_around_the_number)
+        {
+            expectOutput("__dprint(toInt(\"24 \"))\n__dprint(toInt(\" 24\"))\n__dprint(toInt(\"  24  \"))\n",
+                         "24\n24\n24\n");
+
+            expectOutput("__dprint(toInt(toFloat(\"24 \")))\n__dprint(toInt(toFloat(\" 24\")))\n"
+                         "__dprint(toInt(toFloat(\"  2.5e1  \")))\n",
+                         "24\n24\n25\n");
+
+            // Anything else after the number is still refused
+            expectOverflow("var x = toFloat(\"24 x\")");
+        }
+
         TEST(int_range_test, arithmetic_refuses_a_result_past_the_range)
         {
             expectOverflow("var x = maxInt + 1");

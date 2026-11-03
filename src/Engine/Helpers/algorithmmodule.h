@@ -2,6 +2,7 @@
 
 #include "Compiler/native_module.h"
 
+#include <cctype>
 #include <cmath>
 #include <stdexcept>
 
@@ -504,6 +505,10 @@ namespace pg
                 {
                     throw std::runtime_error("toFloat could not convert the string " + str + " to a number");
                 }
+
+                // stod skips the spaces before the number; the ones after it are allowed too, like toInt
+                while (consumed < str.size() and std::isspace(static_cast<unsigned char>(str[consumed])))
+                    ++consumed;
 
                 if (consumed != str.size())
                     throw std::runtime_error("toFloat could not convert the string " + str + " to a number");
