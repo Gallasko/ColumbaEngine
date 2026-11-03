@@ -142,6 +142,7 @@ namespace pg
         OP_Has_Iter,         // Pop a value, push true when it is an instance whose class has a __iter method (for-in)
         OP_Has_Next,         // Pop a value, push true when it is an instance whose class has a __next method (for-in)
         OP_Peek,             // Push a copy of what stands <distance> below the top of the stack (`f()[0] += 1`)
+        OP_Drop_Under,       // Remove the <count> values below the top of the stack, the top staying (`f()[0]++`)
 
         OP_Custom = 255, // Custom opcode for extensions (not used by core VM)
     };
@@ -405,6 +406,7 @@ namespace pg
             case OpCode::OP_Call:
             case OpCode::OP_Short_Int:
             case OpCode::OP_Peek:
+            case OpCode::OP_Drop_Under:
                 return 2; // opcode + 1 byte operand
 
             case OpCode::OP_Define_Global:

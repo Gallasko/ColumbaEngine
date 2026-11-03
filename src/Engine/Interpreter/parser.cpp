@@ -435,6 +435,10 @@ namespace pg
                 auto& token = std::static_pointer_cast<Var>(expr)->name;
                 return std::make_shared<PreFixExpression>(expr, op, token);
             }
+
+            if (expr->kind() == AstKind::Get or expr->kind() == AstKind::IndexGet)
+                return stepped(expr, op, false);
+
             throw ParseException(tokenList.front(), "Expected Variable after pre fix operator");
         }
 
@@ -532,7 +536,43 @@ namespace pg
             }
         }
 
+        // A field or an index stepped after it is read: `t.n++`, `t[k]--`
+        if ((expr->kind() == AstKind::Get or expr->kind() == AstKind::IndexGet) and match(TokenType::INCREMENT, TokenType::DECREMENT))
+            return stepped(expr, previousToken, true);
+
         return expr;
+    }
+
+    ExprPtr Parser::stepped(const ExprPtr& target, const Token& op, bool postfix)
+    {
+        const bool up = op.type == TokenType::INCREMENT;
+
+        auto value = std::make_shared<BinaryExpression>(target, Token{up ? TokenType::PLUS : TokenType::MINUS, up ? "+" : "-", op.line, op.column}, std::make_shared<Atom>(1));
+
+        if (target->kind() == AstKind::Get)
+        {
+            auto getExpr = std::static_pointer_cast<Get>(target);
+            auto setExpr = std::make_shared<Set>(getExpr->object, getExpr->name, value);
+
+            setExpr->compound = true;
+            setExpr->postfix = postfix;
+
+            return setExpr;
+        }
+
+        auto indexExpr = std::static_pointer_cast<IndexGet>(target);
+        auto setExpr = std::make_shared<IndexSet>(indexExpr->object, indexExpr->index, value, indexExpr->bracket);
+
+        setExpr->compound = true;
+        setExpr->postfix = postfix;
+
+        std::queue<ExprPtr> args;
+        args.push(indexExpr->index);
+        args.push(value);
+
+        setExpr->desugared = makeIndexProtocolCall(indexExpr->object, indexExpr->bracket, "set", args);
+
+        return setExpr;
     }
 
     ExprPtr Parser::primary()

@@ -453,6 +453,8 @@ namespace pg
 
             case OpCode::OP_Peek:
                 return byteInstruction("OP_Peek", chunk, offset);
+            case OpCode::OP_Drop_Under:
+                return byteInstruction("OP_Drop_Under", chunk, offset);
 
             case OpCode::OP_Set_Upvalue:
                 return byteInstruction("OP_Set_Upvalue", chunk, offset);
@@ -673,6 +675,7 @@ namespace pg
             case OpCode::OP_Closure: return "OP_Closure";
             case OpCode::OP_Get_Upvalue: return "OP_Get_Upvalue";
             case OpCode::OP_Peek: return "OP_Peek";
+            case OpCode::OP_Drop_Under: return "OP_Drop_Under";
             case OpCode::OP_Set_Upvalue: return "OP_Set_Upvalue";
             case OpCode::OP_Close_Upvalue: return "OP_Close_Upvalue";
             case OpCode::OP_Class: return "OP_Class";

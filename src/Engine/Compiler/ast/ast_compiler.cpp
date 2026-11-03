@@ -657,6 +657,17 @@ namespace pg
 
     void AstCompiler::visit(Set* expr)
     {
+        compileSet(expr, expr->postfix);
+    }
+
+    void AstCompiler::compileSet(Set* expr, bool leaveRead)
+    {
+        if (leaveRead)
+        {
+            compileSetLeavingRead(expr);
+            return;
+        }
+
         expr->object->accept(this);
 
         setLine(expr->name);
@@ -687,6 +698,61 @@ namespace pg
         root.parser.writeByte(static_cast<uint8_t>(stringIndex));
     }
 
+    // `t.n++`: the field read stays under the write, which is dropped
+    void AstCompiler::compileSetLeavingRead(Set* expr)
+    {
+        auto value = std::static_pointer_cast<BinaryExpression>(expr->value);
+        const bool twice = sameReadTwice(expr->object);
+
+        expr->object->accept(this);
+
+        setLine(expr->name);
+
+        int stringIndex = internString(expr->name.text, expr->name);
+
+        if (stringIndex < 0)
+            return;
+
+        if (twice)
+        {
+            // [read] [object] [read] -> [read] [written]
+            root.parser.writeByte(OpCode::OP_Get_Property);
+            root.parser.writeByte(static_cast<uint8_t>(stringIndex));
+
+            expr->object->accept(this);
+
+            root.parser.writeByte(OpCode::OP_Peek);
+            root.parser.writeByte(1);
+        }
+        else
+        {
+            // [object] [read] [object] [read] -> [object] [read] [written]
+            root.parser.writeByte(OpCode::OP_Peek);
+            root.parser.writeByte(0);
+            root.parser.writeByte(OpCode::OP_Get_Property);
+            root.parser.writeByte(static_cast<uint8_t>(stringIndex));
+
+            root.parser.writeByte(OpCode::OP_Peek);
+            root.parser.writeByte(1);
+            root.parser.writeByte(OpCode::OP_Peek);
+            root.parser.writeByte(1);
+        }
+
+        value->rightExpr->accept(this);
+        writeBinaryOperator(value->op);
+
+        setLine(expr->name);
+        root.parser.writeByte(OpCode::OP_Set_Property);
+        root.parser.writeByte(static_cast<uint8_t>(stringIndex));
+        root.parser.writeByte(OpCode::OP_Pop);
+
+        if (not twice)
+        {
+            root.parser.writeByte(OpCode::OP_Drop_Under);
+            root.parser.writeByte(1);
+        }
+    }
+
     void AstCompiler::visit(AnonymousFunction* expr)
     {
         // The Pratt front-end names anonymous functions after the 'fun'
@@ -704,6 +770,15 @@ namespace pg
     }
 
     void AstCompiler::visit(IndexSet* expr)
+    {
+        if (expr->postfix)
+            compileIndexSetLeavingRead(expr);
+        else
+            compileIndexSetLeavingWritten(expr);
+    }
+
+    // What OP_Set_Index leaves is the table: for a write nobody reads
+    void AstCompiler::compileIndexSet(IndexSet* expr)
     {
         expr->object->accept(this);
         expr->index->accept(this);
@@ -731,13 +806,115 @@ namespace pg
         root.parser.writeByte(OpCode::OP_Set_Index);
     }
 
+    // `var x = (t[k] = v)`, `++t[k]`: the value written stays under the write, which is dropped
+    void AstCompiler::compileIndexSetLeavingWritten(IndexSet* expr)
+    {
+        expr->object->accept(this);
+        expr->index->accept(this);
+
+        if (expr->compound)
+        {
+            auto value = std::static_pointer_cast<BinaryExpression>(expr->value);
+
+            root.parser.writeByte(OpCode::OP_Peek);
+            root.parser.writeByte(1);
+            root.parser.writeByte(OpCode::OP_Peek);
+            root.parser.writeByte(1);
+
+            setLine(expr->bracket);
+            root.parser.writeByte(OpCode::OP_Get_Index);
+
+            value->rightExpr->accept(this);
+            writeBinaryOperator(value->op);
+        }
+        else
+            expr->value->accept(this);
+
+        // [object] [index] [written] [object] [index] [written] -> [object] [index] [written] [table]
+        for (int i = 0; i < 3; ++i)
+        {
+            root.parser.writeByte(OpCode::OP_Peek);
+            root.parser.writeByte(2);
+        }
+
+        setLine(expr->bracket);
+        root.parser.writeByte(OpCode::OP_Set_Index);
+        root.parser.writeByte(OpCode::OP_Pop);
+        root.parser.writeByte(OpCode::OP_Drop_Under);
+        root.parser.writeByte(2);
+    }
+
+    // `t[k]++`: the row read stays under the write, which is dropped
+    void AstCompiler::compileIndexSetLeavingRead(IndexSet* expr)
+    {
+        auto value = std::static_pointer_cast<BinaryExpression>(expr->value);
+        const bool twice = sameReadTwice(expr->object) and sameReadTwice(expr->index);
+
+        expr->object->accept(this);
+        expr->index->accept(this);
+
+        if (twice)
+        {
+            // [read] [object] [index] [read] -> [read] [table]
+            setLine(expr->bracket);
+            root.parser.writeByte(OpCode::OP_Get_Index);
+
+            expr->object->accept(this);
+            expr->index->accept(this);
+
+            root.parser.writeByte(OpCode::OP_Peek);
+            root.parser.writeByte(2);
+        }
+        else
+        {
+            // [object] [index] [read] [object] [index] [read] -> [object] [index] [read] [table]
+            root.parser.writeByte(OpCode::OP_Peek);
+            root.parser.writeByte(1);
+            root.parser.writeByte(OpCode::OP_Peek);
+            root.parser.writeByte(1);
+
+            setLine(expr->bracket);
+            root.parser.writeByte(OpCode::OP_Get_Index);
+
+            for (int i = 0; i < 3; ++i)
+            {
+                root.parser.writeByte(OpCode::OP_Peek);
+                root.parser.writeByte(2);
+            }
+        }
+
+        value->rightExpr->accept(this);
+        writeBinaryOperator(value->op);
+
+        setLine(expr->bracket);
+        root.parser.writeByte(OpCode::OP_Set_Index);
+        root.parser.writeByte(OpCode::OP_Pop);
+
+        if (not twice)
+        {
+            root.parser.writeByte(OpCode::OP_Drop_Under);
+            root.parser.writeByte(2);
+        }
+    }
+
     // ------------------------------------------------------------------
     // Statements
     // ------------------------------------------------------------------
 
+    void AstCompiler::compileUnread(const ExprPtr& expr)
+    {
+        // A `t.n++` nobody reads is a `t.n += 1`
+        if (expr->kind() == AstKind::Set)
+            compileSet(static_cast<Set*>(expr.get()), false);
+        else if (expr->kind() == AstKind::IndexSet)
+            compileIndexSet(static_cast<IndexSet*>(expr.get()));
+        else
+            expr->accept(this);
+    }
+
     void AstCompiler::visitStatement(ExpressionStatement* stmt)
     {
-        stmt->expr->accept(this);
+        compileUnread(stmt->expr);
 
         root.parser.writeByte(OpCode::OP_Pop);
     }
@@ -1137,7 +1314,7 @@ namespace pg
             for (int offset : Compiler::current->loopContexts.back().continueJumps)
                 root.parser.patchJump(offset);
 
-            stmt->increment->accept(this);
+            compileUnread(stmt->increment);
             root.parser.writeByte(OpCode::OP_Pop); // Pop the increment expression result
         }
 

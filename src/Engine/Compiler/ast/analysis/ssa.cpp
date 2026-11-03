@@ -1010,6 +1010,16 @@ namespace pg
                         return make(Op::Pure, std::move(in), origin);
                     }
 
+                    // What a `t.n++` leaves: the read its value `t.n + 1` made first, `written` if none
+                    ValueId valueRead(const ExprPtr& value, ValueId written)
+                    {
+                        if (not value or value->kind() != AstKind::BinaryExpression)
+                            return written;
+
+                        auto it = ir.valueOf.find(std::static_pointer_cast<BinaryExpression>(value)->leftExpr.get());
+                        return it == ir.valueOf.end() ? written : it->second;
+                    }
+
                     ValueId expr(const ExprPtr& e)
                     {
                         if (not e)
@@ -1106,7 +1116,7 @@ namespace pg
                                 const ValueId base = expr(s->object);
                                 const ValueId v = expr(s->value);
                                 writeField(base, nameKey(s->name.text), v);
-                                return v;
+                                return s->postfix ? valueRead(s->value, v) : v;
                             }
 
                             case AstKind::IndexSet:
@@ -1116,7 +1126,7 @@ namespace pg
                                 const KeyId key = keyOf(expr(s->index));
                                 const ValueId v = expr(s->value);
                                 writeField(base, key, v);
-                                return v;
+                                return s->postfix ? valueRead(s->value, v) : v;
                             }
 
                             case AstKind::List:

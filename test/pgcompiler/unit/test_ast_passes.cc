@@ -1132,6 +1132,58 @@ TEST_F(CompoundAssignment, TheObjectIsEvaluatedOnce)
     expectPrints(counted + "var left = (obj().a += 2)\n__dprint(calls)\n__dprint(left)\n", "1\n3\n");
 }
 
+TEST_F(CompoundAssignment, AFieldOrARowSteps)
+{
+    MockLogger<TerminalSink> logger;
+
+    // As a statement, and in a class
+    expectPrints("var t = {n: 1}\nt.n++\nt.n++\nt.n--\n__dprint(t.n)\n", "2\n");
+    expectPrints("var t = [1, 5]\nt[1]++\nt[0]--\n__dprint(t[0])\n__dprint(t[1])\n", "0\n6\n");
+    expectPrints(
+        "class Counter\n"
+        "{\n"
+        "    init()\n"
+        "    {\n"
+        "        this.n = 0\n"
+        "    }\n"
+        "    add()\n"
+        "    {\n"
+        "        this.n++\n"
+        "        return this.n\n"
+        "    }\n"
+        "}\n"
+        "var c = Counter()\n"
+        "c.add()\n"
+        "__dprint(c.add())\n", "2\n");
+
+    // A postfix leaves what was read, a prefix what was written
+    expectPrints("var t = {n: 4}\nvar a = t.n++\nvar b = ++t.n\nvar c = t.n--\nvar d = --t.n\n__dprint(a)\n__dprint(b)\n__dprint(c)\n__dprint(d)\n__dprint(t.n)\n",
+                 "4\n6\n6\n4\n4\n");
+    expectPrints("var t = [[1, 2]]\nvar k = 1\nvar a = t[0][k]++\nvar b = ++t[0][k]\n__dprint(a)\n__dprint(b)\n__dprint(t[0][1])\n", "2\n4\n4\n");
+    // An index written leaves what it was given, as a field does
+    expectPrints("var t = [0, 0]\nvar a = (t[1] = 5)\nvar b = (t[0] += 2)\nvar o = {}\nvar c = (o[\"k\"] = 3)\n__dprint(a)\n__dprint(b)\n__dprint(c)\n__dprint(t[1])\n",
+                 "5\n2\n3\n5\n");
+    expectPrints("var t = {x: 0.5}\nvar a = t.x++\n__dprint(a == 0.5)\n__dprint(t.x == 1.5)\n", "true\ntrue\n");
+
+    // In a loop's increment
+    expectPrints("var t = {i: 0}\nvar n = 0\nfor (var j = 0; t.i < 3; t.i++)\n{\n    n += 10\n}\n__dprint(n)\n__dprint(t.i)\n", "30\n3\n");
+
+    // What it is written into is evaluated once, read or not
+    const std::string counted =
+        "var calls = 0\n"
+        "var t = [[1, 2], [3, 4]]\n"
+        "var o = {a: 1}\n"
+        "fun row()\n{\n    calls = calls + 1\n    return t[0]\n}\n"
+        "fun obj()\n{\n    calls = calls + 1\n    return o\n}\n"
+        "fun key()\n{\n    calls = calls + 1\n    return 1\n}\n";
+
+    expectPrints(counted + "row()[key()]++\n__dprint(calls)\n__dprint(t[0][1])\n", "2\n3\n");
+    expectPrints(counted + "var a = row()[key()]++\n__dprint(calls)\n__dprint(a)\n__dprint(t[0][1])\n", "2\n2\n3\n");
+    expectPrints(counted + "var a = obj().a--\n__dprint(calls)\n__dprint(a)\n__dprint(o.a)\n", "1\n1\n0\n");
+    expectPrints(counted + "fun f()\n{\n    var a = obj().a++ + row()[0]++\n    return a\n}\n__dprint(f())\n__dprint(calls)\n__dprint(o.a)\n__dprint(t[0][0])\n",
+                 "2\n2\n2\n2\n");
+}
+
 TEST_F(CompoundAssignment, TheIndexIsEvaluatedOnce)
 {
     MockLogger<TerminalSink> logger;

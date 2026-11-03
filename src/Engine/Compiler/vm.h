@@ -200,6 +200,7 @@ namespace pg
     // Table operations
     const DecodedInstruction* op_get_index_decoded(VM* vm, const DecodedInstruction& instr);
     const DecodedInstruction* op_peek_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* op_drop_under_decoded(VM* vm, const DecodedInstruction& instr);
     const DecodedInstruction* op_set_index_decoded(VM* vm, const DecodedInstruction& instr);
 
     const DecodedInstruction* op_negate_decoded(VM* vm, const DecodedInstruction& instr);

@@ -593,6 +593,17 @@ namespace pg
         return &instr + 1;
     }
 
+    const DecodedInstruction* op_drop_under_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        Value top = vm->pop();
+
+        for (uint8_t i = 0; i < instr.operands.byte; ++i)
+            vm->releaseAndDelete(vm->pop());
+
+        vm->push(top);
+        return &instr + 1;
+    }
+
     // A string or a table indexed: what the vector read leaves. Out of line, its strings give the
     // handler a frame and a stack guard, which the vector read then pays too
     [[gnu::noinline]] static const DecodedInstruction* getIndexNotVector(VM* vm, const DecodedInstruction& instr,

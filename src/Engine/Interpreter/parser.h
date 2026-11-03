@@ -141,6 +141,9 @@ namespace pg
         ExprPtr call();
         ExprPtr primary();
 
+        // `++` or `--` on a field or an index: `t.n += 1` that leaves the value read when postfix
+        ExprPtr stepped(const ExprPtr& target, const Token& op, bool postfix);
+
         StatementPtr declaration();
         StatementPtr statement();
 

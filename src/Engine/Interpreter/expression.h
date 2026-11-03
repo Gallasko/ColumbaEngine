@@ -276,6 +276,9 @@ namespace pg
         // Written by `+=` and the like: value is `object[index] op right`, the same object and index
         bool compound = false;
 
+        // Written by `t[k]++` or `t[k]--` (compound): what it leaves is the value read, not the one written
+        bool postfix = false;
+
         /** Equivalent 'object.set(index, value)' call for the tree-walking path */
         ExprPtr desugared;
     };
@@ -371,5 +374,8 @@ namespace pg
 
         // Written by `+=` and the like: value is `object.name op right`, the same object
         bool compound = false;
+
+        // Written by `t.n++` or `t.n--` (compound): what it leaves is the value read, not the one written
+        bool postfix = false;
     };
 }

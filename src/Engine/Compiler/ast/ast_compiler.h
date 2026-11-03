@@ -106,6 +106,18 @@ namespace pg
 
         void writeBinaryOperator(const Token& op);
 
+        // A field or index write. A field's leaves the value written, or with `leaveRead` the value
+        // it read (`t.n++`, Set::postfix; off where nothing reads it). An index's: compileIndexSet
+        // leaves the table (OP_Set_Index), for a write nobody reads, the others the value
+        void compileSet(Set* expr, bool leaveRead);
+        void compileSetLeavingRead(Set* expr);
+        void compileIndexSet(IndexSet* expr);
+        void compileIndexSetLeavingWritten(IndexSet* expr);
+        void compileIndexSetLeavingRead(IndexSet* expr);
+
+        // An expression whose value is popped unread
+        void compileUnread(const ExprPtr& expr);
+
         /** Emit a value read/write for a named variable (local/upvalue/global) */
         void emitVariableGet(const Token& name);
 
