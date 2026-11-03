@@ -1,0 +1,139 @@
+import "file"
+import "string"
+import "algorithm"
+
+var path = "test/pgcompiler/examples/adventofcode2025/day6/"
+var files = ["aoc6small", "aoc6full"]
+
+fun print2DTable(table)
+{
+    for (var i = 0; i < len(table); i++)
+    {
+        var line = ""
+
+        for (var j = 0; j < len(table[i]); j++)
+        {
+            line += table[i][j] + " "
+        }
+
+        print(line)
+    }
+}
+
+for (var file : files)
+{
+    var f = readFile(path + file)
+
+    var lines = splitLines(f)
+
+    var table = []
+    var highestlen = []
+    var h = 0
+
+    for (var line : lines)
+    {
+        var num = ""
+        table[h] = []
+
+        var currentLen = 0
+        var currentNumber = 0
+
+        for (var i = 0; i < strlen(line); i++)
+        {
+            if (line[i] == " ")
+            {
+                if (num != "")
+                {
+                    push(table[h], num)
+                    num = ""
+
+                    if (highestlen[currentNumber] == none or currentLen > highestlen[currentNumber])
+                        highestlen[currentNumber] = currentLen
+
+                    currentLen = 0
+                    currentNumber++
+                }
+
+                continue
+            }
+
+            num += line[i]
+            currentLen++
+        }
+
+        push(table[h], num)
+
+        if (highestlen[currentNumber] == none or currentLen > highestlen[currentNumber])
+            highestlen[currentNumber] = currentLen
+
+        h++
+    }
+
+    for (var h = 0; h < len(lines) - 1; h++)
+    {
+        var line = lines[h]
+        var num = ""
+
+        var i = 0
+
+        for (var k = 0; k < len(highestlen); k++)
+        {
+            for (var j = 0; j < highestlen[k]; j++)
+            {
+                if (line[i] == none)
+                    num += " "
+                else
+                    num += line[i]
+
+                i++
+            }
+
+            table[h][k] = num
+            i++
+
+            num = ""
+        }
+    }
+
+    var w = len(table[0])
+
+    var res = 0;
+
+    for (var i = 0; i < w; i++)
+    {
+        var op = table[h - 1][i]
+
+        var temp = 0;
+
+        if (op == "*")
+            temp = 1
+
+        var currentLen = highestlen[i]
+
+        for (var k = currentLen - 1; k >= 0; k--)
+        {
+            var tempString = ""
+            // we run until h - 1 because the last row is the operator row
+            for (var j = 0; j < h - 1; j++)
+            {
+                if (table[j][i][k] != none)
+                {
+                    tempString += table[j][i][k]
+                }
+            }
+
+            if (op == "*")
+            {
+                temp *= toFloat(tempString)
+            }
+            else if (op == "+")
+            {
+                temp += toFloat(tempString)
+            }
+        }
+
+        res += temp
+    }
+
+    __dprint(res)
+}

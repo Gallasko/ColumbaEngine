@@ -1,0 +1,80 @@
+import "file"
+import "string"
+import "algorithm"
+
+var path = "test/pgcompiler/examples/adventofcode2025/day6/"
+var files = ["aoc6small", "aoc6full"]
+
+for (var file : files)
+{
+    var f = readFile(path + file)
+
+    var lines = splitLines(f)
+
+    var table = []
+    var h = 0
+
+    for (var line : lines)
+    {
+        var num = ""
+        table[h] = []
+
+        for (var i = 0; i < strlen(line); i++)
+        {
+            if (line[i] == " ")
+            {
+                if (num != "")
+                {
+                    push(table[h], num)
+                    num = ""
+                }
+
+                continue
+            }
+
+            num += line[i]
+        }
+
+        push(table[h], num)
+
+        h++
+    }
+
+    var w = len(table[0])
+
+    var res = 0;
+
+    for (var i = 0; i < w; i++)
+    {
+        var op = table[h - 1][i]
+
+        var temp = 0;
+
+        if (op == "*")
+            temp = 1
+
+        for (var j = 0; j < h - 1; j++)
+        {
+            if (op == "*")
+            {
+                temp *= toFloat(table[j][i])
+            }
+            else if (op == "+")
+            {
+                temp += toFloat(table[j][i])
+            }
+        }
+
+        res += temp
+    }
+
+    __dprint(res)
+
+    // print (range)
+    // for (var r : range)
+    // {
+    //     print (r)
+    // }
+
+    // __dprint(res)
+}
