@@ -63,6 +63,25 @@ protected:
         return result;
     }
 
+    // What the script stopped on, read before the ECS goes and logs its own goodbyes
+    std::string errorOf(const std::string& source, bool fusion)
+    {
+        MockLogger<TerminalSink> logger;
+
+        EntitySystem ecs;
+        ecs.setVMOptimizationLevel(VmOptimizationLevel::O3);
+        ecs.setVMFrontEnd(ScriptFrontEnd::Ast);
+
+        VM vm;
+        ecs.setupVm(vm);
+
+        vm.enableDecodeFusion = fusion;
+
+        EXPECT_EQ(vm.interpretFromText(source), InterpretResult::RUNTIME_ERROR);
+
+        return logger.getLastMessage().message;
+    }
+
     static uint64_t runs(const std::map<std::string, uint64_t>& counts, const std::string& name)
     {
         const auto it = counts.find(name);
@@ -390,6 +409,53 @@ TEST_F(LoopShapes, AFieldOfWhatIsNoInstanceStops)
     {
         std::string output;
         EXPECT_EQ(runScript("fun run()\n{\n    var n = 1\n    return n.x\n}\nrun()\n", fusion, output), InterpretResult::RUNTIME_ERROR);
+    }
+}
+
+TEST_F(LoopShapes, AnErrorSaysTheLineOfEachFunction)
+{
+    const std::string source =
+        "fun f(x)\n"
+        "{\n"
+        "    var y = 1\n"
+        "    return y + x\n"
+        "}\n"
+        "\n"
+        "fun g(x)\n"
+        "{\n"
+        "    var z = 2\n"
+        "    return f(x)\n"
+        "}\n"
+        "\n"
+        "print(g(3))\n"
+        "print(g(\"a\"))\n";
+
+    for (const bool fusion : {true, false})
+    {
+        const std::string message = errorOf(source, fusion);
+        EXPECT_NE(message.find("Operator + between two incompatible operand: int and string\n[line 4] in f\n[line 10] in g\n[line 14] in "), std::string::npos) << message;
+    }
+}
+
+TEST_F(LoopShapes, AnErrorInALoopSaysItsLine)
+{
+    const std::string source =
+        "fun run()\n"
+        "{\n"
+        "    var v = [1, 2]\n"
+        "    var s = 0\n"
+        "    for (var i = 0; i < 3; i++)\n"
+        "    {\n"
+        "        s = s + v[i]\n"
+        "    }\n"
+        "    return s\n"
+        "}\n"
+        "print(run())\n";
+
+    for (const bool fusion : {true, false})
+    {
+        const std::string message = errorOf(source, fusion);
+        EXPECT_NE(message.find("\n[line 7] in run\n[line 11] in "), std::string::npos) << message;
     }
 }
 

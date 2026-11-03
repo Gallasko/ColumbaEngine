@@ -770,67 +770,108 @@ namespace pg
         // their own loop cleanly.
         exit_result = InterpretResult::OK;
 
-        while (instr)
+        // A handler that throws leaves `instr` on the instruction that threw: the error says where
+        try
         {
+            while (instr)
+            {
 #ifdef DEBUG_TRACE_EXECUTION
-            // Cold metadata lives in the owning chunk's parallel array;
-            // currentFrame always owns the instruction being dispatched.
-            {
-                const DecodedChunk* traceDecoded = currentFrame->closure->function->decodedChunk;
-                const size_t traceOffset =
-                    traceDecoded->meta[instr - traceDecoded->instructions.data()].bytecodeOffset;
-
-                // Update currentFrame->ip for debug output
-                const Chunk& traceChunk = currentFrame->closure->function->chunk;
-                currentFrame->ip = const_cast<uint8_t*>(traceChunk.code.data()) + traceOffset;
-
-                std::cout << "          ";
-                for (size_t i = 0; i < stack.size(); ++i)
+                // Cold metadata lives in the owning chunk's parallel array;
+                // currentFrame always owns the instruction being dispatched.
                 {
-                    std::cout << "[";
-                    printValue(this, stack[i]);
-                    std::cout << "] ";
+                    const DecodedChunk* traceDecoded = currentFrame->closure->function->decodedChunk;
+                    const size_t traceOffset =
+                        traceDecoded->meta[instr - traceDecoded->instructions.data()].bytecodeOffset;
+
+                    // Update currentFrame->ip for debug output
+                    const Chunk& traceChunk = currentFrame->closure->function->chunk;
+                    currentFrame->ip = const_cast<uint8_t*>(traceChunk.code.data()) + traceOffset;
+
+                    std::cout << "          ";
+                    for (size_t i = 0; i < stack.size(); ++i)
+                    {
+                        std::cout << "[";
+                        printValue(this, stack[i]);
+                        std::cout << "] ";
+                    }
+                    std::cout << std::endl;
+                    // The synthetic halt's bytecodeOffset is one past the end.
+                    if (traceOffset < traceChunk.code.size())
+                        disassembleInstruction(this, traceChunk, traceOffset);
                 }
-                std::cout << std::endl;
-                // The synthetic halt's bytecodeOffset is one past the end.
-                if (traceOffset < traceChunk.code.size())
-                    disassembleInstruction(this, traceChunk, traceOffset);
-            }
 #endif
-            if constexpr (ProfileEnabled)
-            {
-                // Snapshot before dispatch: the handler may switch frames
-                // and the call itself overwrites instr. Cold metadata comes
-                // from the owning chunk's parallel array.
-                const DecodedChunk* ownerDecoded = currentFrame->closure->function->decodedChunk;
-                const DecodedInstructionMeta& meta =
-                    ownerDecoded->meta[instr - ownerDecoded->instructions.data()];
+                if constexpr (ProfileEnabled)
+                {
+                    // Snapshot before dispatch: the handler may switch frames
+                    // and the call itself overwrites instr. Cold metadata comes
+                    // from the owning chunk's parallel array.
+                    const DecodedChunk* ownerDecoded = currentFrame->closure->function->decodedChunk;
+                    const DecodedInstructionMeta& meta =
+                        ownerDecoded->meta[instr - ownerDecoded->instructions.data()];
 
-                const void* chunkPtr = &currentFrame->closure->function->chunk;
-                const std::string& functionName = currentFrame->closure->function->name;
-                const uint8_t opcode = meta.originalOpcode;
-                const size_t  offset = meta.bytecodeOffset;
-                // Fused instructions report their own name (FUSED_…); plain
-                // ones use the opcode name.
-                const std::string& opcodeName = (meta.fusedName != nullptr)
-                    ? *meta.fusedName
-                    : opcodeToString(static_cast<OpCode>(opcode));
+                    const void* chunkPtr = &currentFrame->closure->function->chunk;
+                    const std::string& functionName = currentFrame->closure->function->name;
+                    const uint8_t opcode = meta.originalOpcode;
+                    const size_t  offset = meta.bytecodeOffset;
+                    // Fused instructions report their own name (FUSED_…); plain
+                    // ones use the opcode name.
+                    const std::string& opcodeName = (meta.fusedName != nullptr)
+                        ? *meta.fusedName
+                        : opcodeToString(static_cast<OpCode>(opcode));
 
-                auto startTime = std::chrono::high_resolution_clock::now();
-                instr = instr->decodedHandler(this, *instr);
-                auto endTime = std::chrono::high_resolution_clock::now();
-                auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
+                    auto startTime = std::chrono::high_resolution_clock::now();
+                    instr = instr->decodedHandler(this, *instr);
+                    auto endTime = std::chrono::high_resolution_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
 
-                profiler.recordInstruction(chunkPtr, functionName, offset,
-                                           opcode, opcodeName, duration);
+                    profiler.recordInstruction(chunkPtr, functionName, offset,
+                                               opcode, opcodeName, duration);
+                }
+                else
+                {
+                    instr = instr->decodedHandler(this, *instr);
+                }
             }
-            else
-            {
-                instr = instr->decodedHandler(this, *instr);
-            }
+        }
+        catch (const ScriptError&)
+        {
+            // A run nested in this one already said where
+            throw;
+        }
+        catch (const std::exception& e)
+        {
+            throw ScriptError(e.what() + whereStopped(instr));
         }
 
         return exit_result;
+    }
+
+    std::string VM::whereStopped(const DecodedInstruction* at) const
+    {
+        std::string where;
+
+        for (int i = frameCount - 1; i >= 0; --i)
+        {
+            const ObjFunction* function = frames[i].closure->function;
+            const DecodedChunk* decoded = function->decodedChunk;
+            const std::string name = function->name.empty() ? "script" : function->name;
+
+            // A handler that pushed a frame and threw stopped in the caller: the frame has no line yet
+            if (decoded != nullptr and at >= decoded->instructions.data()
+                and at < decoded->instructions.data() + decoded->instructions.size())
+            {
+                const int line = decoded->meta[at - decoded->instructions.data()].lineNumber;
+
+                where += "\n[line " + (line < 0 ? std::string("?") : std::to_string(line)) + "] in " + name;
+            }
+            else
+                where += "\n[line ?] in " + name;
+
+            // The caller stopped on the call, the one before where it resumes
+            at = frames[i].callerResume != nullptr ? frames[i].callerResume - 1 : nullptr;
+        }
+
+        return where;
     }
 
     // Operation handler implementations

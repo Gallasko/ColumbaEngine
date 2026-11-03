@@ -82,6 +82,13 @@ namespace pg
     // Forward declare VM for helper functions
     struct VM;
 
+    // An error a script ran into, its message followed by where it stopped: the line in each
+    // function on the way there, the innermost first
+    struct ScriptError : public std::runtime_error
+    {
+        using std::runtime_error::runtime_error;
+    };
+
     bool isValueNumber(const Value& val);
 
     bool isValueTrue(const Value& val);
@@ -327,6 +334,9 @@ namespace pg
 
         template <bool ProfileEnabled>
         InterpretResult runDecodedImpl(DecodedChunk *decoded);
+
+        // "\n[line N] in f" for each frame, the innermost first, `at` being the instruction that stopped
+        std::string whereStopped(const DecodedInstruction* at) const;
 
         // Core Value operations for performance
         inline void push(Value value)  // Pass by value (64-bit in register)
