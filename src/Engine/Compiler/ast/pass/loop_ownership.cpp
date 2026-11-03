@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include "loop_ownership.h"
+#include "ast_analysis.h"
 
 #include <algorithm>
 
@@ -10,7 +11,7 @@ namespace pg
     {
         // Natives that change no table and call no script code
         const std::set<std::string> readOnlyNatives = {
-            "len", "contain", "lookup", "toInt", "toFloat", "typeOf",
+            "len", "__len", "contain", "lookup", "toInt", "toFloat", "typeOf",
             "sqrt", "abs", "pow", "floor", "ceil", "sin", "cos", "tan", "atan2", "asin", "acos", "atan",
             "toString", "strlen", "split", "splitLines", "startsWith", "endsWith", "contains", "charAt",
             "substring", "replace", "join", "capitalize", "lowerize", "toLowerCase", "toUpperCase", "trim", "indexOf",
@@ -18,13 +19,13 @@ namespace pg
         };
 
         // Natives that change the list they are given first
-        const std::set<std::string> listNatives = {"push", "insert", "pop", "removeAt"};
+        const std::set<std::string> listNatives = {"push", "insert", "pop", "removeAt", "__push", "__insert", "__pop", "__removeAt"};
 
         namespace
         {
             // Natives whose result is never a table
             const std::set<std::string> noTableNatives = {
-                "readFile", "len", "toInt", "toFloat", "toString", "strlen", "charAt", "substring", "replace", "join",
+                "readFile", "len", "__len", "toInt", "toFloat", "toString", "strlen", "charAt", "substring", "replace", "join",
                 "capitalize", "lowerize", "toLowerCase", "toUpperCase", "trim"
             };
         }
@@ -160,7 +161,7 @@ namespace pg
         {
             std::string facts = programComplete ? "complete;" : "incomplete;";
 
-            for (const auto& native : {"len", "push", "insert", "pop", "removeAt"})
+            for (const auto& native : {"len", "push", "insert", "pop", "removeAt", "__len", "__push", "__insert", "__pop", "__removeAt"})
             {
                 if (scriptNames.count(native))
                     facts += std::string(native) + ";";
@@ -569,7 +570,7 @@ namespace pg
 
                 for (size_t i = 0; i < args.size(); ++i)
                 {
-                    if (i == 0 and (callee == "len" or listNatives.count(callee)))
+                    if (i == 0 and (isLen(callee) or listNatives.count(callee)))
                         ownObject(args[i], o, nested);
                     else
                         ownExpr(args[i], o, nested);
@@ -578,7 +579,7 @@ namespace pg
                 if (listNatives.count(callee) and not args.empty())
                 {
                     // What comes off a list is a row read, what goes in is given
-                    if (callee == "pop" or callee == "removeAt")
+                    if (callee == "pop" or callee == "removeAt" or callee == "__pop" or callee == "__removeAt")
                         o.rowsRead.insert(rootOf(args[0]));
                     else if (args.size() < 2)
                         o.given.insert(rootOf(args[0]));

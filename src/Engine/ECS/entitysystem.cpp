@@ -91,6 +91,7 @@ namespace
 #include "Compiler/ast/pass/ast_survey.h"
 #include "Compiler/ast/pass/function_inlining.h"
 #include "Compiler/ast/pass/length_hoisting.h"
+#include "Compiler/ast/pass/list_methods.h"
 #include "Compiler/ast/pass/row_hoisting.h"
 #include "Compiler/ast/pass/run_once.h"
 #include "Compiler/ast/pass/program_consts.h"
@@ -1099,6 +1100,11 @@ namespace pg
     void EntitySystem::setOptimizationPasses(VM &vm)
     {
         const bool wholeProgramAnalysis = vmOptimizationLevel == VmOptimizationLevel::O3;
+
+        // `v.push(x)` as `__push(v, x)` when nothing else can run, for every pass after it to know as
+        // `push(v, x)`: the whole program is read with it
+        if (vmOptimizationLevel >= VmOptimizationLevel::O2)
+            vm.addAstPass(std::make_unique<ListMethodsPass>());
 
         // What the whole program makes once, read before anything rewrites it. Below O3 only for a
         // constexpr, which is proved at every level

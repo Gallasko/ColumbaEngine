@@ -9,6 +9,7 @@
 
 #include "logger.h"
 
+#include <algorithm>
 #include <set>
 #include <string>
 
@@ -739,6 +740,10 @@ namespace pg
 
             // The lazy view does not attach the has/attachComp closures
             if (usage.members.count("has") > 0 or usage.members.count("attachComp") > 0)
+                return;
+
+            // Nor is it the entity's table a list method would see: `e.len()` counts the entries
+            if (std::any_of(usage.members.begin(), usage.members.end(), [](const std::string& m) { return ast::isListMethod(m); }))
                 return;
 
             // __entityId is always populated by the view; it is not a component

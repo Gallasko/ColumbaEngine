@@ -183,7 +183,7 @@ namespace pg
                 auto c = std::static_pointer_cast<CallExpression>(e);
                 auto args = listOf(c->args);
 
-                if (varName(c->caller) == "len" and args.size() == 1 and not varName(args[0]).empty())
+                if (ast::isLen(varName(c->caller)) and args.size() == 1 and not varName(args[0]).empty())
                     out.insert(varName(args[0]));
 
                 for (const auto& a : args)
@@ -231,7 +231,8 @@ namespace pg
                 const std::string name = varName(c->caller);
                 auto args = listOf(c->args);
 
-                if ((name == "push" or name == "insert" or name == "removeAt" or name == "pop") and not args.empty() and not varName(args[0]).empty())
+                if ((name == "push" or name == "insert" or name == "removeAt" or name == "pop" or
+                     name == "__push" or name == "__insert" or name == "__removeAt" or name == "__pop") and not args.empty() and not varName(args[0]).empty())
                     f.grown.insert(varName(args[0]));
 
                 for (const auto& a : args)

@@ -575,6 +575,9 @@ namespace pg
             return vm->createString(typeName);
         }
 
+    public:
+        // The list functions are a list's methods too (`v.push(x)`): the VM calls them for it
+
         /**
          * Get the length of an array or string, or how many entries a table holds
          * Usage: len(array), len(string) or len(table)

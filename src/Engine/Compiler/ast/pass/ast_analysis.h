@@ -54,5 +54,18 @@ namespace pg
 
         // Local slots are addressed with a single byte; passes adding hidden locals stay under this
         constexpr int kMaxLocalSlots = 240;
+
+        // The methods a list has of itself: `v.push(x)` runs `push(v, x)`, and `len` is a table's and
+        // a string's too. The VM gives each as a global of its own name with "__" before it
+        // (`__push`), which no import is needed for: what ListMethodsPass turns such a call into
+        inline bool isListMethod(const std::string& name)
+        {
+            return name == "push" or name == "pop" or name == "insert" or name == "removeAt" or name == "len";
+        }
+
+        inline std::string listMethodGlobal(const std::string& method) { return "__" + method; }
+
+        // `len`, under either name
+        inline bool isLen(const std::string& callee) { return callee == "len" or callee == "__len"; }
     }
 }

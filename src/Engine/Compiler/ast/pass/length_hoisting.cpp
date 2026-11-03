@@ -31,7 +31,7 @@ namespace pg
             if (c->args.size() != 1 or pathOf(c->args.front()).empty())
                 return nullptr;
 
-            if (callee == "len" or (callee == "strlen" and c->args.front()->kind() == AstKind::Var))
+            if (isLen(callee) or (callee == "strlen" and c->args.front()->kind() == AstKind::Var))
                 return c->args.front();
 
             return nullptr;

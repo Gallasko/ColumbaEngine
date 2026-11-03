@@ -28,7 +28,7 @@ namespace pg
             return std::static_pointer_cast<IndexGet>(e)->object->kind() == AstKind::Var ? pathOf(e) : "";
         }
 
-        // The `x` of `len(x)`, the real one or not
+        // The `x` of `len(x)` (or `__len(x)`), the real one or not
         ExprPtr measuredBy(const ExprPtr& e)
         {
             if (not e or e->kind() != AstKind::CallExpression)
@@ -36,7 +36,7 @@ namespace pg
 
             auto c = std::static_pointer_cast<CallExpression>(e);
 
-            return varName(c->caller) == "len" and c->args.size() == 1 ? c->args.front() : nullptr;
+            return isLen(varName(c->caller)) and c->args.size() == 1 ? c->args.front() : nullptr;
         }
 
         struct Rows : FunctionScope
@@ -78,7 +78,9 @@ namespace pg
 
             if (auto x = measuredBy(e))
             {
-                if (x->kind() == AstKind::Var and ctx.isNative("len") and ctx.neverChanges(varName(x)))
+                const std::string callee = varName(std::static_pointer_cast<CallExpression>(e)->caller);
+
+                if (x->kind() == AstKind::Var and ctx.isNative(callee) and ctx.neverChanges(varName(x)))
                     ctx.measured.insert(varName(x));
             }
 

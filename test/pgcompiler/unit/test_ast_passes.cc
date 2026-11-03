@@ -2,6 +2,7 @@
 
 #include "Compiler/vm.h"
 #include "Compiler/ast/pass/length_hoisting.h"
+#include "Compiler/ast/pass/list_methods.h"
 #include "Compiler/ast/pass/loop_invariant_hoisting.h"
 #include "Compiler/ast/pass/row_hoisting.h"
 #include "Compiler/ast/pass/static_loop_evaluation.h"
@@ -1428,6 +1429,201 @@ TEST_F(StaticLoopEvaluation, BehaviorUnchangedWithFolding)
         "}\n"
         "__dprint(acc)\n"
         "__dprint(n)\n");
+}
+
+class ListMethods : public CompoundAssignment
+{
+protected:
+    // How many list method calls the pass alone rewrites in the source
+    long rewritten(const std::string& source)
+    {
+        ListMethodsPass pass;
+        bool changed = false;
+        transformWith(pass, source, changed);
+
+        return pass.rewrittenCalls();
+    }
+
+    // How many len() reads LengthHoisting hoists from the source once its list methods are rewritten
+    long hoistedThroughMethods(const std::string& source)
+    {
+        Lexer lexer;
+        lexer.readFromText(source);
+
+        Parser parser(lexer.getTokens());
+        auto statements = parser.parse();
+
+        EXPECT_FALSE(parser.hasError()) << "test source failed to parse";
+
+        ListMethodsPass methods;
+        methods.runPass(nullptr, statements);
+
+        LengthHoistingPass lengths;
+        lengths.runPass(nullptr, statements);
+
+        return lengths.hoistedReads();
+    }
+
+    // What the source prints with no import, the same at every level
+    void expectPrintsAlone(const std::string& source, const std::string& expected)
+    {
+        for (auto level : {VmOptimizationLevel::O0, VmOptimizationLevel::O2, VmOptimizationLevel::O3})
+        {
+            EntitySystem ecs;
+            ecs.setVMOptimizationLevel(level);
+            ecs.setVMFrontEnd(ScriptFrontEnd::Ast);
+
+            VM vm;
+            ecs.setupVm(vm);
+
+            EXPECT_EQ(vm.interpretFromText(source), InterpretResult::OK) << source;
+            EXPECT_EQ(vm.testOutput, expected) << source;
+        }
+    }
+};
+
+TEST_F(ListMethods, AListAnswersItsMethods)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::string source =
+        "var v = []\n"
+        "v.push(1)\n"
+        "v.push(2)\n"
+        "v.insert(0, 7)\n"
+        "__dprint(v.len())\n"
+        "__dprint(v.removeAt(1))\n"
+        "__dprint(v.pop())\n"
+        "__dprint(v[0])\n"
+        "var w = [5]\n"
+        "w.push(v.pop())\n"
+        "__dprint(w[1])\n"
+        "__dprint(v.len())\n"
+        "var s = \"abcd\"\n"
+        "__dprint(s.len())\n"
+        "var t = {a: 1, b: 2}\n"
+        "__dprint(t.len())\n";
+
+    // No import is needed for them, at any level
+    expectPrintsAlone(source, "3\n1\n2\n7\n7\n0\n4\n2\n");
+    expectPrints(source, "3\n1\n2\n7\n7\n0\n4\n2\n");
+    expectFrontEndsAgree(source);
+
+    EXPECT_EQ(rewritten(source), 11);
+}
+
+TEST_F(ListMethods, ACallThatMayRunSomethingElseStays)
+{
+    MockLogger<TerminalSink> logger;
+
+    // A class's method of the name: an instance runs it, a list its own
+    const std::string withClass =
+        "class Stack\n"
+        "{\n"
+        "    init()\n"
+        "    {\n"
+        "        this.items = []\n"
+        "    }\n"
+        "    push(x)\n"
+        "    {\n"
+        "        this.items = [x, x]\n"
+        "    }\n"
+        "}\n"
+        "var rows = []\n"
+        "fun fill(n)\n"
+        "{\n"
+        "    for (var i = 0; i < n; i++)\n"
+        "    {\n"
+        "        rows.push(i)\n"
+        "    }\n"
+        "}\n"
+        "fill(3)\n"
+        "var st = Stack()\n"
+        "st.push(9)\n"
+        "__dprint(len(rows))\n"
+        "__dprint(len(st.items))\n"
+        "__dprint(rows.len())\n";
+
+    EXPECT_EQ(rewritten(withClass), 1);  // the len() alone
+    expectPrints(withClass, "3\n2\n3\n");
+
+    // A field of the name: a table runs what it holds
+    const std::string withField =
+        "fun twice(x)\n"
+        "{\n"
+        "    return x * 2\n"
+        "}\n"
+        "var t = {}\n"
+        "t.push = twice\n"
+        "__dprint(t.push(4))\n"
+        "var v = []\n"
+        "v.push(3)\n"
+        "__dprint(v.len())\n";
+
+    EXPECT_EQ(rewritten(withField), 1);
+    expectPrints(withField, "8\n1\n");
+
+    // A key or a string of the name is a field it may be
+    EXPECT_EQ(rewritten("var t = {pop: 1}\nvar v = [1]\nv.pop()\nv.push(2)\n"), 1);
+    EXPECT_EQ(rewritten("var k = \"len\"\nvar v = [1]\n__dprint(v.len())\nv.push(2)\n"), 1);
+
+    // One that gives the method what it does not take stops the script, and stays
+    EXPECT_EQ(rewritten("var v = []\nv.push()\nv.pop(1)\nv.len(2)\n"), 0);
+
+    for (auto level : {VmOptimizationLevel::O0, VmOptimizationLevel::O3})
+    {
+        EntitySystem ecs;
+        ecs.setVMOptimizationLevel(level);
+        ecs.setVMFrontEnd(ScriptFrontEnd::Ast);
+
+        VM vm;
+        ecs.setupVm(vm);
+
+        EXPECT_EQ(vm.interpretFromText("var v = []\nv.push()\n"), InterpretResult::RUNTIME_ERROR);
+    }
+}
+
+TEST_F(ListMethods, LoopsAreHoistedAsWithTheFunctions)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::string functions =
+        "fun count(table)\n"
+        "{\n"
+        "    var res = []\n"
+        "    for (var i = 0; i < len(table); i++)\n"
+        "    {\n"
+        "        push(res, [])\n"
+        "        for (var j = 0; j < len(table[i]); j++)\n"
+        "        {\n"
+        "            push(res[i], -1)\n"
+        "        }\n"
+        "    }\n"
+        "    return len(res)\n"
+        "}\n"
+        "__dprint(count([[1, 0], [1, 1, 1]]))\n";
+
+    const std::string methods =
+        "fun count(table)\n"
+        "{\n"
+        "    var res = []\n"
+        "    for (var i = 0; i < table.len(); i++)\n"
+        "    {\n"
+        "        res.push([])\n"
+        "        for (var j = 0; j < table[i].len(); j++)\n"
+        "        {\n"
+        "            res[i].push(-1)\n"
+        "        }\n"
+        "    }\n"
+        "    return res.len()\n"
+        "}\n"
+        "__dprint(count([[1, 0], [1, 1, 1]]))\n";
+
+    EXPECT_GT(hoisted(functions), 0);
+    EXPECT_EQ(hoistedThroughMethods(methods), hoisted(functions));
+
+    expectPrints(methods, "2\n");
+    expectSameEnd(methods);
 }
 
 } // namespace test

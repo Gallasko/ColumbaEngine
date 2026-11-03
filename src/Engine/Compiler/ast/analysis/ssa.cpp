@@ -2,6 +2,8 @@
 
 #include "ssa.h"
 
+#include "../pass/ast_analysis.h"
+
 #include "Interpreter/statement.h"
 
 #include <algorithm>
@@ -25,6 +27,9 @@ namespace pg
                     {"merge", NativeKind::Merge}, {"toInt", NativeKind::Fresh}, {"toFloat", NativeKind::Fresh},
                     {"typeOf", NativeKind::Fresh}, {"len", NativeKind::Fresh}, {"push", NativeKind::Push},
                     {"pop", NativeKind::Take}, {"insert", NativeKind::Insert}, {"removeAt", NativeKind::Take},
+                    // the same, under the names a list's methods are called by (ListMethodsPass)
+                    {"__len", NativeKind::Fresh}, {"__push", NativeKind::Push}, {"__pop", NativeKind::Take},
+                    {"__insert", NativeKind::Insert}, {"__removeAt", NativeKind::Take},
                     // string
                     {"toString", NativeKind::Fresh}, {"strlen", NativeKind::Fresh}, {"split", NativeKind::Fresh},
                     {"splitLines", NativeKind::Fresh}, {"startsWith", NativeKind::Fresh}, {"endsWith", NativeKind::Fresh},
@@ -863,7 +868,9 @@ namespace pg
                             auto g = std::static_pointer_cast<Get>(c->caller);
                             handed = expr(g->object);
 
-                            if (classes)
+                            // A list's own method is no class's: under that name a call may run
+                            // either, so it is the call of a value unknown
+                            if (classes and not isListMethod(g->name.text))
                             {
                                 auto method = classes->methods.find(g->name.text);
 

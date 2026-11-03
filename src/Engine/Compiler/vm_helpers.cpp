@@ -3,6 +3,7 @@
 #include "vm.h"
 #include "decoded_chunk.h"
 #include "componentproxy.h"
+#include "Helpers/algorithmmodule.h"
 
 namespace pg
 {
@@ -485,6 +486,14 @@ namespace pg
 
         // Class of the proxies that give scripts direct access to the C++ components
         ComponentProxy::registerWithVM(this);
+
+        // A list's methods under names of their own, which no import is needed for and no script
+        // defines: ListMethodsPass turns `v.push(x)` into `__push(v, x)` when nothing else can be called
+        defineNative("__push", AlgorithmModule::nativePush);
+        defineNative("__pop", AlgorithmModule::nativePop);
+        defineNative("__insert", AlgorithmModule::nativeInsert);
+        defineNative("__removeAt", AlgorithmModule::nativeRemoveAt);
+        defineNative("__len", AlgorithmModule::nativeLen);
     }
 
     Value VM::createString(const ElementType& element)

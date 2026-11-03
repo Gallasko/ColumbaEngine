@@ -212,7 +212,7 @@ namespace pg
                 if (not inFunction and not scriptRead)
                     return false;
 
-                for (const auto& native : {"len", "push", "insert", "pop", "removeAt"})
+                for (const auto& native : {"len", "push", "insert", "pop", "removeAt", "__len", "__push", "__insert", "__pop", "__removeAt"})
                 {
                     if (not isNative(native))
                         return false;

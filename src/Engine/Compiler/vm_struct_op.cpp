@@ -4,6 +4,8 @@
 #include "decoded_chunk.h"
 #include "componentproxy.h"
 
+#include "Helpers/algorithmmodule.h"
+
 namespace pg
 {
     namespace
@@ -13,6 +15,39 @@ namespace pg
         {
             return name.length() >= 2 and name[0] == '_' and name[1] == '_';
         }
+
+        using ListFn = Value (*)(VM*, int, Value*);
+
+        // The methods a list has of itself: the algorithm functions, given the list first. nullptr
+        // for any other name
+        ListFn listMethod(const std::string& name)
+        {
+            if (name == "push")
+                return AlgorithmModule::nativePush;
+            if (name == "pop")
+                return AlgorithmModule::nativePop;
+            if (name == "insert")
+                return AlgorithmModule::nativeInsert;
+            if (name == "removeAt")
+                return AlgorithmModule::nativeRemoveAt;
+            if (name == "len")
+                return AlgorithmModule::nativeLen;
+
+            return nullptr;
+        }
+
+        // As a native method is called (VM::callMethod): the receiver is args[0], and it leaves the
+        // stack with the arguments
+        bool callOnReceiver(VM* vm, ListFn function, uint8_t argCount)
+        {
+            Value result = function(vm, argCount + 1, vm->stack.data() + vm->stack.size() - argCount - 1);
+
+            for (int i = 0; i < argCount + 1; i++)
+                vm->releaseAndDelete(vm->pop());
+
+            vm->push(result);
+            return true;
+        }
     }
 
     bool invoke(VM* vm, const std::string& name, uint8_t argCount)
@@ -21,6 +56,13 @@ namespace pg
 
         if (not IS_INSTANCE(receiverValue))
         {
+            // A list's own methods, and a string's `len`
+            if (IS_VECTOR(receiverValue) or (IS_STRING(receiverValue) and name == "len"))
+            {
+                if (ListFn function = listMethod(name))
+                    return callOnReceiver(vm, function, argCount);
+            }
+
             return false;
         }
 
@@ -35,6 +77,10 @@ namespace pg
             vm->stack[vm->stack.size() - argCount - 1] = vm->retainValue(fieldValue); // Replace it with the field value
             return vm->callValue(fieldValue, argCount);
         }
+
+        // A table's `len`, which no field of that name hides
+        if (name == "len" and instance->klass and instance->klass->name == "__Table")
+            return callOnReceiver(vm, AlgorithmModule::nativeLen, argCount);
 
         // Then check for method
         return vm->callMethod(instance->klass, name, argCount);
