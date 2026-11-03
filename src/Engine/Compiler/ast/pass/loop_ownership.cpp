@@ -208,11 +208,11 @@ namespace pg
                 return true;
 
             return std::all_of(it->second.begin(), it->second.end(), [&](const std::string& local) {
-                return declared.count(local) and intWrites.count(local) and not notPlain.count(local);
+                return declared.count(local) and written.count(local) and not notPlain.count(local);
             });
         }
 
-        void Ownership::wrote(const std::string& name, const ExprPtr& value)
+        void Ownership::wrote(const std::string& name, const std::string& key, const ExprPtr& value)
         {
             if (value and value->kind() == AstKind::List)
             {
@@ -231,9 +231,46 @@ namespace pg
                 notPlain.insert(name);
 
             if (value)
-                intWrites[name].push_back(value);
+            {
+                written.insert(name);
+                intWrites[key].push_back(value);
+            }
             else
-                notInts.insert(name);
+                notInts.insert(key);
+        }
+
+        std::string Ownership::newKey(const std::string& name)
+        {
+            const std::string key = name + "#" + std::to_string(++keyCount[name]);
+            keysOfName[name].insert(key);
+            return key;
+        }
+
+        std::string Ownership::bound(const std::string& name) const
+        {
+            for (auto scope = scopes.rbegin(); scope != scopes.rend(); ++scope)
+            {
+                auto it = scope->find(name);
+
+                if (it != scope->end())
+                    return it->second;
+            }
+
+            return name;
+        }
+
+        void Ownership::read(const ExprPtr& var)
+        {
+            const std::string name = varName(var);
+            const std::string key = bound(name);
+
+            if (key == name)
+                readUnbound.insert(name);
+
+            auto [it, first] = keyOf.emplace(var, key);
+
+            if (not first and it->second != key)
+                keyMixed.insert(var);
         }
 
         bool Ownership::noTable(const ExprPtr& e)
@@ -270,7 +307,19 @@ namespace pg
                 return std::static_pointer_cast<Atom>(e)->value.type == UnionType::INT;
 
             if (type == AstKind::Var)
-                return ints.count(varName(e)) > 0;
+            {
+                // By the declaration it reads; a node not read here, or read at two places, by them all
+                auto it = keyOf.find(e);
+
+                if (it != keyOf.end() and not keyMixed.count(e))
+                    return ints.count(it->second) > 0;
+
+                const std::string name = varName(e);
+                auto keys = keysOfName.find(name);
+
+                return not readUnbound.count(name) and keys != keysOfName.end() and
+                    std::all_of(keys->second.begin(), keys->second.end(), [&](const std::string& key) { return ints.count(key) > 0; });
+            }
 
             if (type == AstKind::CompoundAtom)
                 return isInt(std::static_pointer_cast<CompoundAtom>(e)->expr);
@@ -297,11 +346,11 @@ namespace pg
         {
             ints.clear();
 
-            for (const auto& [name, writes] : intWrites)
+            for (const auto& [key, writes] : intWrites)
             {
-                // (a name not declared here is a global: anything may give it anything)
-                if (not notInts.count(name) and declared.count(name))
-                    ints.insert(name);
+                // (a bare name is a global: anything may give it anything)
+                if (not notInts.count(key) and key.find('#') != std::string::npos)
+                    ints.insert(key);
             }
 
             // Each only falls once: what is left is what is an integer whatever the order
@@ -386,25 +435,57 @@ namespace pg
         Ownership Ownership::ofFunction(const std::queue<ExprPtr>& parameters, const StatementPtr& body)
         {
             Ownership o;
+            o.scopes.emplace_back();
 
             for (const auto& p : listOf(parameters))
             {
                 o.otherWrites.insert(p->getName());
                 o.maybeTables.insert(p->getName());
                 o.notRows.insert(p->getName());
-                o.notInts.insert(p->getName());
                 o.notPlain.insert(p->getName());
                 ++o.declared[p->getName()];
+
+                const std::string key = o.newKey(p->getName());
+                o.notInts.insert(key);
+                o.bind(p->getName(), key);
             }
 
             ownStmt(body, o, false);
+            o.scopes.clear();
 
             o.settleInts();
 
             return o;
         }
 
+        Ownership Ownership::ofScript(const std::queue<StatementPtr>& statements, const std::set<std::string>& locals)
+        {
+            Ownership o;
+            o.scopes.emplace_back();
+
+            for (const auto& s : listOf(statements))
+                ownStmt(s, o, false);
+
+            o.scopes.clear();
+
+            // A global is any function's, an imported module's too: none of its lists is the script's
+            for (const auto& [name, count] : o.listDecls)
+            {
+                if (not locals.count(name))
+                    o.escaped.insert(name);
+            }
+
+            o.settleInts();
+
+            // ...and any function may give it a value of another kind
+            for (auto it = o.ints.begin(); it != o.ints.end(); )
+                it = locals.count(it->substr(0, it->find('#'))) ? std::next(it) : o.ints.erase(it);
+
+            return o;
+        }
+
         void ownExpr(const ExprPtr& e, Ownership& o, bool nested);
+        void ownFunctionBody(const std::queue<ExprPtr>& parameters, const StatementPtr& body, Ownership& o);
 
         // Read where a list stays: the object of an index, a field, a measure or a list native
         void ownObject(const ExprPtr& x, Ownership& o, bool nested)
@@ -429,7 +510,7 @@ namespace pg
         }
 
         // A local is given a value: it holds a row, or what `ownExpr` says of it
-        void ownGiven(const std::string& name, const ExprPtr& value, Ownership& o, bool nested)
+        void ownGiven(const std::string& name, const std::string& key, const ExprPtr& value, Ownership& o, bool nested)
         {
             const std::string row = rowRoot(value, nested);
 
@@ -444,9 +525,9 @@ namespace pg
                 o.rowOf[name].insert(row);
 
             if (nested)
-                o.notInts.insert(name);
+                o.notInts.insert(key);
 
-            o.wrote(name, value);
+            o.wrote(name, key, value);
 
             if (row.empty())
                 ownExpr(value, o, nested);
@@ -465,6 +546,7 @@ namespace pg
             if (type == AstKind::Var)
             {
                 o.escaped.insert(varName(e));
+                o.read(e);
                 return;
             }
 
@@ -569,7 +651,7 @@ namespace pg
 
                 o.rebound.insert(a->name.text);
 
-                ownGiven(a->name.text, a->expr, o, nested);
+                ownGiven(a->name.text, o.bound(a->name.text), a->expr, o, nested);
             }
             else if (type == AstKind::PreFixExpression or type == AstKind::PostFixExpression)
             {
@@ -580,7 +662,7 @@ namespace pg
                 o.rebound.insert(name);
 
                 if (nested)
-                    o.notInts.insert(name);
+                    o.notInts.insert(o.bound(name));
             }
             else if (type == AstKind::List)
             {
@@ -599,8 +681,28 @@ namespace pg
             else if (type == AstKind::AnonymousFunction)
             {
                 auto f = std::static_pointer_cast<AnonymousFunction>(e);
-                ownStmt(f->body, o, true);
+                ownFunctionBody(f->parameters, f->body, o);
             }
+        }
+
+        // A function or a class named where it stands: no integer
+        void ownDefined(const std::string& name, Ownership& o)
+        {
+            const std::string key = o.newKey(name);
+            o.notInts.insert(key);
+            o.bind(name, key);
+        }
+
+        // A function defined here: its parameters are its own, every name it reads from here is captured
+        void ownFunctionBody(const std::queue<ExprPtr>& parameters, const StatementPtr& body, Ownership& o)
+        {
+            o.scopes.emplace_back();
+
+            for (const auto& p : listOf(parameters))
+                ownDefined(p->getName(), o);
+
+            ownStmt(body, o, true);
+            o.scopes.pop_back();
         }
 
         void ownStmt(const StatementPtr& s, Ownership& o, bool nested)
@@ -623,7 +725,10 @@ namespace pg
 
                 ++o.declared[v->name.text];
 
-                ownGiven(v->name.text, v->expr, o, nested);
+                // Its value reads what stands before it
+                const std::string key = o.newKey(v->name.text);
+                ownGiven(v->name.text, key, v->expr, o, nested);
+                o.bind(v->name.text, key);
             }
             else if (type == AstKind::ReturnStatement)
             {
@@ -639,8 +744,12 @@ namespace pg
                 ownExpr(std::static_pointer_cast<DPrintStatement>(s)->expr, o, nested);
             else if (type == AstKind::BlockStatement)
             {
+                o.scopes.emplace_back();
+
                 for (const auto& b : listOf(std::static_pointer_cast<BlockStatement>(s)->statements))
                     ownStmt(b, o, nested);
+
+                o.scopes.pop_back();
             }
             else if (type == AstKind::IfStatement)
             {
@@ -658,10 +767,12 @@ namespace pg
             else if (type == AstKind::ForStatement)
             {
                 auto f = std::static_pointer_cast<ForStatement>(s);
+                o.scopes.emplace_back();
                 ownStmt(f->initializer, o, nested);
                 ownExpr(f->condition, o, nested);
                 ownExpr(f->increment, o, nested);
                 ownStmt(f->body, o, nested);
+                o.scopes.pop_back();
             }
             else if (type == AstKind::ForInStatement)
             {
@@ -669,7 +780,6 @@ namespace pg
                 o.otherWrites.insert(f->varName.text);
                 o.maybeTables.insert(f->varName.text);
                 o.rebound.insert(f->varName.text);
-                o.notInts.insert(f->varName.text);
                 o.notPlain.insert(f->varName.text);
 
                 // Iterated, not kept: only its rows are, and the loop's variable holds them
@@ -681,23 +791,30 @@ namespace pg
                 else
                     o.rowOf[f->varName.text].insert(varName(f->iterable));
 
+                o.scopes.emplace_back();
+                const std::string key = o.newKey(f->varName.text);
+                o.notInts.insert(key);
+                o.bind(f->varName.text, key);
                 ownStmt(f->body, o, nested);
+                o.scopes.pop_back();
             }
             else if (type == AstKind::FunctionStatement)
             {
                 auto f = std::static_pointer_cast<FunctionStatement>(s);
                 o.otherWrites.insert(f->name.text);
                 o.maybeTables.insert(f->name.text);
-                ownStmt(f->body, o, true);
+                ownDefined(f->name.text, o);
+                ownFunctionBody(f->parameters, f->body, o);
             }
             else if (type == AstKind::ClassStatement)
             {
                 auto c = std::static_pointer_cast<ClassStatement>(s);
                 o.otherWrites.insert(c->name.text);
                 o.maybeTables.insert(c->name.text);
+                ownDefined(c->name.text, o);
 
                 for (const auto& m : listOf(c->methods))
-                    ownStmt(m->body, o, true);
+                    ownFunctionBody(m->parameters, m->body, o);
             }
         }
 

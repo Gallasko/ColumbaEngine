@@ -2,7 +2,7 @@
 // Regenerate with:  cmake --build <build-dir> --target GenerateVmOps
 // VM::*Values helper bodies: full kernel ladder + handwritten tail.
 
-    Value VM::addValues(const Value& a, const Value& b)
+    Value VM::addValues(Value a, Value b)
     {
         if (IS_INT(a) and IS_INT(b))
             return INT_VAL(checkedInt(AS_INT(a) + AS_INT(b)));
@@ -15,7 +15,7 @@
         return addValuesTail(a, b);
     }
 
-    Value VM::subtractValues(const Value& a, const Value& b)
+    Value VM::subtractValues(Value a, Value b)
     {
         if (IS_INT(a) and IS_INT(b))
             return INT_VAL(checkedInt(AS_INT(a) - AS_INT(b)));
@@ -28,7 +28,7 @@
         return subtractValuesTail(a, b);
     }
 
-    Value VM::multiplyValues(const Value& a, const Value& b)
+    Value VM::multiplyValues(Value a, Value b)
     {
         if (IS_INT(a) and IS_INT(b))
             return INT_VAL(checkedMultiply(AS_INT(a), AS_INT(b)));
@@ -41,7 +41,7 @@
         return multiplyValuesTail(a, b);
     }
 
-    Value VM::divideValues(const Value& a, const Value& b)
+    Value VM::divideValues(Value a, Value b)
     {
         if (IS_INT(a) and IS_INT(b) and (AS_INT(b) != 0))
             return INT_VAL(checkedInt(AS_INT(a) / AS_INT(b)));
@@ -54,7 +54,7 @@
         return divideValuesTail(a, b);
     }
 
-    Value VM::moduloValues(const Value& a, const Value& b)
+    Value VM::moduloValues(Value a, Value b)
     {
         if (IS_INT(a) and IS_INT(b) and (AS_INT(b) != 0))
             return INT_VAL(AS_INT(a) % AS_INT(b));
@@ -67,9 +67,11 @@
         return moduloValuesTail(a, b);
     }
 
-    Value VM::equalsValues(const Value& a, const Value& b)
+    Value VM::equalsValues(Value a, Value b)
     {
         if (IS_INT(a) and IS_INT(b))
+            return BOOL_VAL(a == b);
+        if (IS_TAGGED(a) and IS_TAGGED(b) and (not (IS_LONG_STRING(a) and IS_LONG_STRING(b))))
             return BOOL_VAL(a == b);
         if (IS_DOUBLE(a) and IS_DOUBLE(b))
             return BOOL_VAL(areAlmostEqual(static_cast<float>(AS_DOUBLE(a)), static_cast<float>(AS_DOUBLE(b))));
@@ -80,9 +82,11 @@
         return BOOL_VAL(a == b or sameLongString(a, b));
     }
 
-    Value VM::notEqualsValues(const Value& a, const Value& b)
+    Value VM::notEqualsValues(Value a, Value b)
     {
         if (IS_INT(a) and IS_INT(b))
+            return BOOL_VAL(a != b);
+        if (IS_TAGGED(a) and IS_TAGGED(b) and (not (IS_LONG_STRING(a) and IS_LONG_STRING(b))))
             return BOOL_VAL(a != b);
         if (IS_DOUBLE(a) and IS_DOUBLE(b))
             return BOOL_VAL(areNotAlmostEqual(static_cast<float>(AS_DOUBLE(a)), static_cast<float>(AS_DOUBLE(b))));
@@ -93,7 +97,7 @@
         return BOOL_VAL(a != b and not sameLongString(a, b));
     }
 
-    Value VM::greaterValues(const Value& a, const Value& b)
+    Value VM::greaterValues(Value a, Value b)
     {
         if (IS_INT(a) and IS_INT(b))
             return BOOL_VAL(AS_INT(a) > AS_INT(b));
@@ -106,7 +110,7 @@
         return greaterValuesTail(a, b);
     }
 
-    Value VM::greaterEqualValues(const Value& a, const Value& b)
+    Value VM::greaterEqualValues(Value a, Value b)
     {
         if (IS_INT(a) and IS_INT(b))
             return BOOL_VAL(AS_INT(a) >= AS_INT(b));
@@ -119,7 +123,7 @@
         return greaterEqualValuesTail(a, b);
     }
 
-    Value VM::lessValues(const Value& a, const Value& b)
+    Value VM::lessValues(Value a, Value b)
     {
         if (IS_INT(a) and IS_INT(b))
             return BOOL_VAL(AS_INT(a) < AS_INT(b));
@@ -132,7 +136,7 @@
         return lessValuesTail(a, b);
     }
 
-    Value VM::lessEqualValues(const Value& a, const Value& b)
+    Value VM::lessEqualValues(Value a, Value b)
     {
         if (IS_INT(a) and IS_INT(b))
             return BOOL_VAL(AS_INT(a) <= AS_INT(b));

@@ -92,7 +92,7 @@ fun validateOps(ops)
             for (var t = 0; t < 2; t = t + 1)
             {
                 var ty = kernel[t]
-                if (ty != "int" and ty != "dbl" and ty != "rawint")
+                if (ty != "int" and ty != "dbl" and ty != "rawint" and ty != "tagged")
                 {
                     log("ERROR: op '" + name + "' kernel " + toString(k) + " has invalid type: " + ty)
                     return false
@@ -112,17 +112,21 @@ fun validateOps(ops)
 // C++ rendering helpers
 // ============================================================================
 
-// Type guard for one operand: int/rawint -> IS_INT, dbl -> IS_DOUBLE.
+// Type guard for one operand: int/rawint -> IS_INT, dbl -> IS_DOUBLE, tagged -> IS_TAGGED.
 fun typeCond(ty, v)
 {
     if (ty == "dbl")
     {
         return "IS_DOUBLE(" + v + ")"
     }
+    if (ty == "tagged")
+    {
+        return "IS_TAGGED(" + v + ")"
+    }
     return "IS_INT(" + v + ")"
 }
 
-// Unboxed read for one operand; rawint kernels see the boxed value itself.
+// Unboxed read for one operand; rawint and tagged kernels see the boxed value itself.
 fun typeRead(ty, v)
 {
     if (ty == "int")
@@ -523,7 +527,7 @@ fun renderValuesHelpersFile(ops)
     for (var i = 0; i < len(ops); i = i + 1)
     {
         var op = ops[i]
-        code += "    Value VM::" + op["helper"] + "(const Value& a, const Value& b)\n"
+        code += "    Value VM::" + op["helper"] + "(Value a, Value b)\n"
         code += "    {\n"
 
         var kernels = kernelsWhere(op, "all")

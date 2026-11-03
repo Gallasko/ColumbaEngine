@@ -37,7 +37,7 @@ namespace pg
         return false;
     }
 
-    bool isValueTrue(const Value& val)
+    bool isValueTrue(Value val)
     {
         if (IS_BOOL(val))
             return AS_BOOL(val);

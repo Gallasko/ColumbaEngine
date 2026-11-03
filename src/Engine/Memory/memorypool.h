@@ -334,13 +334,20 @@ namespace pg
             LOG_THIS_MEMBER("Memory Pool");
 
             if (index >= size)
-            {
-                LOG_ERROR("Memory Pool", "Trying to acces a chunk outside of the pool");
-                return nullptr;
-            }
+                return outsideThePool();
 
             return reinterpret_cast<T*>(getChunk(index));
         }
+
+    private:
+        // Out of line: the log builds strings, and inline they give every lookup a frame and a stack guard
+        [[gnu::cold, gnu::noinline]] static T* outsideThePool()
+        {
+            LOG_ERROR("Memory Pool", "Trying to acces a chunk outside of the pool");
+            return nullptr;
+        }
+
+    public:
 
     protected:
         /**

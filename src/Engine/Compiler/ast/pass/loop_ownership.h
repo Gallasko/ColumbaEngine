@@ -103,14 +103,28 @@ namespace pg
             std::set<std::string> notRows;                 // Given anything else: a parameter, a list of its own
             std::map<std::string, int> declared;           // Parameters and `var` by name
             std::set<std::string> rebound;                 // Assigned besides that, or by a function it defines
-            std::map<std::string, std::vector<ExprPtr>> intWrites;  // What a local is given
-            std::set<std::string> notInts;                 // Given what is not read: a parameter, a loop variable
+            // Integers are told by declaration, not by name: each `var` is a key of its own (`k#2`), a read
+            // the key of the declaration it reads where it stands, a global its bare name
+            std::map<std::string, std::vector<ExprPtr>> intWrites;  // What a key is given
+            std::set<std::string> notInts;                 // Keys given what is not read: a parameter, a loop variable
+            std::set<std::string> written;                 // Locals given a value, by name
             std::map<std::string, std::set<std::string>> givenNames;  // Locals a list was given
             std::set<std::string> notPlain;                // Given anything but a number, a string or none
-            std::set<std::string> ints;                    // Locals that only ever hold an integer (settleInts)
+            std::set<std::string> ints;                    // Keys that only ever hold an integer (settleInts)
+
+            std::vector<std::map<std::string, std::string>> scopes;  // While read: the keys in sight, innermost last
+            std::map<std::string, int> keyCount;
+            std::map<std::string, std::set<std::string>> keysOfName;
+            std::map<ExprPtr, std::string> keyOf;          // The key a read reads (held: no other node takes its place)
+            std::set<ExprPtr> keyMixed;                    // A node met at two places: told by its name
+            std::set<std::string> readUnbound;             // Names read where no declaration of theirs stands
 
             // What is known of a function: its parameters and its body read whole
             static Ownership ofFunction(const std::queue<ExprPtr>& parameters, const StatementPtr& body);
+
+            // What is known of the script's top level read whole: the locals of its nested blocks are
+            // its own as a function's are, a global is no one's (`locals`: those of its nested blocks)
+            static Ownership ofScript(const std::queue<StatementPtr>& statements, const std::set<std::string>& locals);
 
             bool owned(const std::string& name) const
             {
@@ -142,7 +156,7 @@ namespace pg
                 return noTables.count(name) and not maybeTables.count(name);
             }
 
-            void wrote(const std::string& name, const ExprPtr& value);
+            void wrote(const std::string& name, const std::string& key, const ExprPtr& value);
 
             // A value that is no table when the natives it calls are the natives
             bool noTable(const ExprPtr& e);
@@ -162,6 +176,12 @@ namespace pg
 
             // `ints`: the locals that only ever hold what is an integer when they all do
             void settleInts();
+
+            // A declaration's key, in sight once bound: its value is read before, where it is not yet
+            std::string newKey(const std::string& name);
+            void bind(const std::string& name, const std::string& key) { scopes.back()[name] = key; }
+            std::string bound(const std::string& name) const;
+            void read(const ExprPtr& var);
         };
 
         // `nested`: inside a function the function defines, where every name read is captured
@@ -175,6 +195,7 @@ namespace pg
             std::set<std::string> locals;
             Ownership ownership;
             bool inFunction = false;
+            bool scriptRead = false;    // At top level, `ownership` is Ownership::ofScript
 
             int slotsUsed = 0;
             int counter = 0;
@@ -188,7 +209,7 @@ namespace pg
             // Ownership took them for the natives
             bool ownershipHolds() const
             {
-                if (not inFunction)
+                if (not inFunction and not scriptRead)
                     return false;
 
                 for (const auto& native : {"len", "push", "insert", "pop", "removeAt"})

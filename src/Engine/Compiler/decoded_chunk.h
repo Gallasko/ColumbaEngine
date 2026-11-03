@@ -301,6 +301,11 @@ namespace pg
         // down and everything that points at them.
         void compactElided(DecodedChunk* decoded);
 
+        // Two instructions that follow each other run in one dispatch (fusion::fusedThen): the first
+        // takes a handler that runs both, the second stays as it is. Not while profiling, which
+        // counts each instruction
+        void pairInstructions(DecodedChunk* decoded, VM* vm);
+
         // Build jump target map for control flow
         void buildJumpTargets(const Chunk& chunk, DecodedChunk* decoded);
 

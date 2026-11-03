@@ -25,8 +25,9 @@
 //               (step 5); tailExpr = verbatim return expression instead
 //
 // Kernel tuple: [typeA, typeB, expr, guard, where]
-//   typeA/typeB "int" | "dbl" | "rawint"  (rawint: $a/$b are the BOXED
-//               values — canonical NaN-boxed int bit-compare)
+//   typeA/typeB "int" | "dbl" | "rawint" | "tagged"  (rawint: $a/$b are the BOXED
+//               values — canonical NaN-boxed int bit-compare; tagged: any
+//               value that is not a double, also seen BOXED)
 //   expr        C++ over $a/$b (unboxed reads substituted; raw for rawint)
 //   guard       extra C++ condition over $a/$b, "" for none
 //   where       "inline" → functor + base handler + helper
@@ -83,11 +84,14 @@ fun binaryOps()
     // Equality: canonical NaN-boxed ints compare as raw bits; anything
     // involving a double keeps the epsilon semantics, helper-only. Two long
     // strings compare their text: a string made while running is not
-    // interned (createString), so one text can stand at two places.
+    // interned (createString), so one text can stand at two places. Every
+    // other pair without a double is equal by its bits (a short string, a
+    // bool, none, a handle): inline, `c == " "` never leaves the handler.
     push(ops, { name: "equal", opcode: "OP_Equal", kind: "cmp",
                 helper: "equalsValues", commutative: true,
                 kernels: [
                     ["rawint", "rawint", "$a == $b", "", "inline"],
+                    ["tagged", "tagged", "$a == $b", "not (IS_LONG_STRING($a) and IS_LONG_STRING($b))", "inline"],
                     ["dbl", "dbl", "areAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"],
                     ["int", "dbl", "areAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"],
                     ["dbl", "int", "areAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"]],
@@ -97,6 +101,7 @@ fun binaryOps()
                 helper: "notEqualsValues", commutative: true,
                 kernels: [
                     ["rawint", "rawint", "$a != $b", "", "inline"],
+                    ["tagged", "tagged", "$a != $b", "not (IS_LONG_STRING($a) and IS_LONG_STRING($b))", "inline"],
                     ["dbl", "dbl", "areNotAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"],
                     ["int", "dbl", "areNotAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"],
                     ["dbl", "int", "areNotAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"]],

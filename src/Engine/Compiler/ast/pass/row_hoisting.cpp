@@ -181,10 +181,95 @@ namespace pg
             return std::make_shared<BlockStatement>(block);
         }
 
+        // The read a condition makes before anything else: down the left operands to a path. A path
+        // only reads names, so nothing runs before it
+        ExprPtr firstRead(const ExprPtr& e)
+        {
+            if (not e)
+                return nullptr;
+
+            const AstKind type = e->kind();
+
+            if (type == AstKind::IndexGet)
+                return pathOf(e).empty() ? nullptr : e;
+
+            if (type == AstKind::BinaryExpression)
+                return firstRead(std::static_pointer_cast<BinaryExpression>(e)->leftExpr);
+
+            if (type == AstKind::LogicExpression)
+                return firstRead(std::static_pointer_cast<LogicExpression>(e)->leftExpr);
+
+            if (type == AstKind::UnaryExpression)
+                return firstRead(std::static_pointer_cast<UnaryExpression>(e)->expr);
+
+            if (type == AstKind::CompoundAtom)
+                return firstRead(std::static_pointer_cast<CompoundAtom>(e)->expr);
+
+            return nullptr;
+        }
+
+        // `if (t[a][b] != none) s += t[a][b]`: the condition reads a path first, and the statement reads
+        // it again with nothing between that could change it. Read once, where it was read first: what
+        // could stop the script stops it at the same place
+        StatementPtr readOnceIf(const StatementPtr& s, Rows& ctx)
+        {
+            auto i = std::static_pointer_cast<IfStatement>(s);
+            auto read = firstRead(i->condition);
+
+            // A row of a name is one instruction already
+            if (not read or std::static_pointer_cast<IndexGet>(read)->object->kind() != AstKind::IndexGet)
+                return s;
+
+            const std::string path = pathOf(read);
+
+            long reads = 0;
+            eachExpr(s, [&](const ExprPtr& e) {
+                if (e->kind() == AstKind::IndexGet and pathOf(e) == path)
+                    ++reads;
+            });
+
+            if (reads < 2)
+                return s;
+
+            LoopFacts facts;
+            analyzeStmt(s, facts);
+
+            std::set<std::string> names;
+            namesOf(read, names);
+
+            if (std::any_of(names.begin(), names.end(), [&](const std::string& name) { return facts.mutated.count(name); }))
+                return s;
+
+            const std::string root = rootOf(read);
+
+            RegionCheck check{ctx, root, ctx.ownershipHolds() and ctx.ownership.owned(root)};
+            check.stmt(s);
+
+            if (not check.ok or ctx.slotsUsed + 1 > kMaxLocalSlots)
+                return s;
+
+            ++ctx.slotsUsed;
+
+            const std::string name = "@row" + std::to_string(ctx.counter++);
+            const std::map<std::string, std::string> hidden{{path, name}};
+
+            std::queue<StatementPtr> block;
+            block.push(std::make_shared<VariableStatement>(Token(TokenType::EXPRESSION, name, 0, 0), read));
+
+            Replace replace{hidden, pathOf};
+            replace.stmt(s);
+
+            block.push(s);
+
+            ++ctx.hoisted;
+
+            return std::make_shared<BlockStatement>(block);
+        }
+
         // The reads of a loop that hold for all of it, a hidden local each, before it
         StatementPtr hoistLoop(const StatementPtr& s, Rows& ctx)
         {
-            if (not ctx.inFunction)
+            if (not ctx.inFunction and not ctx.scriptRead)
                 return s;
 
             std::map<std::string, ExprPtr> rows;
@@ -380,6 +465,8 @@ namespace pg
                 learn(i->condition, ctx);
 
                 i->elseBranch = transform(i->elseBranch, ctx);
+
+                return readOnceIf(s, ctx);
             }
             else if (type == AstKind::FunctionStatement)
             {
@@ -426,9 +513,18 @@ namespace pg
         Rows ctx{{scriptNames}};
         std::vector<StatementPtr> out;
 
-        // Hidden locals at top level are the script's
+        // Hidden locals at top level are the script's, and so are the lists of its nested blocks (a
+        // global's are not: a function could reach it)
         for (const auto& s : listOf(statements))
+        {
+            if (s and s->kind() != AstKind::FunctionStatement and s->kind() != AstKind::ClassStatement and s->kind() != AstKind::VariableStatement)
+                declsOf(s, ctx.locals);
+
             ctx.slotsUsed += countLocalSlots(s);
+        }
+
+        ctx.ownership = Ownership::ofScript(statements, ctx.locals);
+        ctx.scriptRead = true;
 
         for (const auto& s : listOf(statements))
             out.push_back(transform(s, ctx));

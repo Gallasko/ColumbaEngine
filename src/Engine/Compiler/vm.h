@@ -91,7 +91,7 @@ namespace pg
 
     bool isValueNumber(const Value& val);
 
-    bool isValueTrue(const Value& val);
+    bool isValueTrue(Value val);
 
     class IndexableStack
     {
@@ -391,7 +391,14 @@ namespace pg
             }
         }
 
-        void runtimeError(const std::string& message)
+        // A message written in place, out of line: the std::string it would make at the call site
+        // gives the handler a frame and a stack guard, on its fast path too
+        [[gnu::cold, gnu::noinline]] void runtimeError(const char* message)
+        {
+            runtimeError(std::string(message));
+        }
+
+        [[gnu::cold, gnu::noinline]] void runtimeError(const std::string& message)
         {
             LOG_ERROR("VM", message);
 
@@ -440,9 +447,9 @@ namespace pg
         bool callBound(Closure* closure, int argCount);
 
         // Reference counting methods
-        inline const Value& retainValue(const Value& value);   // Returns the value after retaining
-        inline bool releaseValue(const Value& value);   // Returns true if should delete
-        void deleteValue(const Value& value);    // Actually delete the object
+        inline Value retainValue(Value value);   // Returns the value after retaining
+        inline bool releaseValue(Value value);   // Returns true if should delete
+        void deleteValue(Value value);    // Actually delete the object
         inline Value trackNewValue(const Value& value); // Track newly created object with refcount=1
 
         size_t getTotalTrackedObjects() const
@@ -463,7 +470,7 @@ namespace pg
         // !requiresRefCount). deleteValue is the only non-inline body and
         // only fires when refcount drops to zero, so leaving it out-of-line
         // keeps the cold path from bloating the dispatcher.
-        inline void releaseAndDelete(const Value& value)
+        inline void releaseAndDelete(Value value)
         {
             if (releaseValue(value))
                 deleteValue(value);
@@ -509,6 +516,20 @@ namespace pg
             }
             else
                 return *asStringPtr(v);
+        }
+
+        // The text of a string, a long or interned one read where it lives: asString copies it, as long
+        // as it is. A small string is unpacked into `buffer`
+        inline const std::string& stringRef(Value v, std::string& buffer)
+        {
+            if (IS_LONG_STRING(v))
+                return *asStringPtr(v);
+
+            if (IS_INTERNED_STRING(v))
+                return currentFrame->closure->function->chunk.constantStrings[AS_INTERNED_STRING_INDEX(v)];
+
+            buffer = AS_SMALL_STRING(v);
+            return buffer;
         }
 
         // Overload for explicit chunk specification
@@ -568,31 +589,31 @@ namespace pg
         // Bodies are GENERATED from /tools/vm_ops_def.pg (the typed kernel
         // ladder); the *Tail functions hold the handwritten fallbacks
         // (string concat, ElementType conversion, error throws).
-        Value addValues(const Value& a, const Value& b);
-        Value subtractValues(const Value& a, const Value& b);
-        Value multiplyValues(const Value& a, const Value& b);
-        Value divideValues(const Value& a, const Value& b);
-        Value moduloValues(const Value& a, const Value& b);
+        Value addValues(Value a, Value b);
+        Value subtractValues(Value a, Value b);
+        Value multiplyValues(Value a, Value b);
+        Value divideValues(Value a, Value b);
+        Value moduloValues(Value a, Value b);
         Value negateValue(const Value& val);
 
-        Value addValuesTail(const Value& a, const Value& b);
-        Value subtractValuesTail(const Value& a, const Value& b);
-        Value multiplyValuesTail(const Value& a, const Value& b);
-        Value divideValuesTail(const Value& a, const Value& b);
-        Value moduloValuesTail(const Value& a, const Value& b);
+        Value addValuesTail(Value a, Value b);
+        Value subtractValuesTail(Value a, Value b);
+        Value multiplyValuesTail(Value a, Value b);
+        Value divideValuesTail(Value a, Value b);
+        Value moduloValuesTail(Value a, Value b);
 
         // Comparison operations with proper reference tracking
-        Value equalsValues(const Value& a, const Value& b);
-        Value notEqualsValues(const Value& a, const Value& b);
-        Value greaterValues(const Value& a, const Value& b);
-        Value greaterEqualValues(const Value& a, const Value& b);
-        Value lessValues(const Value& a, const Value& b);
-        Value lessEqualValues(const Value& a, const Value& b);
+        Value equalsValues(Value a, Value b);
+        Value notEqualsValues(Value a, Value b);
+        Value greaterValues(Value a, Value b);
+        Value greaterEqualValues(Value a, Value b);
+        Value lessValues(Value a, Value b);
+        Value lessEqualValues(Value a, Value b);
 
-        Value greaterValuesTail(const Value& a, const Value& b);
-        Value greaterEqualValuesTail(const Value& a, const Value& b);
-        Value lessValuesTail(const Value& a, const Value& b);
-        Value lessEqualValuesTail(const Value& a, const Value& b);
+        Value greaterValuesTail(Value a, Value b);
+        Value greaterEqualValuesTail(Value a, Value b);
+        Value lessValuesTail(Value a, Value b);
+        Value lessEqualValuesTail(Value a, Value b);
 
         CallFrame frames[FRAMES_MAX];
 
@@ -731,7 +752,12 @@ namespace pg
         // instruction" that breaks the dispatch loop. Lets a handler write
         // `return vm->raiseError("...");` instead of repeating the
         // runtimeError + vm_return + return-nullptr triple.
-        inline const DecodedInstruction* raiseError(const std::string& message)
+        [[gnu::cold, gnu::noinline]] const DecodedInstruction* raiseError(const char* message)
+        {
+            return raiseError(std::string(message));
+        }
+
+        [[gnu::cold, gnu::noinline]] const DecodedInstruction* raiseError(const std::string& message)
         {
             runtimeError(message);
             vm_return(InterpretResult::RUNTIME_ERROR);
@@ -835,6 +861,9 @@ namespace pg
         // default — part of decoding, applies to compiled AND deserialized
         // bytecode. Cleared together with optimizations for O0 / --no-opt.
         bool enableDecodeFusion = true;
+
+        // Instructions decoded to run with the one after them in one dispatch (pairInstructions)
+        size_t pairedInstructions = 0;
 
         // Bytecode profiling
         VMProfiler profiler;
@@ -1135,7 +1164,7 @@ namespace pg
     };
 
     // Inline implementations for critical performance functions
-    inline const Value& VM::retainValue(const Value& v)
+    inline Value VM::retainValue(Value v)
     {
         // Fast path: primitives and doubles don't need refcounting
         if (not requiresRefCount(v))
@@ -1161,7 +1190,7 @@ namespace pg
         return v;
     }
 
-    inline bool VM::releaseValue(const Value& v)
+    inline bool VM::releaseValue(Value v)
     {
         // Fast path: primitives and doubles don't need cleanup
         if (not requiresRefCount(v))

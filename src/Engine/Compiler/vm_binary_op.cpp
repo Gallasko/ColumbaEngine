@@ -18,8 +18,24 @@ namespace pg
     // fast paths and these slow paths can never drift apart.
     // ------------------------------------------------------------------
 
-    Value VM::addValuesTail(const Value& a, const Value& b)
+    Value VM::addValuesTail(Value a, Value b)
     {
+        // Two small strings that make one: packed as they are, the characters of b after a's
+        if (IS_SMALL_STRING(a) and IS_SMALL_STRING(b))
+        {
+            const uint8_t lengthA = AS_SMALL_STRING_LENGTH(a);
+            const uint8_t lengthB = AS_SMALL_STRING_LENGTH(b);
+
+            if (lengthA + lengthB <= 5)
+            {
+                const uint64_t charsA = a & ((uint64_t{1} << (8 * lengthA)) - 1);
+                const uint64_t charsB = b & ((uint64_t{1} << (8 * lengthB)) - 1);
+
+                return NEG_TAG_BASE | (static_cast<uint64_t>(TAG_SMALL_STRING) << TAG_SHIFT)
+                     | (static_cast<uint64_t>(lengthA + lengthB) << 40) | charsA | (charsB << (8 * lengthA));
+            }
+        }
+
         // Fast path for string concatenation
         if (IS_STRING(a) and IS_STRING(b))
         {
@@ -40,7 +56,7 @@ namespace pg
         return elementToValue(elemA + elemB);
     }
 
-    Value VM::subtractValuesTail(const Value& a, const Value& b)
+    Value VM::subtractValuesTail(Value a, Value b)
     {
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
@@ -52,7 +68,7 @@ namespace pg
         return elementToValue(elemA - elemB);
     }
 
-    Value VM::multiplyValuesTail(const Value& a, const Value& b)
+    Value VM::multiplyValuesTail(Value a, Value b)
     {
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
@@ -64,7 +80,7 @@ namespace pg
         return elementToValue(elemA * elemB);
     }
 
-    Value VM::divideValuesTail(const Value& a, const Value& b)
+    Value VM::divideValuesTail(Value a, Value b)
     {
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
@@ -77,7 +93,7 @@ namespace pg
         return elementToValue(elemA / elemB);
     }
 
-    Value VM::moduloValuesTail(const Value& a, const Value& b)
+    Value VM::moduloValuesTail(Value a, Value b)
     {
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
@@ -104,7 +120,7 @@ namespace pg
         return elementToValue(-elem);
     }
 
-    Value VM::greaterValuesTail(const Value& a, const Value& b)
+    Value VM::greaterValuesTail(Value a, Value b)
     {
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
@@ -115,7 +131,7 @@ namespace pg
         return elementToValue(elemA > elemB);
     }
 
-    Value VM::greaterEqualValuesTail(const Value& a, const Value& b)
+    Value VM::greaterEqualValuesTail(Value a, Value b)
     {
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
@@ -126,7 +142,7 @@ namespace pg
         return elementToValue(elemA >= elemB);
     }
 
-    Value VM::lessValuesTail(const Value& a, const Value& b)
+    Value VM::lessValuesTail(Value a, Value b)
     {
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
@@ -137,7 +153,7 @@ namespace pg
         return elementToValue(elemA < elemB);
     }
 
-    Value VM::lessEqualValuesTail(const Value& a, const Value& b)
+    Value VM::lessEqualValuesTail(Value a, Value b)
     {
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))

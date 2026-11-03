@@ -5,6 +5,7 @@
 #include "compiler_debug.h"
 #include "decoded_fusion.h"
 
+#include <map>
 #include <unordered_set>
 #include <cstdint>
 
@@ -192,6 +193,9 @@ namespace pg
         // Optimize: pre-resolve constant-global ops to dense VM global slots.
         resolveGlobalSlots(decoded, chunk, vm);
 
+        if (vm != nullptr and vm->enableDecodeFusion and not vm->profiler.isEnabled())
+            pairInstructions(decoded, vm);
+
         // TODO Future: analyze pure batches for instruction fusion
         // This will allow us to detect patterns like GET_LOCAL + GET_LOCAL + ADD
         // and replace them with fused instructions like ADD_LL
@@ -366,6 +370,10 @@ namespace pg
                     out.kind = fusion::Src::Const;
                     out.constIndex = instr.operands.byte;
                     return true;
+                case fusion::Producer::NoneValue:
+                    out.kind = fusion::Src::Const;
+                    out.constIndex = fusion::kNoneConstIndex;
+                    return true;
                 default:
                     return false;
             }
@@ -424,9 +432,12 @@ namespace pg
                                     : (b.kind == Src::Const) ? &b : nullptr;
             if (constSrc != nullptr)
             {
-                if (constSrc->constIndex >= chunk.constants.size())
+                if (constSrc->constIndex == kNoneConstIndex)
+                    out.constantPtr = &noneConstant;
+                else if (constSrc->constIndex >= chunk.constants.size())
                     return false;
-                out.constantPtr = const_cast<Value*>(&chunk.constants[constSrc->constIndex]);
+                else
+                    out.constantPtr = const_cast<Value*>(&chunk.constants[constSrc->constIndex]);
             }
             return true;
         };
@@ -463,9 +474,12 @@ namespace pg
             out.operands.indexed.byte2 = other->byteVal;
             if (other->kind == Src::Const)
             {
-                if (other->constIndex >= chunk.constants.size())
+                if (other->constIndex == kNoneConstIndex)
+                    out.constantPtr = &noneConstant;
+                else if (other->constIndex >= chunk.constants.size())
                     return false;
-                out.constantPtr = const_cast<Value*>(&chunk.constants[other->constIndex]);
+                else
+                    out.constantPtr = const_cast<Value*>(&chunk.constants[other->constIndex]);
             }
             outB = other->kind;
             return true;
@@ -1075,8 +1089,104 @@ namespace pg
             }
         }
 
+        // What is left: an index that is a local, on a target that is not (the row of `t[a][i]`).
+        //   Get_Local i; Get_Index → nop; FUSED_GetIndex(S,L)
+        // A branch landing on the Get_Local lands on the fused read, which does its work too; none
+        // may land between the two
+        for (size_t i = 0; i + 1 < n; ++i)
+        {
+            if (im[i].fusedLength >= 2 or ins[i].decodedHandler != &op_get_local_decoded)
+                continue;
+
+            const size_t j = i + 1;
+
+            if (im[j].fusedLength >= 2 or ins[j].decodedHandler != &op_get_index_decoded or isTarget(j))
+                continue;
+
+            ins[j].decodedHandler = &fusedGetIndexByLocal;
+            ins[j].operands.indexed.byte1 = ins[i].operands.byte;
+            im[j].fusedName = internFusionName("FUSED_GetIndex(S,L)");
+
+            ins[i].decodedHandler = &fusedElidedProducer;
+            im[i].fusedName = internFusionName("ELIDED_Producer");
+            ++rewrites;
+        }
+
         if (rewrites > 0)
             LOG_INFO("ChunkDecoder", "Fused " << rewrites << " local indexed accesses");
+    }
+
+    namespace
+    {
+        using HandlerPair = std::pair<OpDecodedHandler, OpDecodedHandler>;
+        using PairRules = std::map<HandlerPair, OpDecodedHandler>;
+
+        template <OpDecodedHandler First, OpDecodedHandler Next>
+        void pairOf(PairRules& rules)
+        {
+            rules[{First, Next}] = &fusion::fusedThen<First, Next>;
+        }
+
+        // A loop's step, then its test at the bottom of the loop (LoopRotation): `i++` and `i < n`
+        template <OpDecodedHandler Step, typename Op>
+        void pairStepWithTests(PairRules& rules)
+        {
+            using fusion::Src;
+
+            pairOf<Step, &fusion::fusedCmpBranchIfTrue<Op, Src::Local, Src::Local, false>>(rules);
+            pairOf<Step, &fusion::fusedCmpBranchIfTrue<Op, Src::Local, Src::ShortInt, false>>(rules);
+            pairOf<Step, &fusion::fusedCmpBranchIfTrue<Op, Src::Local, Src::Const, true>>(rules);
+        }
+
+        template <OpDecodedHandler Step>
+        void pairStep(PairRules& rules)
+        {
+            pairStepWithTests<Step, fusion::FLess>(rules);
+            pairStepWithTests<Step, fusion::FLessEqual>(rules);
+            pairStepWithTests<Step, fusion::FGreater>(rules);
+            pairStepWithTests<Step, fusion::FGreaterEqual>(rules);
+            pairStepWithTests<Step, fusion::FNotEqual>(rules);
+        }
+
+        const PairRules& pairRules()
+        {
+            using namespace fusion;
+
+            static const PairRules rules = [] {
+                PairRules r;
+
+                pairStep<&fusedIncrDecrLocal<true>>(r);
+                pairStep<&fusedIncrDecrLocal<false>>(r);
+                pairStep<&fusedPopIncrDecrLocal<true>>(r);
+                pairStep<&fusedPopIncrDecrLocal<false>>(r);
+
+                // `line[i] == " "`: the element is compared where it stands
+                r[{&fusedGetIndexLocals, &fusedCmpBranchIfFalse<FEqual, Src::Stack, Src::Const, true>}] = &fusedGetIndexLocalsCmpConst<FEqual>;
+                r[{&fusedGetIndexLocals, &fusedCmpBranchIfFalse<FNotEqual, Src::Stack, Src::Const, true>}] = &fusedGetIndexLocalsCmpConst<FNotEqual>;
+
+                return r;
+            }();
+
+            return rules;
+        }
+    }
+
+    void ChunkDecoder::pairInstructions(DecodedChunk* decoded, VM* vm)
+    {
+        std::vector<DecodedInstruction>& ins = decoded->instructions;
+        const PairRules& rules = pairRules();
+
+        // The second is looked at as it was decoded: one paired before it changed only its first
+        for (size_t i = 0; i + 1 < ins.size(); ++i)
+        {
+            auto it = rules.find({ins[i].decodedHandler, ins[i + 1].decodedHandler});
+
+            if (it != rules.end())
+            {
+                ins[i].decodedHandler = it->second;
+                ++vm->pairedInstructions;
+            }
+        }
     }
 
     void ChunkDecoder::compactElided(DecodedChunk* decoded)

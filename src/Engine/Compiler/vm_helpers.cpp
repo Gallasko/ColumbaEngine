@@ -249,7 +249,7 @@ namespace pg
         return true;
     }
 
-    void VM::deleteValue(const Value& value)
+    void VM::deleteValue(Value value)
     {
         // Perform type-specific deletion
         if (IS_LONG_STRING(value))

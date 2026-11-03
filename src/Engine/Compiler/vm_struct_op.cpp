@@ -97,65 +97,14 @@ namespace pg
         return false;
     }
 
-    const DecodedInstruction* op_get_property_decoded(VM* vm, const DecodedInstruction& instr)
+    // A read the shape cache could not answer: the field looked up by name, else a __get, else a
+    // method. Out of line: its strings and calls give the handler a frame and a stack guard, which
+    // the cached read then pays too
+    [[gnu::noinline]] static const DecodedInstruction* getPropertyUncached(VM* vm, const DecodedInstruction& instr,
+        ObjInstance* instance, Shape* shape)
     {
-        if (not IS_INSTANCE(vm->peek(0)))
-        {
-            vm->runtimeError("Only instances have properties.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
-        }
-
-        auto* instance = vm->asInstance(vm->peek(0));
-
-        // Property name pre-resolved at decode time, in the instruction's cache
         PropertyCache* cache = instr.propertyCache;
         const std::string& nameStr = *cache->name;
-
-        // Component proxy: forward straight to the C++ component, a proxy holds no field and needs no metamethod call
-        if (instance->proxyMeta != nullptr and not isInternalName(nameStr))
-        {
-            Value result = ComponentProxy::getProperty(vm, instance, nameStr);
-
-            auto inst = vm->pop();
-            vm->releaseAndDelete(inst);
-
-            vm->push(result);
-            return &instr + 1;
-        }
-
-        // The shape this read saw last, or one any read saw: the field is at the slot learned
-        Shape* shape = instance->layout();
-
-        if (shape != nullptr)
-        {
-            size_t learned = ObjInstance::npos;
-
-            if (shape == cache->shape)
-            {
-                learned = cache->slot;
-            }
-            else
-            {
-                const VM::FieldStub& stub = vm->slotStub(shape, cache->name);
-
-                if (stub.shape == shape and stub.name == cache->name)
-                {
-                    learned = stub.slot;
-                    cache->shape = shape;
-                    cache->slot = stub.slot;
-                }
-            }
-
-            if (learned != ObjInstance::npos)
-            {
-                Value found = vm->retainValue(instance->fieldValue(learned));
-                auto inst = vm->pop();
-                vm->releaseAndDelete(inst);
-                vm->push(found);
-                return &instr + 1;
-            }
-        }
 
         // Field-found branch (no frame change).
         const size_t fieldSlot = instance->findField(nameStr);
@@ -275,6 +224,69 @@ namespace pg
         }
 
         return &instr + 1;
+    }
+
+    const DecodedInstruction* op_get_property_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        if (not IS_INSTANCE(vm->peek(0)))
+        {
+            vm->runtimeError("Only instances have properties.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+
+        auto* instance = vm->asInstance(vm->peek(0));
+
+        // Property name pre-resolved at decode time, in the instruction's cache
+        PropertyCache* cache = instr.propertyCache;
+        const std::string& nameStr = *cache->name;
+
+        // Component proxy: forward straight to the C++ component, a proxy holds no field and needs no metamethod call
+        if (instance->proxyMeta != nullptr and not isInternalName(nameStr))
+        {
+            Value result = ComponentProxy::getProperty(vm, instance, nameStr);
+
+            auto inst = vm->pop();
+            vm->releaseAndDelete(inst);
+
+            vm->push(result);
+            return &instr + 1;
+        }
+
+        // The shape this read saw last, or one any read saw: the field is at the slot learned
+        Shape* shape = instance->layout();
+
+        if (shape != nullptr)
+        {
+            size_t learned = ObjInstance::npos;
+
+            if (shape == cache->shape)
+            {
+                learned = cache->slot;
+            }
+            else
+            {
+                const VM::FieldStub& stub = vm->slotStub(shape, cache->name);
+
+                if (stub.shape == shape and stub.name == cache->name)
+                {
+                    learned = stub.slot;
+                    cache->shape = shape;
+                    cache->slot = stub.slot;
+                }
+            }
+
+            if (learned != ObjInstance::npos)
+            {
+                Value found = vm->retainValue(instance->fieldValue(learned));
+                auto inst = vm->pop();
+                vm->releaseAndDelete(inst);
+                vm->push(found);
+                return &instr + 1;
+            }
+        }
+
+        return getPropertyUncached(vm, instr, instance, shape);
     }
 
     const DecodedInstruction* op_set_property_decoded(VM* vm, const DecodedInstruction& instr)
@@ -535,43 +547,11 @@ namespace pg
         return &instr + 1;
     }
 
-    const DecodedInstruction* op_get_index_decoded(VM* vm, const DecodedInstruction& instr)
+    // A string or a table indexed: what the vector read leaves. Out of line, its strings give the
+    // handler a frame and a stack guard, which the vector read then pays too
+    [[gnu::noinline]] static const DecodedInstruction* getIndexNotVector(VM* vm, const DecodedInstruction& instr,
+        Value target, Value index)
     {
-        Value index  = vm->pop();
-        Value target = vm->pop();
-
-        // Vector indexing.
-        if (IS_VECTOR(target))
-        {
-            if (!IS_INT(index))
-            {
-                vm->releaseAndDelete(index);
-                vm->releaseAndDelete(target);
-                vm->runtimeError("Vector index must be an integer");
-                vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return nullptr;
-            }
-
-            ObjVector* vec = vm->asVector(target);
-            int idx = AS_INT(index);
-            if (idx < 0) idx = static_cast<int>(vec->fields.size()) + idx;
-
-            // Reading past either end gives none, there is nothing there
-            if (idx < 0 || idx >= static_cast<int>(vec->fields.size()))
-            {
-                vm->releaseAndDelete(target);
-                vm->push(makeNoneValue());
-                return &instr + 1;
-            }
-
-            // Retain the element before letting go of the vector, it may be its last owner
-            Value element = vm->retainValue(vec->fields[idx]);
-
-            vm->releaseAndDelete(target);
-            vm->push(element);
-            return &instr + 1;
-        }
-
         // String indexing.
         if (IS_STRING(target))
         {
@@ -756,6 +736,46 @@ namespace pg
         vm->releaseAndDelete(target);
         vm->push(makeNoneValue());
         return &instr + 1;
+    }
+
+    const DecodedInstruction* op_get_index_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        Value index  = vm->pop();
+        Value target = vm->pop();
+
+        // Vector indexing.
+        if (IS_VECTOR(target))
+        {
+            if (!IS_INT(index))
+            {
+                vm->releaseAndDelete(index);
+                vm->releaseAndDelete(target);
+                vm->runtimeError("Vector index must be an integer");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return nullptr;
+            }
+
+            ObjVector* vec = vm->asVector(target);
+            int idx = AS_INT(index);
+            if (idx < 0) idx = static_cast<int>(vec->fields.size()) + idx;
+
+            // Reading past either end gives none, there is nothing there
+            if (idx < 0 || idx >= static_cast<int>(vec->fields.size()))
+            {
+                vm->releaseAndDelete(target);
+                vm->push(makeNoneValue());
+                return &instr + 1;
+            }
+
+            // Retain the element before letting go of the vector, it may be its last owner
+            Value element = vm->retainValue(vec->fields[idx]);
+
+            vm->releaseAndDelete(target);
+            vm->push(element);
+            return &instr + 1;
+        }
+
+        return getIndexNotVector(vm, instr, target, index);
     }
 
     const DecodedInstruction* op_set_index_decoded(VM* vm, const DecodedInstruction& instr)

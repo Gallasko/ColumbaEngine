@@ -19,35 +19,45 @@ namespace pg
 
         const char* DOM = "LengthHoisting";
 
-        // The x of `len(x)` when it is a path, or nullptr
+        // The x of `len(x)` when it is a path, or of `strlen(x)` when it is a name, or nullptr
         ExprPtr lenArgOf(const ExprPtr& e)
         {
             if (not e or e->kind() != AstKind::CallExpression)
                 return nullptr;
 
             auto c = std::static_pointer_cast<CallExpression>(e);
+            const std::string callee = varName(c->caller);
 
-            if (varName(c->caller) != "len" or c->args.size() != 1 or pathOf(c->args.front()).empty())
+            if (c->args.size() != 1 or pathOf(c->args.front()).empty())
                 return nullptr;
 
-            return c->args.front();
+            if (callee == "len" or (callee == "strlen" and c->args.front()->kind() == AstKind::Var))
+                return c->args.front();
+
+            return nullptr;
         }
 
+        std::string calleeOf(const ExprPtr& call)
+        {
+            return varName(std::static_pointer_cast<CallExpression>(call)->caller);
+        }
+
+        // The call and its path: `len(t)` and `strlen(t)` are hoisted apart
         std::string lenKey(const ExprPtr& e)
         {
             auto x = lenArgOf(e);
-            return x ? pathOf(x) : "";
+            return x ? calleeOf(e) + " " + pathOf(x) : "";
         }
 
-        // The paths whose `len` a condition reads on its first evaluation
+        // The `len` and `strlen` calls a condition makes on its first evaluation, by lenKey
         void firstLens(const ExprPtr& e, std::map<std::string, ExprPtr>& out)
         {
             if (not e)
                 return;
 
-            if (auto x = lenArgOf(e))
+            if (lenArgOf(e))
             {
-                out[pathOf(x)] = x;
+                out[lenKey(e)] = e;
                 return;
             }
 
@@ -101,8 +111,14 @@ namespace pg
             std::map<std::string, std::string> hidden;
             std::queue<StatementPtr> block;
 
-            for (const auto& [path, x] : lens)
+            for (const auto& [key, call] : lens)
             {
+                const ExprPtr x = lenArgOf(call);
+                const std::string callee = calleeOf(call);
+
+                if (not ctx.isNative(callee))
+                    continue;
+
                 std::set<std::string> names;
                 namesOf(x, names);
 
@@ -111,7 +127,11 @@ namespace pg
 
                 const std::string root = rootOf(x);
 
-                RegionCheck check{ctx, root, ctx.beyondWrites(x), false, ctx.isList(x)};
+                // A string cannot be changed: what strlen measured stays as long as the name does. The
+                // check still refuses script code in the region, and a write into a list it may be a row of
+                const bool isStrlen = callee == "strlen";
+
+                RegionCheck check{ctx, root, isStrlen or ctx.beyondWrites(x), false, isStrlen or ctx.isList(x)};
                 check.stmt(s);
 
                 if (not check.ok)
@@ -124,15 +144,15 @@ namespace pg
 
                 // '@' cannot start a source name: no user name collides
                 const std::string name = "@len" + std::to_string(ctx.counter++);
-                const Token lenToken(TokenType::EXPRESSION, "len", 0, 0);
+                const Token lenToken(TokenType::EXPRESSION, callee, 0, 0);
 
                 std::queue<ExprPtr> args;
                 args.push(x);
 
-                auto call = std::make_shared<CallExpression>(std::make_shared<Var>(lenToken), lenToken, args);
+                auto hoisted = std::make_shared<CallExpression>(std::make_shared<Var>(lenToken), lenToken, args);
 
-                block.push(std::make_shared<VariableStatement>(Token(TokenType::EXPRESSION, name, 0, 0), call));
-                hidden[path] = name;
+                block.push(std::make_shared<VariableStatement>(Token(TokenType::EXPRESSION, name, 0, 0), hoisted));
+                hidden[key] = name;
             }
 
             if (hidden.empty())
@@ -314,17 +334,18 @@ namespace pg
 
         FunctionScope ctx{scriptNames};
 
-        // The script's own nested blocks declare locals too (its lists are not its own: a function
-        // could reach a global)
+        // The script's own nested blocks declare locals too: their lists are the script's as a
+        // function's are, a global's are not (a function could reach it)
         for (const auto& s : listOf(statements))
         {
             if (s and s->kind() != AstKind::FunctionStatement and s->kind() != AstKind::ClassStatement and s->kind() != AstKind::VariableStatement)
                 declsOf(s, ctx.locals);
 
-            ownStmt(s, ctx.ownership, false);
-
             ctx.slotsUsed += ast::countLocalSlots(s);
         }
+
+        ctx.ownership = Ownership::ofScript(statements, ctx.locals);
+        ctx.scriptRead = true;
 
         std::vector<StatementPtr> out;
 

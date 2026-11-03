@@ -408,6 +408,123 @@ TEST_F(LengthHoisting, AStringIsBeyondWrites)
     expectSameRun(source);
 }
 
+TEST_F(LengthHoisting, MeasuresAStringOnceWhileItsNameStays)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::string source =
+        "fun count(line, out)\n"
+        "{\n"
+        "    for (var i = 0; i < strlen(line); i++)\n"
+        "    {\n"
+        "        push(out, line[i])\n"
+        "    }\n"
+        "    return len(out)\n"
+        "}\n"
+        "__dprint(count(\"abcdefghij\", []))\n"
+        "for (var line : [\"ab\", \"abcdefgh\"])\n"
+        "{\n"
+        "    var out = []\n"
+        "    var seen = [line]\n"
+        "    for (var i = 0; i < strlen(line); i++)\n"
+        "    {\n"
+        "        push(out, line[i])\n"
+        "        seen[0] = out\n"
+        "    }\n"
+        "    __dprint(len(out))\n"
+        "}\n";
+
+    EXPECT_EQ(hoisted(source), 2);
+    expectSameRun(source);
+}
+
+TEST_F(LengthHoisting, LeavesAStringThatMayChange)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::vector<std::string> sources = {
+        // Given another string in the loop
+        "fun f(s)\n{\n    var n = 0\n    for (var i = 0; i < strlen(s); i++)\n    {\n        if (i == 1)\n        {\n            s = s + \"xyz\"\n        }\n        n++\n    }\n    return n\n}\n__dprint(f(\"abc\"))\n",
+
+        // A script function may give a global another string
+        "var G = \"abc\"\nfun grow()\n{\n    G = G + \"d\"\n}\nfun f()\n{\n    var n = 0\n    for (var i = 0; i < strlen(G) and i < 10; i++)\n    {\n        grow()\n        n++\n    }\n    return n\n}\n__dprint(f())\n",
+
+        // Not a name: the row may be replaced
+        "fun f(t)\n{\n    var n = 0\n    var k = 0\n    for (var i = 0; i < strlen(t[k]); i++)\n    {\n        t[0] = \"abcdef\"\n        n++\n    }\n    return n\n}\n__dprint(f([\"ab\"]))\n",
+    };
+
+    for (const auto& source : sources)
+    {
+        EXPECT_EQ(hoisted(source), 0) << source;
+        expectSameRun(source);
+    }
+
+    // `strlen` the script's: not moved (the run itself differs at O2 and up before this pass)
+    EXPECT_EQ(hoisted("fun strlen(s)\n{\n    return 3\n}\nfun f(s)\n{\n    var n = 0\n    for (var i = 0; i < strlen(s); i++)\n    {\n        n++\n    }\n    return n\n}\n__dprint(f(\"ab\"))\n"), 0);
+}
+
+TEST_F(LengthHoisting, ABlockAtTopLevelOwnsItsListsAndNotTheGlobals)
+{
+    MockLogger<TerminalSink> logger;
+
+    // The lists of a block are the script's: a write into one cannot reach another
+    const std::string block =
+        "for (var file : [1])\n"
+        "{\n"
+        "    var t = []\n"
+        "    var sizes = [1, 2, 3]\n"
+        "    for (var r = 0; r < 3; r++)\n"
+        "    {\n"
+        "        t[r] = []\n"
+        "        for (var k = 0; k < len(sizes); k++)\n"
+        "        {\n"
+        "            t[r][k] = sizes[k]\n"
+        "        }\n"
+        "    }\n"
+        "    __dprint(len(t[2]))\n"
+        "}\n";
+
+    EXPECT_EQ(hoisted(block), 1);
+    expectSameRun(block);
+
+    // A global may be another's: the same loop on globals stays as it is
+    const std::string globals =
+        "var t = []\n"
+        "var sizes = [1, 2, 3]\n"
+        "for (var r = 0; r < 3; r++)\n"
+        "{\n"
+        "    t[r] = []\n"
+        "    for (var k = 0; k < len(sizes); k++)\n"
+        "    {\n"
+        "        t[r][k] = sizes[k]\n"
+        "    }\n"
+        "}\n"
+        "__dprint(len(t[2]))\n";
+
+    EXPECT_EQ(hoisted(globals), 0);
+    expectSameRun(globals);
+
+    // A block's list a global holds is no longer the block's alone
+    const std::string escaped =
+        "var keep = 0\n"
+        "for (var file : [1])\n"
+        "{\n"
+        "    var t = [[0]]\n"
+        "    var sizes = [1, 2, 3]\n"
+        "    keep = sizes\n"
+        "    var n = 0\n"
+        "    for (var k = 0; k < len(sizes) and k < 8; k++)\n"
+        "    {\n"
+        "        push(keep, 4)\n"
+        "        n++\n"
+        "    }\n"
+        "    __dprint(n)\n"
+        "}\n";
+
+    EXPECT_EQ(hoisted(escaped), 0);
+    expectSameRun(escaped);
+}
+
 TEST_F(LengthHoisting, LeavesWhatMayChange)
 {
     MockLogger<TerminalSink> logger;
@@ -683,6 +800,121 @@ TEST_F(RowHoisting, AWriteBackReadsItsPathOnce)
         "row()[0] += 5\n"
         "__dprint(calls)\n"
         "__dprint(t[0][0])\n");
+}
+
+TEST_F(RowHoisting, APathAConditionReadsFirstIsReadOnce)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::string source =
+        "fun f(t, j, i)\n"
+        "{\n"
+        "    var s = \"\"\n"
+        "    if (t[j][i] != none)\n"
+        "    {\n"
+        "        s += t[j][i]\n"
+        "    }\n"
+        "    else\n"
+        "    {\n"
+        "        s = \"-\" + toString(t[j][i])\n"
+        "    }\n"
+        "    return s\n"
+        "}\n"
+        "__dprint(f([\"ab\", \"cd\"], 1, 0))\n"
+        "__dprint(f([\"ab\", \"cd\"], 1, 5))\n";
+
+    EXPECT_EQ(rows(source), 1);
+    expectSameEnd(source);
+
+    // A path past the end stops the script where it did: none has no rows
+    expectSameEnd(
+        "fun f(t, j, i)\n"
+        "{\n"
+        "    var s = \"\"\n"
+        "    if (t[j][i] != none)\n"
+        "    {\n"
+        "        s += t[j][i]\n"
+        "    }\n"
+        "    return s\n"
+        "}\n"
+        "__dprint(f([\"ab\"], 0, 1))\n"
+        "__dprint(f([\"ab\"], 3, 0))\n"
+        "__dprint(\"unreachable\")\n");
+}
+
+TEST_F(RowHoisting, AnIndexIsAnIntegerByTheDeclarationItReads)
+{
+    MockLogger<TerminalSink> logger;
+
+    // The second `k` holds no integer: the first still does
+    const std::string source =
+        "fun f(n)\n"
+        "{\n"
+        "    var lens = [2, 3, 1]\n"
+        "    var total = 0\n"
+        "    for (var k = 0; k < 3; k++)\n"
+        "    {\n"
+        "        for (var j = 0; j < lens[k]; j++)\n"
+        "        {\n"
+        "            total = total + j\n"
+        "        }\n"
+        "    }\n"
+        "    for (var k = n - 0.5; k >= 0; k--)\n"
+        "    {\n"
+        "        total = total + k\n"
+        "    }\n"
+        "    return total\n"
+        "}\n"
+        "__dprint(f(2))\n";
+
+    EXPECT_EQ(rows(source), 1);
+    expectSameEnd(source);
+
+    const std::vector<std::string> sources = {
+        // The `k` the read reads is the one with no integer
+        "fun f(n)\n{\n    var lens = [2, 3, 1]\n    var total = 0\n    for (var k = n - 0.5; k < 3; k++)\n    {\n        for (var j = 0; j < lens[k]; j++)\n        {\n            total = total + j\n        }\n    }\n    for (var k = 0; k < 3; k++)\n    {\n        total = total + k\n    }\n    return total\n}\n__dprint(f(1))\n",
+
+        // A `k` of a block within hides the integer one
+        "fun f(n)\n{\n    var lens = [2, 3, 1]\n    var total = 0\n    var k = 0\n    {\n        var k = n * 0.5\n        for (var j = 0; j < lens[k]; j++)\n        {\n            total = total + j\n        }\n    }\n    return total + k\n}\n__dprint(f(1))\n",
+
+    };
+
+    for (const auto& s : sources)
+    {
+        EXPECT_EQ(rows(s), 0) << s;
+        expectSameEnd(s);
+    }
+}
+
+TEST_F(RowHoisting, ReadingOnceLeavesWhatMayChange)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::vector<std::string> sources = {
+        // The row is replaced before it is read again
+        "fun f(t)\n{\n    var s = 0\n    var j = 0\n    if (t[j][0] > 0)\n    {\n        t[j] = [5]\n        s = t[j][0]\n    }\n    return s\n}\n__dprint(f([[1]]))\n",
+
+        // The key moves
+        "fun f(t)\n{\n    var s = 0\n    var j = 0\n    if (t[j][0] > 0)\n    {\n        j = 1\n        s = t[j][0]\n    }\n    return s\n}\n__dprint(f([[1], [2]]))\n",
+
+        // Written by a native
+        "fun f(t)\n{\n    var s = 0\n    var j = 0\n    if (t[j][0] > 0)\n    {\n        insert(t[j], 0, 9)\n        s = t[j][0]\n    }\n    return s\n}\n__dprint(f([[1]]))\n",
+
+        // A script function may do anything
+        "var keep = [[1]]\nfun change()\n{\n    keep[0][0] = 7\n}\nfun f(t)\n{\n    var s = 0\n    var j = 0\n    if (t[j][0] > 0)\n    {\n        change()\n        s = t[j][0]\n    }\n    return s\n}\n__dprint(f(keep))\n",
+
+        // Something runs before the path is read
+        "var calls = 0\nfun g()\n{\n    calls++\n    return 1\n}\nfun f(t)\n{\n    var j = 0\n    var s = 0\n    if (g() + t[j][0] > 0)\n    {\n        s = t[j][0]\n    }\n    return s + calls\n}\n__dprint(f([[1]]))\n",
+
+        // Read on the side of an `and` that may not run
+        "fun f(t, c)\n{\n    var j = 3\n    var s = 0\n    if (c and t[j][0] > 0)\n    {\n        s = t[j][0]\n    }\n    return s\n}\n__dprint(f([[1]], false))\n",
+    };
+
+    for (const auto& source : sources)
+    {
+        EXPECT_EQ(rows(source), 0) << source;
+        expectSameEnd(source);
+    }
 }
 
 class CompoundAssignment : public RowHoisting

@@ -48,7 +48,14 @@ namespace fusion
     // Classification (the "stack effect spec" of each base op)
     // ------------------------------------------------------------------
 
-    enum class Producer : uint8_t { None, Local, Const, ShortInt };
+    // NoneValue: OP_None, fused as a Const source that is none (kNoneConstIndex)
+    enum class Producer : uint8_t { None, Local, Const, ShortInt, NoneValue };
+
+    // The constIndex of a Const source that is the none of an OP_None, not a chunk constant
+    constexpr uint32_t kNoneConstIndex = UINT32_MAX;
+
+    // What a fused Const source that is none points at: never written (sources are only read)
+    inline Value noneConstant = makeNoneValue();
 
     // BinOp + its classification/trait tables are GENERATED from the kernel
     // spec in /tools/vm_ops_def.pg (see ops_functors.inc note below).
@@ -67,6 +74,7 @@ namespace fusion
             case OpCode::OP_Get_Local: return Producer::Local;
             case OpCode::OP_Constant:  return Producer::Const;
             case OpCode::OP_Short_Int: return Producer::ShortInt;
+            case OpCode::OP_None:      return Producer::NoneValue;
             default:                   return Producer::None;
         }
     }
@@ -135,8 +143,11 @@ namespace fusion
     // clones), putting the call back on the hot path — force the issue.
     #if defined(__GNUC__) or defined(__clang__)
         #define PG_FUSION_INLINE inline __attribute__((always_inline))
+        // A handler made of others: they are inlined into it, down to what is out of line on purpose
+        #define PG_FUSION_FLATTEN __attribute__((flatten))
     #else
         #define PG_FUSION_INLINE inline
+        #define PG_FUSION_FLATTEN
     #endif
 
     // The functor structs are GENERATED from the declarative kernel spec in
@@ -183,6 +194,32 @@ namespace fusion
         return &instr + 1;
     }
 
+    // The fused reads' ways out, out of line: a retain or a release takes its operand's address, and
+    // inline that gives every read, the fast ones too, a frame and a stack guard. The shapes a read
+    // leaves to the generic handler: what is not on the stack yet is pushed, retained when borrowed
+    [[gnu::noinline]] inline const DecodedInstruction* getIndexPushing(VM* vm, const DecodedInstruction& instr,
+        Value target, Value index, bool retainIndex)
+    {
+        vm->push(vm->retainValue(target));
+        vm->push(retainIndex ? vm->retainValue(index) : index);
+        return op_get_index_decoded(vm, instr);
+    }
+
+    [[gnu::noinline]] inline const DecodedInstruction* getIndexOnTarget(VM* vm, const DecodedInstruction& instr, Value index)
+    {
+        vm->push(vm->retainValue(index));
+        return op_get_index_decoded(vm, instr);
+    }
+
+    // What was read replaces the target on the stack, which it lets go of: read first, the target
+    // may be its last owner
+    [[gnu::noinline]] inline const DecodedInstruction* replaceTarget(VM* vm, const DecodedInstruction& instr, Value read)
+    {
+        vm->releaseAndDelete(vm->pop());
+        vm->push(read);
+        return &instr + 1;
+    }
+
     // v[i] read: vector handle from slot byte1 (borrowed), index popped from
     // the stack. Int-index vector access is inline; every other shape
     // (string/table target, non-int index, negative/out-of-bounds) delegates
@@ -221,9 +258,7 @@ namespace fusion
             return &instr + 1;
         }
 
-        vm->push(vm->retainValue(target));
-        vm->push(index);
-        return op_get_index_decoded(vm, instr);
+        return getIndexPushing(vm, instr, target, index, false);
     }
 
     // v[i] read with both in locals: handle from slot byte1, index from slot
@@ -260,9 +295,62 @@ namespace fusion
             return &instr + 1;
         }
 
-        vm->push(vm->retainValue(target));
-        vm->push(vm->retainValue(index));
-        return op_get_index_decoded(vm, instr);
+        return getIndexPushing(vm, instr, target, index, true);
+    }
+
+    // t[i] read on what the stack holds (a row just read: `t[a][i]`), the index from slot byte1
+    // (borrowed): the Get_Local of the index is gone. The target is the stack's, released once what
+    // it holds is out. A vector, a heap string and a small string are read here, everything else
+    // delegates with the index pushed back (owned)
+    inline const DecodedInstruction* fusedGetIndexByLocal(VM* vm, const DecodedInstruction& instr)
+    {
+        const Value index = vm->currentFrame->slots[instr.operands.indexed.byte1];
+
+        if (IS_INT(index))
+        {
+            const Value target = vm->peek(0);
+            int64_t idx = AS_INT(index);
+
+            if (IS_VECTOR(target))
+            {
+                ObjVector* vec = vm->asVector(target);
+                if (idx >= 0 and idx < static_cast<int64_t>(vec->fields.size()))
+                {
+                    // Retain the element before letting go of the vector, it may be its last owner
+                    return replaceTarget(vm, instr, vm->retainValue(vec->fields[idx]));
+                }
+            }
+            else if (IS_SMALL_STRING(target))
+            {
+                const int64_t length = AS_SMALL_STRING_LENGTH(target);
+                if (idx < 0)
+                    idx += length;
+
+                vm->pop();
+
+                if (idx >= 0 and idx < length)
+                    vm->push(vm->singleCharCache[static_cast<unsigned char>((target >> (8 * idx)) & 0xFF)]);
+                else
+                    vm->push(makeNoneValue());
+
+                return &instr + 1;
+            }
+            else if (IS_LONG_STRING(target))
+            {
+                const std::string& str = *vm->asStringPtr(target);
+                if (idx < 0)
+                    idx += static_cast<int64_t>(str.size());
+
+                // Read the char before letting go of the string, it may be its last owner
+                const Value ch = (idx >= 0 and idx < static_cast<int64_t>(str.size()))
+                    ? vm->singleCharCache[static_cast<unsigned char>(str[idx])]
+                    : makeNoneValue();
+
+                return replaceTarget(vm, instr, ch);
+            }
+        }
+
+        return getIndexOnTarget(vm, instr, index);
     }
 
     // v[i] = x: value and index popped from the stack, vector handle from
@@ -580,6 +668,27 @@ namespace fusion
         return &instr + 1;
     }
 
+    // Everything but an int, out of line: its calls take addresses, which inline give the int path
+    // a frame and a stack guard
+    template <bool Increment>
+    [[gnu::noinline]] const DecodedInstruction* incrDecrNotInt(VM* vm, const DecodedInstruction& instr, Value& val)
+    {
+        if (not IS_DOUBLE(val))
+        {
+            vm->runtimeError(Increment ? "Operand after an unary (++) must be a number."
+                                       : "Operand after an unary (--) must be a number.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+
+        Value newValue = Increment ? vm->addValues(val, INT_VAL(1))
+                                   : vm->subtractValues(val, INT_VAL(1));
+        vm->releaseAndDelete(val);
+        val = newValue;
+
+        return &instr + 1;
+    }
+
     // Statement-form local increment/decrement: fuses the
     // [Short_Int slot][Post_Incr_Local] pair that IncrementOptimization
     // emits for `i += 1` — the slot index goes straight into the operand
@@ -599,20 +708,7 @@ namespace fusion
             return &instr + 1;
         }
 
-        if (not IS_DOUBLE(val))
-        {
-            vm->runtimeError(Increment ? "Operand after an unary (++) must be a number."
-                                       : "Operand after an unary (--) must be a number.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
-        }
-
-        Value newValue = Increment ? vm->addValues(val, INT_VAL(1))
-                                   : vm->subtractValues(val, INT_VAL(1));
-        vm->releaseAndDelete(val);
-        val = newValue;
-
-        return &instr + 1;
+        return incrDecrNotInt<Increment>(vm, instr, val);
     }
 
     // The Pop or PopN that ends a loop's body with its locals (byte2 of them),
@@ -628,6 +724,88 @@ namespace fusion
         }
 
         return fusedIncrDecrLocal<Increment>(vm, instr);
+    }
+
+    // Two instructions in one dispatch (ChunkDecoder::pairInstructions): the first, then the second
+    // straight on when the first falls through to it. The second stays where it is, run by itself
+    // by what jumps to it and by what resumes at it (a call the first made)
+    template <OpDecodedHandler First, OpDecodedHandler Next>
+    PG_FUSION_FLATTEN const DecodedInstruction* fusedThen(VM* vm, const DecodedInstruction& instr)
+    {
+        const DecodedInstruction* next = First(vm, instr);
+
+        if (next != &instr + 1)
+            return next;
+
+        return Next(vm, *next);
+    }
+
+    // t[i] with both in locals, only looked at: a vector's element borrowed, a string's char. False
+    // for what the generic read has to do, and a vector read past its end (the generic read says)
+    PG_FUSION_INLINE bool peekIndexLocals(VM* vm, const DecodedInstruction& instr, Value& read)
+    {
+        const Value target = vm->currentFrame->slots[instr.operands.indexed.byte1];
+        const Value index = vm->currentFrame->slots[instr.operands.indexed.byte2];
+
+        if (not IS_INT(index))
+            return false;
+
+        int64_t idx = AS_INT(index);
+
+        if (IS_VECTOR(target))
+        {
+            const ObjVector* vec = vm->asVector(target);
+
+            if (idx < 0 or idx >= static_cast<int64_t>(vec->fields.size()))
+                return false;
+
+            read = vec->fields[idx];
+            return true;
+        }
+
+        if (IS_SMALL_STRING(target))
+        {
+            const int64_t length = AS_SMALL_STRING_LENGTH(target);
+            if (idx < 0)
+                idx += length;
+
+            read = idx >= 0 and idx < length ? vm->singleCharCache[static_cast<unsigned char>((target >> (8 * idx)) & 0xFF)]
+                                             : makeNoneValue();
+            return true;
+        }
+
+        if (IS_LONG_STRING(target))
+        {
+            const std::string& str = *vm->asStringPtr(target);
+            if (idx < 0)
+                idx += static_cast<int64_t>(str.size());
+
+            read = idx >= 0 and idx < static_cast<int64_t>(str.size()) ? vm->singleCharCache[static_cast<unsigned char>(str[idx])]
+                                                                       : makeNoneValue();
+            return true;
+        }
+
+        return false;
+    }
+
+    // `if (line[i] == " ")`: the GetIndex(L,L) here and the compare with a constant after it, the
+    // element compared where it stands, never pushed nor retained. What the read leaves runs the two
+    template <typename Op>
+    PG_FUSION_FLATTEN const DecodedInstruction* fusedGetIndexLocalsCmpConst(VM* vm, const DecodedInstruction& instr)
+    {
+        const DecodedInstruction& cmp = *(&instr + 1);
+        Value read;
+
+        if (not peekIndexLocals(vm, instr, read))
+            return fusedThen<&fusedGetIndexLocals, &fusedCmpBranchIfFalse<Op, Src::Stack, Src::Const, true>>(vm, instr);
+
+        if (Op::applyCond(vm, read, *cmp.constantPtr))
+            return &cmp + 1;
+
+        const int16_t rel = static_cast<int16_t>(
+            static_cast<uint16_t>(cmp.operands.indexed.byte3)
+            | (static_cast<uint16_t>(cmp.operands.indexed.byte4) << 8));
+        return &cmp + rel;
     }
 
     // Unary over a local (Const/ShortInt inputs are constant-folded by the

@@ -44,8 +44,9 @@ protected:
         return counts;
     }
 
-    // With the decoder's fusion or without: what it fuses must not show
-    InterpretResult runScript(const std::string& source, bool fusion, std::string& output)
+    // With the decoder's fusion or without: what it fuses must not show (`paired`: the instructions
+    // decoded to run with the next in one dispatch)
+    InterpretResult runScript(const std::string& source, bool fusion, std::string& output, size_t* paired = nullptr)
     {
         EntitySystem ecs;
         ecs.setVMOptimizationLevel(VmOptimizationLevel::O3);
@@ -59,6 +60,9 @@ protected:
         const InterpretResult result = vm.interpretFromText(source);
 
         output = vm.testOutput;
+
+        if (paired)
+            *paired = vm.pairedInstructions;
 
         return result;
     }
@@ -661,6 +665,328 @@ TEST_F(LoopShapes, AnIncrementOfWhatIsNoNumberStopsAfterThePop)
         EXPECT_EQ(runScript(source, fusion, output), InterpretResult::RUNTIME_ERROR);
         EXPECT_EQ(output, "1\n");
     }
+}
+
+TEST_F(LoopShapes, ARowIndexedByALocalIsOneInstruction)
+{
+    MockLogger<TerminalSink> logger;
+
+    std::string output;
+    const auto counts = run(
+        "fun run()\n"
+        "{\n"
+        "    var t = [[\"ab\", \"cd\"], [\"ef\", \"gh\"]]\n"
+        "    var s = \"\"\n"
+        "    for (var j = 0; j < 2; j++)\n"
+        "    {\n"
+        "        for (var i = 0; i < 2; i++)\n"
+        "        {\n"
+        "            for (var k = 0; k < 2; k++)\n"
+        "            {\n"
+        "                s = s + t[j][i][k]\n"
+        "            }\n"
+        "        }\n"
+        "    }\n"
+        "    __dprint(s)\n"
+        "}\n"
+        "run()\n", output);
+
+    EXPECT_EQ(output, "abcdefgh\n");
+
+    // t[j] is read once a turn of j (RowHoisting), its rows by the locals
+    EXPECT_GE(runs(counts, "FUSED_GetIndex(S,L)"), 8u);
+    EXPECT_EQ(runs(counts, "OP_Get_Index"), 0u);
+}
+
+// What the fused read leaves to the generic one, the same with it and without it
+TEST_F(LoopShapes, ARowIndexedByALocalReadsLikeAnyIndex)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::vector<std::pair<std::string, std::string>> cases = {
+        // Rows of a list, a small string, a heap string: in range, from the end, past either end
+        {"fun run()\n{\n    var t = [[1, 2], \"abc\", \"a string long enough for the heap\"]\n"
+         "    for (var j = 0; j < 3; j++)\n    {\n        for (var i = -4; i < 4; i++)\n        {\n            __dprint(t[j][i])\n        }\n    }\n}\nrun()\n",
+         "none\nnone\n1\n2\n1\n2\nnone\nnone\n"
+         "none\na\nb\nc\na\nb\nc\nnone\n"
+         "h\ne\na\np\na\n \ns\nt\n"},
+
+        // What is indexed is its target's last reference: a list and a string just made
+        {"import \"string\"\nfun list(n)\n{\n    return [n, n + 1]\n}\nfun text(n)\n{\n    return \"heap string number \" + toString(n)\n}\n"
+         "fun run()\n{\n    var i = 1\n    __dprint(list(5)[i])\n    __dprint(text(7)[i])\n    var k = 19\n    __dprint(text(7)[k])\n}\nrun()\n",
+         "6\ne\n7\n"},
+
+        // A row that is a table: its key is the local
+        {"fun run()\n{\n    var t = [{a: 1, b: 2}]\n    var k = \"b\"\n    var j = 0\n    __dprint(t[j][k])\n    var n = 3\n    __dprint(t[j][n])\n}\nrun()\n",
+         "2\nnone\n"},
+
+        // The row is a list kept elsewhere too, read after the fused read let go of its own
+        {"fun run()\n{\n    var row = [7, 8]\n    var t = [row]\n    var i = 1\n    var j = 0\n    __dprint(t[j][i])\n    t = none\n    __dprint(row[i])\n}\nrun()\n",
+         "8\n8\n"},
+    };
+
+    for (const auto& [source, expected] : cases)
+    {
+        for (const bool fusion : {true, false})
+        {
+            std::string output;
+            EXPECT_EQ(runScript(source, fusion, output), InterpretResult::OK) << source;
+            EXPECT_EQ(output, expected) << source;
+        }
+    }
+
+    // What cannot be indexed, or not by that, stops the script either way
+    const std::vector<std::string> stops = {
+        "fun run()\n{\n    var t = [5]\n    var i = 0\n    var j = 0\n    return t[j][i]\n}\nrun()\n",
+        "fun run()\n{\n    var t = [[1, 2]]\n    var i = 0.5\n    var j = 0\n    return t[j][i]\n}\nrun()\n",
+        "fun run()\n{\n    var t = [\"abc\"]\n    var i = \"x\"\n    var j = 0\n    return t[j][i]\n}\nrun()\n",
+    };
+
+    for (const auto& source : stops)
+    {
+        for (const bool fusion : {true, false})
+        {
+            std::string output;
+            EXPECT_EQ(runScript(source, fusion, output), InterpretResult::RUNTIME_ERROR) << source;
+        }
+    }
+}
+
+TEST_F(LoopShapes, ComparingWithNoneIsOneInstruction)
+{
+    MockLogger<TerminalSink> logger;
+
+    std::string output;
+    const auto counts = run(
+        "fun run()\n"
+        "{\n"
+        "    var t = [1, 2, 3]\n"
+        "    var found = 0\n"
+        "    for (var i = 0; i < 5; i++)\n"
+        "    {\n"
+        "        if (t[i] != none)\n"
+        "        {\n"
+        "            found++\n"
+        "        }\n"
+        "        var x = t[i]\n"
+        "        if (x == none)\n"
+        "        {\n"
+        "            found = found + 10\n"
+        "        }\n"
+        "    }\n"
+        "    __dprint(found)\n"
+        "}\n"
+        "run()\n", output);
+
+    EXPECT_EQ(output, "23\n");
+
+    // Each compare is one instruction; only the implicit returns push a none of their own
+    EXPECT_EQ(runs(counts, "FUSED_NotEqual(S,C)->Branch"), 5u);
+    EXPECT_EQ(runs(counts, "FUSED_Equal(L,C)->Branch"), 5u);
+    EXPECT_LE(runs(counts, "OP_None"), 2u);
+}
+
+TEST_F(LoopShapes, NoneComparesTheSameFused)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::string source =
+        "fun run()\n"
+        "{\n"
+        "    var values = [none, 0, false, \"\", \"none\", [], {a: 1}, 0.0]\n"
+        "    for (var v : values)\n"
+        "    {\n"
+        "        __dprint(v == none)\n"
+        "        __dprint(v != none)\n"
+        "        var kept = none == v\n"
+        "        __dprint(kept)\n"
+        "    }\n"
+        "    var t = {a: 1}\n"
+        "    __dprint(t[\"b\"] == none)\n"
+        "    __dprint(none == none)\n"
+        "}\n"
+        "run()\n";
+
+    std::string fused, plain;
+    EXPECT_EQ(runScript(source, true, fused), InterpretResult::OK);
+    EXPECT_EQ(runScript(source, false, plain), InterpretResult::OK);
+
+    EXPECT_EQ(fused, plain);
+    EXPECT_EQ(fused.substr(0, 15), "true\nfalse\ntrue");
+}
+
+TEST_F(LoopShapes, TwoSmallStringsMakeOne)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::string source =
+        "import \"string\"\n"
+        "fun run()\n"
+        "{\n"
+        "    var s = \"\"\n"
+        "    var word = \"hello world\"\n"
+        "    for (var i = 0; i < 5; i++)\n"
+        "    {\n"
+        "        s += word[i]\n"
+        "    }\n"
+        "    __dprint(s)\n"
+        "    __dprint(s == \"hello\")\n"
+        "    __dprint(strlen(s))\n"
+        "    var t = {hello: 1, abcdef: 2}\n"
+        "    __dprint(t[s])\n"
+        "    __dprint(t[\"abc\" + \"def\"])\n"
+        "    __dprint(\"ab\" + \"cde\" == \"abcde\")\n"
+        "    __dprint(\"\" + \"\" == \"\")\n"
+        "    __dprint(strlen(\"\" + \"x\"))\n"
+        "    __dprint(\"abc\" + \"def\")\n"
+        "}\n"
+        "run()\n";
+
+    for (const bool fusion : {true, false})
+    {
+        std::string output;
+        EXPECT_EQ(runScript(source, fusion, output), InterpretResult::OK);
+        EXPECT_EQ(output, "hello\ntrue\n5\n1\n2\ntrue\ntrue\n1\nabcdef\n");
+    }
+}
+
+TEST_F(LoopShapes, WhatHasNoNumberIsEqualByItsBits)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::string source =
+        "fun run()\n"
+        "{\n"
+        "    var long = \"hello \" + \"world\"\n"
+        "    var values = [\" \", \"a\", \"\", \"hello world\", long, true, false, none, 1, 1.0, 0.5, [], {a: 1}]\n"
+        "    var out = \"\"\n"
+        "    for (var a : values)\n"
+        "    {\n"
+        "        for (var b : values)\n"
+        "        {\n"
+        "            if (a == b)\n"
+        "                out += \"=\"\n"
+        "            else\n"
+        "                out += \".\"\n"
+        "            var kept = a != b\n"
+        "            if (kept)\n"
+        "                out += \"!\"\n"
+        "        }\n"
+        "        out += \"|\"\n"
+        "    }\n"
+        "    __dprint(out)\n"
+        "    __dprint(long == \"hello world\")\n"
+        "    __dprint(\" \" == \" \")\n"
+        "    __dprint(true != false)\n"
+        "}\n"
+        "run()\n";
+
+    std::string fused, plain;
+    EXPECT_EQ(runScript(source, true, fused), InterpretResult::OK);
+    EXPECT_EQ(runScript(source, false, plain), InterpretResult::OK);
+
+    EXPECT_EQ(fused, plain);
+    EXPECT_NE(fused.find("\ntrue\ntrue\ntrue\n"), std::string::npos) << fused;
+}
+
+TEST_F(LoopShapes, ALoopsStepAndItsTestAreOneDispatch)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::string source =
+        "fun run(n, top, far, half)\n"
+        "{\n"
+        "    var total = 0\n"
+        "    for (var i = 0; i < n; i++)\n"
+        "    {\n"
+        "        for (var x = -1; x < 2; x++)\n"
+        "        {\n"
+        "            total += i * x + 1\n"
+        "        }\n"
+        "    }\n"
+        "    for (var k = top; k >= 0; k--)\n"
+        "    {\n"
+        "        if (k == 2)\n"
+        "            continue\n"
+        "        total += k\n"
+        "    }\n"
+        "    for (var j = 0; j < far; j++)\n"
+        "    {\n"
+        "        if (j > 2)\n"
+        "            break\n"
+        "        total += j\n"
+        "    }\n"
+        "    for (var d = half; d < 3; d++)\n"
+        "    {\n"
+        "        total += 1\n"
+        "    }\n"
+        "    for (var c = 0; c < 100000; c++)\n"
+        "    {\n"
+        "        if (c >= n)\n"
+        "            break\n"
+        "    }\n"
+        "    __dprint(total)\n"
+        "}\n"
+        "run(4, 3, 100000, 0.5)\n";
+
+    std::string fused, plain;
+    size_t paired = 0, pairedWithout = 0;
+    EXPECT_EQ(runScript(source, true, fused, &paired), InterpretResult::OK);
+    EXPECT_EQ(runScript(source, false, plain, &pairedWithout), InterpretResult::OK);
+
+    EXPECT_EQ(fused, "22\n");
+    EXPECT_EQ(plain, fused);
+    EXPECT_GE(paired, 4u);
+    EXPECT_EQ(pairedWithout, 0u);
+}
+
+TEST_F(LoopShapes, AnIndexComparedWithAConstantReadsLikeAnyIndex)
+{
+    MockLogger<TerminalSink> logger;
+
+    // Spaces and others: a long string, a small one, a vector, a table and a __get, read past both
+    // ends; a vector read past its end and the table go the generic way, the __get calls a function
+    const std::string source =
+        "var reads = 0\n"
+        "class Spaces\n"
+        "{\n"
+        "    __get(key)\n"
+        "    {\n"
+        "        reads = reads + 1\n"
+        "        return \" \"\n"
+        "    }\n"
+        "}\n"
+        "fun count(t, n)\n"
+        "{\n"
+        "    var spaces = 0\n"
+        "    var others = 0\n"
+        "    for (var i = -n; i < n; i++)\n"
+        "    {\n"
+        "        if (t[i] == \" \")\n"
+        "            spaces += 1\n"
+        "        else if (t[i] != \"x\")\n"
+        "            others += 1\n"
+        "    }\n"
+        "    return spaces * 1000 + others\n"
+        "}\n"
+        "__dprint(count(\"a b c d e\", 10))\n"
+        "__dprint(count(\"a b\", 4))\n"
+        "__dprint(count([\" \", \"x\", 1, none, \" \"], 6))\n"
+        "var t = {a: 1}\n"
+        "t[0] = \" \"\n"
+        "t[1] = \"y\"\n"
+        "__dprint(count(t, 2))\n"
+        "__dprint(count(Spaces(), 2))\n"
+        "__dprint(reads)\n";
+
+    std::string fused, plain;
+    size_t paired = 0;
+    EXPECT_EQ(runScript(source, true, fused, &paired), InterpretResult::OK);
+    EXPECT_EQ(runScript(source, false, plain), InterpretResult::OK);
+
+    EXPECT_EQ(plain, fused);
+    EXPECT_EQ(fused, "8012\n2006\n4006\n1003\n4000\n4\n");
+    EXPECT_GE(paired, 2u);
 }
 
 } // namespace test

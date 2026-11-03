@@ -75,7 +75,8 @@ namespace pg
                 throw std::runtime_error("strlen expects a string as the argument");
             }
 
-            auto str = vm->asString(args[0]);
+            std::string buffer;
+            const std::string& str = vm->stringRef(args[0], buffer);
 
             return makeIntValue(str.size());
         }
@@ -198,7 +199,8 @@ namespace pg
                 throw std::runtime_error("startsWith expects both arguments to be strings");
             }
 
-            auto str = vm->asString(args[0]);
+            std::string buffer;
+            const std::string& str = vm->stringRef(args[0], buffer);
             auto prefix = vm->asString(args[1]);
 
             bool result = str.size() >= prefix.size() and
@@ -219,7 +221,8 @@ namespace pg
                 throw std::runtime_error("endsWith expects both arguments to be strings");
             }
 
-            auto str = vm->asString(args[0]);
+            std::string buffer;
+            const std::string& str = vm->stringRef(args[0], buffer);
             auto suffix = vm->asString(args[1]);
 
             bool result = str.size() >= suffix.size() and
@@ -240,7 +243,8 @@ namespace pg
                 throw std::runtime_error("contains expects both arguments to be strings");
             }
 
-            auto str = vm->asString(args[0]);
+            std::string buffer;
+            const std::string& str = vm->stringRef(args[0], buffer);
             auto substring = vm->asString(args[1]);
 
             bool result = str.find(substring) != std::string::npos;
@@ -265,7 +269,8 @@ namespace pg
                 throw std::runtime_error("charAt expects second argument to be an integer");
             }
 
-            auto str = vm->asString(args[0]);
+            std::string buffer;
+            const std::string& str = vm->stringRef(args[0], buffer);
             int64_t index = AS_INT(args[1]);
 
             if (index < 0 || index >= static_cast<int64_t>(str.size()))
@@ -289,7 +294,8 @@ namespace pg
                 throw std::runtime_error("substring expects first argument to be a string");
             }
 
-            auto str = vm->asString(args[0]);
+            std::string buffer;
+            const std::string& str = vm->stringRef(args[0], buffer);
             int64_t start = AS_INT(args[1]);
             int64_t end = argCount == 3 ? AS_INT(args[2]) : static_cast<int64_t>(str.size());
 
@@ -535,7 +541,8 @@ namespace pg
                 throw std::runtime_error("indexOf expects both arguments to be strings");
             }
 
-            auto str = vm->asString(args[0]);
+            std::string buffer;
+            const std::string& str = vm->stringRef(args[0], buffer);
             auto substring = vm->asString(args[1]);
 
             size_t pos = str.find(substring);

@@ -90,6 +90,8 @@
         {
             if (IS_INT(a) and IS_INT(b))
                 return BOOL_VAL(a == b);
+            if (IS_TAGGED(a) and IS_TAGGED(b) and (not (IS_LONG_STRING(a) and IS_LONG_STRING(b))))
+                return BOOL_VAL(a == b);
             return vm->equalsValues(a, b);
         }
 
@@ -97,6 +99,8 @@
         PG_FUSION_INLINE static bool applyCond(VM* vm, const Value& a, const Value& b)
         {
             if (IS_INT(a) and IS_INT(b))
+                return a == b;
+            if (IS_TAGGED(a) and IS_TAGGED(b) and (not (IS_LONG_STRING(a) and IS_LONG_STRING(b))))
                 return a == b;
             return isValueTrue(vm->equalsValues(a, b));
         }
@@ -109,6 +113,8 @@
         {
             if (IS_INT(a) and IS_INT(b))
                 return BOOL_VAL(a != b);
+            if (IS_TAGGED(a) and IS_TAGGED(b) and (not (IS_LONG_STRING(a) and IS_LONG_STRING(b))))
+                return BOOL_VAL(a != b);
             return vm->notEqualsValues(a, b);
         }
 
@@ -116,6 +122,8 @@
         PG_FUSION_INLINE static bool applyCond(VM* vm, const Value& a, const Value& b)
         {
             if (IS_INT(a) and IS_INT(b))
+                return a != b;
+            if (IS_TAGGED(a) and IS_TAGGED(b) and (not (IS_LONG_STRING(a) and IS_LONG_STRING(b))))
                 return a != b;
             return isValueTrue(vm->notEqualsValues(a, b));
         }
