@@ -528,7 +528,7 @@ namespace arena
 
         void readSwing(const Json& json, SwingPose& out, const std::string& file, ContentReport& report)
         {
-            checkKeys(json, {"yawFrom", "yawTo", "pitchFrom", "pitchTo", "yaw", "pitch", "reach"}, file, report, "a swing");
+            checkKeys(json, {"yawFrom", "yawTo", "pitchFrom", "pitchTo", "yaw", "pitch", "reach", "roll", "rollFrom", "rollTo"}, file, report, "a swing");
 
             // "yaw"/"pitch" set both ends (a still pose)
             if (json.has("yaw"))
@@ -543,11 +543,19 @@ namespace arena
                 out.pitchTo = out.pitchFrom;
             }
 
+            if (json.has("roll"))
+            {
+                readNum(json, "roll", out.rollFrom, file, report);
+                out.rollTo = out.rollFrom;
+            }
+
             readNum(json, "yawFrom", out.yawFrom, file, report);
             readNum(json, "yawTo", out.yawTo, file, report);
             readNum(json, "pitchFrom", out.pitchFrom, file, report);
             readNum(json, "pitchTo", out.pitchTo, file, report);
             readNum(json, "reach", out.reach, file, report);
+            readNum(json, "rollFrom", out.rollFrom, file, report);
+            readNum(json, "rollTo", out.rollTo, file, report);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -2014,7 +2022,7 @@ namespace arena
                 const Json& j = raw.data;
 
                 checkKeys(j, {"id", "name", "type", "role", "text", "lightText", "heavyText", "regen", "mana", "levels", "branches", "model", "modelScale", "grip", "rest",
-                              "moveset"},
+                              "followSwing", "moveset"},
                           raw.file, report, "weapon " + id);
 
                 WeaponDef w;
@@ -2049,6 +2057,7 @@ namespace arena
 
                 if (const Json* rest = j.find("rest"))
                     readSwing(*rest, w.rest, raw.file, report);
+                readBool(j, "followSwing", w.followSwing, raw.file, report);
 
                 requireModel(content, w.model, raw.file, j.find("model") ? j.find("model")->line : j.line);
 

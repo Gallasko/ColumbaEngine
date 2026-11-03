@@ -1,0 +1,28 @@
+// Scythe skill (4 by default): the grim vault. Plant the scythe and flip forward over the enemies in
+// front (you cannot be hit for most of it), then come down with a sweep all around where you land.
+{
+    "name": "Grim vault",
+    "text": "Flip forward over enemies, then hit everything where you land.",
+    "kind": "attack",
+    "weapons": ["scythe"],
+    "staminaCost": 16,
+    "cooldown": 5,
+    "attack": {
+        "startup": 6, "active": 6, "recovery": 20,
+        "damage": 16, "poiseDamage": 24, "armor": 20,
+        "knockback": 6, "knockup": 4, "hitstop": 5, "shake": 0.5,
+        "hitboxes": [ { "offset": [0, 0.5, 0.3], "size": [3.6, 1.4, 3.6] } ],
+        "leap": [12, 11], "leapAt": 2,
+        "iframes": [2, 20],
+        "plungeSpeed": 22,
+        "terrainDamage": 20,
+        "turn": { "pitch": 360, "from": 2, "to": 20 },
+        "swing": { "yawFrom": 90, "yawTo": -90, "pitchFrom": 20, "pitchTo": -40 }
+    },
+    "tags": ["melee", "area", "dash"],
+    "levels": [{ "damage": 0.15 }, { "cooldown": 0.15 }, { "damage": 0.15, "area": 0.1 }],
+    "branches": [
+        { "name": "Deathfall", "text": "A bigger, stronger landing.", "boost": { "area": 0.4, "damage": 0.3 } },
+        { "name": "Storm vault", "text": "The landing stuns enemies for a moment.", "element": "volt", "status": "shock", "tags": ["volt"] }
+    ]
+}

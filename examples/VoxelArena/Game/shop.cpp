@@ -419,7 +419,7 @@ namespace arena
         if (auto w = content.weapons.find(id); w != content.weapons.end())
         {
             const std::string& type = w->second.type;
-            if (type == "dagger" or type == "spear" or type == "sword" or type == "bow" or type == "staff")
+            if (type == "dagger" or type == "spear" or type == "sword" or type == "bow" or type == "staff" or type == "scythe")
                 return type;
             return "sword";
         }

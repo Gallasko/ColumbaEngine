@@ -108,9 +108,14 @@ and enemies that come back), **O** for the options.
   everyone. No weapon is for sale after that: level ups offer the skills of the one in hand instead
   (`run.json` `chooseWeapon`; off, the start kit's weapon is the one, and weapons are for sale).
 - **The bow** (ranged): arrows where you aim. Light is drawn while you hold it: a tap is a weak quick
-  arrow, a full draw (0.7 s, the pips under the crosshair) about 2.5 times as hard and faster, and it
+  arrow, a full draw (0.6 s, the pips under the crosshair) three times as hard and faster, and it
   waits for you to let go. Heavy is a slow power shot; Volley
   (five arrows fanned out) and Disengage (a leap back out of reach, an arrow as you go) by level ups.
+- **The scythe** (melee): slow, wide sweeps with a long reach that hit whole groups. Light is two
+  sweeps then a spin all around you; heavy is the reap, a slow cut that pulls enemies towards you (a
+  negative `knockback` pulls). It gives less mana back per point of damage (`"mana": 0.2`), as it hits
+  many at once. Harvest (a spin that also heals you a little) and Grim vault (a flip forward over
+  enemies, out of reach, landing with a sweep) by level ups.
 - **The healer's staff** (support): orbs that burst a little on light, a mending pulse on heavy (health
   back to you and every ally within 5 m); Sanctuary (a circle on the ground healing everyone in it for
   5 s) and Radiance (enemies close by thrown back, allies further out healed) by level ups. In the

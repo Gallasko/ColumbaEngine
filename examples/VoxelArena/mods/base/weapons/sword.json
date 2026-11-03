@@ -11,7 +11,8 @@
 // dodgeCancelFrom: first frame a dodge may interrupt the attack.
 // moveSpeed: how much of the walk speed you keep while the attack runs (0 = rooted). The lights keep
 // you moving with your momentum, the heavy slows you down. moveUntil: the frame you get rooted from.
-// swing: how the blade moves during the active frames, in degrees (yaw: + to the right; pitch: + up).
+// swing: how the blade moves during the active frames, in degrees (yaw: + to the right; pitch: + up;
+// roll: turned about its own length, + its model's +X side up). "rest" is the pose when no attack runs.
 // dashAttack: a light press while sprinting. airLight / airHeavy: in the air. gravityScale: the fall
 // while the attack runs (an air slash hangs). plungeSpeed: the attack dives at this speed after its
 // startup and holds its first active frame until it lands; the hitboxes strike around the landing.

@@ -49,6 +49,7 @@ namespace arena
 
         glm::mat4 rotY(float degrees) { return glm::rotate(glm::mat4(1.0f), degrees * DEG, glm::vec3(0, 1, 0)); }
         glm::mat4 rotX(float degrees) { return glm::rotate(glm::mat4(1.0f), degrees * DEG, glm::vec3(1, 0, 0)); }
+        glm::mat4 rotZ(float degrees) { return glm::rotate(glm::mat4(1.0f), degrees * DEG, glm::vec3(0, 0, 1)); }
 
         float lerp(float a, float b, float t) { return a + (b - a) * t; }
         float easeOut(float t) { t = glm::clamp(t, 0.0f, 1.0f); return 1.0f - (1.0f - t) * (1.0f - t); }
@@ -85,29 +86,65 @@ namespace arena
             SwingPose p;
             const float s = static_cast<float>(a.startup), act = static_cast<float>(a.active), r = static_cast<float>(std::max(1, a.recovery));
 
-            // The pose at a frame lands in yawFrom / pitchFrom / reach
-            auto mix = [&](float yaw0, float pitch0, float reach0, float yaw1, float pitch1, float reach1, float t) {
+            // The pose at a frame lands in yawFrom / pitchFrom / reach / rollFrom
+            auto mix = [&](float yaw0, float pitch0, float reach0, float roll0, float yaw1, float pitch1, float reach1, float roll1, float t) {
                 p.yawFrom = lerp(yaw0, yaw1, t);
                 p.pitchFrom = lerp(pitch0, pitch1, t);
                 p.reach = lerp(reach0, reach1, t);
+                p.rollFrom = lerp(roll0, roll1, t);
             };
 
             if (frame < s)
             {
                 // Wind-up: from rest to the start of the swing, slowing down at the end (a readable pose)
-                mix(rest.yawFrom, rest.pitchFrom, 0.0f, a.swing.yawFrom, a.swing.pitchFrom, 0.0f, easeOut(frame / std::max(1.0f, s)));
+                mix(rest.yawFrom, rest.pitchFrom, 0.0f, rest.rollFrom, a.swing.yawFrom, a.swing.pitchFrom, 0.0f, a.swing.rollFrom, easeOut(frame / std::max(1.0f, s)));
             }
             else if (frame < s + act)
             {
-                mix(a.swing.yawFrom, a.swing.pitchFrom, 0.0f, a.swing.yawTo, a.swing.pitchTo, a.swing.reach, easeOut((frame - s + 1.0f) / act));
+                mix(a.swing.yawFrom, a.swing.pitchFrom, 0.0f, a.swing.rollFrom, a.swing.yawTo, a.swing.pitchTo, a.swing.reach, a.swing.rollTo,
+                    easeOut((frame - s + 1.0f) / act));
             }
             else
             {
                 const float t = easeInOut((frame - s - act) / r);
-                mix(a.swing.yawTo, a.swing.pitchTo, a.swing.reach, rest.yawFrom, rest.pitchFrom, 0.0f, t);
+                mix(a.swing.yawTo, a.swing.pitchTo, a.swing.reach, a.swing.rollTo, rest.yawFrom, rest.pitchFrom, 0.0f, rest.rollFrom, t);
             }
 
             return p;
+        }
+
+        /**
+         * How far a weapon that follows its swing (WeaponDef::followSwing) turns about its handle at a frame of
+         * an attack, in degrees: its head (the model's +X side) towards where the swing goes. The swing's own
+         * motion and the body's turn (a spin, a flip) give the way; it turns in from its rest roll over the
+         * wind-up, the shorter way round, and back over the recovery.
+         */
+        float swingRoll(const AttackDef& a, float restRoll, float frame)
+        {
+            auto towards = [](float from, float to, float t) {
+                const float d = std::fmod(to - from + 540.0f, 360.0f) - 180.0f;
+                return from + d * t;
+            };
+
+            // In the weapon's frame a falling yaw moves the tip along +X, a rising pitch along +Y. The body's
+            // turn counts as the opposite of the swing's (it turns the other way round)
+            const float dyaw = a.swing.yawTo - a.swing.yawFrom - a.turn.yaw;
+            const float dpitch = a.swing.pitchTo - a.swing.pitchFrom - a.turn.pitch;
+            const float mx = -dyaw * std::cos(0.5f * (a.swing.pitchFrom + a.swing.pitchTo) * DEG);
+            const float my = dpitch;
+
+            // No motion to lead (a thrust, a still pose): it keeps its rest roll
+            if (std::fabs(mx) < 1.0f and std::fabs(my) < 1.0f)
+                return restRoll;
+
+            const float roll = std::atan2(my, mx) / DEG;
+            const float s = static_cast<float>(a.startup), act = static_cast<float>(a.active), r = static_cast<float>(std::max(1, a.recovery));
+
+            if (frame < s)
+                return towards(restRoll, roll, easeOut(frame / std::max(1.0f, s)));
+            if (frame < s + act)
+                return roll;
+            return towards(roll, restRoll, easeInOut((frame - s - act) / r));
         }
 
         void pushInstance(std::vector<float>& data, const glm::mat4& view, const glm::mat4& model, const glm::vec4& tint, const glm::vec4& flash)
@@ -4133,6 +4170,7 @@ namespace arena
                         SwingPose pose;
                         pose.yawFrom = weapon.rest.yawFrom;
                         pose.pitchFrom = weapon.rest.pitchFrom;
+                        pose.rollFrom = weapon.rest.rollFrom;
 
                         if (attack)
                             pose = poseAt(*attack, weapon.rest, fr);
@@ -4156,8 +4194,10 @@ namespace arena
                                         glm::translate(glm::mat4(1.0f), glm::vec3(-fp.weapon.x, fp.weapon.y, fp.weapon.z));
                         }
 
+                        const float roll = attack and weapon.followSwing ? swingRoll(*attack, weapon.rest.rollFrom, fr) : pose.rollFrom;
+
                         return handFrame *
-                            rotY(-pose.yawFrom) * rotX(-pose.pitchFrom) *
+                            rotY(-pose.yawFrom) * rotX(-pose.pitchFrom) * rotZ(roll) *
                             glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, pose.reach)) *
                             glm::scale(glm::mat4(1.0f), glm::vec3(weapon.modelScale)) *
                             glm::translate(glm::mat4(1.0f), -weapon.grip);

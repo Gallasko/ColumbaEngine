@@ -80,7 +80,7 @@
 
     "xp": { "base": 10, "step": 3 },
     "start": { "weapon": "sword", "owned": [], "spells": [], "chooseSpell": ["firebolt", "frostbolt", "spark"] },
-    "levelSkills": ["leap_slam", "whirlwind", "shadow_dash", "backflip", "volley", "disengage", "sanctuary", "radiance"],
+    "levelSkills": ["leap_slam", "whirlwind", "shadow_dash", "backflip", "volley", "disengage", "sanctuary", "radiance", "harvest", "grim_vault"],
     "intermission": 2.5,
     "branchLevel": 5,
     "mastery": { "damage": 0.1, "cooldown": 0.03 },

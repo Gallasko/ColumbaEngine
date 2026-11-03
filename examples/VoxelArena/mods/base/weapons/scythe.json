@@ -1,0 +1,135 @@
+// The scythe: slow, wide sweeps with a long reach that hit every enemy in front of you. Made for
+// crowds, not duels: a whole group takes each swing, but each swing is slow to come out.
+//
+//   light, light, light: two sweeps, one each way, then a full spin all around you
+//   heavy: the reap, a slow pulling cut that drags the enemies it hits towards you (a negative
+//   knockback pulls), ready for the sweeps
+//
+// It gives less mana back for each point of damage than the other weapons ("mana": it hits many at
+// once). followSwing: the blade (the model's +X side) turns about the handle to lead each swing, the
+// way the swing goes (and the way a spin or a flip turns the body). The rest pose's roll turns it about
+// the handle while no attack runs: -90 has the blade face forward. Fields as in sword.json.
+{
+    "name": "Reaper's Scythe",
+    "type": "scythe",
+    "role": "melee",
+    "regen": 0.5,
+    "mana": 0.2,
+    "text": "Wide, slow sweeps. Hits whole groups.",
+    "lightText": "Two wide sweeps, then a spin that hits all around you.",
+    "heavyText": "A slow cut that pulls enemies towards you.",
+    "levels": [{ "damage": 0.2 }, { "area": 0.15 }, { "damage": 0.2, "attackSpeed": 0.1 }],
+    "branches": [
+        { "name": "Frost reaper", "text": "Your hits slow enemies. Enough hits freeze them.", "element": "ice", "status": "chill" },
+        { "name": "Grim harvest", "text": "Your swings hit much harder.", "boost": { "damage": 0.3, "area": 0.1 } }
+    ],
+    "model": "scythe",
+    "modelScale": 0.0625,
+    "grip": [1.5, 1.5, 4.5],
+    "rest": { "yaw": 20, "pitch": 65, "roll": -90 },
+    "followSwing": true,
+
+    "moveset": {
+        "light": "sweep1",
+        "heavy": "reap",
+        "dodgeAttack": "low_sweep",
+        "dashAttack": "running_reap",
+        "airLight": "air_spin",
+        "airHeavy": "grave_drop",
+
+        "attacks": {
+            "sweep1": {
+                "moveSpeed": 0.7,
+                "startup": 10, "active": 6, "recovery": 18,
+                "damage": 9, "poiseDamage": 10, "staminaCost": 11,
+                "knockback": 3, "hitstop": 3, "shake": 0.2,
+                "hitboxes": [ { "offset": [0, 1.1, 1.4], "size": [3.6, 1.2, 2.2] } ],
+                "lunge": 3, "lungeFrom": 3, "lungeTo": 12,
+                "turnRate": 5,
+                "bufferFrom": 4, "chainFrom": 16, "dodgeCancelFrom": 14,
+                "next": { "light": "sweep2", "heavy": "reap" },
+                "swing": { "yawFrom": 100, "yawTo": -100, "pitchFrom": 0, "pitchTo": -5, "reach": 0.3 }
+            },
+            "sweep2": {
+                "moveSpeed": 0.7,
+                "startup": 9, "active": 6, "recovery": 18,
+                "damage": 10, "poiseDamage": 10, "staminaCost": 11,
+                "knockback": 3, "hitstop": 3, "shake": 0.2,
+                "hitboxes": [ { "offset": [0, 1.1, 1.4], "size": [3.6, 1.2, 2.2] } ],
+                "lunge": 3, "lungeFrom": 2, "lungeTo": 11,
+                "turnRate": 5,
+                "bufferFrom": 4, "chainFrom": 15, "dodgeCancelFrom": 14,
+                "next": { "light": "spin", "heavy": "reap" },
+                "swing": { "yawFrom": -100, "yawTo": 100, "pitchFrom": -5, "pitchTo": 5, "reach": 0.3 }
+            },
+            "spin": {
+                "terrainDamage": 15,
+                "moveSpeed": 0.5,
+                "startup": 10, "active": 10, "recovery": 24,
+                "damage": 16, "poiseDamage": 22, "staminaCost": 15,
+                "knockback": 6, "knockup": 2, "hitstop": 4, "shake": 0.35,
+                "hitboxes": [ { "offset": [0, 1.0, 0.0], "size": [4.4, 1.3, 4.4] } ],
+                "turnRate": 4,
+                "bufferFrom": 6, "dodgeCancelFrom": 22,
+                "turn": { "yaw": 360, "from": 8, "to": 20 },
+                "swing": { "yaw": 95, "pitch": -5, "reach": 0.3 }
+            },
+            "reap": {
+                "terrainDamage": 30,
+                "moveSpeed": 0.25,
+                "startup": 24, "active": 6, "recovery": 26,
+                "damage": 22, "poiseDamage": 34, "staminaCost": 24,
+                "knockback": -7, "hitstop": 5, "shake": 0.5,
+                "armor": 15,
+                "hitboxes": [ { "offset": [0, 1.0, 2.0], "size": [3.2, 1.8, 3.0] } ],
+                "lunge": 3, "lungeFrom": 16, "lungeTo": 26,
+                "turnRate": 4,
+                "bufferFrom": 16, "chainFrom": 40, "dodgeCancelFrom": 32,
+                "next": { "light": "spin" },
+                "swing": { "yawFrom": 60, "yawTo": -30, "pitchFrom": 100, "pitchTo": -35, "reach": 0.5 }
+            },
+            "running_reap": {
+                "moveSpeed": 0,
+                "startup": 6, "active": 8, "recovery": 18,
+                "damage": 14, "poiseDamage": 18, "staminaCost": 14,
+                "knockback": 5, "hitstop": 4, "shake": 0.3,
+                "hitboxes": [ { "offset": [0, 1.0, 1.2], "size": [3.6, 1.2, 2.4] } ],
+                "lunge": 13, "lungeFrom": 0, "lungeTo": 12, "dash": true,
+                "turnRate": 3,
+                "chainFrom": 20, "dodgeCancelFrom": 16,
+                "next": { "light": "sweep2" },
+                "swing": { "yawFrom": 110, "yawTo": -110, "pitchFrom": 0, "pitchTo": 0, "reach": 0.4 }
+            },
+            "low_sweep": {
+                "moveSpeed": 0.6,
+                "startup": 5, "active": 6, "recovery": 18,
+                "damage": 11, "poiseDamage": 16, "staminaCost": 12,
+                "knockback": 2, "knockup": 6, "hitstop": 3, "shake": 0.2,
+                "hitboxes": [ { "offset": [0, 0.5, 1.1], "size": [3.4, 0.9, 2.2] } ],
+                "lunge": 4, "lungeFrom": 0, "lungeTo": 8,
+                "bufferFrom": 6, "chainFrom": 16, "dodgeCancelFrom": 14,
+                "next": { "light": "sweep2" },
+                "swing": { "yawFrom": 120, "yawTo": -120, "pitchFrom": -35, "pitchTo": -25, "reach": 0.3 }
+            },
+            "air_spin": {
+                "moveSpeed": 0.8, "gravityScale": 0.35,
+                "startup": 5, "active": 8, "recovery": 14,
+                "damage": 10, "poiseDamage": 12, "staminaCost": 9,
+                "knockback": 3, "knockup": 2, "hitstop": 3, "shake": 0.2,
+                "hitboxes": [ { "offset": [0, 0.9, 0.0], "size": [3.8, 1.6, 3.8] } ],
+                "dodgeCancelFrom": 12,
+                "turn": { "yaw": 360, "from": 3, "to": 13 },
+                "swing": { "yaw": 90, "pitch": -15, "reach": 0.3 }
+            },
+            "grave_drop": {
+                "plungeSpeed": 30, "armor": 20,
+                "startup": 9, "active": 6, "recovery": 24,
+                "damage": 20, "poiseDamage": 30, "staminaCost": 16,
+                "knockback": 6, "knockup": 4, "hitstop": 6, "shake": 0.6,
+                "terrainDamage": 25,
+                "hitboxes": [ { "offset": [0, 0.5, 0.6], "size": [3.8, 1.4, 3.8] } ],
+                "swing": { "yawFrom": 0, "yawTo": 0, "pitchFrom": 110, "pitchTo": -70 }
+            }
+        }
+    }
+}

@@ -433,7 +433,11 @@ namespace arena::screens
             ui.icon(w.icon, x + 23, cy + 9, 6.0f, role);
             cy += 72.0f;
 
-            ui.text(x + 14, cy, ui.fit(w.name, Font::Display, 30, cw - 28), Font::Display, 30, TEXT);
+            // The name: smaller on narrow cards (many weapons) before it is cut short
+            float nameSize = 30.0f;
+            while (nameSize > 20.0f and ui.measure(w.name, Font::Display, nameSize) > cw - 28)
+                nameSize -= 1.0f;
+            ui.text(x + 14, cy + (30.0f - nameSize) * 0.5f, ui.fit(w.name, Font::Display, nameSize, cw - 28), Font::Display, nameSize, TEXT);
             cy += 40.0f;
 
             cy += ui.paragraph(x + 14, cy, cw - 28, w.text, Font::Text500, 13, TEXT_DIM, 18.0f, 2) + 6.0f;
@@ -444,7 +448,8 @@ namespace arena::screens
             }
             cy += 8.0f;
 
-            ui.text(x + 14, cy, "TECHNIQUES (FROM LEVEL UPS)", Font::Text700, 10, MUTED, Align::Left, 1.5f);
+            const std::string techniques = "TECHNIQUES (FROM LEVEL UPS)";
+            ui.text(x + 14, cy, ui.measure(techniques, Font::Text700, 10, 1.5f) <= cw - 28 ? techniques : "TECHNIQUES", Font::Text700, 10, MUTED, Align::Left, 1.5f);
             cy += 16.0f;
             std::string skills;
             for (const auto& name : w.skills)

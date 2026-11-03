@@ -1,0 +1,26 @@
+// Scythe skill (R by default): the harvest. One wide turn with the blade out that hits everything
+// around you, and heals you (and allies right next to you) a little as it comes round.
+{
+    "name": "Harvest",
+    "text": "Spin your scythe around you, hitting everything close and healing yourself a little.",
+    "kind": "attack",
+    "weapons": ["scythe"],
+    "staminaCost": 22,
+    "cooldown": 7,
+    "attack": {
+        "moveSpeed": 0.4, "armor": 15,
+        "startup": 12, "active": 10, "recovery": 20,
+        "damage": 18, "poiseDamage": 24,
+        "knockback": 5, "hitstop": 4, "shake": 0.4,
+        "hitboxes": [ { "offset": [0, 1.0, 0.0], "size": [5.0, 1.4, 5.0] } ],
+        "heal": { "amount": 10, "radius": 2 },
+        "turn": { "yaw": 360, "from": 10, "to": 22 },
+        "swing": { "yaw": 95, "pitch": -5, "reach": 0.4 }
+    },
+    "tags": ["melee", "area", "heal"],
+    "levels": [{ "damage": 0.15 }, { "cooldown": 0.15 }, { "damage": 0.15, "area": 0.1 }],
+    "branches": [
+        { "name": "Bountiful", "text": "Heals and damages much more.", "boost": { "damage": 0.5 } },
+        { "name": "Winter harvest", "text": "The spin slows enemies.", "element": "ice", "status": { "id": "chill", "stacks": 2 }, "tags": ["ice"] }
+    ]
+}

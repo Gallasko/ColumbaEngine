@@ -94,6 +94,7 @@ namespace arena
         float yawFrom = 0.0f, yawTo = 0.0f;       // around the body's up axis, 0 = straight ahead
         float pitchFrom = 0.0f, pitchTo = 0.0f;   // blade elevation, + = up
         float reach = 0.0f;                       // pushes the weapon forward along the swing (thrusts)
+        float rollFrom = 0.0f, rollTo = 0.0f;     // turned about its own length (the handle), + = its +X side up
     };
 
     /** What a hit is made of, beyond its force: fire burns, ice freezes, volt shocks (see StatusDef). */
@@ -426,6 +427,7 @@ namespace arena
         float modelScale = 0.0625f;
         glm::vec3 grip = glm::vec3(0.0f);    // model-space point held in the hand (in model voxels)
         SwingPose rest;                       // pose when no attack runs
+        bool followSwing = false;             // the head (the model's +X side) turns to lead each swing: a scythe's blade
         Moveset moveset;
         std::string file;
     };

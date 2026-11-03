@@ -1684,6 +1684,40 @@ TEST(arena_run, weapon_hits_give_mana_back_spells_do_not)
     EXPECT_FLOAT_EQ(me.mana, 10.0f);
 }
 
+TEST(arena_run, the_scythes_reap_pulls_enemies_in_and_it_has_its_own_skills)
+{
+    RunArena r;
+    r.world.startRun(7);
+    Fighter& p = r.player();
+    r.world.chooseWeapon(p, "base:scythe");
+    const Moveset* m = r.world.movesetOf(p);
+    ASSERT_TRUE(m);
+
+    // The reap: towards you, where a sword's heavy pushes away
+    Fighter& e = r.near("base:brute", 2.5f);
+    const int id = e.id;
+    Fighter& me = r.player();
+    r.world.applyHit(me, *r.world.find(id), *m->find(m->heavy));
+    const glm::vec3 toMe = me.body.position - r.world.find(id)->body.position;
+    EXPECT_GT(glm::dot(r.world.find(id)->push, toMe), 0.0f);
+
+    // Its level ups offer the scythe's skills, never another weapon's
+    r.timeUp();
+    bool harvest = false;
+    for (int k = 0; k < 60; ++k)
+    {
+        r.player().levelUps = 1;
+        r.world.rollLevel(r.player());
+        for (const auto& o : r.player().levelOffer)
+        {
+            harvest = harvest or o == "base:harvest" or o == "base:grim_vault";
+            if (auto a = r.content.abilities.find(o); a != r.content.abilities.end() and not a->second.weapons.empty())
+                EXPECT_EQ(a->second.weapons.front(), "scythe") << o;
+        }
+    }
+    EXPECT_TRUE(harvest);
+}
+
 TEST(arena_run, each_player_picks_a_first_spell_after_the_weapon)
 {
     RunArena r;
