@@ -42,3 +42,6 @@ test/pgcompiler/scripts/gen_compiled_*.pgc
 
 # The graph depgraph.pg writes when no file is named, and its drawing
 chronicle-graph.*
+
+# Working files of the superpowers skills
+.superpowers/
