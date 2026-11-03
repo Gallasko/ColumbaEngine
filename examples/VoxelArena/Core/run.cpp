@@ -382,28 +382,90 @@ namespace arena
             tags.push_back("projectile");
         if (attack.element != Element::None)
             tags.push_back(elementName(attack.element));
+
+        // A weapon's branch: its element, and the tags it adds
+        if (const BranchDef* b = weaponBranch(f))
+        {
+            if (b->element != Element::None and attack.element == Element::None)
+                tags.push_back(elementName(b->element));
+            for (const auto& t : b->tags)
+                if (std::find(tags.begin(), tags.end(), t) == tags.end())
+                    tags.push_back(t);
+        }
         return tags;
+    }
+
+    const BranchDef* ArenaWorld::weaponBranch(const Fighter& f) const
+    {
+        auto w = content->weapons.find(f.weapon);
+        const Fighter::RunSpell* rs = inRun() and f.team == Team::Player ? runSkill(f, f.weapon) : nullptr;
+
+        if (w == content->weapons.end() or not rs or rs->branch < 0 or rs->branch >= static_cast<int>(w->second.branches.size()))
+            return nullptr;
+
+        return &w->second.branches[static_cast<size_t>(rs->branch)];
+    }
+
+    SpellTweak ArenaWorld::weaponBoost(const Fighter& f, const AttackDef& attack) const
+    {
+        SpellTweak t;
+        auto it = content->weapons.find(f.weapon);
+
+        if (not inRun() or f.team != Team::Player or it == content->weapons.end())
+            return t;
+
+        const WeaponDef& w = it->second;
+        const Fighter::RunSpell* rs = runSkill(f, w.id);
+        const int level = rs ? rs->level : 1;
+
+        // Its written levels, the branch, a mastery boost for each level past those
+        const int written = std::min(level - 1, static_cast<int>(w.levels.size()));
+        for (int l = 0; l < written; ++l)
+            t.add(w.levels[static_cast<size_t>(l)]);
+
+        int beyond = std::max(0, level - 1 - static_cast<int>(w.levels.size()));
+        if (const BranchDef* b = weaponBranch(f))
+        {
+            t.add(b->boost);
+            beyond = std::max(0, beyond - 1);
+        }
+
+        // Mastery and the tag items: their damage together, with diminishing returns
+        SpellTweak extra;
+        extra.add(content->run.mastery, static_cast<float>(beyond));
+        extra.add(tagBoost(f, attackTags(f, attack)));
+        extra.count = 0;   // more projectiles only from the weapon's own levels, not from items
+        extra.damage = damageFalloff(extra.damage);
+        t.add(extra);
+
+        // The weapon's attacks take damage, area, projectile speed, attack speed and (from its own levels) projectiles
+        t.cooldown = t.cost = t.duration = 0.0f;
+        return t;
+    }
+
+    void applyBranch(AttackDef& out, const BranchDef* branch)
+    {
+        if (not branch)
+            return;
+
+        if (branch->element != Element::None)
+        {
+            out.element = branch->element;
+            out.projectile.element = branch->element;
+        }
+        if (not branch->status.status.empty())
+        {
+            out.status = branch->status;
+            out.projectile.status = branch->status;
+        }
     }
 
     AttackDef ArenaWorld::boostedAttack(const AbilityDef& a, const SpellTweak& t, const BranchDef* branch) const
     {
         AttackDef out = a.attack;
         applyBoost(out, t);
-
-        if (branch)
-        {
-            if (branch->element != Element::None)
-            {
-                out.element = branch->element;
-                out.projectile.element = branch->element;
-            }
-            if (not branch->status.status.empty())
-            {
-                out.status = branch->status;
-                out.projectile.status = branch->status;
-            }
-        }
-
+        hasten(out, t.attackSpeed);
+        applyBranch(out, branch);
         return out;
     }
 
@@ -1250,6 +1312,13 @@ namespace arena
         const auto weapon = content->weapons.find(f.weapon);
         const std::string type = weapon != content->weapons.end() ? weapon->second.type : "";
 
+        // The weapon in hand: it starts at level 1, and grows like a technique
+        if (weapon != content->weapons.end())
+        {
+            const Fighter::RunSpell* rs = runSkill(f, weapon->first);
+            grow(weapon->first, rs ? rs->level : 1, rs ? rs->branch : -1, static_cast<int>(weapon->second.levels.size()), weapon->second.branches.size());
+        }
+
         for (const auto& id : content->run.levelSkills)
         {
             auto a = content->abilities.find(id);
@@ -1323,6 +1392,21 @@ namespace arena
             {
                 f.runSpells.push_back({id, 1});
             }
+        }
+        else if (auto w = content->weapons.find(id); w != content->weapons.end())
+        {
+            // A weapon's levels go with the techniques: it starts at level 1, so its first level up is level 2
+            auto has = std::find_if(f.runSkills.begin(), f.runSkills.end(), [&](const Fighter::RunSpell& r) { return r.id == id; });
+
+            if (has == f.runSkills.end())
+            {
+                f.runSkills.push_back({id, 1});
+                has = f.runSkills.end() - 1;
+            }
+
+            ++has->level;
+            if (branch >= 0 and branch < static_cast<int>(w->second.branches.size()))
+                has->branch = branch;
         }
         else if (content->abilities.count(id))
         {

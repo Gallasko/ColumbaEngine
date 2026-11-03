@@ -176,11 +176,13 @@
         "recharge": 1.2
     },
 
-    // Spells spend mana, not stamina: casting never stops a roll
+    // Spells spend mana, not stamina: casting never stops a roll. Your weapon's hits give mana back:
+    // fromWeapon for each point of damage its light and heavy attacks do (a weapon's "mana" can set its own)
     "mana": {
         "max": 100,
         "regen": 7,
-        "regenDelay": 1.0
+        "regenDelay": 1.0,
+        "fromWeapon": 0.3
     },
 
     // What fire and ice do to the arena (volt's is the blocks' "weakness")

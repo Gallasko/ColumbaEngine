@@ -87,14 +87,17 @@ and enemies that come back), **O** for the options.
   (fire: a bolt leaving a burning patch), Frostbolt (ice: a bolt bursting into a chilling blast) or
   Spark (volt: a bolt jumping on to 2 more enemies) — `run.json` `start.chooseSpell`. As a wave ends, after a moment (**Wave cleared**: 2.5 s in which nothing can be clicked, so a
   click from the fight buys nothing), each level up offers three picks (1-3 or a click): a **new
-  spell** (while one of the three spell keys is free), a **new technique** of the weapon in hand, or
-  the **next level** of one you have. Levels never run out:
+  spell** (while one of the three spell keys is free), a **new technique** of the weapon in hand, the
+  **next level of the weapon** in hand (it starts at level 1), or the **next level** of one you have.
+  Levels never run out:
   - a spell's written `levels` add keywords (Firebolt II adds Enlarge, III Extend, IV Empower); a
-    technique's add a boost (+15% damage, a faster recharge...);
+    technique's add a boost (+15% damage, a faster recharge...); the weapon's boost its light and
+    heavy attacks (Iron Sword II: +20% damage, III: +10% attack speed...);
   - at level 5 (`run.json` `branchLevel`) it **branches**: its branches are offered side by side and
     you take one, for good. Firebolt's Inferno makes its burning patch burst as it ends, Twin bolts
-    shoots one more bolt; the Whirlwind's Firestorm sets enemies on fire, Cyclone spins far wider...
-    A branch adds keywords (a spell), an element and a status (a technique), tags and a boost;
+    shoots one more bolt; the Whirlwind's Firestorm sets enemies on fire, Cyclone spins far wider; the
+    sword's Flame blade sets enemies on fire, Cleave swings far wider...
+    A branch adds keywords (a spell), an element and a status (a technique, a weapon), tags and a boost;
   - every level past those is **mastery**: +10% damage and a 3% faster recharge each (`mastery`).
 
   Each card shows what changes, before -> after (green better, red worse). The XP to the next level
@@ -288,7 +291,9 @@ Z Q S D where a QWERTY shows W A S D: the same keys, by position).
     armored attack shrugs off), and breaks stone.
   - *Mana* (the blue bar) pays for them, from the recipe: each keyword adds to the cost, a modifier
     can multiply its form's, and a form is paid once per copy of it (two bolts that each leave a
-    zone pay for two zones). Casting never stops a roll.
+    zone pay for two zones). Casting never stops a roll. Your weapon's hits give mana back: 0.3 for
+    each point of damage its light and heavy attacks do (`tuning.json` `mana.fromWeapon`, or a
+    weapon's own `mana`), so fighting with the weapon pays for the next spell.
 - **The spellbook** (console: `spellbook`; a tool for mods and the training ground, not part of a
   run, where level ups give the spells) builds them: pick a key (1, 2, 3), then click an element, forms and
   modifiers, or press their keys (elements Z X C, forms A S D F, modifiers Q W E R T: the
@@ -550,7 +555,7 @@ content API version the mod was written for. The API is unstable: a mismatch is 
 | `upgrades.json` | the items of a run's shop: what a stat item adds (`maxHealth`, `damage`, `armor`, `crit`, `regen`, `pickupRange`, `dashCharges`, `horde`, `xpGain`, `shardChance`...) or a tag item does to everything of the player with its `tag` (`"boost": { "damage", "area", "cooldown", "cost", "duration", "speed", "count" }`), its `price`, how many one can have (`most`: none by default), the rarities it comes at (`tiers`: `["Rare"]`; none: any), its `look` | `mymod:<key>` |
 | `run.json` | the arena run: waves, spawn pools and `spawnScale`, elites, bosses, XP, the start kit and spells, `levelSkills`, `branchLevel`, `mastery`, `presents`, `intermission`, the shop (`priceScale`, `coopPrice`, `interest`, `rarities`), score, `damageFalloff`, `bossCoopHealth`, the `arenas` by wave and the duel's, the `difficulties` (each a `name`, `waves`, enemy `health`, `damage`, `healthGrowth`, `damageGrowth`, `spawn`, `eliteChance`; winning one opens the next) (the last mod with one wins) | |
 | `arenas/<name>.json` | an arena for the run: `name`, `size`, `shapes`, `scatter` (decorations sown by chance: `[{ "block", "on", "chance" }]`), `playerSpawn`, `centre`, `spawnRadius` | `mymod:<name>` |
-| `weapons/<name>.json` | a weapon and its moveset | `mymod:<name>` |
+| `weapons/<name>.json` | a weapon and its moveset; in a run, its `levels` (a boost each: `[{ "damage": 0.2 }, { "attackSpeed": 0.1 }]`), `branches` (as a technique's) and `mana` (mana back per point of damage) | `mymod:<name>` |
 | `enemies/<name>.json` | an enemy: stats, moveset, script, params; a boss's `phases` (`at`, `crystal`, `crystals`, `radius`, `stagger`); `anchored`: nothing pushes it | `mymod:<name>` |
 | `models/<name>.vxl.json` | a voxel model (saved by the VoxelTest editor) | `mymod:<name>` |
 | `textures/<name>.png` | a block texture (16 x 16 pixel art, any square size works); see-through pixels are not drawn | `mymod:<name>` |

@@ -1,5 +1,9 @@
 // The sword: a fast 3-hit light combo, a slow heavy that breaks poise, and a slash out of a roll.
 // regen: health a second while it is in hand (the melee weapons mend a little).
+// In a run, level ups grow the weapon in hand like a technique: "levels" is what levels 2, 3... add to its light
+// and heavy attacks (damage, area, attackSpeed, speed: of what they shoot), then at run.json's branchLevel one
+// of its "branches" (a boost, or an element and status on every hit), then mastery. mana: mana back for each
+// point of damage its attacks do (tuning.json mana.fromWeapon if not set).
 //
 // Every attack is [startup][active][recovery] frames at 60 fps. Hitboxes exist only during active frames.
 // Hitbox offsets are in the fighter's space: x to the right, y up from the feet, z forward. Sizes are full sizes.
@@ -19,6 +23,11 @@
     "text": "Balanced close combat.",
     "lightText": "A fast three-hit combo.",
     "heavyText": "A slow, strong slash that staggers enemies.",
+    "levels": [{ "damage": 0.2 }, { "attackSpeed": 0.1 }, { "damage": 0.2, "area": 0.15 }],
+    "branches": [
+        { "name": "Flame blade", "text": "Your hits set enemies on fire.", "element": "fire", "status": "burn" },
+        { "name": "Cleave", "text": "Much wider swings that hit harder.", "boost": { "area": 0.4, "damage": 0.15 } }
+    ],
     "model": "sword",
     "modelScale": 0.0625,
     "grip": [1.5, 1.5, 2.0],

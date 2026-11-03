@@ -18,6 +18,11 @@
     "text": "Fast. Keeps you moving.",
     "lightText": "Quick jabs. The fourth hit dashes through enemies.",
     "heavyText": "A spin, then a cut that launches enemies.",
+    "levels": [{ "attackSpeed": 0.1 }, { "damage": 0.2 }, { "damage": 0.15, "attackSpeed": 0.1 }],
+    "branches": [
+        { "name": "Frost fang", "text": "Your hits slow enemies. Enough hits freeze them.", "element": "ice", "status": "chill" },
+        { "name": "Flurry", "text": "Faster attacks that hit harder.", "boost": { "attackSpeed": 0.2, "damage": 0.1 } }
+    ],
     "model": "dagger",
     "modelScale": 0.05,
     "grip": [1.5, 1.5, 1.5],

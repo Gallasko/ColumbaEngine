@@ -562,6 +562,8 @@ TEST(arena_run, level_ups_give_spells_and_their_levels_before_the_shop)
     {
         if (r.content.spells.count(id))
             EXPECT_TRUE(std::any_of(p.runSpells.begin(), p.runSpells.end(), [&](const Fighter::RunSpell& s) { return s.id == id; })) << id;
+        else if (r.content.weapons.count(id))
+            EXPECT_EQ(id, p.weapon);
         else
             EXPECT_TRUE(r.content.abilities.count(id)) << id;
     }
@@ -1247,7 +1249,7 @@ TEST(arena_run, a_run_starts_with_each_player_choosing_a_weapon)
     EXPECT_FALSE(r.world.owns(r.player(), "base:sword"));
 }
 
-TEST(arena_run, level_ups_give_no_weapons_only_the_skills_of_the_one_in_hand)
+TEST(arena_run, level_ups_grow_only_the_weapon_in_hand_and_its_skills)
 {
     RunArena r;
     r.content.run.chooseWeapon = true;
@@ -1258,7 +1260,7 @@ TEST(arena_run, level_ups_give_no_weapons_only_the_skills_of_the_one_in_hand)
     r.pick(InputFrame::WEAPON + bow);
     ASSERT_EQ(r.world.run.phase, RunPhase::Fighting);
 
-    // Many level ups: never a weapon, never another weapon's skill; the shop never sells one either
+    // Many level ups: never another weapon (the one in hand grows), never another weapon's skill; the shop never sells one either
     r.timeUp();
     ASSERT_EQ(r.world.run.phase, RunPhase::Shop);
     Fighter& p = r.player();
@@ -1270,7 +1272,8 @@ TEST(arena_run, level_ups_give_no_weapons_only_the_skills_of_the_one_in_hand)
         r.world.rollLevel(p);
         for (const auto& id : p.levelOffer)
         {
-            EXPECT_FALSE(r.content.weapons.count(id)) << id;
+            if (r.content.weapons.count(id))
+                EXPECT_EQ(id, "base:bow");
             if (auto a = r.content.abilities.find(id); a != r.content.abilities.end() and not a->second.weapons.empty())
             {
                 EXPECT_EQ(a->second.weapons.front(), "bow") << id;
@@ -1608,6 +1611,77 @@ TEST(arena_run, melee_and_attack_items_reach_the_weapons_own_attacks)
     // Not an enemy's, not outside a run
     r.world.stopRun();
     EXPECT_FLOAT_EQ(r.world.attackDef(r.player(), m->light)->damage, light);
+}
+
+TEST(arena_run, the_weapon_in_hand_levels_up_like_a_technique)
+{
+    RunArena r;
+    r.world.startRun(7);
+    Fighter& p = r.player();
+    r.world.chooseWeapon(p, "base:sword");
+    const WeaponDef& sword = r.content.weapons.at("base:sword");
+    ASSERT_FALSE(sword.levels.empty());
+    ASSERT_FALSE(sword.branches.empty());
+    const Moveset* m = r.world.movesetOf(p);
+    ASSERT_TRUE(m);
+    const AttackDef base = *m->find(m->light);
+    r.timeUp();
+    auto take = [&](const std::string& offer) {
+        p.levelUps = 1;
+        p.levelOffer = {offer};
+        r.pick(InputFrame::LEVEL);
+    };
+
+    // It starts at level 1: its first pick makes it level 2, with its first level's boost
+    take("base:sword");
+    ASSERT_TRUE(r.world.runSkill(p, "base:sword"));
+    EXPECT_EQ(r.world.runSkill(p, "base:sword")->level, 2);
+    EXPECT_NEAR(r.world.attackDef(p, m->light)->damage, base.damage * (1.0f + sword.levels[0].damage), 0.01f);
+
+    // At its branch level, a branch: an element and a status on every hit
+    while (r.world.runSkill(p, "base:sword")->level + 1 < r.world.branchAt(static_cast<int>(sword.levels.size())))
+        take("base:sword");
+    p.levelUps = 1;
+    bool offered = false;
+    for (int k = 0; k < 40 and not offered; ++k)
+    {
+        r.world.rollLevel(p);
+        offered = std::find(p.levelOffer.begin(), p.levelOffer.end(), "base:sword#0") != p.levelOffer.end();
+    }
+    EXPECT_TRUE(offered);
+    take("base:sword#0");
+    const AttackDef* grown = r.world.attackDef(p, m->light);
+    EXPECT_GT(grown->damage, base.damage);
+    EXPECT_LT(grown->total(), base.total());
+    EXPECT_EQ(grown->element, sword.branches[0].element);
+    EXPECT_EQ(grown->status.status, sword.branches[0].status.status);
+}
+
+TEST(arena_run, weapon_hits_give_mana_back_spells_do_not)
+{
+    RunArena r;
+    r.world.startRun(7);
+    Fighter& p = r.player();
+    r.world.chooseWeapon(p, "base:sword");
+    ASSERT_GT(r.tuning.mana.fromWeapon, 0.0f);
+    const Moveset* m = r.world.movesetOf(p);
+
+    Fighter& e = r.near("base:brute", 2.0f);
+    const int id = e.id;
+    Fighter& me = r.player();
+
+    me.mana = 10.0f;
+    AttackDef swing = *m->find(m->light);
+    r.world.applyHit(me, *r.world.find(id), swing);
+    EXPECT_NEAR(me.mana, 10.0f + swing.damage * r.tuning.mana.fromWeapon, 0.01f);
+
+    // A spell's hit (or a technique's): none
+    me.mana = 10.0f;
+    AttackDef bolt;
+    bolt.name = "base:bolt";
+    bolt.damage = 12.0f;
+    r.world.applyHit(me, *r.world.find(id), bolt);
+    EXPECT_FLOAT_EQ(me.mana, 10.0f);
 }
 
 TEST(arena_run, each_player_picks_a_first_spell_after_the_weapon)

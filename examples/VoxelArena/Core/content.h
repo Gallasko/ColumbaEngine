@@ -187,12 +187,17 @@ namespace arena
     struct SpellTweak
     {
         float damage = 0.0f, area = 0.0f, cooldown = 0.0f, cost = 0.0f, duration = 0.0f, speed = 0.0f;
+        float attackSpeed = 0.0f;   // an attack's frames fewer (a weapon's or a technique's; spells have none)
         int count = 0;
 
-        bool empty() const { return damage == 0.0f and area == 0.0f and cooldown == 0.0f and cost == 0.0f and duration == 0.0f and speed == 0.0f and count == 0; }
+        bool empty() const
+        {
+            return damage == 0.0f and area == 0.0f and cooldown == 0.0f and cost == 0.0f and duration == 0.0f and speed == 0.0f and attackSpeed == 0.0f and count == 0;
+        }
         bool operator==(const SpellTweak& o) const
         {
-            return damage == o.damage and area == o.area and cooldown == o.cooldown and cost == o.cost and duration == o.duration and speed == o.speed and count == o.count;
+            return damage == o.damage and area == o.area and cooldown == o.cooldown and cost == o.cost and duration == o.duration and speed == o.speed and
+                   attackSpeed == o.attackSpeed and count == o.count;
         }
 
         /** Adds another, its numbers (not its count) times k. */
@@ -204,6 +209,7 @@ namespace arena
             cost += o.cost * k;
             duration += o.duration * k;
             speed += o.speed * k;
+            attackSpeed += o.attackSpeed * k;
             count += o.count;
         }
     };
@@ -409,6 +415,11 @@ namespace arena
         std::string type;        // "dagger", "sword"...: the weapon skills it can use (AbilityDef::weapons)
         std::string role;        // "melee", "ranged", "support": the weapon choice shows it
         float regen = 0.0f;      // health a second while it is in hand (a melee weapon's mending)
+        float mana = 0.0f;       // mana back for each point of damage its light and heavy attacks do (tuning mana.fromWeapon if not set)
+        bool hasMana = false;
+        // In a run, level ups grow it like a technique: what its levels 2, 3... add, and the branches to pick from
+        std::vector<SpellTweak> levels;
+        std::vector<BranchDef> branches;
         std::string text;        // a line on how it plays, for the weapon choice
         std::string lightText, heavyText;   // what its light and heavy attacks do, a line each
         std::string model;       // model id, "base:sword"

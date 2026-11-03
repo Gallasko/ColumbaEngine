@@ -1835,7 +1835,7 @@ namespace arena
                 return &it->second.attack;
 
             std::string key = std::to_string(branch) + "|" + std::to_string(boost.count);
-            for (float v : {boost.damage, boost.area, boost.cooldown, boost.cost, boost.duration, boost.speed})
+            for (float v : {boost.damage, boost.area, boost.cooldown, boost.cost, boost.duration, boost.speed, boost.attackSpeed})
                 key += "|" + std::to_string(v);
 
             auto& slot = techniqueCache[std::to_string(f.id) + it->first];
@@ -1850,19 +1850,18 @@ namespace arena
         const Moveset* m = movesetOf(f);
         const AttackDef* base = m ? m->find(name) : nullptr;
 
-        // A run's player: the weapon's attacks take the tag items that reach them (damage, area, projectile speed)
+        // A run's player: the weapon's attacks take its levels, its branch and the tag items that reach them (damage,
+        // area, projectile speed, attack speed; more projectiles only from the weapon's own levels)
         if (not base or not inRun() or f.team != Team::Player)
             return base;
 
-        SpellTweak boost = tagBoost(f, attackTags(f, *base));
-        boost.damage = damageFalloff(boost.damage);
-        boost.cooldown = boost.cost = boost.duration = 0.0f;
-        boost.count = 0;
-        const float quicker = f.boon.attackSpeed;
-        if (boost.empty() and quicker <= 0.0f)
+        SpellTweak boost = weaponBoost(f, *base);
+        const BranchDef* branch = weaponBranch(f);
+        const float quicker = f.boon.attackSpeed + boost.attackSpeed;
+        if (boost.empty() and quicker <= 0.0f and not branch)
             return base;
 
-        std::string key;
+        std::string key = std::to_string(boost.count) + "|" + (branch ? branch->name : "");
         for (float v : {boost.damage, boost.area, boost.speed, quicker})
             key += "|" + std::to_string(v);
 
@@ -1872,6 +1871,7 @@ namespace arena
             AttackDef boosted = *base;
             applyBoost(boosted, boost);
             hasten(boosted, quicker);
+            applyBranch(boosted, branch);
             slot = {key, std::make_shared<AttackDef>(boosted)};
         }
         return slot.second.get();
@@ -3339,6 +3339,14 @@ namespace arena
         // Life on hit: whole from a direct hit, a share from an area's, a zone's or a chain's (they hit many, or often)
         if (attacker.boon.lifeOnHit > 0.0f and attacker.alive() and damage > 0.0f)
             attacker.health = std::min(attacker.maxHealth, attacker.health + attacker.boon.lifeOnHit * a.leech);
+
+        // A player's weapon (its light and heavy attacks, and what they shoot) gives mana back for the damage it does
+        if (attacker.team == Team::Player and attacker.alive() and damage > 0.0f and target.id != attacker.id)
+            if (auto w = content->weapons.find(attacker.weapon); w != content->weapons.end() and w->second.moveset.find(a.name))
+            {
+                const float perDamage = w->second.hasMana ? w->second.mana : tuning.mana.fromWeapon;
+                attacker.mana = std::min(tuning.mana.max, attacker.mana + damage * perDamage);
+            }
 
         target.sinceHit = 0.0f;
         target.flash = tuning.feel.hitFlashFrames;

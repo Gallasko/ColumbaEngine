@@ -1,5 +1,5 @@
 // The bow (the archer): arrows fly where you aim (the crosshair). Light is drawn while you hold it: a
-// tap looses a weak quick arrow, a full draw (0.7 s) one about two and a half times as hard and
+// tap looses a weak quick arrow, a full draw (0.6 s) one three times as hard and
 // faster ("charge": held at frame "at" for up to "frames", "damage" and "speed" at full draw; "hold":
 // a full draw waits for you to let go).
 // Heavy draws a power shot that hits hard and breaks poise. It keeps you moving while you
@@ -12,6 +12,11 @@
     "text": "Ranged. Keep your distance.",
     "lightText": "Hold to draw, release to shoot. A full draw hits much harder.",
     "heavyText": "A slow, powerful shot that staggers enemies.",
+    "levels": [{ "damage": 0.25 }, { "damage": 0.1, "speed": 0.25 }, { "damage": 0.2, "attackSpeed": 0.1 }],
+    "branches": [
+        { "name": "Storm arrows", "text": "Your arrows stun enemies for a moment.", "element": "volt", "status": "shock" },
+        { "name": "Frost arrows", "text": "Your arrows slow enemies. Enough hits freeze them.", "element": "ice", "status": "chill" }
+    ],
     "model": "bow",
     "modelScale": 0.0625,
     "grip": [1.0, 0.0, 9.5],
@@ -33,10 +38,10 @@
                 "hitboxes": [],
                 "chainFrom": 16, "bufferFrom": 6,
                 "next": { "light": "shot2" },
-                "charge": { "at": 6, "frames": 42, "damage": 2.6, "speed": 1.4, "hold": true },
+                "charge": { "at": 6, "frames": 36, "damage": 3.0, "speed": 1.4, "hold": true },
                 "dodgeCancelFrom": 9,
                 "projectile": { "speed": 32, "gravity": 4, "radius": 0.1, "lifetime": 2,
-                                "damage": 4, "poiseDamage": 3, "knockback": 2, "terrainDamage": 6,
+                                "damage": 6, "poiseDamage": 4, "knockback": 2, "terrainDamage": 6,
                                 "hitstop": 2, "shake": 0.1, "spawn": [0.2, 1.45, 0.5], "model": "arrow", "modelScale": 0.0625 },
                 "swing": { "yaw": 0, "pitchFrom": 0, "pitchTo": -8 }
             },
@@ -47,10 +52,10 @@
                 "hitboxes": [],
                 "chainFrom": 15, "bufferFrom": 6,
                 "next": { "light": "shot1" },
-                "charge": { "at": 6, "frames": 42, "damage": 2.6, "speed": 1.4, "hold": true },
+                "charge": { "at": 6, "frames": 36, "damage": 3.0, "speed": 1.4, "hold": true },
                 "dodgeCancelFrom": 8,
                 "projectile": { "speed": 32, "gravity": 4, "radius": 0.1, "lifetime": 2,
-                                "damage": 4, "poiseDamage": 3, "knockback": 2, "terrainDamage": 6,
+                                "damage": 6, "poiseDamage": 4, "knockback": 2, "terrainDamage": 6,
                                 "hitstop": 2, "shake": 0.1, "spawn": [0.2, 1.45, 0.5], "model": "arrow", "modelScale": 0.0625 },
                 "swing": { "yaw": 0, "pitchFrom": 0, "pitchTo": -8 }
             },
@@ -61,7 +66,7 @@
                 "hitboxes": [],
                 "dodgeCancelFrom": 20,
                 "projectile": { "speed": 60, "gravity": 2, "radius": 0.14, "lifetime": 2,
-                                "damage": 18, "poiseDamage": 22, "knockback": 7, "terrainDamage": 25,
+                                "damage": 24, "poiseDamage": 24, "knockback": 7, "terrainDamage": 25,
                                 "hitstop": 5, "shake": 0.3, "spawn": [0.2, 1.45, 0.5], "model": "arrow", "modelScale": 0.08 },
                 "swing": { "yaw": 0, "pitchFrom": 10, "pitchTo": -12 }
             },
@@ -72,7 +77,7 @@
                 "hitboxes": [],
                 "dodgeCancelFrom": 10,
                 "projectile": { "speed": 44, "gravity": 4, "radius": 0.1, "lifetime": 2,
-                                "damage": 8, "poiseDamage": 6, "knockback": 3, "terrainDamage": 6,
+                                "damage": 10, "poiseDamage": 7, "knockback": 3, "terrainDamage": 6,
                                 "hitstop": 2, "shake": 0.1, "spawn": [0.2, 1.45, 0.5], "model": "arrow", "modelScale": 0.0625 },
                 "swing": { "yaw": 0, "pitchFrom": 0, "pitchTo": -8 }
             },
@@ -83,7 +88,7 @@
                 "hitboxes": [],
                 "dodgeCancelFrom": 8,
                 "projectile": { "speed": 44, "gravity": 4, "radius": 0.1, "lifetime": 2,
-                                "damage": 8, "poiseDamage": 6, "knockback": 3, "terrainDamage": 6,
+                                "damage": 10, "poiseDamage": 7, "knockback": 3, "terrainDamage": 6,
                                 "hitstop": 2, "shake": 0.1, "spawn": [0.2, 1.3, 0.5], "model": "arrow", "modelScale": 0.0625 },
                 "swing": { "yaw": 0, "pitchFrom": 0, "pitchTo": -8 }
             },
@@ -93,7 +98,7 @@
                 "damage": 0, "poiseDamage": 0, "staminaCost": 6,
                 "hitboxes": [],
                 "projectile": { "speed": 42, "gravity": 4, "radius": 0.1, "lifetime": 2,
-                                "damage": 7, "poiseDamage": 5, "knockback": 2, "terrainDamage": 6,
+                                "damage": 9, "poiseDamage": 6, "knockback": 2, "terrainDamage": 6,
                                 "hitstop": 2, "shake": 0.1, "spawn": [0.2, 1.45, 0.5], "model": "arrow", "modelScale": 0.0625 },
                 "swing": { "yaw": 0, "pitchFrom": 0, "pitchTo": -8 }
             },
@@ -103,7 +108,7 @@
                 "damage": 0, "poiseDamage": 0, "staminaCost": 14,
                 "hitboxes": [],
                 "projectile": { "count": 3, "spread": 8, "speed": 40, "gravity": 4, "radius": 0.1, "lifetime": 2,
-                                "damage": 5, "poiseDamage": 4, "knockback": 2, "terrainDamage": 6,
+                                "damage": 7, "poiseDamage": 5, "knockback": 2, "terrainDamage": 6,
                                 "hitstop": 2, "shake": 0.15, "spawn": [0.2, 1.45, 0.5], "model": "arrow", "modelScale": 0.0625 },
                 "swing": { "yaw": 0, "pitchFrom": 5, "pitchTo": -10 }
             }

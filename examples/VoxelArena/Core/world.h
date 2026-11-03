@@ -136,7 +136,7 @@ namespace arena
         // ... and the spells it was given (level ups), on the spell keys in order
         struct RunSpell
         {
-            std::string id;           // spells/*.json (a technique: abilities/*.json)
+            std::string id;           // spells/*.json (a technique: abilities/*.json; the weapon in hand: weapons/*.json)
             int level = 1;
             int branch = -1;          // the branch taken at the branch level (-1: none yet)
         };
@@ -336,6 +336,8 @@ namespace arena
     void applyBoost(AttackDef& attack, const SpellTweak& boost);
     /** An attack quicker by `speed` (0.1: 10%): its frames fewer, its lunges faster (as far in less time). */
     void hasten(AttackDef& attack, float speed);
+    /** A branch's element and status onto an attack's hits (and its projectile's). */
+    void applyBranch(AttackDef& attack, const BranchDef* branch);
 
     /**
      * Where the arena run is (see ArenaWorld::startRun). Difficulty: before it starts, one player picks
@@ -621,8 +623,13 @@ namespace arena
         /** What tag items reach: a spell's ("spell", its element, "projectile", "area", "zone", "beam"), a technique's ("technique" and its own). */
         std::vector<std::string> spellTags(const SpellRecipe& recipe) const;
         std::vector<std::string> techniqueTags(const AbilityDef& a, int branch) const;
-        /** A weapon's attack's (a run's player's light and heavy): "attack", the weapon's role ("melee") and type, "projectile" when it shoots. */
+        /** A weapon's attack's (a run's player's light and heavy): "attack", the weapon's role ("melee") and type, "projectile" when it shoots,
+            and its branch's element and tags. */
         std::vector<std::string> attackTags(const Fighter& f, const AttackDef& attack) const;
+        /** All a run's player's weapon attack gets: the weapon's levels, mastery and branch, the tag items reaching it; empty outside a run. */
+        SpellTweak weaponBoost(const Fighter& f, const AttackDef& attack) const;
+        /** The branch the weapon in hand took in the run, if any. */
+        const BranchDef* weaponBranch(const Fighter& f) const;
         /** The boosts of a player's tag items reaching something with these tags. */
         SpellTweak tagBoost(const Fighter& f, const std::vector<std::string>& tags) const;
         /** The level a spell or technique with this many written levels (and branches) takes its branch at. */

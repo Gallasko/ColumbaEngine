@@ -1199,16 +1199,17 @@ namespace arena
                 content.report.error(raw.file, raw.data.line, "unknown status \"" + hit.status + "\" (statuses.json)");
         }
 
-        /** A boost: { "damage": 0.2, "area": 0.2, "cooldown": 0.15, "cost": 0.2, "duration": 0.3, "speed": 0.25, "count": 1 } */
+        /** A boost: { "damage": 0.2, "area": 0.2, "cooldown": 0.15, "cost": 0.2, "duration": 0.3, "speed": 0.25, "attackSpeed": 0.1, "count": 1 } */
         void readBoost(const Json& j, SpellTweak& out, const std::string& file, ContentReport& report, const std::string& what)
         {
-            checkKeys(j, {"damage", "area", "cooldown", "cost", "duration", "speed", "count"}, file, report, what);
+            checkKeys(j, {"damage", "area", "cooldown", "cost", "duration", "speed", "attackSpeed", "count"}, file, report, what);
             readNum(j, "damage", out.damage, file, report);
             readNum(j, "area", out.area, file, report);
             readNum(j, "cooldown", out.cooldown, file, report);
             readNum(j, "cost", out.cost, file, report);
             readNum(j, "duration", out.duration, file, report);
             readNum(j, "speed", out.speed, file, report);
+            readNum(j, "attackSpeed", out.attackSpeed, file, report);
             readInt(j, "count", out.count, file, report);
         }
 
@@ -2012,7 +2013,9 @@ namespace arena
             {
                 const Json& j = raw.data;
 
-                checkKeys(j, {"id", "name", "type", "role", "text", "lightText", "heavyText", "regen", "model", "modelScale", "grip", "rest", "moveset"}, raw.file, report, "weapon " + id);
+                checkKeys(j, {"id", "name", "type", "role", "text", "lightText", "heavyText", "regen", "mana", "levels", "branches", "model", "modelScale", "grip", "rest",
+                              "moveset"},
+                          raw.file, report, "weapon " + id);
 
                 WeaponDef w;
                 w.id = id;
@@ -2022,6 +2025,20 @@ namespace arena
                 readStr(j, "type", w.type, raw.file, report);
                 readStr(j, "role", w.role, raw.file, report);
                 readNum(j, "regen", w.regen, raw.file, report);
+                w.hasMana = j.find("mana") != nullptr;
+                readNum(j, "mana", w.mana, raw.file, report);
+
+                // Its levels in a run: [{ "damage": 0.2 }, { "attackSpeed": 0.1 }], what levels 2, 3... add
+                if (const Json* levels = j.find("levels"))
+                {
+                    for (const auto& level : levels->array)
+                    {
+                        SpellTweak t;
+                        readBoost(level, t, raw.file, report, "weapon " + id + "'s level");
+                        w.levels.push_back(t);
+                    }
+                }
+                readBranches(content, j, raw, w.branches, "weapon \"" + id + "\"");
                 readStr(j, "lightText", w.lightText, raw.file, report);
                 readStr(j, "heavyText", w.heavyText, raw.file, report);
                 readStr(j, "text", w.text, raw.file, report);

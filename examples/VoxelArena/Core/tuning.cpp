@@ -56,6 +56,7 @@ namespace arena
         f("mana.max", mana.max);
         f("mana.regen", mana.regen);
         f("mana.regenDelay", mana.regenDelay);
+        f("mana.fromWeapon", mana.fromWeapon);
 
         f("elements.burnSeconds", elements.burnSeconds);
         f("elements.spreadSeconds", elements.spreadSeconds);

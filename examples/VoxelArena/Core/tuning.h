@@ -91,6 +91,7 @@ namespace arena
             float max = 100.0f;
             float regen = 10.0f;            // per second
             float regenDelay = 1.0f;        // s after a spell before regen starts
+            float fromWeapon = 0.0f;        // mana back for each point of damage the weapon's light and heavy attacks do
         } mana;
 
         /** What elements do to the arena. */

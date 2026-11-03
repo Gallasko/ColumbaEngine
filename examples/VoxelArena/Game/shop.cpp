@@ -91,6 +91,8 @@ namespace arena
             name = it->second.name;
         else if (auto a = content.abilities.find(spell.id); a != content.abilities.end())
             name = a->second.name;
+        else if (auto w = content.weapons.find(spell.id); w != content.weapons.end())
+            name = w->second.name;
         return spell.level > 1 ? name + " " + roman(spell.level) : name;
     }
 
@@ -101,6 +103,8 @@ namespace arena
             branches = &it->second.branches;
         else if (auto a = content.abilities.find(spell.id); a != content.abilities.end())
             branches = &a->second.branches;
+        else if (auto w = content.weapons.find(spell.id); w != content.weapons.end())
+            branches = &w->second.branches;
 
         return branches and spell.branch >= 0 and spell.branch < static_cast<int>(branches->size()) ? (*branches)[static_cast<size_t>(spell.branch)].name : "";
     }
@@ -141,6 +145,7 @@ namespace arena
         if (t.cost != 0.0f) parts.push_back("-" + pc(t.cost) + " " + of + (tag == "spell" ? "mana cost" : tag == "technique" ? "stamina cost" : "cost"));
         if (t.duration != 0.0f) parts.push_back("+" + pc(t.duration) + " " + of + "duration");
         if (t.speed != 0.0f) parts.push_back("+" + pc(t.speed) + (tag == "projectile" ? " projectile speed" : " " + of + "projectile speed"));
+        if (t.attackSpeed != 0.0f) parts.push_back("+" + pc(t.attackSpeed) + " attack speed");
 
         std::string out;
         for (const auto& part : parts)
@@ -916,6 +921,40 @@ namespace arena
                 else if (next.level - 2 < static_cast<int>(def.levels.size()))
                 {
                     card.kind = "TECHNIQUE LEVEL " + std::to_string(next.level);
+                    card.text = upperFirst(boostText(def.levels[static_cast<size_t>(next.level - 2)])) + ".";
+                }
+                else
+                {
+                    card.kind = "MASTERY \xC2\xB7 LEVEL " + std::to_string(next.level);
+                    card.text = upperFirst(boostText(content.run.mastery)) + ".";
+                }
+            }
+            else if (auto wp = content.weapons.find(id); wp != content.weapons.end())
+            {
+                // The weapon in hand starts at level 1: its first pick is level 2
+                Fighter::RunSpell next = {id, 2};
+                for (auto& rs : after.runSkills)
+                    if (rs.id == id)
+                        next = {id, rs.level + 1, rs.branch};
+                if (branch >= 0)
+                    next.branch = branch;
+                after.runSkills.erase(std::remove_if(after.runSkills.begin(), after.runSkills.end(), [&](const Fighter::RunSpell& r) { return r.id == id; }),
+                                      after.runSkills.end());
+                after.runSkills.push_back(next);
+
+                const WeaponDef& def = wp->second;
+                card.colour = KIND_SKILL;
+                card.name = runSpellName(content, next);
+
+                if (branch >= 0 and branch < static_cast<int>(def.branches.size()))
+                {
+                    card.kind = "BRANCH \xC2\xB7 LEVEL " + std::to_string(next.level);
+                    card.branch = def.branches[static_cast<size_t>(branch)].name;
+                    card.text = def.branches[static_cast<size_t>(branch)].text;
+                }
+                else if (next.level - 2 < static_cast<int>(def.levels.size()))
+                {
+                    card.kind = "WEAPON LEVEL " + std::to_string(next.level);
                     card.text = upperFirst(boostText(def.levels[static_cast<size_t>(next.level - 2)])) + ".";
                 }
                 else
