@@ -7,7 +7,9 @@
 #include "../../mocklogger.h"
 
 #include <map>
+#include <mutex>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -438,6 +440,80 @@ TEST_F(LoopShapes, AnErrorSaysTheLineOfEachFunction)
     {
         const std::string message = errorOf(source, fusion);
         EXPECT_NE(message.find("Operator + between two incompatible operand: int and string\n[line 4] in f\n[line 10] in g\n[line 14] in "), std::string::npos) << message;
+    }
+}
+
+// Every message logged while it lives, for an error told over several
+struct AllMessagesSink : public Logger::LogSink
+{
+    void processLog(const Logger::Info& log) override
+    {
+        std::lock_guard<std::mutex> guard(lock);
+        text += log.message + "\n";
+    }
+
+    std::string text;
+    std::mutex lock;
+};
+
+TEST_F(LoopShapes, ARecursionGoesDeep)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::string source =
+        "fun depth(n)\n"
+        "{\n"
+        "    if (n == 0)\n"
+        "        return 0\n"
+        "    return 1 + depth(n - 1)\n"
+        "}\n"
+        "__dprint(depth(1000))\n";
+
+    for (const bool fusion : {true, false})
+    {
+        std::string output;
+        EXPECT_EQ(runScript(source, fusion, output), InterpretResult::OK);
+        EXPECT_EQ(output, "1000\n");
+    }
+}
+
+TEST_F(LoopShapes, ARunawayRecursionStopsWhereItCalls)
+{
+    // Past the frames, and past the values when each frame holds many
+    const std::string frames =
+        "fun r(n)\n"
+        "{\n"
+        "    var a = n + 1\n"
+        "    return r(a)\n"
+        "}\n"
+        "\n"
+        "r(0)\n";
+
+    // Each frame holds 600 operands waiting on the call: the values run out before the frames
+    std::string wide = "fun w(n)\n{\n    return ";
+
+    for (int i = 0; i < 600; ++i)
+        wide += std::to_string(i) + " + (";
+
+    wide += "w(n + 1)" + std::string(600, ')') + "\n}\n\nw(0)\n";
+
+    for (const bool fusion : {true, false})
+    {
+        for (const auto& [source, function, line, scriptLine] : {std::tuple<std::string, std::string, int, int>{frames, "r", 4, 7}, {wide, "w", 3, 6}})
+        {
+            auto sink = Logger::registerSink<AllMessagesSink>();
+
+            std::string output;
+            EXPECT_EQ(runScript(source, fusion, output), InterpretResult::RUNTIME_ERROR);
+
+            const std::string text = std::static_pointer_cast<AllMessagesSink>(sink)->text;
+            Logger::removeSink(sink);
+
+            EXPECT_NE(text.find("Stack overflow"), std::string::npos) << text;
+            EXPECT_NE(text.find("[line " + std::to_string(line) + "] in " + function + "\n[line " + std::to_string(line) + "] in " + function), std::string::npos) << text;
+            EXPECT_NE(text.find("[line " + std::to_string(scriptLine) + "] in "), std::string::npos) << text;
+            EXPECT_EQ(text.find("[line 0]"), std::string::npos) << text;
+        }
     }
 }
 

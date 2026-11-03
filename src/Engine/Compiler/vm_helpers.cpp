@@ -189,7 +189,7 @@ namespace pg
             return false;
         }
 
-        if (frameCount == FRAMES_MAX)
+        if (frameCount == FRAMES_MAX or stack.size() + FRAME_ROOM > IndexableStack::capacity)
         {
             runtimeError("Stack overflow");
 
@@ -224,7 +224,7 @@ namespace pg
             return false;
         }
 
-        if (frameCount == FRAMES_MAX)
+        if (frameCount == FRAMES_MAX or stack.size() + FRAME_ROOM > IndexableStack::capacity)
         {
             runtimeError("Stack overflow");
 

@@ -769,6 +769,17 @@ namespace pg
         // nested runDecoded calls (natives re-entering the VM) each unwind
         // their own loop cleanly.
         exit_result = InterpretResult::OK;
+        errorTraceDue = false;
+
+        struct Dispatching
+        {
+            int& depth;
+            explicit Dispatching(int& depth) : depth(depth) { ++depth; }
+            ~Dispatching() { --depth; }
+        } dispatching(dispatchDepth);
+
+        // The instruction dispatched last, for where a handler giving up stopped
+        const DecodedInstruction* ran = instr;
 
         // A handler that throws leaves `instr` on the instruction that threw: the error says where
         try
@@ -822,6 +833,7 @@ namespace pg
                         : opcodeToString(static_cast<OpCode>(opcode));
 
                     auto startTime = std::chrono::high_resolution_clock::now();
+                    ran = instr;
                     instr = instr->decodedHandler(this, *instr);
                     auto endTime = std::chrono::high_resolution_clock::now();
                     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
@@ -831,8 +843,25 @@ namespace pg
                 }
                 else
                 {
+                    ran = instr;
                     instr = instr->decodedHandler(this, *instr);
                 }
+            }
+
+            // A handler gave up on a runtimeError: it stopped on the instruction that ran last
+            if (errorTraceDue)
+            {
+                errorTraceDue = false;
+
+                if (exit_result == InterpretResult::RUNTIME_ERROR)
+                {
+                    const std::string where = whereStopped(ran);
+
+                    if (not where.empty())
+                        LOG_ERROR("VM", where.substr(1));
+                }
+
+                resetStack();
             }
         }
         catch (const ScriptError&)

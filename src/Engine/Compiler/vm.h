@@ -37,7 +37,13 @@
 
 namespace pg
 {
-    static constexpr size_t FRAMES_MAX = 64;
+    // How deep calls go (about Python's 1000): a frame is a few pointers, and script calls never
+    // recurse on the C++ stack
+    static constexpr size_t FRAMES_MAX = 1024;
+
+    // What a call needs free on the value stack to be made: a frame's locals (a byte's worth of
+    // slots) and the temporaries its expressions push, with room to spare
+    static constexpr size_t FRAME_ROOM = 2048;
 
     // Forward declaration for VM. DecodedInstruction / DecodedChunk and the
     // OpDecodedHandler typedef come from decoded_chunk.h (single source of
@@ -96,17 +102,20 @@ namespace pg
     class IndexableStack
     {
     private:
-        static constexpr size_t MAX_STACK_SIZE = FRAMES_MAX * 4096; // Callstack * 4K elements max
-        // Now using 8-byte values directly (2.1 MB vs 4.2 MB before!)
+        // 256K values (2 MB), in the VM itself: a VM is made on the C++ stack too. Not tied to
+        // FRAMES_MAX: a call checks the room left (VM::call), as push checks nothing in release
+        static constexpr size_t MAX_STACK_SIZE = 64 * 4096;
         alignas(uint64_t) uint64_t stack_values[MAX_STACK_SIZE];
         size_t stack_top = 0;
 
     public:
+        static constexpr size_t capacity = MAX_STACK_SIZE;
+
         // Ultra-fast Value operations - single 64-bit MOV instruction.
         // The bounds/empty checks are debug-only: every hot opcode pushes
         // and pops, so the cost of an unconditional `if` was real. The
         // compiler is told the unlikely path is unreachable in release;
-        // op_call validates stack headroom at frame entry instead.
+        // VM::call / VM::callBound check the room left at frame entry instead.
         inline void push(Value value)  // Pass by value, not reference (64-bit fits in register)
         {
             assert(stack_top < MAX_STACK_SIZE and "Stack overflow");
@@ -403,18 +412,13 @@ namespace pg
         {
             LOG_ERROR("VM", message);
 
-            // No sync needed - using frame IP directly
-
-            for (int i = frameCount - 1; i >= 0; i--)
-            {
-                CallFrame *frame = &frames[i];
-                ObjFunction *function = frame->closure->function;
-                size_t instruction = frame->ip - function->chunk.code.data() - 1;
-
-                LOG_ERROR("VM", "[line " << function->chunk.lines[instruction] << "] in " << function->name);
-            }
-
-            resetStack();
+            // Where it stopped is told by the dispatch loop as the handler gives up, which knows the
+            // instruction: a frame's ip is not kept as the decoded chunks run. The stack goes after,
+            // as it holds the frames' closures
+            if (dispatchDepth > 0)
+                errorTraceDue = true;
+            else
+                resetStack();
         }
 
         bool checkBooleanBinaryOp()
@@ -781,6 +785,12 @@ namespace pg
         // Result recorded by vm_return; the dispatch loop exits when a
         // handler returns nullptr and runDecoded returns this value.
         InterpretResult exit_result = InterpretResult::OK;
+
+        // A runtimeError said what, the dispatch loop is to say where (whereStopped) and empty the stack
+        bool errorTraceDue = false;
+
+        // The dispatch loops running, nested ones (a native running script) included
+        int dispatchDepth = 0;
 
         // Pool-based memory management (replaces old pointer-based refCounts)
         VMPools pools;
