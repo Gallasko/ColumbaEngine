@@ -894,6 +894,11 @@ namespace pg
             profiler.printBytecodeReport();
         }
 
+        inline void printProfilingSourceReport(double minPercent = 0.1)
+        {
+            profiler.printSourceReport(minPercent);
+        }
+
         inline void printBytecodeWithPerformance(const std::string& functionName) const
         {
             profiler.printBytecodeWithPerformance(functionName);
@@ -1119,6 +1124,9 @@ namespace pg
         void initialize_builtin_classes();
 
         std::string currentFileName;
+
+        // The module file being compiled from source while the script imports it; empty for the script itself
+        std::string compilingModule;
 
         std::unordered_map<std::string, NativeFn> registeredNativeFunctions;
 

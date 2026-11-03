@@ -811,6 +811,8 @@ namespace pg
 
                     const void* chunkPtr = &currentFrame->closure->function->chunk;
                     const std::string& functionName = currentFrame->closure->function->name;
+                    const std::string& sourceFile = currentFrame->closure->function->sourceFile;
+                    const int line = meta.lineNumber;
                     const uint8_t opcode = meta.originalOpcode;
                     const size_t  offset = meta.bytecodeOffset;
                     // Fused instructions report their own name (FUSED_…); plain
@@ -825,7 +827,7 @@ namespace pg
                     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
 
                     profiler.recordInstruction(chunkPtr, functionName, offset,
-                                               opcode, opcodeName, duration);
+                                               opcode, opcodeName, duration, sourceFile, line);
                 }
                 else
                 {

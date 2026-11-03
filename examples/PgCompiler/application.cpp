@@ -374,6 +374,7 @@ void CompilerApp::runFile(bool needCompile)
     if (profilingEnabled)
     {
         vm->printProfilingReport();
+        vm->printProfilingSourceReport();
         vm->printProfilingBytecodeReport();
         vm->printAllFunctionsBytecodeWithPerformance();
     }

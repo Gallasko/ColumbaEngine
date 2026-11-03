@@ -26,6 +26,8 @@ namespace pg
             const void* chunkPtr = nullptr;  // Pointer to chunk (for uniqueness)
             std::string functionName;        // Name of the function/chunk
             std::string opcodeName;
+            std::string sourceFile;          // File the function was compiled from (empty: from bytecode)
+            int line = -1;                   // Source line the instruction was emitted for
 
             double averageTimeNs() const
             {
@@ -84,9 +86,12 @@ namespace pg
          * @param opcode The opcode being executed
          * @param opcodeName The name of the opcode for display
          * @param nanoseconds Time spent executing this instruction
+         * @param sourceFile File the function was compiled from
+         * @param line Source line the instruction was emitted for
          */
         inline void recordInstruction(const void* chunkPtr, const std::string& functionName, size_t instructionOffset,
-                                      uint8_t opcode, const std::string& opcodeName, uint64_t nanoseconds)
+                                      uint8_t opcode, const std::string& opcodeName, uint64_t nanoseconds,
+                                      const std::string& sourceFile = "", int line = -1)
         {
             if (!enabled) return;
 
@@ -101,6 +106,8 @@ namespace pg
                 profile.chunkPtr = chunkPtr;
                 profile.functionName = functionName;
                 profile.opcodeName = opcodeName;
+                profile.sourceFile = sourceFile;
+                profile.line = line;
             }
 
             profile.executionCount++;
@@ -273,6 +280,18 @@ namespace pg
          * @param functionName Name of the function to print performance data for
          */
         void printBytecodeWithPerformance(const std::string& functionName) const;
+
+        /**
+         * @brief Print each profiled source file as its statement tree, with the time of each statement
+         *
+         * The file is parsed again (its AST as written, before the passes) and each statement owns the
+         * lines from its own up to the next statement at its level; an instruction counts on the line
+         * it was emitted for. The time is lexical: what is written inside a statement, so a call counts
+         * only its dispatch there and the callee counts where the callee is written. Code inlined from
+         * another file keeps that file's line numbers and lands on the wrong line.
+         * @param minPercent Statements under this share of the run are folded into one line
+         */
+        void printSourceReport(double minPercent = 0.1) const;
 
     private:
         bool enabled;

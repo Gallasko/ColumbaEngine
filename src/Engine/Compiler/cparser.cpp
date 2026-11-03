@@ -1577,6 +1577,15 @@ namespace pg
             return false;
         }
 
+        // The functions compiled from here on are written in the module (ObjFunction::sourceFile)
+        struct CompilingModule
+        {
+            VM* vm;
+            std::string outer;
+            CompilingModule(VM* vm, const std::string& path) : vm(vm), outer(vm->compilingModule) { vm->compilingModule = path; }
+            ~CompilingModule() { vm->compilingModule = outer; }
+        } compilingModule(vm, fullPath);
+
         // .pg file exists - load and compile the imported file during parsing
         try
         {

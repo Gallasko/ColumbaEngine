@@ -275,6 +275,7 @@ namespace pg
         }
 
         vm->asFunction(currentFunction)->name = functionName;
+        vm->asFunction(currentFunction)->sourceFile = vm->compilingModule.empty() ? vm->currentFileName : vm->compilingModule;
 
         if (type == FunctionType::TYPE_METHOD || type == FunctionType::TYPE_INITIALIZER)
         {

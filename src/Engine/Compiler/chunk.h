@@ -551,6 +551,9 @@ namespace pg
         // Loaded from a .pgc: its bytecode went through the passes when it was compiled
         bool precompiled = false;
 
+        // The file its source was compiled from, for the profile by source; empty when made from bytecode
+        std::string sourceFile;
+
         ~ObjFunction();
     };
 }
