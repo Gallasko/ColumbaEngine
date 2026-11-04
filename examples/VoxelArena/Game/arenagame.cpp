@@ -4176,7 +4176,20 @@ namespace arena
                             pose = poseAt(*attack, weapon.rest, fr);
 
                         // Hand in the body frame; x is the fighter's right, which is the model's -X
-                        glm::mat4 handFrame = bodyThen * glm::translate(glm::mat4(1.0f), glm::vec3(-tuning.player.hand.x, tuning.player.hand.y, tuning.player.hand.z)) *
+                        glm::vec3 hand(-tuning.player.hand.x, tuning.player.hand.y, tuning.player.hand.z);
+
+                        // Held out in the fist, where the arm points (a bow at the shoulder): the end of the arm,
+                        // turned with it
+                        if (attack and weapon.followArm)
+                            for (const auto& part : model.parts)
+                                if (part.name == "arm_r")
+                                {
+                                    const glm::vec3 shoulder = (part.joint - model.pivot) * scale;
+                                    const float down = (part.length - 0.5f) * scale;
+                                    hand = shoulder + glm::vec3(partPose(part.name, f, gaits[f.id], fr) * glm::vec4(hand.x - shoulder.x, -down, 0.0f, 0.0f));
+                                }
+
+                        glm::mat4 handFrame = bodyThen * glm::translate(glm::mat4(1.0f), hand) *
                                               rotX(attack ? f.attackPitch : 0.0f);   // aimed down at a target below, up at one above
 
                         if (viewModel)
@@ -4191,10 +4204,11 @@ namespace arena
                             const auto& fp = tuning.firstPerson;
                             handFrame = glm::translate(glm::mat4(1.0f), camera.position) * rotY(camera.viewYaw + around) * rotX(camera.viewPitch) *
                                         glm::scale(glm::mat4(1.0f), glm::vec3(fp.viewModelScale)) *
-                                        glm::translate(glm::mat4(1.0f), glm::vec3(-fp.weapon.x, fp.weapon.y, fp.weapon.z));
+                                        glm::translate(glm::mat4(1.0f), glm::vec3(-held.x, held.y, held.z)) * rotZ(weapon.viewTilt);
                         }
 
                         const float roll = attack and weapon.followSwing ? swingRoll(*attack, weapon.rest.rollFrom, fr) : pose.rollFrom;
+                            const glm::vec3 held = weapon.hasView ? weapon.view : fp.weapon;
 
                         return handFrame *
                             rotY(-pose.yawFrom) * rotX(-pose.pitchFrom) * rotZ(roll) *

@@ -5,6 +5,11 @@
 // Heavy draws a power shot that hits hard and breaks poise. It keeps you moving while you
 // shoot, but up close it has nothing: keep your distance, roll away and shoot again.
 // A "projectile" leaves on the attack's first active frame; "count" and "spread" fan several out.
+// The swings hold the bow upright (pitch 90: the string to you, the belly to the target) and let it
+// kick forward a little as the arrow leaves. followArm: while it shoots, the bow is held where the arm
+// points (out at the shoulder), not at the hip. view: where it is held in first person (right, up,
+// forward from the eye; tuning firstPerson.weapon if not set): further out than the others, as it is tall.
+// viewTilt: in first person it leans this many degrees, the top to the left.
 {
     "name": "Hunter's Bow",
     "type": "bow",
@@ -21,6 +26,9 @@
     "modelScale": 0.0625,
     "grip": [1.0, 0.0, 9.5],
     "rest": { "yaw": 10, "pitch": 70 },
+    "followArm": true,
+    "view": [0.42, -0.3, 0.9],
+    "viewTilt": 15,
 
     "moveset": {
         "light": "shot1",
@@ -43,7 +51,7 @@
                 "projectile": { "speed": 32, "gravity": 4, "radius": 0.1, "lifetime": 2,
                                 "damage": 6, "poiseDamage": 4, "knockback": 2, "terrainDamage": 6,
                                 "hitstop": 2, "shake": 0.1, "spawn": [0.2, 1.45, 0.5], "model": "arrow", "modelScale": 0.0625 },
-                "swing": { "yaw": 0, "pitchFrom": 0, "pitchTo": -8 }
+                "swing": { "yaw": 0, "pitchFrom": 90, "pitchTo": 82 }
             },
             "shot2": {
                 "moveSpeed": 0.8,
@@ -57,7 +65,7 @@
                 "projectile": { "speed": 32, "gravity": 4, "radius": 0.1, "lifetime": 2,
                                 "damage": 6, "poiseDamage": 4, "knockback": 2, "terrainDamage": 6,
                                 "hitstop": 2, "shake": 0.1, "spawn": [0.2, 1.45, 0.5], "model": "arrow", "modelScale": 0.0625 },
-                "swing": { "yaw": 0, "pitchFrom": 0, "pitchTo": -8 }
+                "swing": { "yaw": 0, "pitchFrom": 90, "pitchTo": 82 }
             },
             "power_shot": {
                 "moveSpeed": 0.35, "armor": 5,
@@ -68,7 +76,7 @@
                 "projectile": { "speed": 60, "gravity": 2, "radius": 0.14, "lifetime": 2,
                                 "damage": 24, "poiseDamage": 24, "knockback": 7, "terrainDamage": 25,
                                 "hitstop": 5, "shake": 0.3, "spawn": [0.2, 1.45, 0.5], "model": "arrow", "modelScale": 0.08 },
-                "swing": { "yaw": 0, "pitchFrom": 10, "pitchTo": -12 }
+                "swing": { "yaw": 0, "pitchFrom": 96, "pitchTo": 80 }
             },
             "running_shot": {
                 "moveSpeed": 1.0,
@@ -79,7 +87,7 @@
                 "projectile": { "speed": 44, "gravity": 4, "radius": 0.1, "lifetime": 2,
                                 "damage": 10, "poiseDamage": 7, "knockback": 3, "terrainDamage": 6,
                                 "hitstop": 2, "shake": 0.1, "spawn": [0.2, 1.45, 0.5], "model": "arrow", "modelScale": 0.0625 },
-                "swing": { "yaw": 0, "pitchFrom": 0, "pitchTo": -8 }
+                "swing": { "yaw": 0, "pitchFrom": 90, "pitchTo": 82 }
             },
             "roll_shot": {
                 "moveSpeed": 0.6,
@@ -90,7 +98,7 @@
                 "projectile": { "speed": 44, "gravity": 4, "radius": 0.1, "lifetime": 2,
                                 "damage": 10, "poiseDamage": 7, "knockback": 3, "terrainDamage": 6,
                                 "hitstop": 2, "shake": 0.1, "spawn": [0.2, 1.3, 0.5], "model": "arrow", "modelScale": 0.0625 },
-                "swing": { "yaw": 0, "pitchFrom": 0, "pitchTo": -8 }
+                "swing": { "yaw": 0, "pitchFrom": 90, "pitchTo": 82 }
             },
             "air_shot": {
                 "moveSpeed": 0.8, "gravityScale": 0.3,
@@ -100,7 +108,7 @@
                 "projectile": { "speed": 42, "gravity": 4, "radius": 0.1, "lifetime": 2,
                                 "damage": 9, "poiseDamage": 6, "knockback": 2, "terrainDamage": 6,
                                 "hitstop": 2, "shake": 0.1, "spawn": [0.2, 1.45, 0.5], "model": "arrow", "modelScale": 0.0625 },
-                "swing": { "yaw": 0, "pitchFrom": 0, "pitchTo": -8 }
+                "swing": { "yaw": 0, "pitchFrom": 90, "pitchTo": 82 }
             },
             "air_volley": {
                 "moveSpeed": 0.5, "gravityScale": 0.2,
@@ -110,7 +118,7 @@
                 "projectile": { "count": 3, "spread": 8, "speed": 40, "gravity": 4, "radius": 0.1, "lifetime": 2,
                                 "damage": 7, "poiseDamage": 5, "knockback": 2, "terrainDamage": 6,
                                 "hitstop": 2, "shake": 0.15, "spawn": [0.2, 1.45, 0.5], "model": "arrow", "modelScale": 0.0625 },
-                "swing": { "yaw": 0, "pitchFrom": 5, "pitchTo": -10 }
+                "swing": { "yaw": 0, "pitchFrom": 94, "pitchTo": 82 }
             }
         }
     }

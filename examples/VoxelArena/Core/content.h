@@ -482,6 +482,10 @@ namespace arena
 
         Moveset moveset;
         std::string file;
+        bool followArm = false;               // in an attack, held where the arm points (a bow out at the shoulder), not at the hand point
+        glm::vec3 view = glm::vec3(0.0f);     // first person: where it is held from the eye, right, up, forward (tuning firstPerson.weapon if not set)
+        bool hasView = false;
+        float viewTilt = 0.0f;                // first person: leant this many degrees, the top to the left
     };
 
     /**
@@ -837,6 +841,7 @@ namespace arena
          * A hash of the gameplay content (definitions after patches, tuning, arena, scripts), with
          * what only looks left out: models, effects, sounds, colours, swing poses, camera shake,
          * names, the camera and the controls. Two machines with the same fingerprint run the same
+            float length = 0.0f;   // how far it reaches from its joint, in voxels (a limb's top to its bottom)
          * game: a client whose fingerprint differs from the server's is refused, while a client with
          * its own looks (a texture pack, other sounds) can join.
          */

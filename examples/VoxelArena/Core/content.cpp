@@ -30,7 +30,7 @@ namespace arena
 
         const std::map<std::string, std::vector<std::string>> DEF_LOOKS = {
             {"block", {"color", "colorNoise", "visible", "texture", "model"}},
-            {"weapon", {"name", "text", "lightText", "heavyText", "model", "modelScale", "grip", "rest",
+            {"weapon", {"name", "text", "lightText", "heavyText", "model", "modelScale", "grip", "rest", "followArm", "view", "viewTilt",
                         "moveset.attacks.*.swing", "moveset.attacks.*.shake", "moveset.attacks.*.turn", "moveset.attacks.*.tell",
                         "moveset.attacks.*.projectile.model", "moveset.attacks.*.projectile.modelScale", "moveset.attacks.*.projectile.shake"}},
             {"enemy", {"name", "model", "modelScale",
@@ -2022,7 +2022,7 @@ namespace arena
                 const Json& j = raw.data;
 
                 checkKeys(j, {"id", "name", "type", "role", "text", "lightText", "heavyText", "regen", "mana", "levels", "branches", "model", "modelScale", "grip", "rest",
-                              "followSwing", "moveset"},
+                              "followSwing", "followArm", "view", "viewTilt", "moveset"},
                           raw.file, report, "weapon " + id);
 
                 WeaponDef w;
@@ -2179,6 +2179,10 @@ namespace arena
                         readNum(*weak, name, e.weakness[static_cast<int>(el)], raw.file, report);
                     }
                 }
+                readBool(j, "followArm", w.followArm, raw.file, report);
+                w.hasView = j.find("view") != nullptr;
+                readVec3(j, "view", w.view, raw.file, report);
+                readNum(j, "viewTilt", w.viewTilt, raw.file, report);
                 readNum(j, "walkSpeed", e.walkSpeed, raw.file, report);
                 readNum(j, "turnSpeed", e.turnSpeed, raw.file, report);
                 readNum(j, "respawnSeconds", e.respawnSeconds, raw.file, report);
@@ -2760,3 +2764,4 @@ namespace arena
         return content;
     }
 }
+            parts[i].length = hgh.y - l.y;
