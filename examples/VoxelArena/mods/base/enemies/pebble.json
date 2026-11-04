@@ -1,0 +1,41 @@
+// A pebble: what a golem breaks into. Small and quick, it scurries at you and nips.
+{
+    "name": "Pebble",
+    "model": "pebble",
+    "modelScale": 0.125,
+    "size": [0.6, 0.6],
+
+    "health": 28,
+    "poise": 6,
+    "poiseRegenDelay": 1.0,
+    "staggerFrames": 26,
+    "knockbackScale": 1.4,
+
+    "walkSpeed": 4.8,
+    "turnSpeed": 480,
+    "respawnSeconds": 4,
+
+    "score": 3,
+    "drops": 1,
+    "weakness": { "volt": 1.5, "fire": 0.6 },
+
+    "script": "pebble",
+    "params": {
+        "engageRange": 30,
+        "biteRange": 1.5,
+        "cooldown": 0.9
+    },
+
+    "moveset": {
+        "attacks": {
+            "nip": {
+                "startup": 12, "active": 4, "recovery": 18,
+                "damage": 6, "poiseDamage": 0, "knockback": 3, "hitstop": 2, "shake": 0.1,
+                "turnRate": 4,
+                "lunge": 5, "lungeFrom": 10, "lungeTo": 16,
+                "hitboxes": [ { "offset": [0, 0.3, 0.6], "size": [0.8, 0.6, 0.9] } ],
+                "swing": { "pitchFrom": -10, "pitchTo": 14 }
+            }
+        }
+    }
+}

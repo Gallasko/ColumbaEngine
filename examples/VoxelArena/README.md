@@ -1,8 +1,8 @@
 # Voxel Arena 0.1
 
 A small voxel arena game, the combat demo of the voxel RPG: twenty timed waves of enemies that keep
-coming, the shards they drop to spend in a shop between waves, bosses midway and at the end, a score
-to beat. Three weapons with their combos and skills, spells you make
+coming (each arena brings its own, and elites come with affixes that change how they fight), the
+shards they drop to spend in a shop between waves, bosses midway and at the end, a score to beat. Three weapons with their combos and skills, spells you make
 yourself, movement tech, an arena you can break, and co-op. A second mod, `testmod`, adds a spear
 without any C++.
 
@@ -16,7 +16,7 @@ cd release
 make -j18 VoxelArena VoxelArenaServer test_voxelarena
 cd ..
 ./release/VoxelArena            # or ./make_and_play.sh VoxelArena
-./release/test_voxelarena       # 243 tests, about three seconds
+./release/test_voxelarena       # 268 tests, about four seconds
 ```
 
 The game reads its mods and its shader straight from the source tree (`examples/VoxelArena/mods`,
@@ -75,10 +75,25 @@ and enemies that come back), **O** for the options.
   time is up; whoever is left then goes.
 - **Slimes first**: the first waves are slimes only. They hop their way to you (a hop that lands on
   you stings a little), and close up they squash down, glow, pounce, and bounce back off. Skulkers
-  join from wave 3, archers from 4, brutes from 6. From wave 7
-  some come as **elites**, glowing gold: tougher, harder hitting, three times the shards, and now and
-  then (35%, three a wave at most) a **present**: a gold box with a red ribbon. Each one picked up is a
-  free shop item, picked among three after the level ups.
+  join from wave 3, archers from 4, brutes from 6.
+- **Each arena brings its own enemy**, from its first wave on (rarer after it): the Stockade's
+  **sappers** (from wave 5), the Gorge's **menders** (9), the Icefall's **rimecallers** (13) and the
+  Quarry's **golems** (17). See The enemies below.
+- **Elites**: from wave 7 some come as elites: tougher, harder hitting, three times the shards, and now
+  and then (35%, three a wave at most) a **present**: a gold box with a red ribbon. Each one picked up is
+  a free shop item, picked among three after the level ups. An elite comes with an **affix**
+  (`affixes.json`), two from wave 15 (`run.json` `eliteAffixes`). It glows the first one's colour and
+  their names show over its bar:
+  - *Blazing*: leaves fire behind it as it walks, and its hits burn;
+  - *Frosty*: its hits slow you (frost: 30% slower, it never freezes you solid), and it bursts into frost as it dies;
+  - *Guardian*: enemies within 6 m of it take half damage (they glow white: kill it first);
+  - *Volatile*: explodes a second after it dies (a red ring on the ground shows where);
+  - *Swift*: 45% faster;
+  - *Splitting*: splits into two plain copies with 40% of the health as it dies;
+  - *Regenerating*: heals 6% of its health a second once you stop hitting it for 2 s.
+- **Blasts**: what explodes as it dies (a sapper, a volatile elite) first shows a red ring on the ground
+  that fills in, for its `delay`; then everyone in it is hit. Enemies' ground (a blazing trail, a frost
+  puddle) has a red edge: it hurts you, not them.
 - **Shards**: what the enemies drop. They fly to you within pickup range (and the ones left lying
   are yours at the end of the wave). They are money and XP at once. In co-op every player gets every
   shard anyone picks up, money and XP.
@@ -90,7 +105,11 @@ and enemies that come back), **O** for the options.
   spell** (while one of the three spell keys is free), a **new technique** of the weapon in hand, the
   **next level of the weapon** in hand (it starts at level 1), or the **next level** of one you have.
   One pick is always a next level of something you have, the other two are new, until every spell key
-  and technique is filled; after that all three are next levels. Levels never run out:
+  and technique is filled; after that all three are next levels. Each player has 3 **rerolls** of the
+  picks for the whole run (R, or the Reroll button) and 3 **banishes** (Shift + 1-3, or a card's Banish
+  button): a banished spell or technique is never offered again in the run, and another pick of the
+  same kind takes its place. A branch choice cannot be banished (`run.json` `levelRerolls`,
+  `levelBanishes`). Levels never run out:
   - a spell's written `levels` add keywords (Firebolt II adds Enlarge, III Extend, IV Empower); a
     technique's add a boost (+15% damage, a faster recharge...); the weapon's boost its light and
     heavy attacks (Iron Sword II: +20% damage, III: +10% attack speed...);
@@ -140,6 +159,16 @@ and enemies that come back), **O** for the options.
     cooldown; Tireless: -20% technique stamina cost... One is offered only when something of yours has
     its tag. Leech (life on hit) heals in full from a direct hit (a
     swing, an arrow, a bolt or a beam striking), a fifth from an area's, a zone's or a chain's.
+  - trade-offs, something big for something lost: Glass cannon (+35% damage, -30% max health),
+    Juggernaut (+12% armor and 20 health, 12% slower), Cursed coin (25% more shards, you take 20% more
+    damage), Overclock (25% shorter cooldowns, spells cost 35% more and stamina comes back 30% slower).
+    A rarity only makes the good side bigger: the downside stays as written;
+  - items for the moment: Last stand (+40% damage under half health), Sky striker (+35% in the air),
+    Executioner (+50% to enemies under 30% health), Grudge (+40% for 3 s after you take a hit);
+  - triggers: Thorns (enemies that hit you take 80% of it back), Soul siphon (heal 2 on each kill), Ember
+    trail (a roll leaves burning ground where it starts), Static charge (every 5th weapon hit deals 14
+    lightning damage and jumps to 2 more enemies), Meteor boots (a hard landing, a fast fall, hits
+    everyone within 3.5 m for 30). Their damage grows with the waves, as the enemies' health does;
   - payoff items, for statuses and combos, offered only when something of yours makes what they need
     (`needs`, `needsElements`): Catalyst (combos do 40% more damage; with two elements), Kindling
     (+30% damage to burning enemies), Brittle (+30% to slowed and frozen ones), Pyre (burning enemies
@@ -187,6 +216,11 @@ and enemies that come back), **O** for the options.
 - **The score**: points per kill (twice for an elite), per wave survived, and a bonus for the victory.
   The best is kept (`~/.local/share/voxelarena/best.txt`). **Enter** at the end plays again, **T** goes
   training.
+- **Your damage**: the end screen's panel on the right lists what your damage came from, the most first:
+  your weapon, each spell and technique, element combos, burns, item triggers, the sapper blasts you set
+  off... with each one's share. Alone and in co-op.
+- **Damage numbers**: your hits' damage rises off what you hit (bigger for a kill, gold for a crit; a
+  quick run of hits on one enemy adds up into one number). Options: Damage numbers.
 - **The recap**: with two players or more, the end screen has a row for each player: their level,
   kills, damage dealt, healing (when someone healed), shards and XP picked up, presents picked up,
   items bought and falls. Console: `bot` adds an idle player, to try the duel and the recap alone.
@@ -220,7 +254,7 @@ for the players from anywhere, whatever its engage range.
 | E | Dig a pit where the crosshair is |
 | G / middle mouse (hold) | Mine the block under the crosshair |
 | 1, 2, 3 | Your spells, at the crosshair (training: firebolt, ice shards, chain lightning; a run: what level ups gave) |
-| O | Options: mouse sensitivity, invert Y, field of view, volume, camera shake, hit flash, slash trails, view, frame rate (30 to 240, or no limit), debug overlay (kept in `~/.local/share/voxelarena/options.json`); the arrows pick and change a row |
+| O | Options: mouse sensitivity, invert Y, field of view, volume, camera shake, hit flash, slash trails, view, frame rate (30 to 240, or no limit), debug overlay, damage numbers (kept in `~/.local/share/voxelarena/options.json`); the arrows pick and change a row |
 | R, 4 | The weapon's skills (dagger: shadow dash, hold to charge, and backflip; sword: whirlwind and leap slam) |
 | F1 | Debug overlay |
 | F2 | Hitboxes (red: active, orange: winding up) and hurtboxes (green, blue while invulnerable) |
@@ -363,10 +397,16 @@ Each one is a JSON file in `mods/base/enemies/` and a pgscript brain in `mods/ba
 | Archer | Ranged | Keeps 6 to 14 m away, backs off when you close in, moves sideways to find a line of fire when a block is in the way, shoots sooner while you are busy. |
 | Skulker | Flanker | Fast and weak. Goes round to your back while someone else holds your attention, bites when you cannot see it, backs off after each bite. |
 | Stone Warden | Boss | Slow and huge. Slams, sweeps all around once angry, charges from the middle distance, throws rocks when you keep away. Weak to volt, resists fire. Three phases, shielded by four crystals between them. |
+| Sapper | Bomber | The Stockade on. Runs straight at you; close enough, it lights its fuse (it glows red) and goes up. However it goes down, its keg explodes a second later: a red ring shows where, and it hurts everyone in it, enemies too, and sets planks and hay alight. A sapper you kill counts its blast as yours. |
+| Mender | Support | The Gorge on. Keeps behind the others like an archer, and when some of them are hurt it mends everyone within 7 m (a green pulse, stronger as the waves go on). Never mends a boss's crystal. Its own attack is a weak bolt. |
+| Rimecaller | Area denial | The Icefall on. Keeps its distance and lobs orbs of frost over walls; where one lands the ground stays frozen for a few seconds and slows you. Fire hurts it more. |
+| Golem | Tank | The Quarry on. Slow and tough, slams the ground through blocks. As it falls it breaks into three pebbles. Lightning cracks it. |
+| Pebble | Swarm | What a golem breaks into: small and quick, it scurries at you and nips. |
 | Shield Crystal | Object | Rises around the arena when a boss shields itself. Never moves or fights. Break them all to drop the shield. |
 
 Scripts work as a group through what the game puts in `me`: `alliesNear`, `alliesAttacking`,
-`alliesNearTarget` (other enemies close to you) and `targetFacing` (0 = in front of you, 180 =
+`alliesNearTarget` (other enemies close to you), `alliesHurt` (other enemies within 10 m under 80% of their
+health: what the mender mends) and `targetFacing` (0 = in front of you, 180 =
 behind). A script answers with `me.move` (`hold`, `chase`, `strafe`, `retreat`, `flank`), `me.attack`,
 and for `flank` the distance it keeps, `me.radius`. The full list is at the top of `brute.pg`.
 
@@ -374,6 +414,8 @@ and for `flank` the distance it keeps, `me.radius`. The full list is at the top 
 `poiseDamage`, `terrainDamage`, `spawn`, `model`...) fires on the attack's first active frame. An
 enemy aims at your chest, raised for the arc and leading you by `lead`. A roll's invulnerable frames
 let an arrow through; a block stops it (and takes `terrainDamage`), so a raised wall is cover.
+`burst` hits everyone that close to where it lands, and `ground` leaves a zone there (`radius`,
+`duration`, `perSecond`, `element`, `status`: the rimecaller's frost puddle).
 
 ## Sounds, particles and animation
 
@@ -578,16 +620,17 @@ content API version the mod was written for. The API is unstable: a mismatch is 
 | File | Defines | ID |
 |---|---|---|
 | `blocks.json` | blocks: `color`, `solid`, `colorNoise`, `hardness`, `breakable`, `flammable`, `weakness`, `texture` (one name, or `{ "top", "side", "bottom" }`), `shape` (`cube`, `cross` for grass and flowers, `model` with a `model` for a small voxel model) | `mymod:<key>` |
-| `statuses.json` | statuses: `duration`, `damagePerSecond`, `slow`, `maxStacks`, `atMax`, `stagger`, `heavy` | `mymod:<key>` |
+| `statuses.json` | statuses: `duration`, `damagePerSecond`, `slow`, `maxStacks`, `atMax`, `stagger`, `heavy`, `imbue`, `damageTaken` (one with it takes this much more damage: -0.5 halves it) | `mymod:<key>` |
+| `affixes.json` | what elites come with: `name`, `text`, `colour`, `weight`, `health`, `damage`, `speed`, `onHit` (a status its hits leave), `trail` (ground behind it), `regen`, `aura` (`status`, `radius`: on its allies), `blast` and `split` (as an enemy's) | `mymod:<key>` |
 | `abilities/<name>.json` | an ability: terrain (`kind`: wall, pit, mine) or a weapon skill (attack); a run's technique also has `tags`, `levels` (a boost each: `[{ "damage": 0.15 }]`) and `branches` (`name`, `text`, `element`, `status`, `tags`, `boost`) | `mymod:<name>` |
 | `elements.json` | the elements of spells: `name`, `status`, `mana` (fire, ice, volt) | `mymod:<key>` |
 | `keywords.json` | the keywords of spells: forms (`shape`: bolt, zone, nova, beam) and modifiers | `mymod:<key>` |
 | `spells/<name>.json` | a ready-made spell: `name`, `text`, `recipe` (`["fire", "bolt", "zone"]`), `levels` (what each level after the first adds: `[["enlarge"], ["extend"]]`), `branches` (`name`, `text`, `keywords` added to the recipe, `tags`, `boost`) | `mymod:<name>` |
-| `upgrades.json` | the items of a run's shop: what a stat item adds (`maxHealth`, `damage`, `armor`, `crit`, `regen`, `pickupRange`, `dashCharges`, `horde`, `xpGain`, `shardChance`...) or a tag item does to everything of the player with its `tag` (`"boost": { "damage", "area", "cooldown", "cost", "duration", "speed", "count" }`), its `price`, how many one can have (`most`: none by default), the rarities it comes at (`tiers`: `["Rare"]`; none: any), its `look` | `mymod:<key>` |
-| `run.json` | the arena run: waves, spawn pools and `spawnScale`, elites, bosses, XP, the start kit and spells, `levelSkills`, `branchLevel`, `mastery`, `presents`, `intermission`, the shop (`priceScale`, `coopPrice`, `interest`, `rarities`), score, `damageFalloff`, `bossCoopHealth`, the `arenas` by wave and the duel's, the `difficulties` (each a `name`, `waves`, enemy `health`, `damage`, `healthGrowth`, `damageGrowth`, `spawn`, `eliteChance`; winning one opens the next) (the last mod with one wins) | |
+| `upgrades.json` | the items of a run's shop: what a stat item adds (`maxHealth`, `damage`, `armor`, `crit`, `regen`, `pickupRange`, `dashCharges`, `horde`, `xpGain`, `shardChance`...; trade-offs: `healthScale`, `damageTaken`, any negative number, never scaled by a rarity; the moment's: `hurtDamage`, `airDamage`, `executeDamage`, `revengeDamage`; triggers: `thorns`, `killHeal`, `dodgeGround`, `proc` { `every`, `chains`, `damage`, `element`, `status` }, `landing` { `radius`, `damage` }) or a tag item does to everything of the player with its `tag` (`"boost": { "damage", "area", "cooldown", "cost", "duration", "speed", "count" }`), its `price`, how many one can have (`most`: none by default), the rarities it comes at (`tiers`: `["Rare"]`; none: any), its `look` | `mymod:<key>` |
+| `run.json` | the arena run: waves, spawn pools and `spawnScale`, elites, bosses, XP, the start kit and spells, `levelSkills`, `levelRerolls`, `levelBanishes`, `branchLevel`, `mastery`, `presents`, `eliteAffixes` ([{ `from`, `count` }]), `intermission`, the shop (`priceScale`, `coopPrice`, `interest`, `rarities`), score, `damageFalloff`, `bossCoopHealth`, the `arenas` by wave and the duel's, the `difficulties` (each a `name`, `waves`, enemy `health`, `damage`, `healthGrowth`, `damageGrowth`, `spawn`, `eliteChance`; winning one opens the next) (the last mod with one wins) | |
 | `arenas/<name>.json` | an arena for the run: `name`, `size`, `shapes`, `scatter` (decorations sown by chance: `[{ "block", "on", "chance" }]`), `playerSpawn`, `centre`, `spawnRadius` | `mymod:<name>` |
 | `weapons/<name>.json` | a weapon and its moveset; in a run, its `levels` (a boost each: `[{ "damage": 0.2 }, { "attackSpeed": 0.1 }]`), `branches` (as a technique's) and `mana` (mana back per point of damage) | `mymod:<name>` |
-| `enemies/<name>.json` | an enemy: stats, moveset, script, params; a boss's `phases` (`at`, `crystal`, `crystals`, `radius`, `stagger`); `anchored`: nothing pushes it | `mymod:<name>` |
+| `enemies/<name>.json` | an enemy: stats, moveset, script, params; a boss's `phases` (`at`, `crystal`, `crystals`, `radius`, `stagger`); `anchored`: nothing pushes it (nor mends it); `blast` as it dies (`delay`, `radius`, `damage`, `poiseDamage`, `knockback`, `terrainDamage`, `element`, `status`, `everyone`: both sides); `split` as it dies in a run (`enemy`, `count`, `health`) | `mymod:<name>` |
 | `models/<name>.vxl.json` | a voxel model (saved by the VoxelTest editor) | `mymod:<name>` |
 | `textures/<name>.png` | a block texture (16 x 16 pixel art, any square size works); see-through pixels are not drawn | `mymod:<name>` |
 | `scripts/<name>.pg` | an enemy brain | `mymod:<name>` |
@@ -639,6 +682,8 @@ See `mods/base/weapons/sword.json`: the header comment explains every field. In 
 - `dash`: the lunge sets the speed at once instead of speeding up to it. `charge` (`at`, `frames`,
   `lunge`, `damage`): held, the attack waits at frame `at` up to `frames`, then lunges and hits up to
   `lunge` and `damage` times harder. `tell`: `"heavy"` gives an enemy attack the heavy warning (looks only).
+  `dies`: an enemy's attack that ends in its own death, and no reward for anyone (the sapper's fuse; its
+  `blast` goes off as it dies).
 - The moveset names `light`, `heavy`, `dodgeAttack`, `dashAttack`, `airLight` and `airHeavy`.
 
 A weapon has a `type` (`dagger`, `sword`...). A weapon skill is an ability with `"kind": "attack"`,
@@ -691,6 +736,7 @@ Open with `` ` ``. `help` lists the commands.
 | `tune <key> [value]` | Read or set a tuning value until the next reload (`tune player.walkSpeed 7`) |
 | `tunes [prefix]` | List tuning values |
 | `spawn <enemy> [count]` | Spawn enemies in front of you (`spawn brute 3`) |
+| `elite <enemy> [affix ...]` | An elite in front of you with those affixes, or one picked as a run would (`elite brute blazing guardian`) |
 | `clear`, `reset` | Remove the enemies; restart the arena |
 | `weapon <id>`, `weapons` | Wield a weapon; list them |
 | `view [first|third]` | Switch the camera |

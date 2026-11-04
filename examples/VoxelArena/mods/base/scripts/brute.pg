@@ -17,6 +17,7 @@
 //   me.params        the "params" object of enemies/brute.json
 //   me.id            my id, unique per enemy
 //   me.alliesNear, me.alliesAttacking, me.alliesNearTarget  the rest of the group (see skulker.pg)
+//   me.alliesHurt    other enemies within 10 m with less than 80% of their health (see mender.pg)
 //   me.targetFacing  degrees: 0 = I am in front of the player, 180 = right behind it
 //   me.hunting       true in an arena run: every enemy comes for the players, however far
 //

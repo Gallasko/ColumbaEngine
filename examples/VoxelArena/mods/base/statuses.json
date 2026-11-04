@@ -4,7 +4,8 @@
 // stagger: frames of stagger when it lands, an interrupt whatever the poise (an attack with armor
 // shrugs it off, unless heavy); heavy: it cannot be rolled out of, armor or not.
 // imbue: while one has it, its weapon hits leave that status too (a spell's branch gives it with "onCast").
-// name: how one with it is called in the item texts ("burning enemies").
+// name: how one with it is called in the item texts ("burning enemies"). damageTaken: one with it takes this much
+// more damage (-0.5: half as much).
 // What they look like (tint, particles) is in effects.json, under the status id. Statuses that meet set off
 // element combos (combos.json).
 {
@@ -16,5 +17,10 @@
     // A weapon imbued by a spell (its branch): the caster's weapon hits burn, slow or stun for a while
     "flame_weapon": { "duration": 5, "imbue": "burn" },
     "frost_weapon": { "duration": 5, "imbue": "chill" },
-    "storm_weapon": { "duration": 5, "imbue": "shock" }
+    "storm_weapon": { "duration": 5, "imbue": "shock" },
+
+    // What enemies leave on the players and on each other: frost that slows (it never freezes you solid), and a
+    // guardian's ward (half damage taken while it stays close)
+    "rime":   { "name": "frosted", "duration": 1.5, "slow": 0.3 },
+    "warded": { "name": "warded",  "duration": 1.0, "damageTaken": -0.5 }
 }

@@ -154,7 +154,7 @@ namespace arena
         {
             if (f.team == Team::Player)
             {
-                f.maxHealth = t.player.health;
+                f.maxHealth = playerMaxHealth(f);
                 f.maxPoise = t.player.poise;
                 f.body.width = t.player.width;
                 f.body.height = t.player.height;
@@ -456,7 +456,7 @@ namespace arena
     {
         if (f.team == Team::Player)
         {
-            f.maxHealth = tuning.player.health + f.boon.maxHealth;
+            f.maxHealth = playerMaxHealth(f);
             f.maxPoise = tuning.player.poise;
             f.body.width = tuning.player.width;
             f.body.height = tuning.player.height;
@@ -562,6 +562,7 @@ namespace arena
         resolvePendingHits();
         resolveHits();
         stepPhases();
+        flushDeaths();
         terrainFromAttacks();
         stepTerrain();
         recordHistory();
@@ -637,7 +638,13 @@ namespace arena
             if (auto it = content->statuses.find(s.id); it != content->statuses.end())
                 slow += it->second.slow * static_cast<float>(s.stacks);
 
-        return std::clamp(1.0f - slow, 0.1f, 1.0f) * (1.0f + f.boon.speed);
+        const float faster = f.boon.speed + (f.team == Team::Enemy and not f.affixes.empty() ? affixSum(f, &AffixDef::speed) : 0.0f);
+        return std::clamp(1.0f - slow, 0.1f, 1.0f) * std::max(0.1f, 1.0f + faster);
+    }
+
+    float ArenaWorld::playerMaxHealth(const Fighter& f) const
+    {
+        return std::max(1.0f, (tuning.player.health + f.boon.maxHealth) * std::max(0.1f, 1.0f + f.boon.healthScale));
     }
 
     float ArenaWorld::heightAboveGround(const Fighter& f) const
@@ -795,6 +802,13 @@ namespace arena
 
         spendDash(f);
         event("dodge", f.body.position, 1.0f, f.id);
+
+        // An item's ground where the roll starts (burning): the server's
+        if (authority and f.team == Team::Player and f.boon.dodgeGround.any())
+        {
+            leaveGround(f.boon.dodgeGround, f.body.position, f.id, f.team, f.boon.dodgeItem);
+            event(std::string(elementName(f.boon.dodgeGround.element)) + "_zone", f.body.position, f.boon.dodgeGround.radius, 0, AIR, f.id);
+        }
 
         f.action = Action::Dodge;
         f.frame = 0;
@@ -1257,6 +1271,17 @@ namespace arena
         if (f.landedSpeed > 4.0f)
             event(f.landedSpeed >= tuning.player.hardLandingSpeed ? "hard_land" : "land", f.body.position, f.landedSpeed, f.id);
 
+        // A hard landing with an item for it: everyone around takes a hit (the server's)
+        if (authority and f.landedSpeed >= tuning.player.hardLandingSpeed and f.boon.landing.damage > 0.0f and f.boon.landing.radius > 0.0f)
+        {
+            AttackDef quake = hitOf(f.boon.landingItem.empty() ? "landing" : f.boon.landingItem, f.boon.landing.damage * comboScale(), 20.0f, 7.0f, 3, 0.4f, Element::None, {});
+            quake.leech = AREA_LEECH;
+            quake.knockup = 4.0f;
+            quake.source = f.boon.landingItem;
+            hitAround(quake, f.body.position + glm::vec3(0, 0.4f, 0), f.boon.landing.radius, f.id, f.team, false);
+            event("quake", f.body.position, f.boon.landing.radius, f.id);
+        }
+
         if (f.landedSpeed > 0.0f or f.body.mantled)
         {
             const bool dodgeReady = (f.dodgeQueuedAge >= 0.0f or f.airDodgeAge >= 0.0f) and (f.dashCharges >= 1.0f or infiniteStamina);
@@ -1365,6 +1390,7 @@ namespace arena
         if (not f.alive())
             return;
 
+        stepAffixes(f);
         f.sinceHit += dt;
 
         if (f.sinceHit > def.poiseRegenDelay)
@@ -1426,6 +1452,8 @@ namespace arena
                             ++view.alliesAttacking;
                         if (glm::length(flat(o.body.position - target->body.position)) < 3.5f)
                             ++view.alliesNearTarget;
+                        if (glm::length(o.body.position - f.body.position) < 10.0f and o.health < 0.8f * o.maxHealth and not anchoredEnemy(o))
+                            ++view.alliesHurt;
                     }
 
                     const glm::vec3 fromTarget = flat(f.body.position - target->body.position);
@@ -1500,6 +1528,13 @@ namespace arena
 
                 if (not a or f.frame >= a->total())
                 {
+                    // A fuse burnt down: it goes up (its blast), and nobody gets anything for it
+                    if (a and a->dies)
+                    {
+                        die(f, 0, false);
+                        break;
+                    }
+
                     f.action = Action::Free;
                     f.sinceAttack = 0.0f;
                     break;
@@ -1828,7 +1863,7 @@ namespace arena
 
             // A run's technique: as its levels, branch and the player's tag items make it (kept until they change)
             const SpellTweak boost = techniqueBoost(f, it->first);
-            const Fighter::RunSpell* rs = inRun() and f.team == Team::Player ? runSkill(f, it->first) : nullptr;
+            const Fighter::RunSpell* rs = grows() and f.team == Team::Player ? runSkill(f, it->first) : nullptr;
             const int branch = rs ? rs->branch : -1;
 
             if (boost.empty() and branch < 0)
@@ -1852,7 +1887,7 @@ namespace arena
 
         // A run's player: the weapon's attacks take its levels, its branch and the tag items that reach them (damage,
         // area, projectile speed, attack speed; more projectiles only from the weapon's own levels)
-        if (not base or not inRun() or f.team != Team::Player)
+        if (not base or not grows() or f.team != Team::Player)
             return base;
 
         SpellTweak boost = weaponBoost(f, *base);
@@ -2168,7 +2203,7 @@ namespace arena
 
     std::shared_ptr<const Spell> ArenaWorld::spellOf(const SpellRecipe& recipe) const
     {
-        std::string key = recipe.element;
+        std::string key = recipe.source + "|" + recipe.element;
         for (const auto& k : recipe.keywords)
             key += "|" + k;
         if (not recipe.tweak.empty())
@@ -2345,6 +2380,7 @@ namespace arena
             AttackDef hit = hitOf(st.form.id, st.damage, st.poiseDamage, st.knockback, 3, 0.3f, spell->element, spell->status);
             hit.leech = AREA_LEECH;
             hit.payoff = spell->recipe.payoff;
+            hit.source = spell->recipe.source;
 
             for (int k = 0; k < st.count; ++k)
             {
@@ -2409,7 +2445,7 @@ namespace arena
                 ? glm::length(flat(t.body.position - centre)) <= radius + t.body.width * 0.5f and t.body.position.y > centre.y - 1.0f and t.body.position.y < centre.y + 2.0f
                 : glm::length(chest(t) - centre) <= radius + t.body.width * 0.5f;
 
-            if (not inside or t.health >= t.maxHealth)
+            if (not inside or t.health >= t.maxHealth or anchoredEnemy(t))
                 continue;
 
             const float before = t.health;
@@ -2554,6 +2590,7 @@ namespace arena
         {
             AttackDef hit = hitOf(st.form.id, st.damage, st.poiseDamage, st.knockback, 2, 0.2f, spell->element, spell->status);
             hit.payoff = spell->recipe.payoff;
+            hit.source = spell->recipe.source;
             Fighter standIn;
             standIn.team = team;
             standIn.body.position = start;
@@ -2597,11 +2634,13 @@ namespace arena
                 if (z.heal > 0.0f)
                     healAround(z.position, z.radius, z.heal * 0.5f, z.owner, z.team, true);
 
-                if (z.damage > 0.0f or z.poiseDamage > 0.0f or z.spell)
+                // A blast's warning hurts nobody: it goes off as it runs out
+                if (not z.blasting() and (z.damage > 0.0f or z.poiseDamage > 0.0f or z.spell or not z.status.status.empty()))
                 {
-                    const StatusHit status = z.spell ? z.spell->status : StatusHit{};
+                    const StatusHit status = z.spell ? z.spell->status : z.status;
                     AttackDef hit = hitOf("zone", z.damage * 0.5f, z.poiseDamage * 0.5f, 0.0f, 0, 0.0f, z.element, status);
                     hit.leech = AREA_LEECH;   // damage over time
+                    hit.source = z.spell ? z.spell->recipe.source : z.source;
                     if (z.spell)
                         hit.payoff = z.spell->recipe.payoff;
                     hitAround(hit, z.position, z.radius, z.owner, z.team, true);
@@ -2614,9 +2653,11 @@ namespace arena
                 continue;
             }
 
-            // Over: the spell's next form comes out of it
+            // Over: the spell's next form comes out of it, a blast goes off
             const Zone done = z;
             zones.erase(zones.begin() + static_cast<std::ptrdiff_t>(i));
+            if (done.blasting())
+                detonate(done);
             runStage(done.spell, done.stage + 1, done.position + glm::vec3(0, 0.8f, 0), done.dir, done.owner, done.team, nullptr);
         }
     }
@@ -2625,6 +2666,8 @@ namespace arena
     {
         AttackDef hit = hitOf(p.attack.empty() ? p.source : p.attack, p.def.damage, p.def.poiseDamage, p.def.knockback, p.def.hitstop, p.def.shake, p.def.element, p.def.status);
         hit.payoff = p.def.payoff;
+        if (p.spell)
+            hit.source = p.spell->recipe.source;
 
         // Who it hits: the one struck, or everyone close enough to a burst
         std::vector<Fighter*> targets;
@@ -2685,6 +2728,13 @@ namespace arena
         {
             event(std::string(elementName(p.def.element)) + "_burst", point, std::max(p.def.burst, 0.5f), struck ? struck->id : 0, block, p.owner);
             elementOnTerrain(p.def.element, point, p.def.terrainRadius);
+        }
+
+        // Ground where it lands (an enemy's frost puddle)
+        if (p.def.ground.any())
+        {
+            leaveGround(p.def.ground, point, p.owner, p.team, p.source);
+            event(std::string(elementName(p.def.ground.element)) + "_zone", point, p.def.ground.radius, 0, AIR, p.owner);
         }
 
         // A spell's bolt: its hit jumps on (chain), then the next form comes out of where it landed,
@@ -2979,8 +3029,10 @@ namespace arena
             // A healer's: health back around it now, or a zone that heals for a while
             if (a->heal.amount > 0.0f)
             {
-                healAround(chest(f), a->heal.radius, a->heal.amount, f.id, f.team, false);
-                event("heal_burst", chest(f), a->heal.radius, f.id);
+                // An enemy's mending grows with the waves, as their health does
+                const float amount = a->heal.amount * (f.team == Team::Enemy and inRun() ? enemyHealthScale(run.wave) : 1.0f);
+                healAround(chest(f), a->heal.radius, amount, f.id, f.team, false);
+                event(f.team == Team::Enemy ? "enemy_heal" : "heal_burst", chest(f), a->heal.radius, f.id);
             }
 
             if (a->healZone.radius > 0.0f and a->healZone.perSecond > 0.0f and a->healZone.duration > 0.0f)
@@ -3257,8 +3309,10 @@ namespace arena
             return;
         }
 
+        const size_t at = hits.size();
         applyHit(attacker, target, attack);
-        hits.back().point = point;
+        if (at < hits.size())
+            hits[at].point = point;
     }
 
     void ArenaWorld::resolvePendingHits()
@@ -3290,8 +3344,10 @@ namespace arena
 
             Fighter* live = find(hit.attacker.id);
             Fighter& attacker = live ? *live : hit.attacker;
+            const size_t at = hits.size();
             applyHit(attacker, *target, hit.attack);
-            hits.back().point = hit.point;
+            if (at < hits.size())
+                hits[at].point = hit.point;
         }
     }
 
@@ -3313,12 +3369,37 @@ namespace arena
             damage *= crit ? 2.0f : 1.0f;
         }
 
-        // An elite hits harder, every enemy at the harder levels; armor takes some off
+        // A player's items for the moment: under half health, in the air, against one nearly dead, just hit
+        if (attacker.team == Team::Player and not a.combo)
+        {
+            const auto& b = attacker.boon;
+            float more = 0.0f;
+            if (b.hurtDamage > 0.0f and attacker.health < 0.5f * attacker.maxHealth)
+                more += b.hurtDamage;
+            if (b.airDamage > 0.0f and not attacker.body.onGround)
+                more += b.airDamage;
+            if (b.executeDamage > 0.0f and target.health < 0.3f * target.maxHealth)
+                more += b.executeDamage;
+            if (b.revengeDamage > 0.0f and attacker.sinceHit < 3.0f)
+                more += b.revengeDamage;
+            damage *= 1.0f + more;
+        }
+
+        // An elite hits harder (its affixes more), every enemy at the harder levels; armor takes some off
         if (attacker.elite)
-            damage *= 1.4f;
+            damage *= 1.4f * (1.0f + affixSum(attacker, &AffixDef::damage));
         if (inRun() and attacker.team == Team::Enemy)
             damage *= enemyDamageScale(run.wave);
         damage *= 1.0f - std::clamp(target.boon.armor, 0.0f, 0.7f);
+
+        // More or less taken: a player's trade-off items, a status (a guardian's ward)
+        {
+            float taken = target.team == Team::Player ? target.boon.damageTaken : 0.0f;
+            for (const auto& st : target.statuses)
+                if (auto def = content->statuses.find(st.id); def != content->statuses.end())
+                    taken += def->second.damageTaken;
+            damage *= std::max(0.1f, 1.0f + taken);
+        }
 
         if (target.team == Team::Enemy)
             if (auto def = content->enemies.find(target.type); def != content->enemies.end())
@@ -3374,10 +3455,15 @@ namespace arena
 
         if (not spared)
         {
-            // What the attacker dealt, for the run's recap (what the target had left at most)
+            // What the attacker dealt, for the run's recap (what the target had left at most), and what dealt it
             if (inRun() and attacker.team == Team::Player and target.id != attacker.id)
                 if (Fighter* by = find(attacker.id))
-                    by->stats.damage += std::clamp(damage, 0.0f, std::max(0.0f, target.health));
+                {
+                    const float dealt = std::clamp(damage, 0.0f, std::max(0.0f, target.health));
+                    by->stats.damage += dealt;
+                    if (dealt > 0.0f)
+                        by->stats.bySource[sourceOf(attacker, a)] += dealt;
+                }
 
             takeDamage(target, damage);
         }
@@ -3457,14 +3543,26 @@ namespace arena
             event("crit", chest(target), e.damage, target.id, AIR, e.attacker);
         event(e.killed ? "kill" : (e.staggered ? "stagger" : (shielded ? "shield_hit" : "hit")), target.body.position + glm::vec3(0, target.body.height * 0.6f, 0), e.damage, target.id, AIR, e.attacker);
 
+        // Thorns: some of it back to the enemy that dealt it (a hit of its own, which sends nothing back)
+        if (not spared and target.team == Team::Player and target.boon.thorns > 0.0f and attacker.team == Team::Enemy and attacker.id != 0 and
+            attacker.alive() and damage > 0.0f and not a.combo)
+        {
+            AttackDef back = hitOf(target.boon.thornsItem.empty() ? "thorns" : target.boon.thornsItem, damage * target.boon.thorns, 4.0f, 2.0f, 0, 0.0f, Element::None, {});
+            back.combo = true;
+            back.leech = 0.0f;
+            back.source = target.boon.thornsItem;
+            event("thorns", chest(attacker), back.damage, attacker.id, AIR, target.id);
+            applyHit(target, attacker, back);
+        }
+
         if (e.killed)
         {
             die(target, attacker.id);
             return;
         }
 
-        // The hit's status, then what the attacker's weapon is imbued with (a flame weapon's burn): either may set off a
-        // combo with what the target has
+        // The hit's status, then what the attacker's weapon is imbued with (a flame weapon's burn), then an elite's
+        // affixes' (a frosty one's hits slow): any may set off a combo with what the target has
         std::vector<std::string> landing;
         if (not a.status.status.empty())
             landing.push_back(a.status.status);
@@ -3472,6 +3570,10 @@ namespace arena
             for (const auto& s : attacker.statuses)
                 if (auto def = content->statuses.find(s.id); def != content->statuses.end() and not def->second.imbue.empty())
                     landing.push_back(def->second.imbue);
+        if (attacker.team == Team::Enemy and not a.combo)
+            for (const auto& id : attacker.affixes)
+                if (auto affix = content->affixes.find(id); affix != content->affixes.end() and not affix->second.onHit.status.empty())
+                    landing.push_back(affix->second.onHit.status);
 
         for (const auto& id : landing)
         {
@@ -3480,6 +3582,23 @@ namespace arena
             if (not a.combo and setOffCombo(attacker, target, id, a.damage))
                 continue;   // used up by the combo
             applyStatus(target, id, (id == a.status.status ? a.status.stacks : 1) + attacker.boon.statusStacks, attacker.id);
+        }
+
+        // An item's every n-th weapon hit: a hit of its own on the target, jumping on to more
+        const auto& proc = attacker.boon.proc;
+        if (weaponHit and attacker.team == Team::Player and proc.every > 0 and proc.damage > 0.0f and damage > 0.0f and ++attacker.procHits >= proc.every)
+        {
+            attacker.procHits = 0;
+            AttackDef zap = hitOf(attacker.boon.procItem.empty() ? "proc" : attacker.boon.procItem, proc.damage * comboScale(), 8.0f, 2.0f, 0, 0.1f, proc.element, proc.status);
+            zap.leech = AREA_LEECH;
+            zap.source = attacker.boon.procItem;
+            event("proc", chest(target), 1.0f, target.id, AIR, attacker.id);
+
+            const int hitstopBefore = attacker.hitstop;
+            if (target.alive())
+                applyHit(attacker, target, zap);
+            chainFrom(zap, target, proc.chains, attacker.id, attacker.team, proc.element);
+            attacker.hitstop = hitstopBefore;
         }
     }
 
@@ -3543,12 +3662,48 @@ namespace arena
         return false;
     }
 
-    void ArenaWorld::die(Fighter& target, int attackerId)
+    void ArenaWorld::die(Fighter& target, int attackerId, bool reward)
     {
         if (inRun() and target.team == Team::Player and target.alive())
             ++target.stats.downs;
 
-        if (inRun() and target.team == Team::Enemy and target.alive())
+        // What it leaves as it dies (its kind's and its affixes'): a blast, what it splits into. They come in once the
+        // step's hits are done; a split only in a run (training's enemies come back, and would keep multiplying)
+        if (target.team == Team::Enemy and target.alive())
+        {
+            const glm::vec3 at = target.body.position;
+            auto splitInto = [&](const SplitDef& sd) {
+                if (not sd.any() or target.split or not inRun())
+                    return;
+                for (int k = 0; k < sd.count; ++k)
+                    spawnsDue.push_back({sd.enemy.empty() ? target.type : sd.enemy, at, target.yaw + 360.0f * static_cast<float>(k) / static_cast<float>(sd.count), sd.health});
+                event("split", chest(target), static_cast<float>(sd.count), target.id);
+            };
+
+            if (auto def = content->enemies.find(target.type); def != content->enemies.end())
+            {
+                startBlast(def->second.blast, at, target.id, target.team, target.type, attackerId);
+                splitInto(def->second.split);
+            }
+            for (const auto& id : target.affixes)
+                if (auto affix = content->affixes.find(id); affix != content->affixes.end())
+                {
+                    startBlast(affix->second.blast, at, target.id, target.team, id, attackerId);
+                    splitInto(affix->second.split);
+                }
+        }
+
+        // A kill with an item for it: health back
+        if (Fighter* by = attackerId ? find(attackerId) : nullptr; by and by->team == Team::Player and target.team == Team::Enemy and target.alive() and by->alive() and
+                                                                   by->boon.killHeal > 0.0f)
+        {
+            const float before = by->health;
+            by->health = std::min(by->maxHealth, by->health + by->boon.killHeal);
+            if (by->health > before)
+                event("heal", chest(*by), by->health - before, by->id);
+        }
+
+        if (inRun() and target.team == Team::Enemy and target.alive() and reward)
         {
             ++run.kills;
             if (Fighter* by = attackerId ? find(attackerId) : nullptr; by and by->team == Team::Player)
@@ -3695,7 +3850,14 @@ namespace arena
             // Damage over time: the server's to deal (a client only counts the time down)
             if (authority and defIt != content->statuses.end() and defIt->second.damagePerSecond > 0.0f and not (godMode and f.team == Team::Player))
             {
-                takeDamage(f, defIt->second.damagePerSecond * static_cast<float>(it->stacks) * STEP_SECONDS);
+                const float dealt = takeDamage(f, defIt->second.damagePerSecond * static_cast<float>(it->stacks) * STEP_SECONDS);
+
+                // For the recap: the player who left it dealt it
+                if (Fighter* by = inRun() and dealt > 0.0f and it->source and it->source != f.id ? find(it->source) : nullptr; by and by->team == Team::Player)
+                {
+                    by->stats.damage += dealt;
+                    by->stats.bySource[it->id] += dealt;
+                }
 
                 if (f.health <= 0.0f)
                 {
@@ -3835,6 +3997,220 @@ namespace arena
         }
     }
 
+    // --------------------------------------------------------------------------------------------
+    // Elites' affixes, ground left behind, blasts, splits
+    // --------------------------------------------------------------------------------------------
+
+    bool ArenaWorld::anchoredEnemy(const Fighter& f) const
+    {
+        auto def = f.team == Team::Enemy ? content->enemies.find(f.type) : content->enemies.end();
+        return def != content->enemies.end() and def->second.anchored;
+    }
+
+    float ArenaWorld::affixSum(const Fighter& f, float AffixDef::*field) const
+    {
+        float sum = 0.0f;
+        for (const auto& id : f.affixes)
+            if (auto a = content->affixes.find(id); a != content->affixes.end())
+                sum += a->second.*field;
+        return sum;
+    }
+
+    void ArenaWorld::stepAffixes(Fighter& f)
+    {
+        if (f.affixes.empty())
+            return;
+
+        // The trails and auras go every so often (a trail's own `every`, else twice a second)
+        float every = 0.5f;
+        for (const auto& id : f.affixes)
+            if (auto a = content->affixes.find(id); a != content->affixes.end() and a->second.trail.any())
+                every = std::min(every, a->second.trail.every);
+
+        f.trailTimer -= STEP_SECONDS;
+        const bool due = f.trailTimer <= 0.0f;
+        if (due)
+            f.trailTimer = every;
+
+        for (const auto& id : f.affixes)
+        {
+            auto it = content->affixes.find(id);
+            if (it == content->affixes.end())
+                continue;
+            const AffixDef& a = it->second;
+
+            // Regeneration, stopped for a while by each hit
+            if (a.regen > 0.0f and f.sinceHit > 2.0f and not f.shielded)
+                f.health = std::min(f.maxHealth, f.health + a.regen * f.maxHealth * STEP_SECONDS);
+
+            if (not due)
+                continue;
+
+            if (a.trail.any() and f.body.onGround)
+                leaveGround(a.trail, f.body.position, f.id, f.team, id);
+
+            // An aura: the allies close by get its status, kept on while they stay (one event as it lands)
+            if (not a.aura.status.empty() and a.aura.radius > 0.0f)
+            {
+                const auto st = content->statuses.find(a.aura.status);
+                for (auto& o : fighters)
+                {
+                    if (o.team != f.team or o.id == f.id or not o.alive() or anchoredEnemy(o) or glm::length(o.body.position - f.body.position) > a.aura.radius)
+                        continue;
+
+                    auto has = std::find_if(o.statuses.begin(), o.statuses.end(), [&](const StatusState& s) { return s.id == a.aura.status; });
+                    if (has != o.statuses.end() and st != content->statuses.end())
+                        has->remaining = st->second.duration;
+                    else
+                        applyStatus(o, a.aura.status, 1, f.id);
+                }
+            }
+        }
+    }
+
+    void ArenaWorld::leaveGround(const GroundDef& g, const glm::vec3& at, int owner, Team team, const std::string& source)
+    {
+        if (not g.any())
+            return;
+
+        Zone z;
+        z.id = nextZone++;
+        z.owner = owner;
+        z.team = team;
+        z.element = g.element;
+        z.position = at;
+        z.radius = g.radius;
+        z.duration = z.remaining = g.duration;
+        // A player's ground grows with the waves, as the enemies' health does (an enemy's grows with their damage, as it hits)
+        z.damage = g.perSecond * (team == Team::Player ? comboScale() : 1.0f);
+        z.status = g.status;
+        z.source = source;
+
+        // Down onto the floor below
+        const RayHit down = raycast(grid, content->blockTable, at + glm::vec3(0, 0.6f, 0), glm::vec3(0, -1, 0), 10.0f);
+        if (down.hit)
+            z.position.y = at.y + 0.6f - down.distance;
+
+        zonesDue.push_back(z);
+    }
+
+    void ArenaWorld::startBlast(const BlastDef& b, const glm::vec3& at, int owner, Team team, const std::string& source, int killer)
+    {
+        if (not b.any())
+            return;
+
+        Zone z;
+        z.id = nextZone++;
+        z.owner = owner;
+        z.team = team;
+        z.element = b.element;
+        z.position = at;
+        z.radius = b.radius;
+        z.duration = z.remaining = std::max(STEP_SECONDS, b.delay);
+        z.blast = b;
+        z.killer = killer;
+        z.source = source;
+        zonesDue.push_back(z);
+        event("blast_warn", at, b.radius, owner, AIR, killer);
+    }
+
+    void ArenaWorld::detonate(const Zone& z)
+    {
+        const BlastDef& b = z.blast;
+        const glm::vec3 centre = z.position + glm::vec3(0, 0.6f, 0);
+
+        // Its own side's foes (an enemy's: the players; its damage grows with their damage, as it hits)
+        AttackDef hit = hitOf(z.source.empty() ? "blast" : z.source, b.damage, b.poiseDamage, b.knockback, 4, 0.5f, b.element, b.status);
+        hit.combo = true;
+        hit.leech = AREA_LEECH;
+        hit.knockup = 3.0f;
+        hit.source = z.source;
+        if (b.damage > 0.0f)
+            hitAround(hit, centre, b.radius, z.owner, z.team, false);
+
+        // One that hurts everyone: the other side too, for whoever killed what left it (its damage grows with the waves)
+        if (b.everyone and b.damage > 0.0f)
+        {
+            AttackDef other = hit;
+            other.damage = b.damage * comboScale();
+            hitAround(other, centre, b.radius, z.killer, z.team == Team::Enemy ? Team::Player : Team::Enemy, false);
+        }
+
+        // The blocks around it, less towards its edge (stone takes volt better, planks fire...)
+        if (b.terrainDamage > 0.0f)
+        {
+            const glm::ivec3 c(glm::floor(centre));
+            const int r = static_cast<int>(std::ceil(b.radius));
+            for (int y = -r; y <= r; ++y)
+                for (int zz = -r; zz <= r; ++zz)
+                    for (int x = -r; x <= r; ++x)
+                    {
+                        const glm::ivec3 cell = c + glm::ivec3(x, y, zz);
+                        const float d = glm::length(glm::vec3(cell) + glm::vec3(0.5f) - centre);
+                        if (d > b.radius or not grid.inBounds(cell.x, cell.y, cell.z))
+                            continue;
+
+                        const BlockId block = grid.get(cell.x, cell.y, cell.z);
+                        const float weak = block < content->blockTable.size() ? content->blockTable[block].weakness[static_cast<int>(b.element)] : 1.0f;
+                        terrain.damage(cell, b.terrainDamage * weak * (1.0f - 0.5f * d / std::max(0.1f, b.radius)));
+                    }
+        }
+        elementOnTerrain(b.element, centre, b.radius * 0.6f);
+
+        event("blast", centre, b.radius, 0, AIR, z.killer);
+        if (b.element != Element::None)
+            event(std::string(elementName(b.element)) + "_nova", centre, b.radius, 0, AIR, z.owner);
+    }
+
+    void ArenaWorld::flushDeaths()
+    {
+        for (auto& z : zonesDue)
+            zones.push_back(std::move(z));
+        zonesDue.clear();
+
+        // What split comes out where its parent fell, hopping outwards (only while a wave is fought: a wave that
+        // ended this step took its enemies with it)
+        std::vector<SpawnDue> spawns;
+        spawns.swap(spawnsDue);
+        if (inRun() and run.phase != RunPhase::Fighting)
+            spawns.clear();
+        for (const auto& s : spawns)
+        {
+            const int id = spawnEnemy(s.enemy, s.position, s.yaw);
+            Fighter* e = find(id);
+            if (not e)
+                continue;
+
+            e->split = true;
+            if (inRun())
+                e->maxHealth *= enemyHealthScale(run.wave);
+            e->maxHealth *= s.health;
+            e->health = e->maxHealth;
+            e->push = yawForward(s.yaw) * 4.0f;
+            e->body.velocity.y = 5.0f;
+            e->body.onGround = false;
+            event("spawn", s.position, 1.0f, id);
+        }
+    }
+
+    std::string ArenaWorld::sourceOf(const Fighter& attacker, const AttackDef& a) const
+    {
+        if (not a.source.empty())
+            return a.source;
+
+        // A weapon skill's attack ("@base:whirlwind"), what it shoots too
+        if (not a.name.empty() and a.name[0] == '@')
+            return a.name.substr(1);
+
+        // The weapon's light and heavy attacks, and what they shoot
+        if (attacker.team == Team::Player and not a.combo)
+            if (auto w = content->weapons.find(attacker.weapon); w != content->weapons.end() and w->second.moveset.find(a.name))
+                return attacker.weapon;
+
+        // A combo's id, an item's burst...
+        return a.name;
+    }
+
     void ArenaWorld::separate()
     {
         for (size_t i = 0; i < fighters.size(); ++i)
@@ -3869,11 +4245,7 @@ namespace arena
 
                 // Only the horizontal push, through the physics so nobody is pushed into a wall. Something
                 // anchored (a boss's crystal) stays put: the other one moves the whole way
-                auto anchored = [this](const Fighter& f) {
-                    auto def = f.team == Team::Enemy ? content->enemies.find(f.type) : content->enemies.end();
-                    return def != content->enemies.end() and def->second.anchored;
-                };
-                const bool aStays = anchored(a), bStays = anchored(b);
+                const bool aStays = anchoredEnemy(a), bStays = anchoredEnemy(b);
                 if (aStays and bStays)
                     continue;
 

@@ -26,6 +26,37 @@ namespace arena
         return x;
     }
 
+    std::vector<std::string> ArenaWorld::rollAffixes(int count)
+    {
+        std::vector<std::string> out;
+
+        // By weight, each once
+        for (int k = 0; k < count; ++k)
+        {
+            float total = 0.0f;
+            for (const auto& [id, a] : content->affixes)
+                if (std::find(out.begin(), out.end(), id) == out.end())
+                    total += a.weight;
+            if (total <= 0.0f)
+                break;
+
+            float roll = static_cast<float>(runRandom() % 100000) / 100000.0f * total;
+            for (const auto& [id, a] : content->affixes)
+            {
+                if (std::find(out.begin(), out.end(), id) != out.end() or a.weight <= 0.0f)
+                    continue;
+                roll -= a.weight;
+                if (roll < 0.0f)
+                {
+                    out.push_back(id);
+                    break;
+                }
+            }
+        }
+
+        return out;
+    }
+
     bool ArenaWorld::owns(const Fighter& f, const std::string& id) const
     {
         // Outside a run (and for enemies) everything is there
@@ -58,30 +89,79 @@ namespace arena
             if (it == content->upgrades.end() or it->second.forTag())
                 continue;
 
-            // Its numbers times its rarity's power; whole ones (dash charges, stacks) as they are
+            // Its numbers times its rarity's power; whole ones (dash charges, stacks) as they are, and a downside
+            // (a negative number, more damage taken) as written: a rarer trade-off is better, not worse too
             const UpgradeDef& u = it->second;
             const float k = rarityPower(b.rarity);
-            f.boon.maxHealth += u.maxHealth * k;
-            f.boon.damage += u.damage * k;
-            f.boon.dashCharges += u.dashCharges;
-            f.boon.manaCost += u.manaCost * k;
-            f.boon.manaRegen += u.manaRegen * k;
-            f.boon.staminaRegen += u.staminaRegen * k;
-            f.boon.speed += u.speed * k;
-            f.boon.cooldown += u.cooldown * k;
-            f.boon.lifeOnHit += u.lifeOnHit * k;
-            f.boon.statusStacks += u.statusStacks;
-            f.boon.armor += u.armor * k;
-            f.boon.crit += u.crit * k;
-            f.boon.pickupRange += u.pickupRange * k;
-            f.boon.regen += u.regen * k;
-            f.boon.attackSpeed += u.attackSpeed * k;
-            f.boon.horde += u.horde * k;
-            f.boon.xpGain += u.xpGain * k;
-            f.boon.shardChance += u.shardChance * k;
-            f.boon.comboDamage += u.comboDamage * k;
-            f.boon.statusDuration += u.statusDuration * k;
-            f.boon.payoff.add(u.payoff, k);
+            auto up = [k](float v) { return v > 0.0f ? v * k : v; };
+            Fighter::Boons& o = f.boon;
+            o.maxHealth += up(u.maxHealth);
+            o.damage += up(u.damage);
+            o.dashCharges += u.dashCharges;
+            o.manaCost += up(u.manaCost);
+            o.manaRegen += up(u.manaRegen);
+            o.staminaRegen += up(u.staminaRegen);
+            o.speed += up(u.speed);
+            o.cooldown += up(u.cooldown);
+            o.lifeOnHit += up(u.lifeOnHit);
+            o.statusStacks += u.statusStacks;
+            o.armor += up(u.armor);
+            o.crit += up(u.crit);
+            o.pickupRange += up(u.pickupRange);
+            o.regen += up(u.regen);
+            o.attackSpeed += up(u.attackSpeed);
+            o.horde += up(u.horde);
+            o.xpGain += up(u.xpGain);
+            o.shardChance += up(u.shardChance);
+            o.comboDamage += up(u.comboDamage);
+            o.statusDuration += up(u.statusDuration);
+            o.payoff.add(u.payoff, k);
+            o.healthScale += up(u.healthScale);
+            o.damageTaken += u.damageTaken > 0.0f ? u.damageTaken : u.damageTaken * k;
+            o.hurtDamage += up(u.hurtDamage);
+            o.airDamage += up(u.airDamage);
+            o.executeDamage += up(u.executeDamage);
+            o.revengeDamage += up(u.revengeDamage);
+            o.killHeal += up(u.killHeal);
+
+            // The triggers: the first item of each names them in the recap
+            if (u.thorns > 0.0f)
+            {
+                o.thorns += u.thorns * k;
+                if (o.thornsItem.empty())
+                    o.thornsItem = u.id;
+            }
+            if (u.dodgeGround.any())
+            {
+                if (o.dodgeItem.empty())
+                {
+                    o.dodgeGround = u.dodgeGround;
+                    o.dodgeGround.perSecond = 0.0f;
+                    o.dodgeItem = u.id;
+                }
+                o.dodgeGround.radius = std::max(o.dodgeGround.radius, u.dodgeGround.radius);
+                o.dodgeGround.duration = std::max(o.dodgeGround.duration, u.dodgeGround.duration);
+                o.dodgeGround.perSecond += u.dodgeGround.perSecond * k;
+            }
+            if (u.proc.every > 0 and u.proc.damage > 0.0f)
+            {
+                if (o.procItem.empty())
+                {
+                    o.proc = u.proc;
+                    o.proc.damage = 0.0f;
+                    o.procItem = u.id;
+                }
+                o.proc.every = std::min(o.proc.every, u.proc.every);
+                o.proc.chains = std::max(o.proc.chains, u.proc.chains);
+                o.proc.damage += u.proc.damage * k;
+            }
+            if (u.landing.damage > 0.0f)
+            {
+                if (o.landingItem.empty())
+                    o.landingItem = u.id;
+                o.landing.radius = std::max(o.landing.radius, u.landing.radius);
+                o.landing.damage += u.landing.damage * k;
+            }
 
             // Bursts of the same status add up: their damage, the widest reach
             if (not u.burst.when.empty())
@@ -132,7 +212,9 @@ namespace arena
         more = more or u.maxHealth > 0.0f or u.damage > 0.0f or u.dashCharges > 0 or u.manaRegen > 0.0f or u.staminaRegen > 0.0f or
                u.speed > 0.0f or u.lifeOnHit > 0.0f or u.statusStacks > 0 or u.pickupRange > 0.0f or u.regen > 0.0f or u.attackSpeed > 0.0f or
                u.horde > 0.0f or u.xpGain > 0.0f or u.shardChance > 0.0f or u.comboDamage > 0.0f or u.statusDuration > 0.0f or
-               not u.payoff.against.empty() or u.burst.damage > 0.0f;
+               not u.payoff.against.empty() or u.burst.damage > 0.0f or u.healthScale > 0.0f or u.hurtDamage > 0.0f or u.airDamage > 0.0f or
+               u.executeDamage > 0.0f or u.revengeDamage > 0.0f or u.thorns > 0.0f or u.killHeal > 0.0f or u.dodgeGround.perSecond > 0.0f or
+               u.proc.damage > 0.0f or u.landing.damage > 0.0f;
         return not more;
     }
 
@@ -304,6 +386,7 @@ namespace arena
 
         extra.damage = damageFalloff(extra.damage);
         r.tweak.add(extra);
+        r.source = rs.id;
         return r;
     }
 
@@ -312,7 +395,7 @@ namespace arena
         SpellTweak t;
         auto it = content->abilities.find(abilityId);
 
-        if (not inRun() or f.team != Team::Player or it == content->abilities.end())
+        if (not grows() or f.team != Team::Player or it == content->abilities.end())
             return t;
 
         const AbilityDef& a = it->second;
@@ -425,7 +508,7 @@ namespace arena
     const BranchDef* ArenaWorld::weaponBranch(const Fighter& f) const
     {
         auto w = content->weapons.find(f.weapon);
-        const Fighter::RunSpell* rs = inRun() and f.team == Team::Player ? runSkill(f, f.weapon) : nullptr;
+        const Fighter::RunSpell* rs = grows() and f.team == Team::Player ? runSkill(f, f.weapon) : nullptr;
 
         if (w == content->weapons.end() or not rs or rs->branch < 0 or rs->branch >= static_cast<int>(w->second.branches.size()))
             return nullptr;
@@ -438,7 +521,7 @@ namespace arena
         SpellTweak t;
         auto it = content->weapons.find(f.weapon);
 
-        if (not inRun() or f.team != Team::Player or it == content->weapons.end())
+        if (not grows() or f.team != Team::Player or it == content->weapons.end())
             return t;
 
         const WeaponDef& w = it->second;
@@ -646,7 +729,10 @@ namespace arena
                 f.weapon = def.startWeapon;
             }
 
-            f.shards = f.xp = f.levelUps = f.rerolls = 0;
+            f.shards = f.xp = f.levelUps = f.rerolls = f.procHits = 0;
+            f.levelRerolls = def.levelRerolls;
+            f.banishes = def.levelBanishes;
+            f.banished.clear();
             f.xpCarry = 0.0f;
             f.level = 1;
             f.shop.clear();
@@ -723,7 +809,8 @@ namespace arena
             f.owned.clear();
             f.shop.clear();
             f.levelOffer.clear();
-            f.shards = f.xp = f.levelUps = 0;
+            f.banished.clear();
+            f.shards = f.xp = f.levelUps = f.levelRerolls = f.banishes = 0;
             f.level = 1;
             sumBoons(f);
         }
@@ -832,6 +919,8 @@ namespace arena
         run.phase = RunPhase::Fighting;
         run.timer = waveDuration(wave);
         run.pending.clear();
+        spawnsDue.clear();
+        zonesDue.clear();
         run.spawnDue = 0.0f;
         run.bossId = 0;
         pickups.clear();
@@ -903,6 +992,7 @@ namespace arena
 
         removeEnemies();
         run.pending.clear();
+        spawnsDue.clear();   // what split as the wave ended does not come in after it
         run.bossId = 0;
         run.enemiesLeft = 0;
 
@@ -1309,20 +1399,18 @@ namespace arena
             f.presents = 0;
     }
 
-    void ArenaWorld::rollLevel(Fighter& f)
+    void ArenaWorld::levelCandidates(Fighter& f, std::vector<std::string>& fresh, std::vector<std::vector<std::string>>& upgrades)
     {
-        f.levelOffer.clear();
-
-        if (f.levelUps <= 0)
-            return;
-
         // What is new (a spell not had while a key is free, a technique of the weapon in hand not had) and what
         // grows (the next level of a spell, a technique or the weapon had: at its branch level, all its branches
-        // together, as one choice)
-        std::vector<std::string> fresh;
-        std::vector<std::vector<std::string>> upgrades;
+        // together, as one choice). Nothing banished
+        fresh.clear();
+        upgrades.clear();
+        auto banished = [&](const std::string& id) { return std::find(f.banished.begin(), f.banished.end(), id) != f.banished.end(); };
 
         auto grow = [&](const std::string& id, int level, int branch, int written, size_t branches) {
+            if (banished(id))
+                return;
             std::vector<std::string> choice;
             if (level + 1 == branchAt(written) and branches > 0 and branch < 0)
             {
@@ -1344,7 +1432,7 @@ namespace arena
 
             if (has == f.runSpells.end())
             {
-                if (f.runSpells.size() < SPELL_SLOTS)
+                if (f.runSpells.size() < SPELL_SLOTS and not banished(id))
                     fresh.push_back(id);
             }
             else
@@ -1373,9 +1461,26 @@ namespace arena
 
             if (const Fighter::RunSpell* rs = runSkill(f, id))
                 grow(id, rs->level, rs->branch, static_cast<int>(a->second.levels.size()), a->second.branches.size());
-            else
+            else if (not banished(id))
                 fresh.push_back(id);
         }
+
+        for (size_t i = fresh.size(); i > 1; --i)
+            std::swap(fresh[i - 1], fresh[runRandom() % i]);
+        for (size_t i = upgrades.size(); i > 1; --i)
+            std::swap(upgrades[i - 1], upgrades[runRandom() % i]);
+    }
+
+    void ArenaWorld::rollLevel(Fighter& f)
+    {
+        f.levelOffer.clear();
+
+        if (f.levelUps <= 0)
+            return;
+
+        std::vector<std::string> fresh;
+        std::vector<std::vector<std::string>> upgrades;
+        levelCandidates(f, fresh, upgrades);
 
         // Nothing left to give: the level ups are spent
         if (fresh.empty() and upgrades.empty())
@@ -1383,11 +1488,6 @@ namespace arena
             f.levelUps = 0;
             return;
         }
-
-        for (size_t i = fresh.size(); i > 1; --i)
-            std::swap(fresh[i - 1], fresh[runRandom() % i]);
-        for (size_t i = upgrades.size(); i > 1; --i)
-            std::swap(upgrades[i - 1], upgrades[runRandom() % i]);
 
         // One thing had growing, the rest new while there is something new; whatever is short, the other fills
         std::vector<std::string> picks;
@@ -1410,6 +1510,77 @@ namespace arena
         }
 
         f.levelOffer = picks;
+    }
+
+    void ArenaWorld::banishPick(Fighter& f, size_t index)
+    {
+        if (index >= f.levelOffer.size())
+            return;
+
+        // A branch is no pick to banish: it is what the spell or technique grows into
+        int branch = -1;
+        const std::string id = offerTarget(f.levelOffer[index], branch);
+        if (branch >= 0)
+            return;
+
+        f.banished.push_back(id);
+        --f.banishes;
+
+        // In its place: another of the same kind (new or growing) not offered yet, else of the other kind, else none
+        std::vector<std::string> fresh;
+        std::vector<std::vector<std::string>> upgrades;
+        levelCandidates(f, fresh, upgrades);
+        auto offered = [&](const std::string& o) {
+            return std::any_of(f.levelOffer.begin(), f.levelOffer.end(), [&](const std::string& x) {
+                int b = -1;
+                return offerTarget(x, b) == o;
+            });
+        };
+
+        // It was new when nothing of it is had (not a spell or technique growing, not the weapon)
+        const bool wasNew = std::none_of(f.runSpells.begin(), f.runSpells.end(), [&](const Fighter::RunSpell& r) { return r.id == id; }) and
+                            runSkill(f, id) == nullptr and not content->weapons.count(id);
+
+        std::string next;
+        auto takeFresh = [&] {
+            for (const auto& o : fresh)
+                if (not offered(o))
+                {
+                    next = o;
+                    return;
+                }
+        };
+        // A growing one only as one card (a branch choice would take several)
+        auto takeGrowing = [&] {
+            for (const auto& u : upgrades)
+                if (u.size() == 1 and not offered(u.front()))
+                {
+                    next = u.front();
+                    return;
+                }
+        };
+
+        if (wasNew)
+        {
+            takeFresh();
+            if (next.empty())
+                takeGrowing();
+        }
+        else
+        {
+            takeGrowing();
+            if (next.empty())
+                takeFresh();
+        }
+
+        if (next.empty())
+            f.levelOffer.erase(f.levelOffer.begin() + static_cast<std::ptrdiff_t>(index));
+        else
+            f.levelOffer[index] = next;
+
+        // Nothing at all left to pick: the level ups are spent
+        if (f.levelOffer.empty())
+            f.levelUps = 0;
     }
 
     void ArenaWorld::takeLevel(Fighter& f, const std::string& offer)
@@ -1469,14 +1640,14 @@ namespace arena
 
     void ArenaWorld::takeBoon(Fighter& f, const Fighter::Boon& boon)
     {
-        const float healthBefore = f.boon.maxHealth;
+        const float before = f.maxHealth;
         f.boons.push_back(boon);
         sumBoons(f);
 
-        // More health: there at once
-        const float more = f.boon.maxHealth - healthBefore;
-        f.maxHealth += more;
-        f.health = std::min(f.maxHealth, f.health + more);
+        // More health: there at once; less (a trade-off): what is over the new most goes
+        f.maxHealth = playerMaxHealth(f);
+        const float more = f.maxHealth - before;
+        f.health = std::min(f.maxHealth, f.health + std::max(0.0f, more));
     }
 
     int ArenaWorld::rerollPrice(const Fighter& f) const
@@ -1498,8 +1669,35 @@ namespace arena
 
         // The level ups come first, then the presents: the shop waits for them
         const bool levelling = f.levelUps > 0 and not f.levelOffer.empty();
-        if (levelling and not (pick >= InputFrame::LEVEL and pick < InputFrame::LEVEL + static_cast<int>(f.levelOffer.size())))
+        const int picks = static_cast<int>(f.levelOffer.size());
+        if (levelling and not ((pick >= InputFrame::LEVEL and pick < InputFrame::LEVEL + picks) or pick == InputFrame::LEVEL_REROLL or
+                               (pick >= InputFrame::BANISH and pick < InputFrame::BANISH + picks)))
             return;
+
+        if (levelling and pick == InputFrame::LEVEL_REROLL)
+        {
+            if (f.levelRerolls > 0)
+            {
+                --f.levelRerolls;
+                rollLevel(f);
+                event("level_reroll", chest(f), 1.0f, f.id);
+            }
+            return;
+        }
+
+        if (levelling and pick >= InputFrame::BANISH)
+        {
+            if (f.banishes > 0)
+            {
+                const size_t before = f.banished.size();
+                banishPick(f, static_cast<size_t>(pick - InputFrame::BANISH));
+                if (f.banished.size() > before)
+                    event("banish", chest(f), 1.0f, f.id);
+                if (f.levelUps <= 0)
+                    rollPresent(f);
+            }
+            return;
+        }
 
         const bool opening = not levelling and f.presents > 0 and not f.presentOffer.empty();
         if (opening and not (pick >= InputFrame::PRESENT and pick < InputFrame::PRESENT + static_cast<int>(f.presentOffer.size())))
@@ -1660,11 +1858,12 @@ namespace arena
                             e->maxHealth *= 1.0f + def.bossCoopHealth * static_cast<float>(std::max(0, players - 1));
                         e->health = e->maxHealth;
 
-                        // An elite: tougher, harder hitting (applyHit), worth more
+                        // An elite: tougher, harder hitting (applyHit), worth more, and with its affixes
                         if (s.elite)
                         {
                             e->elite = true;
-                            e->maxHealth *= 2.5f;
+                            e->affixes = rollAffixes(def.eliteAffixesAt(run.wave));
+                            e->maxHealth *= 2.5f * (1.0f + affixSum(*e, &AffixDef::health));
                             e->health = e->maxHealth;
                             e->maxPoise *= 1.5f;
                             e->poise = e->maxPoise;

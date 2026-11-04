@@ -141,6 +141,39 @@ def build():
     wing = Model().box(0, 0, 0, 0, 0, 2, (240, 240, 246)).box(0, 1, 0, 0, 1, 1, (240, 240, 246)).at(0, 2, 0, (200, 210, 230))
     m["look_wing"] = wing
 
+    # Glass cannon: a red glass heart on the chest, a crack through it
+    heart = Model().box(0, 1, 0, 3, 2, 0, (230, 60, 70)).box(1, 0, 0, 2, 0, 0, (230, 60, 70)).at(0, 3, 0, (230, 60, 70)).at(3, 3, 0, (230, 60, 70))
+    heart.at(1, 2, 0, (255, 190, 200)).at(2, 1, 0, (255, 190, 200))
+    m["look_heart"] = heart
+
+    # Juggernaut: dark iron greaves on the shins, a ridge down each
+    m["look_greaves"] = Model().box(0, 0, 0, 3, 2, 0, (70, 72, 80)).box(1, 0, 0, 2, 2, 0, (104, 106, 116)).box(0, 2, 0, 3, 2, 0, (50, 52, 58))
+
+    # Cursed coin: a purple coin hanging from an ear
+    m["look_coin"] = Model().box(0, 2, 1, 0, 3, 1, GOLD_DARK).box(0, 0, 0, 0, 1, 2, (120, 60, 160)).at(0, 0, 1, (200, 140, 255))
+
+    # Overclock: a brass gear on the left upper arm, turned to the side, a tooth out of each edge
+    gear = Model().box(0, 1, 1, 0, 4, 4, GOLD).box(0, 2, 2, 0, 3, 3, GOLD_DARK)
+    for y, z in ((1, 1), (1, 4), (4, 1), (4, 4)):
+        gear.cells.pop((0, y, z), None)
+    for y, z in ((0, 2), (5, 3), (2, 0), (3, 5)):
+        gear.at(0, y, z, GOLD)
+    m["look_gear"] = gear
+
+    # Thorns: a ring of green vine round the right upper arm, light thorns sticking out of it
+    thorns = Model().ring(6, 10, 0, 0, (70, 120, 50)).box(1, 0, 1, 4, 0, 8, (70, 120, 50))
+    for x, z in ((1, 1), (4, 1), (1, 8), (4, 8), (1, 2), (4, 7)):
+        thorns.cells.pop((x, 0, z), None)
+    for x, z in ((0, 3), (5, 6), (2, 0), (3, 9), (0, 7)):
+        thorns.at(x, 1, z, (150, 200, 90))
+    m["look_thorns"] = thorns
+
+    # Ember trail: glowing anklets
+    m["look_anklet"] = Model().ring(4, 6, 0, 0, (90, 50, 30)).at(0, 0, 2, (255, 130, 40)).at(3, 0, 3, (255, 130, 40)).at(1, 0, 5, (255, 180, 80))
+
+    # Meteor boots: a rock under each heel
+    m["look_heel"] = Model().box(0, 0, 0, 3, 1, 1, (110, 100, 96)).box(1, 0, 0, 2, 0, 1, (255, 120, 50))
+
     return m
 
 
@@ -164,6 +197,13 @@ PIECES = {
     "mending":     [("look_bandage", "arm_l", (5.5, 6.0, 0.5))],
     "swift":       [("look_knee", "leg_r", (1.0, 3.0, 4.0)), ("look_knee", "leg_l", (4.0, 3.0, 4.0))],
     "nimble":      [("look_wing", "leg_r", (0.5, 1.0, 1.0)), ("look_wing", "leg_l", (6.0, 1.0, 1.0))],
+    "glass_cannon":[("look_heart", "body", (3.75, 8.25, 4.0))],
+    "juggernaut":  [("look_greaves", "leg_r", (1.0, 0.75, 4.0)), ("look_greaves", "leg_l", (4.0, 0.75, 4.0))],
+    "cursed_coin": [("look_coin", "head", (0.75, 11.0, 2.25))],
+    "overclock":   [("look_gear", "arm_l", (7.0, 8.0, 0.5))],
+    "thorns":      [("look_thorns", "arm_r", (-1.5, 8.5, 0.0))],
+    "ember_trail": [("look_anklet", "leg_r", (0.5, 2.0, 1.0)), ("look_anklet", "leg_l", (3.5, 2.0, 1.0))],
+    "meteor_boots":[("look_heel", "leg_r", (1.0, 0.0, 0.5)), ("look_heel", "leg_l", (4.0, 0.0, 0.5))],
 }
 
 

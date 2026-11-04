@@ -1,0 +1,52 @@
+// The rimecaller (the Icefall on): a frost caster that keeps its distance and lobs orbs of frost over walls. An orb
+// bursts where it lands, and the ground there stays frozen for a few seconds: standing in it slows you a lot.
+// Keep moving. Fire hurts it more, ice barely. It thinks like the archer (scripts/archer.pg).
+{
+    "name": "Rimecaller",
+    "model": "rimecaller",
+    "modelScale": 0.125,
+    "size": [0.6, 1.8],
+
+    "health": 65,
+    "poise": 14,
+    "poiseRegenDelay": 2.0,
+    "staggerFrames": 40,
+    "knockbackScale": 1.0,
+
+    "walkSpeed": 3.0,
+    "turnSpeed": 300,
+    "respawnSeconds": 6,
+
+    "score": 18,
+    "drops": 3,
+    "weakness": { "fire": 1.4, "ice": 0.5 },
+
+    "script": "archer",
+    "params": {
+        "engageRange": 34,
+        "tooClose": 8,
+        "preferredMax": 18,
+        "cooldown": 3.2,
+        "busyCooldown": 2.2,
+        "aimAngle": 20
+    },
+
+    "moveset": {
+        "attacks": {
+            "shot": {
+                "startup": 40, "active": 1, "recovery": 26,
+                "turnRate": 4,
+                "projectile": {
+                    "speed": 15, "gravity": 9, "lead": 0.7,
+                    "damage": 9, "poiseDamage": 0, "knockback": 2, "terrainDamage": 0,
+                    "hitstop": 2, "shake": 0.2,
+                    "burst": 1.6, "element": "ice", "status": "rime",
+                    "spawn": [0.25, 1.6, 0.6],
+                    "model": "ice_shard", "modelScale": 0.07,
+                    "ground": { "radius": 2.4, "duration": 4.5, "perSecond": 3, "element": "ice", "status": "rime" }
+                },
+                "swing": { "pitchFrom": -14, "pitchTo": 4 }
+            }
+        }
+    }
+}

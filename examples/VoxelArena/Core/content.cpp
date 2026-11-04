@@ -42,6 +42,7 @@ namespace arena
             {"status", {"name"}},
             {"spell", {"name", "text"}},
             {"upgrade", {"name", "text"}},
+            {"affix", {"name", "text", "colour"}},
             {"ability", {"name", "text", "attack.swing", "attack.shake", "attack.turn"}},
         };
 
@@ -497,11 +498,56 @@ namespace arena
             }
         }
 
+        /** "ground": { "radius", "duration", "perSecond", "element", "status", "every" }: a zone left on the floor */
+        void readGround(const Json& j, GroundDef& g, const std::string& file, ContentReport& report, const std::string& what)
+        {
+            checkKeys(j, {"radius", "duration", "perSecond", "element", "status", "every"}, file, report, what);
+            readNum(j, "radius", g.radius, file, report);
+            readNum(j, "duration", g.duration, file, report);
+            readNum(j, "perSecond", g.perSecond, file, report);
+            readElement(j, g.element, file, report);
+            readStatusHit(j, g.status, file, report);
+            readNum(j, "every", g.every, file, report);
+            g.radius = std::max(0.0f, g.radius);
+            g.every = std::max(0.1f, g.every);
+        }
+
+        /** "blast": { "delay", "radius", "damage", "poiseDamage", "knockback", "terrainDamage", "element", "status", "everyone" } */
+        void readBlast(const Json& j, BlastDef& b, const std::string& file, ContentReport& report, const std::string& what)
+        {
+            checkKeys(j, {"delay", "radius", "damage", "poiseDamage", "knockback", "terrainDamage", "element", "status", "everyone"}, file, report, what);
+            readNum(j, "delay", b.delay, file, report);
+            readNum(j, "radius", b.radius, file, report);
+            readNum(j, "damage", b.damage, file, report);
+            readNum(j, "poiseDamage", b.poiseDamage, file, report);
+            readNum(j, "knockback", b.knockback, file, report);
+            readNum(j, "terrainDamage", b.terrainDamage, file, report);
+            readElement(j, b.element, file, report);
+            readStatusHit(j, b.status, file, report);
+            readBool(j, "everyone", b.everyone, file, report);
+            b.delay = std::clamp(b.delay, 0.0f, 10.0f);
+            b.radius = std::clamp(b.radius, 0.0f, 12.0f);
+        }
+
+        /** "split": { "enemy", "count", "health" } */
+        void readSplit(const Json& j, SplitDef& s, const std::string& file, ContentReport& report, const std::string& what, const std::string& mod)
+        {
+            checkKeys(j, {"enemy", "count", "health"}, file, report, what);
+            readStr(j, "enemy", s.enemy, file, report);
+            readInt(j, "count", s.count, file, report);
+            readNum(j, "health", s.health, file, report);
+            s.enemy = s.enemy.empty() ? "" : resolveId(s.enemy, mod);
+            s.count = std::clamp(s.count, 0, 6);
+            s.health = std::clamp(s.health, 0.05f, 1.0f);
+        }
+
         void readProjectile(const Json& pj, ProjectileDef& p, const std::string& file, ContentReport& report, const std::string& where)
         {
             checkKeys(pj, {"speed", "gravity", "radius", "lifetime", "lead", "damage", "poiseDamage", "knockback", "terrainDamage", "hitstop", "shake", "spawn", "model", "modelScale",
-                           "element", "status", "burst", "terrainRadius", "count", "spread"},
+                           "element", "status", "burst", "terrainRadius", "count", "spread", "ground"},
                       file, report, where);
+            if (const Json* ground = pj.find("ground"))
+                readGround(*ground, p.ground, file, report, where + "'s ground");
 
             p.enabled = true;
             readInt(pj, "count", p.count, file, report);
@@ -795,7 +841,7 @@ namespace arena
             // One file, one entry per definition: statuses (burning, chilled...), the elements of spells,
             // the keywords of spells
             for (const auto& [kind, name] : std::vector<std::pair<std::string, std::string>>{{"status", "statuses.json"}, {"element", "elements.json"}, {"keyword", "keywords.json"},
-                                                                                                 {"upgrade", "upgrades.json"}, {"combo", "combos.json"}})
+                                                                                                 {"upgrade", "upgrades.json"}, {"combo", "combos.json"}, {"affix", "affixes.json"}})
             {
                 const auto file = (dir / name).string();
 
@@ -1172,7 +1218,7 @@ namespace arena
                     continue;
                 }
 
-                checkKeys(j, {"duration", "damagePerSecond", "slow", "maxStacks", "atMax", "stagger", "heavy", "imbue", "name"}, raw.file, report, "status " + id);
+                checkKeys(j, {"duration", "damagePerSecond", "slow", "maxStacks", "atMax", "stagger", "heavy", "imbue", "name", "damageTaken"}, raw.file, report, "status " + id);
 
                 StatusDef s;
                 s.id = id;
@@ -1187,6 +1233,8 @@ namespace arena
                 readBool(j, "heavy", s.heavy, raw.file, report);
                 readStr(j, "imbue", s.imbue, raw.file, report);
                 s.imbue = s.imbue.empty() ? "" : resolveId(s.imbue, raw.mod);
+                readNum(j, "damageTaken", s.damageTaken, raw.file, report);
+                s.damageTaken = std::max(-0.9f, s.damageTaken);
                 s.maxStacks = std::clamp(s.maxStacks, 1, 99);
                 s.duration = std::max(0.05f, s.duration);
                 s.atMax = s.atMax.empty() ? "" : resolveId(s.atMax, raw.mod);
@@ -1647,7 +1695,9 @@ namespace arena
                 const Json& j = raw.data;
                 checkKeys(j, {"name", "text", "maxHealth", "damage", "dashCharges", "manaCost", "manaRegen", "staminaRegen", "speed", "cooldown", "lifeOnHit",
                               "statusStacks", "most", "armor", "crit", "pickupRange", "regen", "attackSpeed", "horde", "xpGain", "shardChance",
-                              "comboDamage", "statusDuration", "against", "burst", "needs", "needsElements", "price", "tag", "boost", "look", "tiers"},
+                              "comboDamage", "statusDuration", "against", "burst", "needs", "needsElements", "price", "tag", "boost", "look", "tiers",
+                              "healthScale", "damageTaken", "hurtDamage", "airDamage", "executeDamage", "revengeDamage", "thorns", "killHeal", "dodgeGround",
+                              "proc", "landing"},
                           raw.file, report, "boon " + id);
 
                 UpgradeDef u;
@@ -1676,6 +1726,39 @@ namespace arena
                 readNum(j, "shardChance", u.shardChance, raw.file, report);
                 readNum(j, "comboDamage", u.comboDamage, raw.file, report);
                 readNum(j, "statusDuration", u.statusDuration, raw.file, report);
+                readNum(j, "healthScale", u.healthScale, raw.file, report);
+                u.healthScale = std::clamp(u.healthScale, -0.9f, 5.0f);
+                readNum(j, "damageTaken", u.damageTaken, raw.file, report);
+                readNum(j, "hurtDamage", u.hurtDamage, raw.file, report);
+                readNum(j, "airDamage", u.airDamage, raw.file, report);
+                readNum(j, "executeDamage", u.executeDamage, raw.file, report);
+                readNum(j, "revengeDamage", u.revengeDamage, raw.file, report);
+                readNum(j, "thorns", u.thorns, raw.file, report);
+                readNum(j, "killHeal", u.killHeal, raw.file, report);
+                if (const Json* ground = j.find("dodgeGround"))
+                {
+                    readGround(*ground, u.dodgeGround, raw.file, report, "boon " + id + "'s dodgeGround");
+                    resolveStatus(content, u.dodgeGround.status, raw);
+                }
+                // "proc": { "every": 5, "chains": 2, "damage": 10, "element": "volt", "status": "shock" }: every n-th weapon hit
+                if (const Json* proc = j.find("proc"))
+                {
+                    checkKeys(*proc, {"every", "chains", "damage", "element", "status"}, raw.file, report, "boon " + id + "'s proc");
+                    readInt(*proc, "every", u.proc.every, raw.file, report);
+                    readInt(*proc, "chains", u.proc.chains, raw.file, report);
+                    readNum(*proc, "damage", u.proc.damage, raw.file, report);
+                    readElement(*proc, u.proc.element, raw.file, report);
+                    readStatusHit(*proc, u.proc.status, raw.file, report);
+                    resolveStatus(content, u.proc.status, raw);
+                    u.proc.every = std::clamp(u.proc.every, 0, 100);
+                    u.proc.chains = std::clamp(u.proc.chains, 0, 8);
+                }
+                if (const Json* landing = j.find("landing"))
+                {
+                    checkKeys(*landing, {"radius", "damage"}, raw.file, report, "boon " + id + "'s landing");
+                    readNum(*landing, "radius", u.landing.radius, raw.file, report);
+                    readNum(*landing, "damage", u.landing.damage, raw.file, report);
+                }
                 readPayoff(content, j, raw, u.payoff, "boon \"" + id + "\"");
                 readStringList(j, "needs", u.needs, raw.file, report);
                 readInt(j, "needsElements", u.needsElements, raw.file, report);
@@ -1794,7 +1877,8 @@ namespace arena
 
             checkKeys(j, {"waves", "duration", "spawnRate", "maxAlive", "eliteFrom", "eliteChance", "healthGrowth", "pools", "bosses", "warn", "centre", "spawnRadius", "coopScale",
                           "waveScore", "victoryScore", "pickupRange", "xp", "start", "shop", "arena", "arenas", "resetEachWave", "duel", "chooseWeapon",
-                          "levelSkills", "intermission", "spawnScale", "branchLevel", "mastery", "presents", "difficulties", "shardFalloff", "damageFalloff", "bossCoopHealth"},
+                          "levelSkills", "intermission", "spawnScale", "branchLevel", "mastery", "presents", "difficulties", "shardFalloff", "damageFalloff", "bossCoopHealth",
+                          "eliteAffixes", "levelRerolls", "levelBanishes"},
                       raw.file, report, "the run");
 
             readInt(j, "waves", r.waves, raw.file, report);
@@ -1815,6 +1899,24 @@ namespace arena
             r.maxAlive = glm::ivec2(alive);
             readNum(j, "eliteFrom", r.eliteFrom, raw.file, report);
             readNum(j, "eliteChance", r.eliteChance, raw.file, report);
+            // "eliteAffixes": [{ "from": 7, "count": 1 }, { "from": 15, "count": 2 }]
+            if (const Json* affixes = j.find("eliteAffixes"))
+            {
+                for (const auto& e : affixes->array)
+                {
+                    checkKeys(e, {"from", "count"}, raw.file, report, "the run's eliteAffixes");
+                    RunDef::EliteAffixes a;
+                    readInt(e, "from", a.from, raw.file, report);
+                    readInt(e, "count", a.count, raw.file, report);
+                    a.count = std::clamp(a.count, 0, 4);
+                    r.eliteAffixes.push_back(a);
+                }
+                std::sort(r.eliteAffixes.begin(), r.eliteAffixes.end(), [](const RunDef::EliteAffixes& a, const RunDef::EliteAffixes& b) { return a.from < b.from; });
+            }
+            readInt(j, "levelRerolls", r.levelRerolls, raw.file, report);
+            readInt(j, "levelBanishes", r.levelBanishes, raw.file, report);
+            r.levelRerolls = std::clamp(r.levelRerolls, 0, 99);
+            r.levelBanishes = std::clamp(r.levelBanishes, 0, 99);
             readNum(j, "healthGrowth", r.healthGrowth, raw.file, report);
             readNum(j, "warn", r.warn, raw.file, report);
             readVec3(j, "centre", r.centre, raw.file, report);
@@ -2125,6 +2227,7 @@ namespace arena
             {
                 resolveStatus(content, attack.status, raw);
                 resolveStatus(content, attack.projectile.status, raw);
+                resolveStatus(content, attack.projectile.ground.status, raw);
 
                 if (attack.projectile.model.empty())
                     continue;
@@ -2229,7 +2332,7 @@ namespace arena
 
                 checkKeys(j, {"id", "name", "model", "modelScale", "size", "health", "poise", "poiseRegenDelay", "staggerFrames",
                               "knockbackScale", "walkSpeed", "turnSpeed", "respawnSeconds", "regenerates", "anchored", "script", "params", "moveset",
-                              "weakness", "score", "boss", "drops", "phases"},
+                              "weakness", "score", "boss", "drops", "phases", "blast", "split"},
                           raw.file, report, "enemy " + id);
 
                 EnemyDef e;
@@ -2293,6 +2396,14 @@ namespace arena
                     e.phases.stagger = std::max(0, e.phases.stagger);
                 }
 
+                if (const Json* blast = j.find("blast"))
+                {
+                    readBlast(*blast, e.blast, raw.file, report, "the blast of enemy " + id);
+                    resolveStatus(content, e.blast.status, raw);
+                }
+                if (const Json* split = j.find("split"))
+                    readSplit(*split, e.split, raw.file, report, "the split of enemy " + id, raw.mod);
+
                 if (const Json* weak = j.find("weakness"))
                 {
                     checkKeys(*weak, {"fire", "ice", "volt"}, raw.file, report, "the weakness of enemy " + id);
@@ -2349,6 +2460,99 @@ namespace arena
 
                 report.error(e.file, 0, "enemy \"" + id + "\": its phases' crystal \"" + e.phases.crystal + "\" is no enemy");
                 e.phases = EnemyDef::Phases{};
+            }
+
+            // What one splits into is an enemy too (none: its own kind)
+            for (auto& [id, e] : content.enemies)
+            {
+                if (not e.split.any() or e.split.enemy.empty() or content.enemies.count(e.split.enemy))
+                    continue;
+
+                report.error(e.file, 0, "enemy \"" + id + "\": its split's \"" + e.split.enemy + "\" is no enemy");
+                e.split = SplitDef{};
+            }
+        }
+
+        void typeAffixes(Content& content)
+        {
+            auto& report = content.report;
+
+            for (const auto& [id, raw] : content.raw["affix"])
+            {
+                const Json& j = raw.data;
+
+                if (not j.isObject())
+                {
+                    report.error(raw.file, j.line, "affix \"" + id + "\" must be an object");
+                    continue;
+                }
+
+                checkKeys(j, {"name", "text", "colour", "weight", "health", "damage", "speed", "onHit", "trail", "regen", "aura", "blast", "split"}, raw.file, report,
+                          "affix " + id);
+
+                AffixDef a;
+                a.id = id;
+                a.name = splitId(id).second;
+                readStr(j, "name", a.name, raw.file, report);
+                readStr(j, "text", a.text, raw.file, report);
+                readNum(j, "weight", a.weight, raw.file, report);
+                readNum(j, "health", a.health, raw.file, report);
+                readNum(j, "damage", a.damage, raw.file, report);
+                readNum(j, "speed", a.speed, raw.file, report);
+                readNum(j, "regen", a.regen, raw.file, report);
+                a.weight = std::max(0.0f, a.weight);
+                a.speed = std::clamp(a.speed, -0.8f, 2.0f);
+
+                if (const Json* colour = j.find("colour"))
+                {
+                    if (colour->isArray() and colour->array.size() >= 3)
+                        for (int k = 0; k < 3; ++k)
+                            a.colour[k] = std::clamp(static_cast<float>(colour->array[static_cast<size_t>(k)].number) / 255.0f, 0.0f, 1.0f);
+                    else
+                        report.error(raw.file, colour->line, "affix \"" + id + "\": \"colour\" is [r, g, b] (0-255)");
+                }
+
+                // "onHit": "chill" (or { "id", "stacks" }): what its hits leave
+                if (const Json* onHit = j.find("onHit"))
+                {
+                    Json wrapped = Json::makeObject();
+                    wrapped.object.emplace_back("status", *onHit);
+                    readStatusHit(wrapped, a.onHit, raw.file, report);
+                    resolveStatus(content, a.onHit, raw);
+                }
+                if (const Json* trail = j.find("trail"))
+                {
+                    readGround(*trail, a.trail, raw.file, report, "the trail of affix " + id);
+                    resolveStatus(content, a.trail.status, raw);
+                }
+                if (const Json* aura = j.find("aura"))
+                {
+                    checkKeys(*aura, {"status", "radius"}, raw.file, report, "the aura of affix " + id);
+                    readStr(*aura, "status", a.aura.status, raw.file, report);
+                    readNum(*aura, "radius", a.aura.radius, raw.file, report);
+                    a.aura.status = a.aura.status.empty() ? "" : resolveId(a.aura.status, raw.mod);
+                    if (not a.aura.status.empty() and not content.statuses.count(a.aura.status))
+                    {
+                        report.error(raw.file, aura->line, "affix \"" + id + "\": the aura's \"" + a.aura.status + "\" is no status (statuses.json)");
+                        a.aura = AffixDef::Aura{};
+                    }
+                }
+                if (const Json* blast = j.find("blast"))
+                {
+                    readBlast(*blast, a.blast, raw.file, report, "the blast of affix " + id);
+                    resolveStatus(content, a.blast.status, raw);
+                }
+                if (const Json* split = j.find("split"))
+                {
+                    readSplit(*split, a.split, raw.file, report, "the split of affix " + id, raw.mod);
+                    if (not a.split.enemy.empty() and not content.enemies.count(a.split.enemy))
+                    {
+                        report.error(raw.file, split->line, "affix \"" + id + "\": its split's \"" + a.split.enemy + "\" is no enemy");
+                        a.split = SplitDef{};
+                    }
+                }
+
+                content.affixes[id] = std::move(a);
             }
         }
 
@@ -2471,7 +2675,7 @@ namespace arena
         checkKeys(j, {"startup", "active", "recovery", "damage", "poiseDamage", "staminaCost", "knockback", "knockup", "hitstop", "shake",
                       "hitboxes", "lunge", "lungeFrom", "lungeTo", "turnRate", "moveSpeed", "moveUntil", "armor", "terrainDamage", "dodgeCancelFrom", "chainFrom", "bufferFrom",
                       "next", "swing", "projectile", "element", "status", "gravityScale", "plungeSpeed", "iframes", "leap", "leapAt", "turn",
-                      "charge", "tell", "dash", "heal", "healZone"},
+                      "charge", "tell", "dash", "heal", "healZone", "dies"},
                   file, report, "attack " + name);
 
         const size_t errorsBefore = report.errors.size();
@@ -2522,6 +2726,7 @@ namespace arena
         readNum(j, "plungeSpeed", a.plungeSpeed, file, report);
         readInt(j, "leapAt", a.leapAt, file, report);
         readBool(j, "dash", a.dash, file, report);
+        readBool(j, "dies", a.dies, file, report);
 
         if (const Json* leap = j.find("leap"))
         {
@@ -2824,6 +3029,7 @@ namespace arena
         loadModels(content);
         typeWeapons(content);
         typeEnemies(content);
+        typeAffixes(content);
         typeAbilities(content);
         typeSpells(content);
         typeUpgrades(content);

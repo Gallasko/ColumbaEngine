@@ -1,0 +1,20 @@
+// A pebble's brain (see brute.pg for what the game puts in `me` and what it reads back): chase, nip, again.
+import "math"
+
+fun think(me)
+{
+    var p = me.params
+
+    if (me.distance > p.engageRange and me.hunting == false)
+    {
+        me.move = "hold"
+    }
+    else if (me.distance <= p.biteRange and abs(me.angle) < 40 and me.sinceAttack > p.cooldown)
+    {
+        me.attack = "nip"
+    }
+    else
+    {
+        me.move = "chase"
+    }
+}

@@ -72,6 +72,43 @@
                     "look": { "orbit": [255, 150, 30] } },
     "long_fuse":  { "name": "Long fuse",    "statusDuration": 0.5, "needs": ["fire", "ice", "volt"], "price": 10, "look": { "orbit": [200, 150, 255] } },
 
+    // Trade-offs: something big for something lost. A rarity makes only the good side bigger: the downside (a
+    // negative number, damageTaken) stays as written. healthScale -0.3: 30% less max health; damageTaken 0.2:
+    // you take 20% more damage; a negative speed, manaCost or staminaRegen: slower, dearer spells, slower stamina.
+    "glass_cannon": { "name": "Glass cannon", "damage": 0.35, "healthScale": -0.3, "most": 2, "price": 14,
+                      "look": { "model": "look_heart", "part": "body", "at": [4.75, 8.25, 4.25] } },
+    "juggernaut":   { "name": "Juggernaut",   "armor": 0.12, "maxHealth": 20, "speed": -0.12, "most": 2, "price": 14,
+                      "look": [{ "model": "look_greaves", "part": "leg_r", "at": [2, 0.75, 4.25] }, { "model": "look_greaves", "part": "leg_l", "at": [5, 0.75, 4.25] }] },
+    "cursed_coin":  { "name": "Cursed coin",  "shardChance": 0.25, "damageTaken": 0.2, "most": 3, "price": 10,
+                      "look": { "model": "look_coin", "part": "head", "at": [1, 11, 3] } },
+    "overclock":    { "name": "Overclock",    "cooldown": 0.25, "manaCost": -0.35, "staminaRegen": -0.3, "most": 2, "price": 16,
+                      "look": { "model": "look_gear", "part": "arm_l", "at": [7.25, 8, 2] } },
+
+    // More damage in the moment: hurtDamage under half health, airDamage in the air, executeDamage against an enemy
+    // under 30% health, revengeDamage for 3 s after you take a hit
+    "last_stand":   { "name": "Last stand",   "hurtDamage": 0.4,    "price": 12, "look": { "orbit": [220, 40, 40] } },
+    "sky_striker":  { "name": "Sky striker",  "airDamage": 0.35,    "price": 12, "look": { "orbit": [200, 240, 255] } },
+    "executioner":  { "name": "Executioner",  "executeDamage": 0.5, "price": 12, "look": { "orbit": [120, 20, 30] } },
+    "grudge":       { "name": "Grudge",       "revengeDamage": 0.4, "price": 12, "look": { "orbit": [255, 150, 60] } },
+
+    // Triggers. thorns 0.8: 80% of the damage an enemy deals you goes back to it. killHeal: health back for each kill.
+    // dodgeGround: ground left where you start a roll ({ "radius", "duration", "perSecond", "element", "status" }).
+    // proc: every `every`-th hit of your weapon also does `damage` to the enemy and jumps on to `chains` more
+    // ({ "every", "chains", "damage", "element", "status" }). landing: a hard landing (a fast fall) hits every enemy
+    // within `radius` for `damage`. Their damage grows with the waves, as the enemies' health does.
+    "thorns":       { "name": "Thorns",       "thorns": 0.8, "price": 12,
+                      "look": { "model": "look_thorns", "part": "arm_r", "at": [0, 8.5, 2.5] } },
+    "soul_siphon":  { "name": "Soul siphon",  "killHeal": 2, "price": 12, "look": { "orbit": [160, 90, 230] } },
+    "ember_trail":  { "name": "Ember trail",  "price": 14,
+                      "dodgeGround": { "radius": 1.6, "duration": 3, "perSecond": 10, "element": "fire", "status": "burn" },
+                      "look": [{ "model": "look_anklet", "part": "leg_r", "at": [1.5, 2, 2.5] }, { "model": "look_anklet", "part": "leg_l", "at": [4.5, 2, 2.5] }] },
+    "static_charge":{ "name": "Static charge","price": 16,
+                      "proc": { "every": 5, "chains": 2, "damage": 14, "element": "volt", "status": "shock" },
+                      "look": { "orbit": [255, 250, 140] } },
+    "meteor_boots": { "name": "Meteor boots", "price": 12,
+                      "landing": { "radius": 3.5, "damage": 30 },
+                      "look": [{ "model": "look_heel", "part": "leg_r", "at": [2, 0, 1] }, { "model": "look_heel", "part": "leg_l", "at": [5, 0, 1] }] },
+
     // Tag items: a boost for every spell and technique of yours with the tag. Spells have "spell", their
     // element and their shapes' ("projectile" for a bolt, "area" for a nova or a zone, "zone", "beam");
     // techniques have "technique", their own ("melee", "area", "dash", "heal"...) and "projectile" when

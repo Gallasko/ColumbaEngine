@@ -343,6 +343,7 @@ namespace arena
         me->setField("alliesNear", makeIntValue(view.alliesNear));
         me->setField("alliesAttacking", makeIntValue(view.alliesAttacking));
         me->setField("alliesNearTarget", makeIntValue(view.alliesNearTarget));
+        me->setField("alliesHurt", makeIntValue(view.alliesHurt));
         me->setField("targetFacing", makeDoubleValue(view.targetFacing));
         me->setField("hunting", makeBoolValue(view.hunting));
 

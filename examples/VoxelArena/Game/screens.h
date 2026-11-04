@@ -40,6 +40,15 @@ namespace arena
             int level = 1, kills = 0, damage = 0, healing = 0, shards = 0, xp = 0, presents = 0, items = 0, downs = 0;
         };
         std::vector<Recap> recap;
+
+        // The player's damage by what dealt it (a weapon, a spell, a combo, a burn...), the most first
+        struct Source
+        {
+            std::string name;
+            int damage = 0;
+            ui::Colour colour;
+        };
+        std::vector<Source> sources;
     };
 
     /** The lobby (multiplayer's title): who is in, ready or not, how friends join, start or ready. */

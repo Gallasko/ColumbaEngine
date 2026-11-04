@@ -20,7 +20,12 @@ namespace arena::net
             "run_start", "spawn_warn", "boss_warn", "spawn", "boss_spawn", "wave_clear", "run_victory", "run_defeat", "boon",
             "wave_start", "arena_reset", "arena_change", "despawn", "elite_warn", "pickup", "level_up", "buy", "crit", "present", "present_drop",
             "difficulty_pick", "boss_shield", "shield_break", "shield_hit", "detonate", "burst",
+            "duel_start", "duel_fight", "duel_end", "heal", "heal_burst", "heal_zone", "weapon_pick",
+            "blast_warn", "blast", "split", "quake", "thorns", "proc", "level_reroll", "banish", "enemy_heal",
         };
+
+        // What a player's damage is counted under in the recap, beyond the content's ids (see ArenaWorld::sourceOf)
+        const char* const SOURCES[] = { "blast", "zone", "thorns", "proc", "landing" };
 
         const char* const AI_MOVES[] = { "hold", "chase", "strafe", "retreat", "flank" };
 
@@ -123,6 +128,10 @@ namespace arena::net
             all.insert(k);
         for (const char* m : AI_MOVES)
             all.insert(m);
+        for (const char* s : SOURCES)
+            all.insert(s);
+        for (const auto& [id, a] : content.affixes)
+            all.insert(id);
 
         for (const auto& [id, e] : content.enemies)
         {
@@ -610,6 +619,9 @@ namespace arena::net
         w.u8(static_cast<uint8_t>(std::clamp(f.chargeFrames, 0, 255)));   // a charge shows
         w.boolean(f.elite);
         w.u8(static_cast<uint8_t>(std::clamp(f.phase, 0, 127)) | (f.shielded ? 0x80 : 0));   // a boss's phase, its shield
+        w.u8(static_cast<uint8_t>(std::min<size_t>(f.affixes.size(), 8)));                  // an elite's affixes: they show
+        for (size_t i = 0; i < f.affixes.size() and i < 8; ++i)
+            w.u16(names.id(f.affixes[i]));
 
         // Statuses: they slow and they show
         w.u8(static_cast<uint8_t>(std::min<size_t>(f.statuses.size(), 16)));
@@ -727,6 +739,24 @@ namespace arena::net
         w.u16(static_cast<uint16_t>(std::clamp(f.banked, 0, 65535)));
         w.u16(static_cast<uint16_t>(std::clamp(f.interest, 0, 65535)));
         w.boolean(f.armed);
+
+        // ... the level ups' rerolls and banishes, and what was banished
+        w.u8(static_cast<uint8_t>(std::clamp(f.levelRerolls, 0, 255)));
+        w.u8(static_cast<uint8_t>(std::clamp(f.banishes, 0, 255)));
+        w.u8(static_cast<uint8_t>(std::min<size_t>(f.banished.size(), 64)));
+        for (size_t i = 0; i < f.banished.size() and i < 64; ++i)
+            w.u16(names.id(f.banished[i]));
+
+        // ... and its damage by what dealt it (the recap)
+        w.u8(static_cast<uint8_t>(std::min<size_t>(f.stats.bySource.size(), 32)));
+        size_t sources = 0;
+        for (const auto& [id, damage] : f.stats.bySource)
+        {
+            if (++sources > 32)
+                break;
+            w.u16(names.id(id));
+            w.u32(static_cast<uint32_t>(std::lround(std::clamp(damage, 0.0f, 4e9f))));
+        }
     }
 
     bool readFighter(Reader& r, Fighter& f, const Names& names)
@@ -772,6 +802,10 @@ namespace arena::net
         const uint8_t phase = r.u8();
         f.phase = phase & 0x7F;
         f.shielded = (phase & 0x80) != 0;
+        f.affixes.clear();
+        const uint8_t affixes = r.u8();
+        for (uint8_t k = 0; k < affixes and k < 8 and not r.failed; ++k)
+            f.affixes.push_back(names.name(r.u16()));
 
         f.statuses.clear();
         const uint8_t statuses = r.u8();
@@ -900,6 +934,23 @@ namespace arena::net
         f.banked = r.u16();
         f.interest = r.u16();
         f.armed = r.boolean();
+
+        f.levelRerolls = r.u8();
+        f.banishes = r.u8();
+        f.banished.clear();
+        const uint8_t banished = r.u8();
+        for (uint8_t k = 0; k < banished and k < 64 and not r.failed; ++k)
+            f.banished.push_back(names.name(r.u16()));
+
+        f.stats.bySource.clear();
+        const uint8_t sources = r.u8();
+        for (uint8_t k = 0; k < sources and k < 32 and not r.failed; ++k)
+        {
+            const std::string id = names.name(r.u16());
+            const float damage = static_cast<float>(r.u32());
+            if (not id.empty())
+                f.stats.bySource[id] += damage;
+        }
         return withExtras;
     }
 
@@ -1187,6 +1238,8 @@ namespace arena::net
                 w.u32(m.tick + static_cast<uint32_t>(std::lround(left / STEP_SECONDS)));
                 w.f32(z.duration);
                 w.f32(z.heal);
+                w.boolean(z.blast);
+                w.boolean(z.enemy);
                 put(out.sections[SnapshotRecords::ZONES], taken, z.id);
             }
 
@@ -1398,6 +1451,8 @@ namespace arena::net
             z.remaining = static_cast<float>(static_cast<int64_t>(endTick) - static_cast<int64_t>(m.tick)) * STEP_SECONDS;
             z.duration = zr.f32();
             z.heal = zr.f32();
+            z.blast = zr.boolean();
+            z.enemy = zr.boolean();
             if (zr.failed)
                 return false;
             m.zones.push_back(z);

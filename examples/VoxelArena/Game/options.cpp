@@ -15,8 +15,10 @@ namespace arena
 {
     namespace
     {
-        constexpr int ROWS = 10;
-        const char* const NAMES[ROWS] = {"Mouse sensitivity", "Invert mouse Y", "Field of view", "Volume", "Camera shake", "Hit flash", "Slash trails", "View", "Frame rate", "Debug overlay (F1)"};
+        constexpr int ROWS = 11;
+        const char* const NAMES[ROWS] = {"Mouse sensitivity", "Invert mouse Y", "Field of view", "Volume", "Camera shake", "Hit flash", "Slash trails", "View", "Frame rate", "Debug overlay (F1)",
+                                         "Damage numbers"};
+        constexpr float ROW_STEP = 39.0f, ROW_H = 37.0f;   // the rows' spacing and height, all above the buttons
 
         // The frame rate's steps, the last without a limit
         constexpr int FPS_STEPS[] = {30, 60, 120, 144, 240, 0};
@@ -35,12 +37,12 @@ namespace arena
             return step;
         }
 
-        bool isToggle(int row) { return row == 1 or row == 6 or row == 7 or row == 9; }
+        bool isToggle(int row) { return row == 1 or row == 6 or row == 7 or row == 9 or row == 10; }
 
         /** A toggle's second choice is the one in effect. */
         bool secondChosen(const GameOptions& o, int row)
         {
-            return (row == 1 and o.invertY) or (row == 6 and o.trails) or (row == 7 and not o.firstPerson) or (row == 9 and o.overlay);
+            return (row == 1 and o.invertY) or (row == 6 and o.trails) or (row == 7 and not o.firstPerson) or (row == 9 and o.overlay) or (row == 10 and o.damageNumbers);
         }
 
         std::string percent(float v) { return std::to_string(static_cast<int>(std::lround(v * 100.0f))) + "%"; }
@@ -60,6 +62,7 @@ namespace arena
                 case 7: return o.firstPerson ? "First person" : "Third person";
                 case 8: return o.maxFps > 0 ? std::to_string(o.maxFps) : "No limit";
                 case 9: return o.overlay ? "On" : "Off";
+                case 10: return o.damageNumbers ? "On" : "Off";
             }
             return "";
         }
@@ -93,6 +96,7 @@ namespace arena
                 case 7: o.firstPerson = not o.firstPerson; break;
                 case 8: o.maxFps = FPS_STEPS[std::clamp(fpsStep(o.maxFps) + step, 0, FPS_COUNT - 1)]; break;
                 case 9: o.overlay = not o.overlay; break;
+                case 10: o.damageNumbers = not o.damageNumbers; break;
             }
         }
     }
@@ -136,6 +140,7 @@ namespace arena
         o.trails = j.flag("trails", o.trails);
         o.firstPerson = j.flag("firstPerson", o.firstPerson);
         o.overlay = j.flag("overlay", o.overlay);
+        o.damageNumbers = j.flag("damageNumbers", o.damageNumbers);
         o.maxFps = std::clamp(static_cast<int>(j.num("maxFps", o.maxFps)), 0, 1000);
         if (o.maxFps > 0)
             o.maxFps = std::max(o.maxFps, 30);
@@ -187,6 +192,7 @@ namespace arena
              << "    \"trails\": " << flag(o.trails) << ",\n"
              << "    \"firstPerson\": " << flag(o.firstPerson) << ",\n"
              << "    \"overlay\": " << flag(o.overlay) << ",\n"
+             << "    \"damageNumbers\": " << flag(o.damageNumbers) << ",\n"
              << "    \"maxFps\": " << o.maxFps << ",\n"
              << "    \"name\": " << quoted(o.name) << ",\n"
              << "    \"lastJoin\": " << quoted(o.lastJoin) << ",\n"
@@ -260,17 +266,17 @@ namespace arena
         for (int row = 0; row < ROWS; ++row)
         {
             const auto itemScope = ui.scope(static_cast<uint64_t>(row));
-            const float y = 176.0f + 43.0f * static_cast<float>(row);
-            if (ui.hover(348, y, 584, 40))
+            const float y = 176.0f + ROW_STEP * static_cast<float>(row) - 2.0f;
+            if (ui.hover(348, y, 584, ROW_H))
                 focus = row;
 
             if (row == focus)
             {
-                ui.rect(348, y, 584, 40, hex(0x252833));
-                ui.rect(348, y, 4, 40, GOLD);
+                ui.rect(348, y, 584, ROW_H, hex(0x252833));
+                ui.rect(348, y, 4, ROW_H, GOLD);
             }
 
-            ui.text(366, y + 11, NAMES[row], Font::Text600, 15, row == focus ? TEXT : TEXT_DIM);
+            ui.text(366, y + 10, NAMES[row], Font::Text600, 15, row == focus ? TEXT : TEXT_DIM);
 
             if (isToggle(row))
             {

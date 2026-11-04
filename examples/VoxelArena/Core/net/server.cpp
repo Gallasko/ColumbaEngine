@@ -533,7 +533,7 @@ namespace arena::net
             base.pieces.push_back({piece.id, piece.drop});
 
         for (const auto& z : world.zones)
-            base.zones.push_back({z.id, z.element, z.position, z.radius, z.remaining, z.duration, z.heal});
+            base.zones.push_back({z.id, z.element, z.position, z.radius, z.remaining, z.duration, z.heal, z.blasting(), z.team == Team::Enemy});
 
         base.run = world.run;
         base.run.pending.clear();

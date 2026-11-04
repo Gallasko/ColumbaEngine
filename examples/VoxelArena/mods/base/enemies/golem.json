@@ -1,0 +1,51 @@
+// The golem (the Quarry on): a slow walking heap of stone. It takes a lot to bring down, shrugs off a light hit
+// mid-slam, and its slam breaks the ground. When it falls it breaks into three pebbles that scurry at you
+// ("split"). Lightning cracks it, fire barely warms it. It thinks like the brute (scripts/brute.pg).
+{
+    "name": "Golem",
+    "model": "golem",
+    "modelScale": 0.14,
+    "size": [1.3, 2.4],
+
+    "health": 240,
+    "poise": 70,
+    "poiseRegenDelay": 3.0,
+    "staggerFrames": 50,
+    "knockbackScale": 0.3,
+
+    "walkSpeed": 2.3,
+    "turnSpeed": 160,
+    "respawnSeconds": 6,
+
+    "score": 30,
+    "drops": 5,
+    "weakness": { "volt": 1.5, "fire": 0.6 },
+
+    "split": { "enemy": "pebble", "count": 3, "health": 1.0 },
+
+    "script": "brute",
+    "params": {
+        "engageRange": 16,
+        "attackRange": 2.9,
+        "attackAngle": 35,
+        "cooldown": 1.8,
+        "backOffTime": 1.0
+    },
+
+    "moveset": {
+        "attacks": {
+            "slam": {
+                "tell": "heavy",
+                "terrainDamage": 160,
+                "startup": 44, "active": 6, "recovery": 46,
+                "damage": 30, "poiseDamage": 35,
+                "knockback": 9, "knockup": 5, "hitstop": 6, "shake": 0.8,
+                "armor": 40,
+                "turnRate": 2.5,
+                "hitboxes": [ { "offset": [0, 0.9, 1.5], "size": [2.4, 1.8, 2.4] } ],
+                "lunge": 5, "lungeFrom": 40, "lungeTo": 48,
+                "swing": { "pitchFrom": -24, "pitchTo": 30 }
+            }
+        }
+    }
+}

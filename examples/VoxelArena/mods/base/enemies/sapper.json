@@ -1,0 +1,47 @@
+// The sapper (the Stockade on): a small runner with a keg of powder on its back. It runs straight at you and, close
+// enough, lights its fuse: it glows red, then goes up. However it goes down, its keg goes off a second later (a red
+// ring on the ground shows where), hurting everyone in it, enemies too, and setting planks and hay alight.
+// Kill it from far away, or next to its friends. "blast": see affixes.json. "dies": the attack ends in its death.
+{
+    "name": "Sapper",
+    "model": "sapper",
+    "modelScale": 0.125,
+    "size": [0.7, 1.4],
+
+    "health": 30,
+    "poise": 8,
+    "poiseRegenDelay": 1.5,
+    "staggerFrames": 30,
+    "knockbackScale": 1.3,
+
+    "walkSpeed": 4.4,
+    "turnSpeed": 420,
+    "respawnSeconds": 5,
+
+    "score": 12,
+    "drops": 2,
+    "weakness": { "fire": 1.5 },
+
+    "blast": { "delay": 1.0, "radius": 3.2, "damage": 26, "poiseDamage": 30, "knockback": 9, "terrainDamage": 25,
+               "element": "fire", "status": "burn", "everyone": true },
+
+    "script": "sapper",
+    "params": {
+        "engageRange": 30,
+        "fuseRange": 2.6
+    },
+
+    "moveset": {
+        "attacks": {
+            "fuse": {
+                "tell": "heavy",
+                "startup": 30, "active": 1, "recovery": 0,
+                "damage": 0, "poiseDamage": 0, "knockback": 0,
+                "turnRate": 3,
+                "hitboxes": [],
+                "dies": true,
+                "swing": { "pitchFrom": 0, "pitchTo": 18 }
+            }
+        }
+    }
+}

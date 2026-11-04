@@ -125,6 +125,8 @@ namespace arena
 
         ui.section("hud-enemies");
         drawEnemies(ui, v);
+        ui.section("hud-numbers");
+        drawNumbers(ui, v);
         ui.section("hud-markers");
         drawMarkers(ui, v);
 
@@ -606,10 +608,25 @@ namespace arena
             if (pw > 0.0f)
                 ui.rect(x, top + 9, pw, 2, POISE);
 
+            // An elite's affixes over its bar (staggered: that over them)
             if (e.staggered)
-                ui.textShadow(cx, top - 20, "STAGGERED", Font::Display, 16, POISE, 2.0f, Align::Centre, 1.0f);
-            else if (not e.name.empty())
+                ui.textShadow(cx, top - (e.affixes.empty() ? 20.0f : 37.0f), "STAGGERED", Font::Display, 16, POISE, 2.0f, Align::Centre, 1.0f);
+            if (not e.name.empty() and not e.staggered)
                 ui.textShadow(cx, top - 17, e.name, Font::Text700, 11, TEXT, 2.0f, Align::Centre);
+            else if (not e.affixes.empty())
+            {
+                // An elite's affixes, side by side in their colours
+                constexpr float gap = 7.0f;
+                float width = 0.0f;
+                for (size_t k = 0; k < e.affixes.size(); ++k)
+                    width += ui.measure(e.affixes[k].first, Font::Text700, 11) + (k > 0 ? gap : 0.0f);
+                float ax = std::round(cx - width * 0.5f);
+                for (size_t k = 0; k < e.affixes.size(); ++k)
+                {
+                    const auto affixScope = ui.scope(500 + k);
+                    ax += ui.textShadow(ax, top - 17, e.affixes[k].first, Font::Text700, 11, e.affixes[k].second, 2.0f, Align::Left) + gap;
+                }
+            }
 
             float sx = x + 70.0f;
             for (const auto& st : e.statuses)
@@ -622,6 +639,21 @@ namespace arena
                     sx += 10.0f;
                 }
             }
+        }
+    }
+
+    // ---- Damage numbers -------------------------------------------------------------------------
+
+    void Hud::drawNumbers(Ui& ui, const View& v)
+    {
+        ui.anchor(Anchor::TopLeft);
+
+        for (const auto& n : v.numbers)
+        {
+            const auto itemScope = ui.scope(static_cast<uint64_t>(&n - v.numbers.data()));
+            const float size = (n.big ? 30.0f : 22.0f) * (1.0f + 0.35f * n.pop);
+            const Colour c = withAlpha(n.crit ? GOLD : TEXT, n.alpha);
+            ui.textShadow(std::round(ui.baseX(n.at.x)), std::round(ui.baseY(n.at.y) - size * 0.5f), n.text, Font::Display, size, c, 2.0f, Align::Centre);
         }
     }
 

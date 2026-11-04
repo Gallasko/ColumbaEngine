@@ -21,6 +21,7 @@ namespace arena
         bool firstPerson = true;     // the view to play in
         int maxFps = 60;             // frames a second at most (0: no limit)
         bool overlay = false;        // the debug overlay (F1)
+        bool damageNumbers = true;   // the damage your hits do, rising off the enemies
 
         // Multiplayer: the name the others see, and the last address joined (the join panel's start)
         std::string name;

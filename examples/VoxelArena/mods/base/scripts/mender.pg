@@ -1,0 +1,61 @@
+// The mender's brain (see brute.pg for what the game puts in `me` and what it reads back).
+// It keeps its distance like an archer, and mends the others when some of them are hurt:
+//   me.alliesHurt  other enemies within 10 m with less than 80% of their health
+import "math"
+
+fun think(me)
+{
+    var p = me.params
+
+    if (me.side == none)
+    {
+        me.side = 1
+        me.sideTimer = 0
+        me.lastMend = -100
+    }
+
+    me.sideTimer = me.sideTimer + me.dt
+
+    if (me.sideTimer > 2.4)
+    {
+        me.sideTimer = 0
+        me.side = -me.side
+    }
+
+    var hurt = me.alliesHurt > 0 or me.hp < me.maxHp * 0.8
+
+    if (me.distance > p.engageRange and me.hunting == false)
+    {
+        me.move = "hold"
+    }
+    else if (hurt and me.time - me.lastMend > p.mendCooldown)
+    {
+        me.attack = "mend"
+        me.lastMend = me.time
+    }
+    else if (me.distance < p.tooClose)
+    {
+        me.move = "retreat"
+        me.speed = 1.1
+    }
+    else if (me.blocked)
+    {
+        me.move = "strafe"
+        me.strafe = me.side
+    }
+    else if (me.sinceAttack > p.shotCooldown and abs(me.angle) < p.aimAngle)
+    {
+        me.attack = "bolt"
+    }
+    else if (me.distance > p.preferredMax)
+    {
+        me.move = "chase"
+        me.speed = 0.8
+    }
+    else
+    {
+        me.move = "strafe"
+        me.strafe = me.side
+        me.speed = 0.5
+    }
+}

@@ -1,0 +1,27 @@
+// What an elite can come with, on top of being tougher (2.5 times the health, 1.4 times the damage). run.json's
+// eliteAffixes says how many an elite gets from which wave. Each changes how it fights:
+// health, damage: this much more (0.3: 30%); speed: this much faster. onHit: its hits leave this status.
+// trail: ground left behind it as it walks ({ "radius", "duration", "perSecond", "element", "status", "every" }).
+// regen: this share of its health back a second, while it has not been hit for 2 s. aura: its allies this close
+// get the status ({ "status", "radius" }). blast: when it dies, a ring on the ground, then an explosion
+// ({ "delay", "radius", "damage", "poiseDamage", "knockback", "terrainDamage", "element", "status", "everyone" }).
+// split: when it dies, it splits into `count` of `enemy` (none: its own kind) with `health` of their health.
+// weight: how often it comes. colour: its glow, and its name over its bar.
+{
+    "blazing":     { "name": "Blazing",     "text": "Leaves fire behind it. Its hits burn.", "colour": [255, 110, 40],
+                     "trail": { "radius": 1.1, "duration": 2.5, "perSecond": 6, "element": "fire", "status": "burn", "every": 0.4 },
+                     "onHit": "burn" },
+    "frosty":      { "name": "Frosty",      "text": "Its hits slow you. It bursts into frost when it dies.", "colour": [150, 215, 255],
+                     "onHit": "rime",
+                     "blast": { "delay": 0.4, "radius": 3.0, "damage": 4, "poiseDamage": 0, "knockback": 0, "element": "ice", "status": "rime" } },
+    "guardian":    { "name": "Guardian",    "text": "Enemies close to it take half damage.", "colour": [235, 235, 255],
+                     "aura": { "status": "warded", "radius": 6 } },
+    "volatile":    { "name": "Volatile",    "text": "Explodes a moment after it dies.", "colour": [255, 70, 50],
+                     "blast": { "delay": 1.0, "radius": 3.5, "damage": 22, "terrainDamage": 20, "element": "fire" } },
+    "swift":       { "name": "Swift",       "text": "Moves much faster.", "colour": [255, 240, 120],
+                     "speed": 0.45 },
+    "splitting":   { "name": "Splitting",   "text": "Splits in two when it dies.", "colour": [140, 255, 150],
+                     "split": { "count": 2, "health": 0.4 } },
+    "regenerating":{ "name": "Regenerating","text": "Heals quickly when you stop hitting it.", "colour": [90, 240, 120],
+                     "regen": 0.06 }
+}

@@ -1,0 +1,57 @@
+// The mender (the Gorge on): a robed healer that keeps behind the others. When enemies around it are hurt, it
+// raises its staff and mends them all (a green pulse: their health comes back, more as the waves go on). It
+// never mends a boss's crystal. Its own attack is a weak bolt. Go for it first.
+{
+    "name": "Mender",
+    "model": "mender",
+    "modelScale": 0.125,
+    "size": [0.6, 1.8],
+
+    "health": 70,
+    "poise": 14,
+    "poiseRegenDelay": 2.0,
+    "staggerFrames": 40,
+    "knockbackScale": 1.0,
+
+    "walkSpeed": 3.2,
+    "turnSpeed": 320,
+    "respawnSeconds": 6,
+
+    "score": 18,
+    "drops": 3,
+    "weakness": { "volt": 1.3 },
+
+    "script": "mender",
+    "params": {
+        "engageRange": 30,
+        "tooClose": 7,
+        "preferredMax": 15,
+        "mendCooldown": 4.5,
+        "shotCooldown": 2.8,
+        "aimAngle": 20
+    },
+
+    "moveset": {
+        "attacks": {
+            "mend": {
+                "startup": 40, "active": 1, "recovery": 20,
+                "damage": 0, "poiseDamage": 0, "knockback": 0,
+                "hitboxes": [],
+                "heal": { "amount": 22, "radius": 7 },
+                "swing": { "pitchFrom": -10, "pitchTo": -18 }
+            },
+            "bolt": {
+                "startup": 30, "active": 1, "recovery": 24,
+                "turnRate": 4,
+                "projectile": {
+                    "speed": 16, "gravity": 2, "lead": 0.3,
+                    "damage": 8, "poiseDamage": 0, "knockback": 2, "terrainDamage": 5,
+                    "hitstop": 2, "shake": 0.15,
+                    "spawn": [0.25, 1.4, 0.6],
+                    "model": "mend_orb", "modelScale": 0.05
+                },
+                "swing": { "pitchFrom": -6, "pitchTo": 0 }
+            }
+        }
+    }
+}

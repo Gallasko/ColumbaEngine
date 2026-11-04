@@ -836,7 +836,10 @@ namespace arena::screens
         const float duelH = v.champion.empty() ? 0.0f : 58.0f;
         const float recapH = recap ? 4.0f + 22.0f * static_cast<float>(v.recap.size()) : 0.0f;
         const float panelW = recap ? 800.0f : 640.0f, panelH = 420.0f + duelH + recapH;
-        const float px = 640.0f - panelW * 0.5f, py = std::max(8.0f, 360.0f - panelH * 0.5f);
+        // With the damage by source: a panel of its own on the right, the two centred together
+        const bool sources = not v.sources.empty();
+        const float sideW = 300.0f, sideGap = 12.0f;
+        const float px = 640.0f - (panelW + (sources ? sideGap + sideW : 0.0f)) * 0.5f, py = std::max(8.0f, 360.0f - panelH * 0.5f);
         const float L = px + 34.0f, R = px + panelW - 34.0f, W = R - L;
 
         ui.anchor(Anchor::Centre);
@@ -958,6 +961,42 @@ namespace arena::screens
                     ui.text(L + nameW + right[c] - 10.0f, ry + 3, cells[c], Font::Text600, 14, ink, Align::Right);
             }
             y += 22.0f * static_cast<float>(v.recap.size()) + 16.0f;
+        }
+
+        // Your damage, by what dealt it
+        if (sources)
+        {
+            const auto sideScope = ui.scope(Ui::idOf("sources"));
+            const float sx = px + panelW + sideGap, sL = sx + 22.0f, sW = sideW - 44.0f;
+            const size_t rows = std::min<size_t>(v.sources.size(), static_cast<size_t>(std::max(1.0f, (panelH - 80.0f) / 40.0f)));
+            const float sideH = std::min(panelH, 74.0f + 40.0f * static_cast<float>(rows) + (rows < v.sources.size() ? 24.0f : 0.0f));
+            ui.raised(sx, py, sideW, sideH, PANEL, 4.0f);
+            ui.rect(sx + 2, py + 2, sideW - 4, 6, accent);
+            ui.text(sL, py + 28, "YOUR DAMAGE", Font::Text700, 12, MUTED, Align::Left, 1.5f);
+
+            int total = 0, most = 1;
+            for (const auto& s : v.sources)
+            {
+                total += s.damage;
+                most = std::max(most, s.damage);
+            }
+            ui.text(sx + sideW - 22.0f, py + 22, grouped(total), Font::Display, 24, TEXT, Align::Right);
+
+            float ry = py + 60.0f;
+            for (size_t i = 0; i < rows; ++i)
+            {
+                const auto rowScope = ui.scope(i);
+                const EndView::Source& s = v.sources[i];
+                const std::string share = std::to_string(static_cast<int>(std::lround(100.0f * static_cast<float>(s.damage) / static_cast<float>(std::max(1, total))))) + "%";
+                const float vw = ui.text(sL + sW, ry, share, Font::Text600, 12, MUTED, Align::Right);
+                const float dw = ui.text(sL + sW - vw - 10.0f, ry - 3, grouped(s.damage), Font::Display, 20, TEXT, Align::Right);
+                ui.text(sL, ry, ui.fit(s.name, Font::Text600, 14, sW - vw - dw - 24.0f), Font::Text600, 14, TEXT_DIM);
+                ui.rect(sL, ry + 22, sW, 6, withAlpha(INK, 0.6f));
+                ui.rect(sL, ry + 22, std::max(2.0f, std::round(sW * static_cast<float>(s.damage) / static_cast<float>(most))), 6, s.colour);
+                ry += 40.0f;
+            }
+            if (rows < v.sources.size())
+                ui.text(sL, ry, "and " + std::to_string(v.sources.size() - rows) + " more", Font::Text500, 12, FAINT);
         }
 
         const float by = py + 342.0f + duelH + recapH;

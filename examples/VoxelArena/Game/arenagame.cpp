@@ -1150,7 +1150,9 @@ namespace arena
                     if (levelPicks > 0)
                     {
                         if (p.scancode >= SDL_SCANCODE_1 and p.scancode <= SDL_SCANCODE_9 and static_cast<int>(p.scancode - SDL_SCANCODE_1) < levelPicks)
-                            pendingPick = InputFrame::LEVEL + static_cast<int>(p.scancode - SDL_SCANCODE_1);
+                            pendingPick = (shift ? InputFrame::BANISH : InputFrame::LEVEL) + static_cast<int>(p.scancode - SDL_SCANCODE_1);
+                        else if (p.scancode == SDL_SCANCODE_R)
+                            pendingPick = InputFrame::LEVEL_REROLL;
                         else if (p.scancode == SDL_SCANCODE_ESCAPE)
                             setOptionsOpen(true);
                         continue;
@@ -2015,8 +2017,68 @@ namespace arena
         saveSpellbook(spellbookPath(), book);
     }
 
+    EndView::Source ArenaGame::damageSource(const std::string& id, int damage) const
+    {
+        using namespace ui;
+        auto upperFirst = [](std::string s) {
+            if (not s.empty())
+                s[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(s[0])));
+            return s;
+        };
+
+        // A weapon, a spell, a technique, an element combo, a status, an item, an enemy's or an elite's blast
+        if (auto w = content.weapons.find(id); w != content.weapons.end())
+            return {w->second.name, damage, KIND_WEAPON};
+        if (auto sp = content.spells.find(id); sp != content.spells.end())
+            return {sp->second.name, damage, elementColour(sp->second.recipe.element)};
+        if (auto a = content.abilities.find(id); a != content.abilities.end())
+            return {a->second.name, damage, KIND_SKILL};
+        if (auto c = content.combos.find(id); c != content.combos.end())
+            return {c->second.name, damage, hex(0xC89CFF)};
+        if (auto st = content.statuses.find(id); st != content.statuses.end())
+            return {upperFirst(st->second.name), damage, KIND_ELEMENT};
+        if (auto u = content.upgrades.find(id); u != content.upgrades.end())
+            return {u->second.name, damage, KIND_STAT};
+        if (auto en = content.enemies.find(id); en != content.enemies.end())
+            return {en->second.name + " blasts", damage, WARNING};
+        if (auto af = content.affixes.find(id); af != content.affixes.end())
+            return {af->second.name + " elites", damage, WARNING};
+        if (id == "burst")
+            return {"Item bursts", damage, KIND_STAT};
+        return {upperFirst(id.substr(id.find(':') == std::string::npos ? 0 : id.find(':') + 1)), damage, MUTED};
+    }
+
     void ArenaGame::playEvent(const WorldEvent& e)
     {
+        // The player's own hits: their damage rises off what they hit (a crit's event comes just before its hit's)
+        if (e.kind == "crit")
+            critOn = e.fighter;
+        else if (e.kind == "hit" or e.kind == "stagger" or e.kind == "kill")
+        {
+            const Fighter* me = world.player();
+            const bool crit = critOn == e.fighter;
+            critOn = 0;
+
+            if (prefs.damageNumbers and me and e.source == me->id and e.fighter != me->id and e.strength >= 0.5f)
+            {
+                // A quick run of hits on the same one adds up into one number
+                auto same = std::find_if(damageNumbers.begin(), damageNumbers.end(), [&](const DamageNumber& n) { return n.target == e.fighter and n.age < 0.12f; });
+                if (same != damageNumbers.end())
+                {
+                    same->value += e.strength;
+                    same->crit = same->crit or crit;
+                    same->kill = same->kill or e.kind == "kill";
+                }
+                else
+                {
+                    std::uniform_real_distribution<float> jitter(-0.35f, 0.35f);
+                    damageNumbers.push_back({e.fighter, e.position + glm::vec3(jitter(lookRng), 0.2f, jitter(lookRng)), e.strength, 0.0f, crit, e.kind == "kill"});
+                    if (damageNumbers.size() > 48)
+                        damageNumbers.erase(damageNumbers.begin());
+                }
+            }
+        }
+
         // A run's spawn points, shown until the enemies come out
         if (e.kind == "spawn_warn" or e.kind == "boss_warn" or e.kind == "elite_warn")
             spawnMarks.push_back({e.position, e.strength, e.kind == "boss_warn", e.kind == "elite_warn"});
@@ -2160,6 +2222,11 @@ namespace arena
                 particles.burst(look->second.particles, z.position + glm::vec3(std::cos(a) * r, 0.1f, std::sin(a) * r), look->second.particles.color);
             }
         }
+
+        // Damage numbers: up and gone in a moment
+        for (auto& n : damageNumbers)
+            n.age += frameSeconds;
+        damageNumbers.erase(std::remove_if(damageNumbers.begin(), damageNumbers.end(), [](const DamageNumber& n) { return n.age > 0.9f; }), damageNumbers.end());
 
         // Spawn points: shown until they come out (or the run moved on)
         for (auto& m : spawnMarks)
@@ -2931,6 +2998,9 @@ namespace arena
             bar.staggered = f.action == Action::Stagger;
             bar.elite = f.elite;
             bar.boss = f.team == Team::Enemy and f.id == world.run.bossId;
+            for (const auto& id : f.affixes)
+                if (auto a = content.affixes.find(id); a != content.affixes.end())
+                    bar.affixes.push_back({a->second.name, ui::Colour(a->second.colour.r * 255.0f, a->second.colour.g * 255.0f, a->second.colour.b * 255.0f, 255.0f)});
             bar.statuses = statusesOf(f);
             if (rival or ally or self)
                 bar.name = playerNameOf(f.id);
@@ -2939,6 +3009,27 @@ namespace arena
             bar.ally = ally;
             bar.self = self;
             v.enemies.push_back(bar);
+        }
+
+        // The player's damage numbers, rising and fading
+        for (const auto& n : damageNumbers)
+        {
+            const glm::vec3 at = n.at + glm::vec3(0, 0.3f + 1.4f * n.age - 0.6f * n.age * n.age, 0);
+            const glm::vec4 clip = proj * view * glm::vec4(at, 1.0f);
+            if (clip.w <= 0.1f or glm::length(at - camera.position) > 30.0f)
+                continue;
+            const glm::vec3 ndc = glm::vec3(clip) / clip.w;
+            if (std::fabs(ndc.x) > 1.05f or std::fabs(ndc.y) > 1.05f)
+                continue;
+
+            Hud::Number shown;
+            shown.at = glm::vec2((ndc.x * 0.5f + 0.5f) * screenW, (0.5f - ndc.y * 0.5f) * screenH);
+            shown.text = std::to_string(std::max(1L, std::lround(n.value)));
+            shown.big = n.crit or n.kill;
+            shown.crit = n.crit;
+            shown.alpha = std::clamp((0.9f - n.age) / 0.3f, 0.0f, 1.0f);
+            shown.pop = std::clamp(1.0f - n.age / 0.12f, 0.0f, 1.0f);
+            v.numbers.push_back(shown);
         }
 
         edgeArrows(v, proj, view);
@@ -3817,6 +3908,15 @@ namespace arena
                 if (auto d = content.enemies.find(b->second); d != content.enemies.end())
                     e.boss = "the " + d->second.name;
 
+            // The player's damage, by what dealt it
+            {
+                std::vector<std::pair<std::string, float>> bySource(p->stats.bySource.begin(), p->stats.bySource.end());
+                std::sort(bySource.begin(), bySource.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
+                for (const auto& [id, damage] : bySource)
+                    if (damage >= 0.5f)
+                        e.sources.push_back(damageSource(id, static_cast<int>(std::lround(damage))));
+            }
+
             // Two players or more: what each one did
 
             if (players.size() >= 2)
@@ -4096,7 +4196,14 @@ namespace arena
             else if (f.action == Action::Stagger)
                 flash = glm::vec4(1.0f, 0.9f, 0.3f, 0.25f + 0.15f * std::sin(frame * 0.6f));
             else if (f.elite and f.alive())
-                flash = glm::vec4(1.0f, 0.75f, 0.2f, 0.2f + 0.08f * std::sin(simTime * 4.0f + static_cast<float>(f.id)));
+            {
+                // An elite glows its first affix's colour (gold without one)
+                glm::vec3 glow(1.0f, 0.75f, 0.2f);
+                if (not f.affixes.empty())
+                    if (auto a = content.affixes.find(f.affixes.front()); a != content.affixes.end())
+                        glow = a->second.colour;
+                flash = glm::vec4(glow, 0.22f + 0.1f * std::sin(simTime * 4.0f + static_cast<float>(f.id)));
+            }
 
             const glm::vec4 tint = f.action == Action::Dead ? glm::vec4(0.6f, 0.6f, 0.6f, 1.0f) : WHITE;
 
@@ -4360,13 +4467,29 @@ namespace arena
             if (not seen.sees(z.position, z.radius))
                 continue;
 
+            const float lift = 0.04f + 0.012f * static_cast<float>(i % 12);
+            const glm::mat4 m = glm::translate(glm::mat4(1.0f), z.position + glm::vec3(0, lift, 0)) * glm::scale(glm::mat4(1.0f), glm::vec3(z.radius * 2.0f, 1.0f, z.radius * 2.0f));
+
+            // A blast about to go off: a red ring, filling in from the middle as it comes
+            if (z.blasting())
+            {
+                const float progress = glm::clamp(1.0f - z.remaining / std::max(0.01f, z.duration), 0.0f, 1.0f);
+                const float pulse = 0.5f + 0.5f * std::sin(simTime * 18.0f);
+                const glm::mat4 fill = glm::translate(glm::mat4(1.0f), z.position + glm::vec3(0, lift + 0.002f, 0)) *
+                                       glm::scale(glm::mat4(1.0f), glm::vec3(z.radius * 2.0f * progress, 1.0f, z.radius * 2.0f * progress));
+                pushInstance(zoneDiscs, view, m, glm::vec4(1.0f, 0.15f, 0.1f, 0.14f), glm::vec4(0.0f));
+                pushInstance(zoneDiscs, view, fill, glm::vec4(1.0f, 0.2f, 0.1f, 0.3f), glm::vec4(0.0f));
+                pushInstance(zoneRings, view, glm::translate(glm::mat4(1.0f), glm::vec3(0, 0.004f, 0)) * m, glm::vec4(1.0f, 0.2f, 0.12f, 0.7f + 0.3f * pulse), glm::vec4(0.0f));
+                continue;
+            }
+
             auto look = effects.find(z.heal > 0.0f ? std::string("zone:heal") : std::string("zone:") + elementName(z.element));
             const glm::vec3 tint = look != effects.end() and look->second.hasTint ? look->second.tint : glm::vec3(1.0f);
             const float fade = glm::clamp(z.remaining / 0.6f, 0.0f, 1.0f) * glm::clamp((z.duration - z.remaining) / 0.2f + 0.3f, 0.0f, 1.0f);
-            const float lift = 0.04f + 0.012f * static_cast<float>(i % 12);
-            const glm::mat4 m = glm::translate(glm::mat4(1.0f), z.position + glm::vec3(0, lift, 0)) * glm::scale(glm::mat4(1.0f), glm::vec3(z.radius * 2.0f, 1.0f, z.radius * 2.0f));
             pushInstance(zoneDiscs, view, m, glm::vec4(tint, (z.heal > 0.0f ? 0.3f : 0.18f) * fade), glm::vec4(0.0f));   // a healing zone shows more: you go to it
-            pushInstance(zoneRings, view, glm::translate(glm::mat4(1.0f), glm::vec3(0, 0.004f, 0)) * m, glm::vec4(tint, 0.7f * fade), glm::vec4(0.0f));
+            // The enemies' ground hurts the players: its edge is red
+            const glm::vec3 edge = z.team == Team::Enemy ? glm::mix(tint, glm::vec3(1.0f, 0.15f, 0.1f), 0.6f) : tint;
+            pushInstance(zoneRings, view, glm::translate(glm::mat4(1.0f), glm::vec3(0, 0.004f, 0)) * m, glm::vec4(edge, 0.7f * fade), glm::vec4(0.0f));
         }
         add(discMesh, debugMaterial, OpacityType::Normal, std::move(zoneDiscs));
         add(ringMesh, debugMaterial, OpacityType::Normal, std::move(zoneRings));
@@ -4711,7 +4834,7 @@ namespace arena
 
         if (cmd == "help")
         {
-            return "reload | tune <key> [value] | tunes [prefix] | spawn <enemy> [count] | clear | reset\n"
+            return "reload | tune <key> [value] | tunes [prefix] | spawn <enemy> [count] | elite <enemy> [affix ...] | clear | reset\n"
                    "place x y z <block|air> | fill x0 y0 z0 x1 y1 z1 <block|air>\n"
                    "view [first|third] | weapon <id> | item <id|all> [rarity] | bot | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | map [arena] | training | difficulty <n> | wave <n> | duel | timeup | join <address> | leave | shards <n> | kill | hurt <damage> | options | mods | errors | warnings\n"
                    "scripted input: mouse [on|off] | click <x> <y> | hover <x> <y> | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
@@ -5131,7 +5254,7 @@ namespace arena
         }
 
         // The world belongs to the server: a client asking to change it would only change its own view
-        if (client and (cmd == "reload" or cmd == "spawn" or cmd == "clear" or cmd == "reset" or cmd == "place" or cmd == "fill" or
+        if (client and (cmd == "reload" or cmd == "spawn" or cmd == "elite" or cmd == "clear" or cmd == "reset" or cmd == "place" or cmd == "fill" or
                         cmd == "god" or cmd == "stamina" or cmd == "mana" or cmd == "ai" or cmd == "tune" or cmd == "wave" or cmd == "teleport" or cmd == "pause" or
                         cmd == "step" or cmd == "slowmo" or cmd == "shards" or cmd == "timeup" or cmd == "kill" or cmd == "hurt" or cmd == "duel" or cmd == "item"))
             return cmd + ": only the host can do that";
@@ -5210,6 +5333,44 @@ namespace arena
             }
 
             return "spawned " + std::to_string(count) + " " + id;
+        }
+
+        if (cmd == "elite")
+        {
+            // An elite in front of you with the affixes named (none: one picked as a run would)
+            if (args.size() < 2)
+                return "elite <enemy> [affix ...]; affixes: " + [&] { std::string s; for (const auto& [id, a] : content.affixes) s += id + " "; return s; }();
+
+            const std::string id = resolveId(args[1], "base");
+            if (not content.enemies.count(id))
+                return "no enemy " + id;
+
+            std::vector<std::string> affixes;
+            for (size_t k = 2; k < args.size(); ++k)
+            {
+                const std::string affix = resolveId(args[k], "base");
+                if (not content.affixes.count(affix))
+                    return "no affix " + affix;
+                affixes.push_back(affix);
+            }
+            if (affixes.empty())
+                affixes = world.rollAffixes(1);
+
+            const glm::vec3 ahead = p ? p->body.position + yawForward(camera.yaw) * 5.0f + glm::vec3(0, 1.0f, 0) : content.arena.playerSpawn;
+            const int spawned = world.spawnEnemy(id, glm::clamp(ahead, glm::vec3(1.5f), glm::vec3(world.grid.width() - 1.5f, world.grid.height() - 2.0f, world.grid.depth() - 1.5f)),
+                                                 camera.yaw + 180.0f);
+            if (Fighter* e = world.find(spawned))
+            {
+                e->elite = true;
+                e->affixes = affixes;
+                e->maxHealth *= 2.5f * (1.0f + world.affixSum(*e, &AffixDef::health));
+                e->health = e->maxHealth;
+            }
+
+            std::string named;
+            for (const auto& a : affixes)
+                named += " " + content.affixes.at(a).name;
+            return "spawned an elite " + id + ":" + named;
         }
 
         if (cmd == "clear")

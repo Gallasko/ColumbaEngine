@@ -259,6 +259,9 @@ namespace arena
                 {"Status stacks", static_cast<float>(b.statusStacks)}, {"Attack speed %", b.attackSpeed * 100.0f},
                 {"More enemies %", b.horde * 100.0f}, {"XP per shard %", b.xpGain * 100.0f}, {"Extra shards %", b.shardChance * 100.0f},
                 {"Combo damage %", b.comboDamage * 100.0f}, {"Status length %", b.statusDuration * 100.0f},
+                {"Damage taken %", b.damageTaken * 100.0f}, {"Thorns %", b.thorns * 100.0f}, {"Heal per kill", b.killHeal},
+                {"Damage when hurt %", b.hurtDamage * 100.0f}, {"Damage in the air %", b.airDamage * 100.0f}, {"Damage to weak enemies %", b.executeDamage * 100.0f},
+                {"Damage after a hit %", b.revengeDamage * 100.0f},
             };
         }
     }
@@ -272,7 +275,7 @@ namespace arena
         {
             const float was = stat(playerStats(world, content, before), label);
             if (std::fabs(v - was) > 1e-3f)
-                out.push_back({label, oneDecimal(was), oneDecimal(v), v > was});
+                out.push_back({label, oneDecimal(was), oneDecimal(v), label == "Damage taken %" ? v < was : v > was});
         }
 
         // Each spell and technique
@@ -319,25 +322,37 @@ namespace arena
     std::string itemText(const Content& content, const UpgradeDef& u, float k)
     {
         std::vector<std::string> parts;
-        auto pc = [&](float v) { return std::to_string(static_cast<int>(std::lround(v * k * 100.0f))) + "%"; };
-        auto num = [&](float v) { return oneDecimal(v * k); };
+        // A rarity makes only what helps bigger: a downside (a negative number) is as written
+        auto pc = [&](float v) { return std::to_string(static_cast<int>(std::lround(std::fabs(v > 0.0f ? v * k : v) * 100.0f))) + "%"; };
+        auto num = [&](float v) { return oneDecimal(v > 0.0f ? v * k : v); };
+        auto sign = [](float v) { return std::string(v < 0.0f ? "-" : "+"); };
+        auto elementWord = [](Element e) {
+            switch (e)
+            {
+                case Element::Fire: return std::string("fire");
+                case Element::Ice: return std::string("ice");
+                case Element::Volt: return std::string("lightning");
+                default: return std::string();
+            }
+        };
 
         // A tag item: what it does, and to what ("-15% spell cooldown")
         if (u.forTag())
             return boostText(u.boost, k, u.tag);
         else
         {
-            if (u.maxHealth != 0.0f) parts.push_back("+" + std::to_string(static_cast<int>(std::lround(u.maxHealth * k))) + " max health");
-            if (u.damage != 0.0f) parts.push_back("+" + pc(u.damage) + " damage on all attacks and spells");
+            if (u.maxHealth != 0.0f) parts.push_back(sign(u.maxHealth) + std::to_string(static_cast<int>(std::lround(std::fabs(u.maxHealth > 0.0f ? u.maxHealth * k : u.maxHealth)))) + " max health");
+            if (u.damage != 0.0f) parts.push_back(sign(u.damage) + pc(u.damage) + " damage on all attacks and spells");
+            if (u.healthScale != 0.0f) parts.push_back(sign(u.healthScale) + pc(u.healthScale) + " max health");
             if (u.dashCharges != 0) parts.push_back("+" + std::to_string(u.dashCharges) + (u.dashCharges == 1 ? " dash charge" : " dash charges"));
-            if (u.manaCost != 0.0f) parts.push_back("Spells cost " + pc(u.manaCost) + " less");
-            if (u.manaRegen != 0.0f) parts.push_back("+" + pc(u.manaRegen) + " mana regeneration");
-            if (u.staminaRegen != 0.0f) parts.push_back("+" + pc(u.staminaRegen) + " stamina regeneration");
-            if (u.speed != 0.0f) parts.push_back("+" + pc(u.speed) + " move speed");
-            if (u.cooldown != 0.0f) parts.push_back("-" + pc(u.cooldown) + " cooldown on all skills and spells");
+            if (u.manaCost != 0.0f) parts.push_back("Spells cost " + pc(u.manaCost) + (u.manaCost > 0.0f ? " less" : " more"));
+            if (u.manaRegen != 0.0f) parts.push_back(sign(u.manaRegen) + pc(u.manaRegen) + " mana regeneration");
+            if (u.staminaRegen != 0.0f) parts.push_back(sign(u.staminaRegen) + pc(u.staminaRegen) + " stamina regeneration");
+            if (u.speed != 0.0f) parts.push_back(sign(u.speed) + pc(u.speed) + " move speed");
+            if (u.cooldown != 0.0f) parts.push_back((u.cooldown > 0.0f ? "-" : "+") + pc(u.cooldown) + " cooldown on all skills and spells");
             if (u.lifeOnHit != 0.0f) parts.push_back("Heal " + num(u.lifeOnHit) + " on every hit");
             if (u.statusStacks != 0) parts.push_back("Your statuses land " + std::to_string(u.statusStacks) + (u.statusStacks == 1 ? " stack deeper" : " stacks deeper"));
-            if (u.armor != 0.0f) parts.push_back("Take " + pc(u.armor) + " less damage");
+            if (u.armor != 0.0f) parts.push_back("Take " + pc(u.armor) + (u.armor > 0.0f ? " less damage" : " more damage"));
             if (u.crit != 0.0f) parts.push_back("+" + pc(u.crit) + " chance of a critical hit");
             if (u.pickupRange != 0.0f) parts.push_back("Pick up shards " + num(u.pickupRange) + " m further");
             if (u.regen != 0.0f) parts.push_back("Regenerate " + num(u.regen) + " health a second");
@@ -347,6 +362,33 @@ namespace arena
             if (u.shardChance != 0.0f) parts.push_back("Enemies drop " + pc(u.shardChance) + " more shards (by chance)");
             if (u.comboDamage != 0.0f) parts.push_back("Element combos do " + pc(u.comboDamage) + " more damage");
             if (u.statusDuration != 0.0f) parts.push_back("Your burns, slows and stuns last " + pc(u.statusDuration) + " longer");
+            // A downside is never scaled: damageTaken as written
+            if (u.damageTaken != 0.0f)
+                parts.push_back("You take " + std::to_string(static_cast<int>(std::lround(std::fabs(u.damageTaken) * 100.0f))) + "%" + (u.damageTaken > 0.0f ? " more damage" : " less damage"));
+            if (u.hurtDamage != 0.0f) parts.push_back("+" + pc(u.hurtDamage) + " damage while you are under half health");
+            if (u.airDamage != 0.0f) parts.push_back("+" + pc(u.airDamage) + " damage while you are in the air");
+            if (u.executeDamage != 0.0f) parts.push_back("+" + pc(u.executeDamage) + " damage to enemies under 30% health");
+            if (u.revengeDamage != 0.0f) parts.push_back("+" + pc(u.revengeDamage) + " damage for 3 s after you take a hit");
+            if (u.thorns != 0.0f) parts.push_back("Enemies that hit you take " + pc(u.thorns) + " of the damage back");
+            if (u.killHeal != 0.0f) parts.push_back("Heal " + num(u.killHeal) + " for each kill");
+            if (u.dodgeGround.any())
+            {
+                const std::string what = u.dodgeGround.element == Element::Fire ? "burning" : (u.dodgeGround.element == Element::Ice ? "freezing" : "charged");
+                parts.push_back("Rolling leaves " + what + " ground behind you for " + oneDecimal(u.dodgeGround.duration) + " s (" + num(u.dodgeGround.perSecond) +
+                                " damage a second)");
+            }
+            if (u.proc.every > 0 and u.proc.damage > 0.0f)
+            {
+                const std::string element = elementWord(u.proc.element);
+                const int n = u.proc.every;
+                const std::string nth = n == 1 ? "" : std::to_string(n) + (n % 10 == 2 and n % 100 != 12 ? "nd " : n % 10 == 3 and n % 100 != 13 ? "rd " : "th ");
+                std::string part = "Every " + nth + "hit of your weapon also deals " + num(u.proc.damage) + (element.empty() ? "" : " " + element) + " damage";
+                if (u.proc.chains > 0)
+                    part += " and jumps to " + std::to_string(u.proc.chains) + " more enemies";
+                parts.push_back(part);
+            }
+            if (u.landing.damage > 0.0f)
+                parts.push_back("Landing hard (a fast fall) hits enemies within " + oneDecimal(u.landing.radius) + " m for " + num(u.landing.damage) + " damage");
 
             // "+30% damage to slowed and frozen enemies": the statuses with the same number together
             auto called = [&](const std::string& id) {
@@ -382,9 +424,10 @@ namespace arena
         if (parts.empty())
             return u.text;
 
+        // Several effects (a trade-off's good and bad sides): a sentence each
         std::string out;
         for (const auto& part : parts)
-            out += (out.empty() ? "" : ", ") + part;
+            out += (out.empty() ? "" : ". ") + part;
         return out;
     }
 
@@ -832,7 +875,7 @@ namespace arena
             Fighter after = me;
             after.boons.push_back({o.id, o.rarity});
             world.sumBoons(after);
-            after.maxHealth = me.maxHealth + (after.boon.maxHealth - me.boon.maxHealth);
+            after.maxHealth = world.playerMaxHealth(after);
             const std::vector<Change> changes = whatChanges(content, world, me, after);
             auto faded = [&](const Colour& c) { return withAlpha(c, alpha * c.a / 255.0f); };
 
@@ -1000,8 +1043,11 @@ namespace arena
             return card;
         }
 
-        /** A pick's card (a level up's, a present's): its kind, icon, name, branch, text, what changes, Take. */
-        void pickCard(Ui& ui, const PickCard& card, float x, float y, float w, float h, int index, int action)
+        /**
+         * A pick's card (a level up's, a present's): its kind, icon, name, branch, text, what changes, Take. banish: a
+         * level up's Banish at its top right (0: none), `banishable` false greys it out.
+         */
+        void pickCard(Ui& ui, const PickCard& card, float x, float y, float w, float h, int index, int action, int banish = 0, bool banishable = true)
         {
             const bool over = ui.hover(x, y, w, h);
             ui.raised(x, y, w, h, CARD, 3.0f, 2.0f, over ? GOLD : card.colour);
@@ -1044,6 +1090,17 @@ namespace arena
             ui.text(x + 64, by + 11, "Take", Font::Text700, 16, over ? GOLD_INK : TEXT);
 
             ui.hit(x, y, w, h, action);
+
+            // Banish: drawn after the card, so a click on it is the banish's
+            if (banish != 0)
+            {
+                const float bw = 92.0f, bh = 24.0f, bx = x + w - 14.0f - bw, byTop = y + 12.0f;
+                const bool on = banishable and ui.hover(bx, byTop, bw, bh);
+                ui.box(bx, byTop, bw, bh, on ? WARNING : CARD_DIM, 2.0f, banishable ? (on ? TEXT : LINE) : withAlpha(LINE, 0.4f));
+                ui.text(bx + bw * 0.5f, byTop + 4, "Banish", Font::Text700, 12, banishable ? (on ? INK : TEXT_DIM) : FAINT, Align::Centre);
+                if (banishable)
+                    ui.hit(bx, byTop, bw, bh, banish);
+            }
         }
     }
 
@@ -1055,22 +1112,42 @@ namespace arena
 
         ui.anchor(Anchor::Centre);
         ui.text(640, 72, "LEVEL UP", Font::Display, 64, GOLD, Align::Centre, 2.0f);
-        ui.text(640, 148, "Lv " + std::to_string(me.level - me.levelUps + 1) + (me.levelUps > 1 ? "  \xC2\xB7  " + std::to_string(me.levelUps) + " picks to make" : "  \xC2\xB7  pick one"),
+        ui.text(640, 148, "Lv " + std::to_string(me.level - me.levelUps + 1) + (me.levelUps > 1 ? "  \xC2\xB7  " + std::to_string(me.levelUps) + " picks to make" : "  \xC2\xB7  pick one") +
+                          "  \xC2\xB7  " + std::to_string(me.banishes) + (me.banishes == 1 ? " banish left" : " banishes left"),
                 Font::Text700, 14, TEXT_DIM, Align::Centre, 1.5f);
 
         const size_t n = me.levelOffer.size();
-        const float w = n > 3 ? 280.0f : 330.0f, h = 440.0f, gap = n > 3 ? 16.0f : 24.0f, y = 180.0f;
+        const float w = n > 3 ? 280.0f : 330.0f, h = 430.0f, gap = n > 3 ? 16.0f : 24.0f, y = 176.0f;
         const float startX = 640.0f - (static_cast<float>(n) * w + static_cast<float>(n - 1) * gap) * 0.5f;
 
         for (size_t i = 0; i < n; ++i)
         {
             const auto itemScope = ui.scope(i);
             const float x = std::round(startX + static_cast<float>(i) * (w + gap));
-            pickCard(ui, levelCard(content, world, me, me.levelOffer[i]), x, y, w, h, static_cast<int>(i), InputFrame::LEVEL + static_cast<int>(i));
+            // A branch is what the thing grows into: there is no banishing it
+            int branch = -1;
+            ArenaWorld::offerTarget(me.levelOffer[i], branch);
+            pickCard(ui, levelCard(content, world, me, me.levelOffer[i]), x, y, w, h, static_cast<int>(i), InputFrame::LEVEL + static_cast<int>(i),
+                     me.banishes > 0 ? InputFrame::BANISH + static_cast<int>(i) : 0, branch < 0);
         }
 
-        ui.text(640, 640, "Press 1-" + std::to_string(n) + " or click to choose. " + (me.presents > 0 ? "Your presents" : "The shop") + " is next.", Font::Text500, 12, FAINT,
-                Align::Centre);
+        // Reroll the picks, while the run's rerolls last
+        {
+            const bool can = me.levelRerolls > 0;
+            const std::string left = std::to_string(me.levelRerolls) + " left";
+            const float bw = 22.0f + 22.0f + 12.0f + ui.measure("Reroll", Font::Text700, 15) + 12.0f + ui.measure(left, Font::Text600, 12) + 18.0f, bh = 40.0f;
+            const float bx = std::round(640.0f - bw * 0.5f), by = 620.0f;
+            const bool over = can and ui.hover(bx, by, bw, bh);
+            ui.box(bx, by, bw, bh, CARD, 2.0f, over ? GOLD : (can ? LINE : withAlpha(LINE, 0.4f)));
+            ui.keycap(bx + 12, by + 9, 22, "R", can ? GOLD : CARD_DIM, can ? GOLD_INK : FAINT, 18, 0.0f);
+            ui.text(bx + 46, by + 10, "Reroll", Font::Text700, 15, can ? TEXT : FAINT);
+            ui.text(bx + 46 + ui.measure("Reroll", Font::Text700, 15) + 12.0f, by + 13, left, Font::Text600, 12, can ? TEXT_DIM : FAINT);
+            if (can)
+                ui.hit(bx, by, bw, bh, InputFrame::LEVEL_REROLL);
+        }
+
+        const std::string keys = "1-" + std::to_string(n);
+        ui.text(640, 672, "Press " + keys + " to take one. Shift+" + keys + " banishes one for the rest of the run.", Font::Text500, 12, FAINT, Align::Centre);
     }
 
     void ShopScreen::drawPresent(Ui& ui, const Content& content, const ArenaWorld& world, const Fighter& me)
@@ -1106,7 +1183,7 @@ namespace arena
             Fighter after = me;
             after.boons.push_back({o.id, o.rarity});
             world.sumBoons(after);
-            after.maxHealth = me.maxHealth + (after.boon.maxHealth - me.boon.maxHealth);
+            after.maxHealth = world.playerMaxHealth(after);
             card.changes = whatChanges(content, world, me, after);
 
             pickCard(ui, card, x, y, w, h, static_cast<int>(i), InputFrame::PRESENT + static_cast<int>(i));

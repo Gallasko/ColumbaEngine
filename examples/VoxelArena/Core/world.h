@@ -65,9 +65,10 @@ namespace arena
          * WEAPON + i takes weapon i (Content::weaponOrder) before the first wave, FIRST_SPELL + i the
          * first spell i of run.json's chooseSpell (after the weapon), PRESENT + i takes a present's pick i,
          * DIFFICULTY + i plays the run at difficulty level i (before it starts), BACK leaves that choice.
+         * LEVEL_REROLL rolls a level up's picks again, BANISH + i takes level-up pick i out of the run.
          */
         int pick = 0;
-        static constexpr int START = 9, BUY = 1, LOCK = 11, REROLL = 20, LEVEL = 31, WEAPON = 41, PRESENT = 61, FIRST_SPELL = 71;
+        static constexpr int START = 9, BUY = 1, LOCK = 11, REROLL = 20, LEVEL_REROLL = 21, LEVEL = 31, WEAPON = 41, BANISH = 51, PRESENT = 61, FIRST_SPELL = 71;
         static constexpr int BACK = 80, DIFFICULTY = 81;
 
         static constexpr int ABILITIES = 8;
@@ -155,6 +156,14 @@ namespace arena
             float comboDamage = 0.0f, statusDuration = 0.0f;
             Payoff payoff;                              // more damage against statuses
             std::vector<UpgradeDef::Burst> bursts;      // where an enemy it kills dies with a status (damage times rarity)
+            float healthScale = 0.0f, damageTaken = 0.0f;
+            float hurtDamage = 0.0f, airDamage = 0.0f, executeDamage = 0.0f, revengeDamage = 0.0f;
+            float thorns = 0.0f, killHeal = 0.0f;
+            GroundDef dodgeGround;                      // the widest, their damage added up
+            UpgradeDef::Proc proc;                      // the most often, the most jumps, their damage added up
+            UpgradeDef::Landing landing;                // the widest, their damage added up
+            // The items whose triggers these are: what their hits are counted under in the recap
+            std::string thornsItem, procItem, landingItem, dodgeItem;
         } boon;
 
         // ... shards (money and XP), the level, what is owned (weapons, skills, keywords, "element:fire"),
@@ -178,6 +187,9 @@ namespace arena
         std::vector<std::string> levelOffer;   // a level up's picks: a spell (new, or its next level) or a weapon skill
         bool ready = false;
         int rerolls = 0;
+        int levelRerolls = 0, banishes = 0;    // a run's rerolls and banishes of the level ups left
+        std::vector<std::string> banished;     // what the level ups no longer offer (spells, techniques, the weapon)
+        int procHits = 0;                      // weapon hits towards the next proc (an item's every n-th hit)
 
         // ... and what it did in the run, for the recap at its end
         struct RunStats
@@ -189,9 +201,14 @@ namespace arena
             int downs = 0;            // times it fell
             float damage = 0.0f;      // dealt (to enemies, and to the others in the duel)
             float healing = 0.0f;     // given (to itself and the others)
+            /** The damage it dealt by what dealt it: a weapon, a spell, a technique, a combo, a status ("base:burn"), an item ("thorns"). */
+            std::map<std::string, float> bySource;
         } stats;
 
         bool elite = false;           // an enemy of a run: tougher, harder hitting, worth more
+        std::vector<std::string> affixes;   // an elite's (affixes.json)
+        float trailTimer = 0.0f;      // s to the next of an affix's trail or aura (the server's)
+        bool split = false;           // came out of another one splitting: it does not split again
         int phase = 0;                // a boss: the phases it has gone into (EnemyDef::phases)
         bool shielded = false;        // a boss: nothing hurts it until its crystals are broken
         std::vector<int> crystals;    // ... the crystals holding its shield (the server's)
@@ -333,6 +350,11 @@ namespace arena
         float tick = 0.0f;
         std::shared_ptr<const Spell> spell;
         int stage = 0;
+        StatusHit status;                       // a zone with no spell (ground): what it leaves
+        std::string source;                     // ... and what its hits are counted under in the recap
+        BlastDef blast;                         // a blast's warning: it hurts nobody, and goes off as it ends
+        int killer = 0;                         // ... the one who killed what left it (a blast that hurts everyone counts for them)
+        bool blasting() const { return blast.radius > 0.0f; }
     };
 
     /** Life on hit from an area's, a zone's or a chain's hit: this share of it. */
@@ -426,6 +448,7 @@ namespace arena
         int alliesNear = 0;          // other enemies within 15 m
         int alliesAttacking = 0;     // other enemies in an attack right now
         int alliesNearTarget = 0;    // other enemies within 3.5 m of the target
+        int alliesHurt = 0;          // other enemies within 10 m with less than 80% of their health (a healer's to mend)
         float targetFacing = 0.0f;   // degrees between where the target looks and self: 0 in its face, 180 behind it
         bool hunting = false;        // in an arena run: come for the target from anywhere (no engage range)
     };
@@ -559,6 +582,8 @@ namespace arena
         /** Testing: straight to a wave of the run (the enemies now in the arena go). */
         void skipToWave(int wave);
         bool inRun() const { return run.phase != RunPhase::Off; }
+        /** A player's levels and branches (runSkills) count: in a run, or anywhere in the lab (growsOutsideRun). */
+        bool grows() const { return inRun() or growsOutsideRun; }
 
         /**
          * Whether a hit from `team` (cast or struck by fighter `owner`) can land on `target`: the other
@@ -660,6 +685,20 @@ namespace arena
         int maxDashes(const Fighter& f) const { return tuning.dash.charges + f.boon.dashCharges; }
         /** Health a second a fighter gets back: its regen items and its weapon's mending. */
         float healthRegen(const Fighter& f) const;
+        /** How fast a fighter moves, of its walk speed: statuses slow it, items and affixes speed it up. */
+        float speedScale(const Fighter& f) const;
+        /** A player's most health: the tuning's and its items' (a trade-off item's share off). */
+        float playerMaxHealth(const Fighter& f) const;
+
+        // ---- Elites' affixes (affixes.json) and what dies with a blast or splits ----
+        /** An elite's affixes, picked by the run's dice: `count` of them, each once. */
+        std::vector<std::string> rollAffixes(int count);
+        /** What a fighter's affixes add up to (health, damage, speed, regen...). */
+        float affixSum(const Fighter& f, float AffixDef::*field) const;
+        /** A blast where something died: its warning ring now, its hit as the ring runs out. owner: whom its hits count for. */
+        void startBlast(const BlastDef& blast, const glm::vec3& at, int owner, Team team, const std::string& source, int killer = 0);
+        /** Ground left on the floor at a point (a trail, a puddle, a roll). */
+        void leaveGround(const GroundDef& g, const glm::vec3& at, int owner, Team team, const std::string& source);
 
         /** A hit landing: damage (boons, weakness, crits, armor), life on hit, poise, knockback, a status, a death. */
         void applyHit(Fighter& attacker, Fighter& target, const AttackDef& attack);
@@ -707,6 +746,7 @@ namespace arena
         bool infiniteStamina = false; // players spend no stamina (testing moves)
         bool infiniteMana = false;    // players spend no mana (testing spells)
         bool aiEnabled = true;
+        bool growsOutsideRun = false; // the lab: a weapon's and a technique's levels and branches count in training too
 
         float time = 0.0f;
         uint64_t steps = 0;
@@ -761,6 +801,13 @@ namespace arena
         void endWave();
         void shopPick(Fighter& f, int pick);
         void takeLevel(Fighter& f, const std::string& id);
+        /**
+         * What a level up may offer now: new things (a spell while a key is free, a technique of the weapon in
+         * hand) and growing ones (each a list: a branch choice is all its branches), none banished, shuffled.
+         */
+        void levelCandidates(Fighter& f, std::vector<std::string>& fresh, std::vector<std::vector<std::string>>& upgrades);
+        /** A level up's pick i out of the run: another one in its place (of the same kind when there is one). */
+        void banishPick(Fighter& f, size_t index);
         /** Items for sale (stat and tag items, rarity rolled), not already in `kept`, at most n. */
         std::vector<Fighter::ShopOffer> rollItems(const Fighter& f, int n, const std::vector<Fighter::ShopOffer>& kept, bool unlocks);
         void stepPickups();
@@ -777,7 +824,27 @@ namespace arena
         void elementOnTerrain(Element element, const glm::vec3& point, float radius);
         AttackDef hitOf(const std::string& name, float damage, float poiseDamage, float knockback, int hitstop, float shake, Element element, const StatusHit& status) const;
         void stepStatuses(Fighter& f);
-        void die(Fighter& target, int attacker);
+        /** reward: the kill counts (shards, score); an enemy that blew itself up gives nothing. */
+        void die(Fighter& target, int attacker, bool reward = true);
+        /** Every step: the elites' trails, auras and regeneration. */
+        void stepAffixes(Fighter& f);
+        /** Zones and enemies that deaths left for after the step's hits (nothing moves the lists under a hit). */
+        void flushDeaths();
+        std::vector<Zone> zonesDue;
+        struct SpawnDue
+        {
+            std::string enemy;
+            glm::vec3 position;
+            float yaw = 0.0f;
+            float health = 1.0f;      // of its own
+        };
+        std::vector<SpawnDue> spawnsDue;
+        /** A blast going off: the hit around it (both sides when it hurts everyone), the terrain. */
+        void detonate(const Zone& z);
+        /** The damage a hit is counted under in the recap (see RunStats::bySource). */
+        std::string sourceOf(const Fighter& attacker, const AttackDef& a) const;
+        /** A boss's crystal and the like: nothing pushes it, nothing mends it. */
+        bool anchoredEnemy(const Fighter& f) const;
 
         // ---- A boss's phases (EnemyDef::phases) ----
         /**
@@ -792,7 +859,6 @@ namespace arena
         std::vector<int> crystalsDue;
         /** Crystals for the shields that went up, and shields whose crystals are all broken come down. */
         void stepPhases();
-        float speedScale(const Fighter& f) const;
         float heightAboveGround(const Fighter& f) const;
         glm::vec3 touchedWall(const Fighter& f) const;
         const std::string& attackFor(const Fighter& f, const Moveset& m, int queued) const;

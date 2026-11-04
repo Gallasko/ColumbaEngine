@@ -546,6 +546,8 @@ namespace arena::net
             z.radius = zs.radius;
             z.duration = zs.duration;
             z.heal = zs.heal;
+            z.blast.radius = zs.blast ? zs.radius : 0.0f;
+            z.team = zs.enemy ? Team::Enemy : Team::Player;
             z.remaining = zs.remaining - static_cast<float>(since);
             world.zones.push_back(z);
         }

@@ -121,6 +121,7 @@ namespace arena
         int stagger = 0;               // frames of stagger when it lands (0: none): interrupts
         bool heavy = false;            // that stagger cannot be rolled out of (frozen solid)
         std::string imbue;             // while one has it, its weapon hits leave this status too (a flame weapon: burn)
+        float damageTaken = 0.0f;      // one with it takes this much more damage (-0.5: half; a guardian's ward)
     };
 
     /** A status a hit applies: which, and how many stacks. */
@@ -128,6 +129,52 @@ namespace arena
     {
         std::string status;            // "" = none
         int stacks = 1;
+    };
+
+    /**
+     * Ground something leaves (a zone with no spell): an elite's trail, the puddle of an enemy's shot, a
+     * player's roll. It hurts the other side's fighters in it, `perSecond`, leaving `status`. every: a
+     * trail's seconds between two of them.
+     */
+    struct GroundDef
+    {
+        float radius = 0.0f;
+        float duration = 3.0f;
+        float perSecond = 0.0f;
+        Element element = Element::None;   // how it looks
+        StatusHit status;
+        float every = 0.5f;
+
+        bool any() const { return radius > 0.0f and duration > 0.0f; }
+    };
+
+    /**
+     * A blast where something died: a ring on the ground for `delay` s, then a hit on everyone of the other
+     * side within `radius` (everyone: both sides, so a sapper's powder hurts the enemies too).
+     */
+    struct BlastDef
+    {
+        float delay = 1.0f;
+        float radius = 0.0f;
+        float damage = 0.0f;
+        float poiseDamage = 20.0f;
+        float knockback = 7.0f;
+        float terrainDamage = 0.0f;    // to the blocks within its radius
+        Element element = Element::None;   // sets the arena alight, freezes pits...
+        StatusHit status;
+        bool everyone = false;
+
+        bool any() const { return radius > 0.0f and (damage > 0.0f or terrainDamage > 0.0f); }
+    };
+
+    /** What something splits into as it dies: `count` of `enemy` (an empty one: its own kind), with `health` of their health. */
+    struct SplitDef
+    {
+        std::string enemy;
+        int count = 0;
+        float health = 1.0f;
+
+        bool any() const { return count > 0; }
     };
 
     /**
@@ -270,6 +317,7 @@ namespace arena
         std::vector<std::string> keywords;
         SpellTweak tweak;
         Payoff payoff;   // a run's: what its branch does to targets with statuses
+        std::string source;   // a run's: the spell it is (spells/*.json), for the recap's damage by source (a label: not compared)
 
         bool operator==(const SpellRecipe& o) const { return element == o.element and keywords == o.keywords and tweak == o.tweak and payoff == o.payoff; }
     };
@@ -333,6 +381,7 @@ namespace arena
         int count = 1;                // shot at once, fanned out
         float spread = 0.0f;          // degrees between two of them
         Payoff payoff;                // what it does to targets with statuses (a spell's branch, an attack's)
+        GroundDef ground;             // where it lands: a zone (an enemy's frost puddle)
     };
 
     /**
@@ -443,6 +492,8 @@ namespace arena
 
         float leech = 1.0f;       // the share of life on hit it gives (set as it hits, not read: 0.2 for an area's, a zone's, a chain's)
         bool tellHeavy = false;   // looks: an enemy's heavy attack shows a danger zone while it winds up ("tell": "heavy")
+        bool dies = false;        // an enemy's: it dies as the attack ends (a sapper's fuse; its blast then goes off)
+        std::string source;       // what the hit is counted under in the run's recap (a spell's id); "": found from its name
 
         int total() const { return startup + active + recovery; }
         bool isActive(int frame) const { return frame >= startup and frame < startup + active; }
@@ -534,6 +585,9 @@ namespace arena
 
             bool any() const { return not at.empty() and not crystal.empty(); }
         } phases;
+
+        BlastDef blast;                  // where it dies, a blast (a sapper's powder)
+        SplitDef split;                  // what it splits into as it dies (a golem's pebbles)
 
         std::string script;              // script id, "base:brute"; empty = stands still
         Json params;                     // handed to the script as me.params
@@ -666,6 +720,34 @@ namespace arena
         float statusDuration = 0.0f;  // the statuses one leaves last this much longer (0.5: 50%)
         Payoff payoff;                // more damage against statuses ("against")
 
+        // Trade-offs: a downside is never made bigger by a rarity (only what helps is)
+        float healthScale = 0.0f;     // max health times 1 + this (-0.3: 30% less)
+        float damageTaken = 0.0f;     // damage taken this much more (0.25: 25%)
+
+        // More damage, when: under half health, in the air, against an enemy under 30% health, for 3 s after being hit
+        float hurtDamage = 0.0f, airDamage = 0.0f, executeDamage = 0.0f, revengeDamage = 0.0f;
+
+        // Triggers
+        float thorns = 0.0f;          // this share of a hit's damage goes back to the enemy that dealt it
+        float killHeal = 0.0f;        // health back for each kill
+        GroundDef dodgeGround;        // where one rolls from, ground (burning)
+
+        /** Every `every`-th hit of the weapon: `damage` (grown with the waves) to the enemy, jumping on to `chains` more. */
+        struct Proc
+        {
+            int every = 0;
+            int chains = 0;
+            float damage = 0.0f;
+            Element element = Element::None;
+            StatusHit status;
+        } proc;
+
+        /** A hard landing (a fast fall) hits everyone around for `damage` (grown with the waves). */
+        struct Landing
+        {
+            float radius = 0.0f, damage = 0.0f;
+        } landing;
+
         // A burst where an enemy dies with a status ("if"): everyone of its side within radius takes
         // damage (grown with the waves) and gets status
         struct Burst
@@ -691,6 +773,31 @@ namespace arena
         /** Whether it may come at a rarity of the run. */
         bool comesAt(const std::string& rarity) const { return tiers.empty() or std::find(tiers.begin(), tiers.end(), rarity) != tiers.end(); }
         int price = 10;               // in shards, at the shop (it goes up with the waves)
+    };
+
+    /**
+     * What an elite may come with (affixes.json), on top of being tougher: each changes how it fights. Its
+     * numbers: health and damage this much more (0.3: 30%), speed this much faster; onHit: its hits leave
+     * this status; trail: ground left behind it as it walks; regen: this share of its health back a
+     * second while not hit for 2 s; aura: allies this close get the status (a ward); blast and split: as it
+     * dies. weight: how often it comes, among those that may.
+     */
+    struct AffixDef
+    {
+        std::string id, name, text;
+        glm::vec3 colour = glm::vec3(1.0f, 0.75f, 0.2f);   // its glow and its name over its bar (looks)
+        float weight = 1.0f;
+        float health = 0.0f, damage = 0.0f, speed = 0.0f;
+        StatusHit onHit;
+        GroundDef trail;
+        float regen = 0.0f;
+        struct Aura
+        {
+            std::string status;
+            float radius = 0.0f;
+        } aura;
+        BlastDef blast;
+        SplitDef split;
     };
 
     /** How rare a shop item is: its numbers and its price times these, and how often it comes up. */
@@ -748,6 +855,21 @@ namespace arena
         glm::ivec2 maxAlive = glm::ivec2(6, 30);
         float eliteFrom = 8;          // wave elites start to come in from
         float eliteChance = 0.1f;
+        /** How many affixes (affixes.json) an elite comes with: `count` from wave `from` on. */
+        struct EliteAffixes
+        {
+            int from = 1;
+            int count = 1;
+        };
+        std::vector<EliteAffixes> eliteAffixes;
+        int eliteAffixesAt(int wave) const
+        {
+            int n = 0;
+            for (const auto& e : eliteAffixes)
+                if (wave >= e.from)
+                    n = e.count;
+            return n;
+        }
         float healthGrowth = 0.05f;   // enemies' health: this much more each wave
         float spawnScale = 1.0f;      // the spawn rate and the most at once, times this (for one player)
         std::vector<SpawnPool> pools;
@@ -796,6 +918,8 @@ namespace arena
         float coopPrice = 0.5f;       // prices up this much per player after the first: every player gets every shard
         bool interest = true;         // shards kept through a shop grow with the prices: what could be bought still can
         int levelChoices = 3;         // picks offered for a level
+        int levelRerolls = 3;         // a run's free rerolls of a level up's picks, for each player
+        int levelBanishes = 3;        // ... and its banishes: a pick taken out of the level ups for the rest of the run
         std::map<std::string, int> unlocks;   // weapons, skills, keywords, elements ("element:ice") -> price
         bool resetEachWave = true;    // the arena is built anew before each wave (and the players put back)
         bool chooseWeapon = true;     // each player picks their weapon before the first wave (none are for sale then)
@@ -879,6 +1003,7 @@ namespace arena
         std::map<std::string, SpellDef> spells;      // spells/: ready-made
 
         std::map<std::string, UpgradeDef> upgrades;  // upgrades.json: the boons of a run
+        std::map<std::string, AffixDef> affixes;     // affixes.json: what elites come with
         RunDef run;                                  // run.json (the last mod with one)
 
         std::map<std::string, std::shared_ptr<VoxelModel>> models;

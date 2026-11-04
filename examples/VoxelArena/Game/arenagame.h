@@ -426,6 +426,8 @@ namespace arena
         std::vector<std::string> levelLines(int level) const;   // what a level changes, in words, a line each
         std::string arenaLine(int level) const;   // "10 timed waves, a shop between them, a boss at the end"
         void runHud(Hud::View& v);
+        /** A recap's line for what dealt damage (RunStats::bySource): its name as the player knows it, its colour. */
+        EndView::Source damageSource(const std::string& id, int damage) const;
         struct SpawnMark
         {
             glm::vec3 position;
@@ -441,6 +443,17 @@ namespace arena
             float left = 0.0f;
         };
         std::vector<SpawnPing> spawnPings;
+        // The damage the player's hits do: a number rising off what it hit (the option damageNumbers)
+        struct DamageNumber
+        {
+            int target = 0;
+            glm::vec3 at = glm::vec3(0.0f);
+            float value = 0.0f;
+            float age = 0.0f;
+            bool crit = false, kill = false;
+        };
+        std::vector<DamageNumber> damageNumbers;
+        int critOn = 0;           // the target of the crit event just played: its hit (the next event) was a crit
         int headlineWave = 0;     // the wave whose name was put up, and when (simTime)
         float waveStartedAt = 0.0f;
         void edgeArrows(Hud::View& v, const glm::mat4& proj, const glm::mat4& view);

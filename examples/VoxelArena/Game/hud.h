@@ -57,6 +57,17 @@ namespace arena
             std::string name;        // a player's (the others', yours in third person)
             bool ally = false;       // a player on your side: their name and health, nothing else
             bool self = false;       // you (third person): your name only
+            std::vector<std::pair<std::string, ui::Colour>> affixes;   // an elite's, over its bar in their colours
+        };
+
+        /** A damage number rising off what the player hit. */
+        struct Number
+        {
+            glm::vec2 at;            // window pixels
+            std::string text;
+            bool big = false, crit = false;   // a crit or a kill: bigger; a crit: gold
+            float alpha = 1.0f;
+            float pop = 0.0f;        // 1 as it shows, 0 a moment later: it starts a little bigger
         };
 
         struct Marker
@@ -106,6 +117,7 @@ namespace arena
             int crystalsLeft = 0;            // ... held by this many crystals
 
             std::vector<EnemyBar> enemies;
+            std::vector<Number> numbers;
             std::vector<Marker> markers;
 
             // Moments
@@ -130,6 +142,7 @@ namespace arena
         void drawAbilities(Ui& ui, const View& v);
         void drawCrosshair(Ui& ui);
         void drawEnemies(Ui& ui, const View& v);
+        void drawNumbers(Ui& ui, const View& v);
         void drawMarkers(Ui& ui, const View& v);
         void drawMoments(Ui& ui, const View& v);
 
