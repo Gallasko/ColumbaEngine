@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <set>
 
 #include "Core/content.h"
 #include "Core/scriptbrain.h"
@@ -574,6 +575,57 @@ TEST(arena_run, level_ups_give_spells_and_their_levels_before_the_shop)
     mine.keywords = {"base:beam"};
     r.world.setSpells(p, {mine, mine, mine});
     EXPECT_EQ(r.world.spellRecipe(p, 0).element, r.content.spells.at(first).recipe.element);
+}
+
+TEST(arena_run, a_level_up_offers_one_thing_had_growing_and_two_new_until_the_keys_are_full)
+{
+    RunArena r;
+    r.world.startRun(7);
+    Fighter& p = r.player();
+    r.world.chooseWeapon(p, "base:sword");
+    r.timeUp();
+
+    // Had: a spell given, a technique, the weapon in hand (it has a level from the start)
+    auto had = [&](const std::string& id) {
+        return id == p.weapon or r.world.runSkill(p, id) or
+               std::any_of(p.runSpells.begin(), p.runSpells.end(), [&](const Fighter::RunSpell& s) { return s.id == id; });
+    };
+    auto split = [&](int& grown, int& fresh) {
+        std::set<std::string> targets;
+        grown = fresh = 0;
+        for (const auto& o : p.levelOffer)
+        {
+            int branch = -1;
+            const std::string id = ArenaWorld::offerTarget(o, branch);
+            if (not targets.insert(id).second)
+                continue;   // a branch choice is one pick
+            (had(id) ? grown : fresh) += 1;
+        }
+    };
+
+    for (int k = 0; k < 40; ++k)
+    {
+        p.levelUps = 1;
+        r.world.rollLevel(p);
+        int grown = 0, fresh = 0;
+        split(grown, fresh);
+        EXPECT_EQ(grown, 1);
+        EXPECT_EQ(fresh, 2);
+    }
+
+    // Every spell key and technique filled: only next levels
+    p.runSpells = {{"base:firebolt", 1}, {"base:frostbolt", 1}, {"base:spark", 1}};
+    p.runSkills = {{"base:whirlwind", 1}, {"base:leap_slam", 1}};
+    for (int k = 0; k < 40; ++k)
+    {
+        p.levelUps = 1;
+        r.world.rollLevel(p);
+        int grown = 0, fresh = 0;
+        split(grown, fresh);
+        EXPECT_EQ(fresh, 0);
+        EXPECT_GE(grown, 2);
+        EXPECT_GE(p.levelOffer.size(), static_cast<size_t>(r.content.run.levelChoices));
+    }
 }
 
 TEST(arena_run, every_spells_levels_make_a_spell)

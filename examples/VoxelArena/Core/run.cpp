@@ -1276,20 +1276,24 @@ namespace arena
         if (f.levelUps <= 0)
             return;
 
-        // A spell not had (while a key is free), a technique of the weapon in hand not had, or the next level of
-        // one had: at its branch level, each of its branches
-        std::vector<std::string> open;
+        // What is new (a spell not had while a key is free, a technique of the weapon in hand not had) and what
+        // grows (the next level of a spell, a technique or the weapon had: at its branch level, all its branches
+        // together, as one choice)
+        std::vector<std::string> fresh;
+        std::vector<std::vector<std::string>> upgrades;
 
         auto grow = [&](const std::string& id, int level, int branch, int written, size_t branches) {
+            std::vector<std::string> choice;
             if (level + 1 == branchAt(written) and branches > 0 and branch < 0)
             {
                 for (size_t b = 0; b < branches; ++b)
-                    open.push_back(id + "#" + std::to_string(b));
+                    choice.push_back(id + "#" + std::to_string(b));
             }
             else
             {
-                open.push_back(id);
+                choice.push_back(id);
             }
+            upgrades.push_back(choice);
         };
 
         for (const auto& entry : content->spells)
@@ -1301,7 +1305,7 @@ namespace arena
             if (has == f.runSpells.end())
             {
                 if (f.runSpells.size() < SPELL_SLOTS)
-                    open.push_back(id);
+                    fresh.push_back(id);
             }
             else
             {
@@ -1330,44 +1334,39 @@ namespace arena
             if (const Fighter::RunSpell* rs = runSkill(f, id))
                 grow(id, rs->level, rs->branch, static_cast<int>(a->second.levels.size()), a->second.branches.size());
             else
-                open.push_back(id);
+                fresh.push_back(id);
         }
 
         // Nothing left to give: the level ups are spent
-        if (open.empty())
+        if (fresh.empty() and upgrades.empty())
         {
             f.levelUps = 0;
             return;
         }
 
-        for (size_t i = open.size(); i > 1; --i)
-            std::swap(open[i - 1], open[runRandom() % i]);
+        for (size_t i = fresh.size(); i > 1; --i)
+            std::swap(fresh[i - 1], fresh[runRandom() % i]);
+        for (size_t i = upgrades.size(); i > 1; --i)
+            std::swap(upgrades[i - 1], upgrades[runRandom() % i]);
 
-        // A branch choice shows all its branches together
+        // One thing had growing, the rest new while there is something new; whatever is short, the other fills
         std::vector<std::string> picks;
-        for (const auto& o : open)
-        {
-            if (static_cast<int>(picks.size()) >= content->run.levelChoices)
-                break;
-
-            int branch = -1;
-            const std::string target = offerTarget(o, branch);
-
-            if (branch < 0)
-            {
+        size_t nextFresh = 0, nextUpgrade = 0;
+        auto takeUpgrade = [&] {
+            for (const auto& o : upgrades[nextUpgrade++])
                 picks.push_back(o);
-                continue;
-            }
+        };
 
-            if (std::any_of(picks.begin(), picks.end(), [&](const std::string& p) { int b; return offerTarget(p, b) == target; }))
-                continue;
-
-            for (const auto& other : open)
-            {
-                int b = -1;
-                if (offerTarget(other, b) == target and b >= 0)
-                    picks.push_back(other);
-            }
+        if (nextUpgrade < upgrades.size())
+            takeUpgrade();
+        for (int k = 1; k < content->run.levelChoices and nextFresh < fresh.size(); ++k)
+            picks.push_back(fresh[nextFresh++]);
+        while (static_cast<int>(picks.size()) < content->run.levelChoices and (nextFresh < fresh.size() or nextUpgrade < upgrades.size()))
+        {
+            if (nextUpgrade < upgrades.size())
+                takeUpgrade();
+            else
+                picks.push_back(fresh[nextFresh++]);
         }
 
         f.levelOffer = picks;

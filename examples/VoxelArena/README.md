@@ -89,7 +89,8 @@ and enemies that come back), **O** for the options.
   click from the fight buys nothing), each level up offers three picks (1-3 or a click): a **new
   spell** (while one of the three spell keys is free), a **new technique** of the weapon in hand, the
   **next level of the weapon** in hand (it starts at level 1), or the **next level** of one you have.
-  Levels never run out:
+  One pick is always a next level of something you have, the other two are new, until every spell key
+  and technique is filled; after that all three are next levels. Levels never run out:
   - a spell's written `levels` add keywords (Firebolt II adds Enlarge, III Extend, IV Empower); a
     technique's add a boost (+15% damage, a faster recharge...); the weapon's boost its light and
     heavy attacks (Iron Sword II: +20% damage, III: +10% attack speed...);

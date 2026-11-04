@@ -14,7 +14,9 @@
 // run starts with; chooseSpell: the first spell each player picks among, after the weapon (fire, ice, volt). Players make no spells in a run: level ups give them. As a wave ends, after
 // `intermission` s, each level up offers levelChoices picks: a spell not had yet (while one of the
 // three spell keys is free), a technique of levelSkills for the weapon in hand not had yet, or the
-// next level of one had. Levels never run out: after a spell's or technique's written "levels", at
+// next level of one had (or of the weapon in hand). One of the picks is always a next level (a branch
+// choice shows all its branches), the others new ones while there are new ones left; then all are
+// next levels. Levels never run out: after a spell's or technique's written "levels", at
 // `branchLevel` it takes one of its "branches" (the player picks), and every level past those adds
 // `mastery`. Then the presents, then the shop.
 // presents: an elite may leave one (chance), at most perWave a wave; each is a free pick among
