@@ -7,7 +7,7 @@
     "recipe": ["volt", "beam", "nova"],
     "levels": [["enlarge"], ["empower"], ["multiply"]],
     "branches": [
-        { "name": "Overload", "text": "The explosion leaves an electric area.", "keywords": ["zone"] },
-        { "name": "Echo", "text": "A much shorter cooldown.", "boost": { "cooldown": 0.35 } }
+        { "name": "Charged ground", "text": "The explosion leaves an electric area.", "keywords": ["zone"] },
+        { "name": "Storm weapon", "text": "After you cast it, your weapon hits stun enemies for 5 s.", "onCast": "storm_weapon" }
     ]
 }

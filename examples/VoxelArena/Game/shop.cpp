@@ -258,6 +258,7 @@ namespace arena
                 {"Stamina regen %", b.staminaRegen * 100.0f}, {"Cooldowns -%", b.cooldown * 100.0f}, {"Life on hit", b.lifeOnHit},
                 {"Status stacks", static_cast<float>(b.statusStacks)}, {"Attack speed %", b.attackSpeed * 100.0f},
                 {"More enemies %", b.horde * 100.0f}, {"XP per shard %", b.xpGain * 100.0f}, {"Extra shards %", b.shardChance * 100.0f},
+                {"Combo damage %", b.comboDamage * 100.0f}, {"Status length %", b.statusDuration * 100.0f},
             };
         }
     }
@@ -317,7 +318,6 @@ namespace arena
 
     std::string itemText(const Content& content, const UpgradeDef& u, float k)
     {
-        (void)content;
         std::vector<std::string> parts;
         auto pc = [&](float v) { return std::to_string(static_cast<int>(std::lround(v * k * 100.0f))) + "%"; };
         auto num = [&](float v) { return oneDecimal(v * k); };
@@ -345,6 +345,38 @@ namespace arena
             if (u.horde != 0.0f) parts.push_back(pc(u.horde) + " more enemies come (more shards to pick up)");
             if (u.xpGain != 0.0f) parts.push_back("+" + pc(u.xpGain) + " XP from each shard");
             if (u.shardChance != 0.0f) parts.push_back("Enemies drop " + pc(u.shardChance) + " more shards (by chance)");
+            if (u.comboDamage != 0.0f) parts.push_back("Element combos do " + pc(u.comboDamage) + " more damage");
+            if (u.statusDuration != 0.0f) parts.push_back("Your burns, slows and stuns last " + pc(u.statusDuration) + " longer");
+
+            // "+30% damage to slowed and frozen enemies": the statuses with the same number together
+            auto called = [&](const std::string& id) {
+                auto st = content.statuses.find(id);
+                return st != content.statuses.end() ? st->second.name : id;
+            };
+            std::vector<std::pair<float, std::string>> against;
+            for (const auto& entry : u.payoff.against)
+            {
+                const std::string& id = entry.first;
+                const float v = entry.second;
+                auto same = std::find_if(against.begin(), against.end(), [&](const auto& a) { return a.first == v; });
+                if (same == against.end())
+                    against.push_back({v, id == "any" ? "enemies with a status" : called(id)});
+                else
+                    same->second += " and " + (id == "any" ? "enemies with a status" : called(id));
+            }
+            for (const auto& [v, who] : against)
+                parts.push_back("+" + pc(v) + " damage to " + who + (who.rfind("enemies", 0) == 0 ? "" : " enemies"));
+
+            if (u.burst.damage != 0.0f)
+            {
+                std::string who = called(u.burst.when);
+                if (not who.empty())
+                    who[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(who[0])));
+                std::string part = who + " enemies you kill explode for " + num(u.burst.damage) + " damage";
+                if (not u.burst.status.status.empty())
+                    part += ". Enemies caught in it are left " + called(u.burst.status.status);
+                parts.push_back(part);
+            }
         }
 
         if (parts.empty())

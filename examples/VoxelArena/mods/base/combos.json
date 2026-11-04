@@ -1,0 +1,21 @@
+// Element combos: a status landing on someone who already has another one sets off a combo. "one" and "other" are
+// its two sides (statuses.json): a status of either side landing on a target with one of the other side, either
+// way round (fire on a slowed enemy, or ice on a burning one).
+//
+// A combo is one more hit: `damage` times the hit that set it off (before the attacker's items) plus `base`, which
+// grows with the waves as the enemies' health does (run.json healthGrowth). radius 0 hits the target alone; above
+// 0, everyone of its side that close. status: what it leaves on whoever it hits. consume: both sides' statuses
+// are used up (and the one landing is not left). cooldown: seconds before the same target can have a combo
+// again. element: the target's weakness to it. A combo's hit sets off no combo of its own.
+// Each one's sound and particles are in effects.json, under its id.
+{
+    "melt":     { "name": "Melt",     "text": "Fire meets cold: a big hit that uses up both.",
+                  "one": ["burn"], "other": ["chill", "frozen"], "damage": 1.0, "base": 12, "consume": true, "element": "fire",
+                  "poiseDamage": 15, "knockback": 3 },
+    "overload": { "name": "Overload", "text": "Lightning meets fire: an explosion that sets enemies nearby on fire.",
+                  "one": ["shock"], "other": ["burn"], "damage": 0.6, "base": 10, "radius": 3, "status": "burn",
+                  "poiseDamage": 12, "knockback": 6, "cooldown": 1.0 },
+    "shatter":  { "name": "Shatter",  "text": "Lightning breaks a frozen enemy: a huge hit.",
+                  "one": ["shock"], "other": ["frozen"], "damage": 2.0, "base": 25, "consume": true, "element": "volt",
+                  "poiseDamage": 30, "knockback": 8 }
+}

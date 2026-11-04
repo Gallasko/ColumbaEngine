@@ -19,7 +19,7 @@ namespace arena::net
             "volt_burst", "fire_nova", "ice_nova", "volt_nova", "fire_zone", "ice_zone", "volt_zone", "fire_beam", "ice_beam", "volt_beam",
             "run_start", "spawn_warn", "boss_warn", "spawn", "boss_spawn", "wave_clear", "run_victory", "run_defeat", "boon",
             "wave_start", "arena_reset", "arena_change", "despawn", "elite_warn", "pickup", "level_up", "buy", "crit", "present", "present_drop",
-            "difficulty_pick", "boss_shield", "shield_break", "shield_hit",
+            "difficulty_pick", "boss_shield", "shield_break", "shield_hit", "detonate", "burst",
         };
 
         const char* const AI_MOVES[] = { "hold", "chase", "strafe", "retreat", "flank" };
@@ -140,6 +140,8 @@ namespace arena::net
 
         for (const auto& [id, s] : content.statuses)
             all.insert(id);
+        for (const auto& [id, c] : content.combos)
+            all.insert(id);   // a combo going off: its event
 
         // Spells: their elements and keywords
         for (const char* e : {"fire", "ice", "volt"})

@@ -8,6 +8,6 @@
     "levels": [["chain"], ["empower"], ["extend"]],
     "branches": [
         { "name": "Storm", "text": "Each hit also explodes.", "keywords": ["nova"], "tags": ["area"] },
-        { "name": "Quickened", "text": "More damage and a shorter cooldown.", "boost": { "cooldown": 0.3, "damage": 0.2 } }
+        { "name": "Conductor", "text": "+60% damage to enemies that are burning, slowed or frozen.", "against": { "burn": 0.6, "chill": 0.6, "frozen": 0.6 } }
     ]
 }

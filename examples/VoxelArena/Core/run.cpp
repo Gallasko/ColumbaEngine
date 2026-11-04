@@ -1,6 +1,7 @@
 #include "world.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 // The arena run: timed waves with enemies coming in all the while, shards they drop (money and XP),
@@ -9,6 +10,11 @@
 
 namespace arena
 {
+    namespace
+    {
+        constexpr std::array<const char*, 3> ELEMENT_TAGS = {"fire", "ice", "volt"};
+    }
+
     uint32_t ArenaWorld::runRandom()
     {
         // xorshift: the same seed plays the same run
@@ -73,6 +79,25 @@ namespace arena
             f.boon.horde += u.horde * k;
             f.boon.xpGain += u.xpGain * k;
             f.boon.shardChance += u.shardChance * k;
+            f.boon.comboDamage += u.comboDamage * k;
+            f.boon.statusDuration += u.statusDuration * k;
+            f.boon.payoff.add(u.payoff, k);
+
+            // Bursts of the same status add up: their damage, the widest reach
+            if (not u.burst.when.empty())
+            {
+                auto same = std::find_if(f.boon.bursts.begin(), f.boon.bursts.end(), [&](const UpgradeDef::Burst& b) { return b.when == u.burst.when; });
+                if (same == f.boon.bursts.end())
+                {
+                    f.boon.bursts.push_back(u.burst);
+                    f.boon.bursts.back().damage *= k;
+                }
+                else
+                {
+                    same->damage += u.burst.damage * k;
+                    same->radius = std::max(same->radius, u.burst.radius);
+                }
+            }
         }
 
         // Stacked damage items help less and less (run.json damageFalloff)
@@ -106,7 +131,8 @@ namespace arena
         // Any other number always does a little more
         more = more or u.maxHealth > 0.0f or u.damage > 0.0f or u.dashCharges > 0 or u.manaRegen > 0.0f or u.staminaRegen > 0.0f or
                u.speed > 0.0f or u.lifeOnHit > 0.0f or u.statusStacks > 0 or u.pickupRange > 0.0f or u.regen > 0.0f or u.attackSpeed > 0.0f or
-               u.horde > 0.0f or u.xpGain > 0.0f or u.shardChance > 0.0f;
+               u.horde > 0.0f or u.xpGain > 0.0f or u.shardChance > 0.0f or u.comboDamage > 0.0f or u.statusDuration > 0.0f or
+               not u.payoff.against.empty() or u.burst.damage > 0.0f;
         return not more;
     }
 
@@ -258,6 +284,7 @@ namespace arena
         {
             r.keywords.insert(r.keywords.end(), branch->keywords.begin(), branch->keywords.end());
             r.tweak.add(branch->boost);
+            r.payoff.add(branch->payoff);
             beyond = std::max(0, beyond - 1);
         }
 
@@ -458,6 +485,8 @@ namespace arena
             out.status = branch->status;
             out.projectile.status = branch->status;
         }
+        out.payoff.add(branch->payoff);
+        out.projectile.payoff.add(branch->payoff);
     }
 
     AttackDef ArenaWorld::boostedAttack(const AbilityDef& a, const SpellTweak& t, const BranchDef* branch) const
@@ -485,6 +514,11 @@ namespace arena
     {
         const DifficultyDef& d = difficulty();
         return d.health * (1.0f + (content->run.healthGrowth + d.healthGrowth) * static_cast<float>(std::max(0, wave - 1)));
+    }
+
+    float ArenaWorld::comboScale() const
+    {
+        return inRun() ? 1.0f + content->run.healthGrowth * static_cast<float>(std::max(0, run.wave - 1)) : 1.0f;
     }
 
     float ArenaWorld::enemyDamageScale(int wave) const
@@ -1169,6 +1203,12 @@ namespace arena
             if ((u.most > 0 and taken(id) >= u.most) or offered(id) or itemMaxed(f, u))
                 continue;
             if (u.forTag() and std::find(tags.begin(), tags.end(), u.tag) == tags.end())
+                continue;
+
+            // An item for statuses or combos: only with what makes them (a fire spell for one against burning...)
+            if (not u.needs.empty() and std::none_of(u.needs.begin(), u.needs.end(), [&](const std::string& t) { return std::find(tags.begin(), tags.end(), t) != tags.end(); }))
+                continue;
+            if (u.needsElements > 0 and std::count_if(ELEMENT_TAGS.begin(), ELEMENT_TAGS.end(), [&](const char* e) { return std::find(tags.begin(), tags.end(), e) != tags.end(); }) < u.needsElements)
                 continue;
             open.push_back({id, u.price, true});
         }

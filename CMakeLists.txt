@@ -1793,6 +1793,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/voxelarena/net.cc
             test/voxelarena/moveset.cc
             test/voxelarena/run.cc
+            test/voxelarena/synergy.cc
             test/voxelarena/portmapper.cc
             examples/VoxelArena/Net/portmapper.cpp   # its port lists (the router itself is not reached without VOXELARENA_UPNP)
             examples/VoxelTest/voxelserializer.cpp   # the editor's .vxl.json loader, to check the models stay editable

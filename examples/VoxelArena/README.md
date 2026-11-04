@@ -16,7 +16,7 @@ cd release
 make -j18 VoxelArena VoxelArenaServer test_voxelarena
 cd ..
 ./release/VoxelArena            # or ./make_and_play.sh VoxelArena
-./release/test_voxelarena       # 217 tests, about three seconds
+./release/test_voxelarena       # 243 tests, about three seconds
 ```
 
 The game reads its mods and its shader straight from the source tree (`examples/VoxelArena/mods`,
@@ -140,6 +140,11 @@ and enemies that come back), **O** for the options.
     cooldown; Tireless: -20% technique stamina cost... One is offered only when something of yours has
     its tag. Leech (life on hit) heals in full from a direct hit (a
     swing, an arrow, a bolt or a beam striking), a fifth from an area's, a zone's or a chain's.
+  - payoff items, for statuses and combos, offered only when something of yours makes what they need
+    (`needs`, `needsElements`): Catalyst (combos do 40% more damage; with two elements), Kindling
+    (+30% damage to burning enemies), Brittle (+30% to slowed and frozen ones), Pyre (burning enemies
+    you kill explode for 14 damage and set others on fire, the burn's own kills too: a status
+    remembers who left it), Long fuse (your statuses last 50% longer).
 
   Hover a card: a tooltip lists what buying it changes, before -> after (your numbers, each spell's
   and technique's). Each item comes at a **rarity**: Common, Rare (x1.5 its numbers), Epic (x2.1),
@@ -320,6 +325,26 @@ Z Q S D where a QWERTY shows W A S D: the same keys, by position).
 - **Statuses** (`mods/base/statuses.json`) are what a hit leaves behind: `burn`, `chill`, `frozen`,
   `shock`. Each is data (duration, damage over time, slow, stacks, what it turns into, an
   interrupt), and any attack or projectile can apply one with `"status"`.
+- **Element combos** (`mods/base/combos.json`): a status landing on an enemy that already has another
+  one sets off a combo, either way round, for everyone from the start:
+  - *Melt*: fire meets cold (burn and chill or frozen). The hit again plus 12, and both are used up.
+  - *Overload*: lightning meets fire. An explosion 3 m around that sets the enemies in it on fire.
+  - *Shatter*: lightning on a frozen enemy. Three times the hit plus 25, and the freeze breaks.
+
+  A combo is one more hit: `damage` times the hit that set it off plus `base` (which grows with the
+  waves as the enemies' health does), on the target or on everyone within `radius`. A combo's hit sets
+  off no combo of its own, and the same enemy has at most one combo every `cooldown` s. Each has its
+  effect in `effects.json` under its id. So a weapon or a technique with an element (Flame blade,
+  Frost fang, Storm arrows...) and a spell of another one work together.
+- **Payoff branches**: some spell branches cash in on statuses instead of adding numbers. Fireball's
+  *Detonate* deals the burn left on what it hits at once, plus 50% (`"detonate": 1.5`; a burn that has
+  only just landed is left alone). Frost nova's *Ice breaker* does triple damage to frozen enemies, and
+  Chain lightning's *Conductor* +60% to burning, slowed or frozen ones (`"against": { "frozen": 2 }`;
+  `"any"` for any status). Frostbolt's *Frost weapon*, Twin embers' *Flame weapon* and Thunderclap's
+  *Storm weapon* imbue your weapon each time you cast: for 5 s your weapon hits also slow, burn or stun
+  (`"onCast": "frost_weapon"`, a status whose `"imbue"` is the status your weapon hits leave). With
+  Flame blade, Frost weapon melts on every swing. Any branch (a technique's, a weapon's) can take
+  `against` and `detonate`.
 - **Poise**: every hit lowers the target's poise. At zero the target is staggered (it cannot act),
   then its poise refills. An attack in progress can add armor, so the brute's slam is not
   interrupted by a jab.

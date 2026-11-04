@@ -2750,6 +2750,7 @@ namespace arena
     std::string ArenaGame::statusName(const std::string& id) const
     {
         std::string name = localId(id);
+        std::replace(name.begin(), name.end(), '_', ' ');   // flame_weapon: "Flame weapon"
         if (not name.empty())
             name[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(name[0])));
         return name;
@@ -2759,7 +2760,12 @@ namespace arena
     {
         std::vector<Hud::Status> out;
         for (const auto& st : f.statuses)
-            out.push_back({localId(st.id), statusName(st.id), st.stacks});
+        {
+            // A weapon imbued with a status shows in that status's colour
+            auto def = content.statuses.find(st.id);
+            const std::string& look = def != content.statuses.end() and not def->second.imbue.empty() ? def->second.imbue : st.id;
+            out.push_back({localId(look), statusName(st.id), st.stacks});
+        }
         return out;
     }
 
@@ -4202,13 +4208,13 @@ namespace arena
                                 around = attack->turn.yaw * easeInOut(glm::clamp((fr - static_cast<float>(attack->turn.from)) / static_cast<float>(attack->turn.to - attack->turn.from), 0.0f, 1.0f));
 
                             const auto& fp = tuning.firstPerson;
+                            const glm::vec3 held = weapon.hasView ? weapon.view : fp.weapon;
                             handFrame = glm::translate(glm::mat4(1.0f), camera.position) * rotY(camera.viewYaw + around) * rotX(camera.viewPitch) *
                                         glm::scale(glm::mat4(1.0f), glm::vec3(fp.viewModelScale)) *
                                         glm::translate(glm::mat4(1.0f), glm::vec3(-held.x, held.y, held.z)) * rotZ(weapon.viewTilt);
                         }
 
                         const float roll = attack and weapon.followSwing ? swingRoll(*attack, weapon.rest.rollFrom, fr) : pose.rollFrom;
-                            const glm::vec3 held = weapon.hasView ? weapon.view : fp.weapon;
 
                         return handFrame *
                             rotY(-pose.yawFrom) * rotX(-pose.pitchFrom) * rotZ(roll) *

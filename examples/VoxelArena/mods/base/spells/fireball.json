@@ -1,4 +1,5 @@
-// A bolt that bursts where it lands. Levels: a wider burst, harder, two of them.
+// A bolt that bursts where it lands. Levels: a wider burst, harder, two of them. Branches: burning ground, or
+// the burn on whoever it hits dealt at once (a payoff for fire weapons and techniques).
 // In a run, level ups give spells and their next levels: each entry of "levels" is what that level
 // adds to the recipe (keywords, as in keywords.json).
 {
@@ -8,6 +9,6 @@
     "levels": [["enlarge"], ["empower"], ["multiply"]],
     "branches": [
         { "name": "Meteor", "text": "The explosion leaves burning ground.", "keywords": ["zone"] },
-        { "name": "Cluster", "text": "Shoots one more fireball.", "boost": { "count": 1 } }
+        { "name": "Detonate", "text": "Burning enemies it hits take all their burn damage at once, plus 50%.", "detonate": 1.5 }
     ]
 }

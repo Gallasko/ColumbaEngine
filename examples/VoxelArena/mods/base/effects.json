@@ -88,5 +88,17 @@
     "base:burn":   { "tint": [255, 120, 40],  "every": 0.12, "particles": { "count": 2, "speed": 0.8, "up": 1.0, "size": 0.1, "life": 0.5, "gravity": -3, "color": [255, 140, 40] } },
     "base:chill":  { "tint": [140, 200, 255], "every": 0.35, "particles": { "count": 1, "speed": 0.4, "up": 0.0, "size": 0.07, "life": 0.6, "gravity": 2, "color": [230, 245, 255] } },
     "base:frozen": { "tint": [215, 240, 255] },
-    "base:shock":  { "tint": [255, 245, 120], "every": 0.06, "particles": { "count": 2, "speed": 3, "up": 0.3, "size": 0.05, "life": 0.12, "gravity": 0, "color": [255, 250, 180] } }
+    "base:shock":  { "tint": [255, 245, 120], "every": 0.06, "particles": { "count": 2, "speed": 3, "up": 0.3, "size": 0.05, "life": 0.12, "gravity": 0, "color": [255, 250, 180] } },
+
+    // A weapon imbued by a spell: the player glows the element's colour
+    "base:flame_weapon": { "every": 0.1,  "particles": { "count": 1, "speed": 0.6, "up": 1.0, "size": 0.07, "life": 0.4, "gravity": -3, "color": [255, 140, 40] } },
+    "base:frost_weapon": { "every": 0.15, "particles": { "count": 1, "speed": 0.4, "up": 0.5, "size": 0.06, "life": 0.5, "gravity": 1,  "color": [200, 235, 255] } },
+    "base:storm_weapon": { "every": 0.08, "particles": { "count": 1, "speed": 2.5, "up": 0.3, "size": 0.04, "life": 0.12, "gravity": 0, "color": [255, 250, 180] } },
+
+    // Element combos (combos.json), a burning one's last breath (detonate), an item's burst on a kill
+    "base:melt":     { "sound": "fire_burst",  "particles": { "count": 36, "speed": 5, "up": 0.7, "size": 0.12, "life": 0.6, "gravity": -1, "color": [255, 220, 200] }, "shake": 0.25 },
+    "base:overload": { "sound": "boom",        "particles": { "count": 60, "speed": 8, "up": 0.5, "size": 0.12, "life": 0.5, "gravity": 2,  "color": [255, 170, 60] },  "shake": 0.45 },
+    "base:shatter":  { "sound": "snap",        "particles": { "count": 50, "speed": 7, "up": 0.6, "size": 0.14, "life": 0.8, "gravity": 9,  "color": [200, 240, 255] }, "shake": 0.5 },
+    "detonate":      { "sound": "fire_burst",  "particles": { "count": 30, "speed": 6, "up": 0.6, "size": 0.11, "life": 0.5, "gravity": -2, "color": [255, 120, 40] },  "shake": 0.3 },
+    "burst":         { "sound": "boom",        "particles": { "count": 40, "speed": 6, "up": 0.6, "size": 0.12, "life": 0.5, "gravity": 0,  "color": [255, 130, 50] },  "shake": 0.3 }
 }

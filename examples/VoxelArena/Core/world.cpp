@@ -2178,6 +2178,13 @@ namespace arena
                 key += "|" + std::to_string(v);
             key += "|" + std::to_string(t.count);
         }
+        if (not recipe.payoff.empty())
+        {
+            const Payoff& p = recipe.payoff;
+            for (const auto& [id, v] : p.against)
+                key += "|" + id + "=" + std::to_string(v);
+            key += "|" + std::to_string(p.detonate) + "|" + p.onCast;
+        }
 
         auto it = spellCache.find(key);
 
@@ -2230,6 +2237,8 @@ namespace arena
             f.yaw = yawOf(flat(aim));
 
         event(std::string(elementName(spell->element)) + "_cast", chest(f), 1.0f, f.id);
+        if (not spell->recipe.payoff.onCast.empty())
+            applyStatus(f, spell->recipe.payoff.onCast, 1, f.id);
         runStage(spell, 0, chest(f), aim, f.id, f.team, &in);
         return true;
     }
@@ -2299,6 +2308,7 @@ namespace arena
                 p.def.hitstop = 3;
                 p.def.element = spell->element;
                 p.def.status = spell->status;
+                p.def.payoff = spell->recipe.payoff;
                 p.def.terrainRadius = 1.0f;
                 if (auto m = st.form.model.find(element); m != st.form.model.end())
                     p.def.model = m->second;
@@ -2334,6 +2344,7 @@ namespace arena
             const glm::vec3 centre = first ? chest(*caster) : point;
             AttackDef hit = hitOf(st.form.id, st.damage, st.poiseDamage, st.knockback, 3, 0.3f, spell->element, spell->status);
             hit.leech = AREA_LEECH;
+            hit.payoff = spell->recipe.payoff;
 
             for (int k = 0; k < st.count; ++k)
             {
@@ -2542,6 +2553,7 @@ namespace arena
         if (first)
         {
             AttackDef hit = hitOf(st.form.id, st.damage, st.poiseDamage, st.knockback, 2, 0.2f, spell->element, spell->status);
+            hit.payoff = spell->recipe.payoff;
             Fighter standIn;
             standIn.team = team;
             standIn.body.position = start;
@@ -2590,6 +2602,8 @@ namespace arena
                     const StatusHit status = z.spell ? z.spell->status : StatusHit{};
                     AttackDef hit = hitOf("zone", z.damage * 0.5f, z.poiseDamage * 0.5f, 0.0f, 0, 0.0f, z.element, status);
                     hit.leech = AREA_LEECH;   // damage over time
+                    if (z.spell)
+                        hit.payoff = z.spell->recipe.payoff;
                     hitAround(hit, z.position, z.radius, z.owner, z.team, true);
                 }
             }
@@ -2610,6 +2624,7 @@ namespace arena
     void ArenaWorld::impact(const Projectile& p, const glm::vec3& point, Fighter* struck, const RayHit* wall)
     {
         AttackDef hit = hitOf(p.attack.empty() ? p.source : p.attack, p.def.damage, p.def.poiseDamage, p.def.knockback, p.def.hitstop, p.def.shake, p.def.element, p.def.status);
+        hit.payoff = p.def.payoff;
 
         // Who it hits: the one struck, or everyone close enough to a burst
         std::vector<Fighter*> targets;
@@ -3309,6 +3324,37 @@ namespace arena
             if (auto def = content->enemies.find(target.type); def != content->enemies.end())
                 damage *= def->second.weakness[static_cast<int>(a.element)];
 
+        // More against a target with statuses: the hit's own (a branch's), and the attacker's items
+        if (not target.statuses.empty())
+        {
+            float more = 0.0f;
+            auto against = [&](const Payoff& p, float scale) {
+                for (const auto& [id, v] : p.against)
+                    if (id == "any" or hasStatus(target, id))
+                        more += v * scale;
+            };
+            against(a.payoff, 1.0f);
+            if (attacker.team == Team::Player and not a.combo)
+                against(attacker.boon.payoff, 1.0f);
+            damage *= 1.0f + more;
+        }
+
+        // Detonate: the damage over time left on the target, all at once (those statuses gone)
+        if (a.payoff.detonate > 0.0f)
+            for (auto it = target.statuses.begin(); it != target.statuses.end();)
+            {
+                // One that has only just landed (the same spell's) is left to burn
+                auto def = content->statuses.find(it->id);
+                if (def == content->statuses.end() or def->second.damagePerSecond <= 0.0f or it->age < DETONATE_AFTER)
+                {
+                    ++it;
+                    continue;
+                }
+                damage += def->second.damagePerSecond * static_cast<float>(it->stacks) * it->remaining * a.payoff.detonate;
+                event("detonate", chest(target), 1.0f, target.id, AIR, attacker.id);
+                it = target.statuses.erase(it);
+            }
+
         // A boss behind its shield takes nothing; no hit takes one past its next phase
         const bool shielded = target.shielded;
         if (shielded)
@@ -3341,12 +3387,13 @@ namespace arena
             attacker.health = std::min(attacker.maxHealth, attacker.health + attacker.boon.lifeOnHit * a.leech);
 
         // A player's weapon (its light and heavy attacks, and what they shoot) gives mana back for the damage it does
-        if (attacker.team == Team::Player and attacker.alive() and damage > 0.0f and target.id != attacker.id)
-            if (auto w = content->weapons.find(attacker.weapon); w != content->weapons.end() and w->second.moveset.find(a.name))
-            {
-                const float perDamage = w->second.hasMana ? w->second.mana : tuning.mana.fromWeapon;
-                attacker.mana = std::min(tuning.mana.max, attacker.mana + damage * perDamage);
-            }
+        auto weapon = attacker.team == Team::Player ? content->weapons.find(attacker.weapon) : content->weapons.end();
+        const bool weaponHit = weapon != content->weapons.end() and not a.combo and weapon->second.moveset.find(a.name);
+        if (weaponHit and attacker.alive() and damage > 0.0f and target.id != attacker.id)
+        {
+            const float perDamage = weapon->second.hasMana ? weapon->second.mana : tuning.mana.fromWeapon;
+            attacker.mana = std::min(tuning.mana.max, attacker.mana + damage * perDamage);
+        }
 
         target.sinceHit = 0.0f;
         target.flash = tuning.feel.hitFlashFrames;
@@ -3411,9 +3458,89 @@ namespace arena
         event(e.killed ? "kill" : (e.staggered ? "stagger" : (shielded ? "shield_hit" : "hit")), target.body.position + glm::vec3(0, target.body.height * 0.6f, 0), e.damage, target.id, AIR, e.attacker);
 
         if (e.killed)
+        {
             die(target, attacker.id);
-        else if (not a.status.status.empty())
-            applyStatus(target, a.status.status, a.status.stacks + attacker.boon.statusStacks);
+            return;
+        }
+
+        // The hit's status, then what the attacker's weapon is imbued with (a flame weapon's burn): either may set off a
+        // combo with what the target has
+        std::vector<std::string> landing;
+        if (not a.status.status.empty())
+            landing.push_back(a.status.status);
+        if (weaponHit)
+            for (const auto& s : attacker.statuses)
+                if (auto def = content->statuses.find(s.id); def != content->statuses.end() and not def->second.imbue.empty())
+                    landing.push_back(def->second.imbue);
+
+        for (const auto& id : landing)
+        {
+            if (not target.alive())
+                break;
+            if (not a.combo and setOffCombo(attacker, target, id, a.damage))
+                continue;   // used up by the combo
+            applyStatus(target, id, (id == a.status.status ? a.status.stacks : 1) + attacker.boon.statusStacks, attacker.id);
+        }
+    }
+
+    bool ArenaWorld::hasStatus(const Fighter& f, const std::string& id)
+    {
+        return std::any_of(f.statuses.begin(), f.statuses.end(), [&](const StatusState& s) { return s.id == id; });
+    }
+
+    float ArenaWorld::comboDamageOf(const ComboDef& c, const Fighter& attacker, float hitDamage) const
+    {
+        return (c.damage * hitDamage + c.base * comboScale()) * (1.0f + (attacker.team == Team::Player ? attacker.boon.comboDamage : 0.0f));
+    }
+
+    bool ArenaWorld::setOffCombo(Fighter& attacker, Fighter& target, const std::string& status, float hitDamage)
+    {
+        if (target.comboCooldown > 0.0f or not target.alive())
+            return false;
+
+        auto holdsAny = [&](const std::vector<std::string>& ids) {
+            return std::any_of(ids.begin(), ids.end(), [&](const std::string& id) { return hasStatus(target, id); });
+        };
+        auto in = [&](const std::vector<std::string>& ids) { return std::find(ids.begin(), ids.end(), status) != ids.end(); };
+
+        for (const auto& entry : content->combos)
+        {
+            const std::string& id = entry.first;
+            const ComboDef& c = entry.second;
+            // The status lands on one side, the target has one of the other
+            const bool onOne = in(c.one) and holdsAny(c.other);
+            const bool onOther = in(c.other) and holdsAny(c.one);
+            if (not onOne and not onOther)
+                continue;
+
+            target.comboCooldown = c.cooldown;
+
+            if (c.consume)
+            {
+                auto used = [&](const StatusState& s) {
+                    return std::find(c.one.begin(), c.one.end(), s.id) != c.one.end() or std::find(c.other.begin(), c.other.end(), s.id) != c.other.end();
+                };
+                target.statuses.erase(std::remove_if(target.statuses.begin(), target.statuses.end(), used), target.statuses.end());
+            }
+
+            AttackDef hit = hitOf(id, comboDamageOf(c, attacker, hitDamage), c.poiseDamage, c.knockback, 4, 0.35f, c.element, c.status);
+            hit.combo = true;
+            event(id, chest(target), c.radius, target.id, AIR, attacker.id);
+
+            if (c.radius > 0.0f)
+            {
+                hit.leech = AREA_LEECH;
+                hitAround(hit, chest(target), c.radius, attacker.id, attacker.team, false);
+            }
+            else
+            {
+                applyHit(attacker, target, hit);
+            }
+
+            return c.consume;
+        }
+
+        return false;
     }
 
     void ArenaWorld::die(Fighter& target, int attackerId)
@@ -3456,10 +3583,24 @@ namespace arena
             }
         }
 
+        const std::vector<StatusState> had = target.statuses;
         target.health = 0.0f;
         target.action = Action::Dead;
         target.frame = 0;
         target.statuses.clear();
+
+        // The killer's items may make it burst with a status it had (burning enemies exploding): dead first, so the burst
+        // passes over it, and a burst that kills a burning one sets it off in turn
+        if (Fighter* by = attackerId ? find(attackerId) : nullptr; by and by->team != target.team and by->alive())
+            for (const auto& b : by->boon.bursts)
+                if (std::any_of(had.begin(), had.end(), [&](const StatusState& s) { return s.id == b.when; }))
+                {
+                    AttackDef hit = hitOf("burst", b.damage * comboScale(), 6.0f, 5.0f, 2, 0.3f, Element::None, b.status);
+                    hit.combo = true;
+                    hit.leech = AREA_LEECH;
+                    event("burst", chest(target), b.radius, target.id, AIR, by->id);
+                    hitAround(hit, chest(target), b.radius, by->id, by->team, false);
+                }
 
         if (target.team == Team::Player)
         {
@@ -3486,7 +3627,7 @@ namespace arena
         return hit;
     }
 
-    void ArenaWorld::applyStatus(Fighter& target, const std::string& id, int stacks)
+    void ArenaWorld::applyStatus(Fighter& target, const std::string& id, int stacks, int source)
     {
         auto defIt = content->statuses.find(id);
 
@@ -3507,18 +3648,21 @@ namespace arena
 
         if (it == target.statuses.end())
         {
-            target.statuses.push_back({id, def.duration, 0});
+            target.statuses.push_back({id, def.duration, 0, source});
             it = target.statuses.end() - 1;
         }
 
+        // The one who left it may make it last longer (items)
+        const Fighter* by = source ? find(source) : nullptr;
         it->stacks = std::min(def.maxStacks, it->stacks + std::max(1, stacks));
-        it->remaining = def.duration;
+        it->remaining = def.duration * (by and by->team == Team::Player ? 1.0f + by->boon.statusDuration : 1.0f);
+        it->source = source ? source : it->source;
 
         // Full: it turns into the next one (chilled through -> frozen)
         if (it->stacks >= def.maxStacks and not def.atMax.empty())
         {
             target.statuses.erase(it);
-            applyStatus(target, def.atMax, 1);
+            applyStatus(target, def.atMax, 1, source);
             return;
         }
 
@@ -3542,6 +3686,8 @@ namespace arena
 
     void ArenaWorld::stepStatuses(Fighter& f)
     {
+        f.comboCooldown = std::max(0.0f, f.comboCooldown - STEP_SECONDS);
+
         for (auto it = f.statuses.begin(); it != f.statuses.end();)
         {
             auto defIt = content->statuses.find(it->id);
@@ -3559,12 +3705,13 @@ namespace arena
                     e.killed = true;
                     hits.push_back(e);
                     event("kill", chest(f), 0.0f, f.id);
-                    die(f, 0);
+                    die(f, it->source);
                     return;
                 }
             }
 
             it->remaining -= STEP_SECONDS;
+            it->age += STEP_SECONDS;
             it = it->remaining <= 0.0f ? f.statuses.erase(it) : std::next(it);
         }
     }

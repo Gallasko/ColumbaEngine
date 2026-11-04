@@ -8,6 +8,6 @@
     "levels": [["empower"], ["enlarge"], ["multiply"]],
     "branches": [
         { "name": "Permafrost", "text": "Leaves an icy area behind.", "keywords": ["zone"] },
-        { "name": "Shatter", "text": "More damage and a bigger explosion.", "boost": { "damage": 0.4, "area": 0.2 } }
+        { "name": "Ice breaker", "text": "Triple damage to frozen enemies.", "against": { "frozen": 2.0 } }
     ]
 }

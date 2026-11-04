@@ -3,10 +3,18 @@
 // per stack. maxStacks / atMax: at the most stacks it turns into another status (chill -> frozen).
 // stagger: frames of stagger when it lands, an interrupt whatever the poise (an attack with armor
 // shrugs it off, unless heavy); heavy: it cannot be rolled out of, armor or not.
-// What they look like (tint, particles) is in effects.json, under the status id.
+// imbue: while one has it, its weapon hits leave that status too (a spell's branch gives it with "onCast").
+// name: how one with it is called in the item texts ("burning enemies").
+// What they look like (tint, particles) is in effects.json, under the status id. Statuses that meet set off
+// element combos (combos.json).
 {
-    "burn":   { "duration": 3,   "damagePerSecond": 6 },
-    "chill":  { "duration": 3,   "slow": 0.15, "maxStacks": 4, "atMax": "frozen" },
-    "frozen": { "duration": 1.5, "stagger": 90, "heavy": true },
-    "shock":  { "duration": 0.4, "stagger": 16 }
+    "burn":   { "name": "burning", "duration": 3,   "damagePerSecond": 6 },
+    "chill":  { "name": "slowed",  "duration": 3,   "slow": 0.15, "maxStacks": 4, "atMax": "frozen" },
+    "frozen": { "name": "frozen",  "duration": 1.5, "stagger": 90, "heavy": true },
+    "shock":  { "name": "stunned", "duration": 0.4, "stagger": 16 },
+
+    // A weapon imbued by a spell (its branch): the caster's weapon hits burn, slow or stun for a while
+    "flame_weapon": { "duration": 5, "imbue": "burn" },
+    "frost_weapon": { "duration": 5, "imbue": "chill" },
+    "storm_weapon": { "duration": 5, "imbue": "shock" }
 }

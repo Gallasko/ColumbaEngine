@@ -87,6 +87,8 @@ namespace arena
         std::string id;
         float remaining = 0.0f;   // seconds
         int stacks = 1;
+        int source = 0;           // who left it (the server's: what it kills is theirs)
+        float age = 0.0f;         // s since it first landed (the server's)
     };
 
     struct Fighter
@@ -115,6 +117,7 @@ namespace arena
         float dashCharges = 2.0f;     // rolls and air dashes left; the fraction is the next one refilling
 
         std::vector<StatusState> statuses;
+        float comboCooldown = 0.0f;   // s before an element combo can go off on it again (the server's)
 
         /** The spells on the spell keys (abilities "spell:1".."spell:3"): recipes the player made or picked. */
         std::vector<SpellRecipe> spells;
@@ -149,6 +152,9 @@ namespace arena
             float speed = 0.0f, cooldown = 0.0f, lifeOnHit = 0.0f, armor = 0.0f, crit = 0.0f, pickupRange = 0.0f, regen = 0.0f, attackSpeed = 0.0f;
             float horde = 0.0f, xpGain = 0.0f, shardChance = 0.0f;
             int dashCharges = 0, statusStacks = 0;
+            float comboDamage = 0.0f, statusDuration = 0.0f;
+            Payoff payoff;                              // more damage against statuses
+            std::vector<UpgradeDef::Burst> bursts;      // where an enemy it kills dies with a status (damage times rarity)
         } boon;
 
         // ... shards (money and XP), the level, what is owned (weapons, skills, keywords, "element:fire"),
@@ -331,6 +337,8 @@ namespace arena
 
     /** Life on hit from an area's, a zone's or a chain's hit: this share of it. */
     constexpr float AREA_LEECH = 0.2f;
+    /** A status this young (s) is not detonated: a spell does not cash in the burn it just left. */
+    constexpr float DETONATE_AFTER = 0.25f;
 
     /** A boost onto an attack: damage (and heals), area (hitboxes, heal radii), duration (heal zones), projectile speed and count. */
     void applyBoost(AttackDef& attack, const SpellTweak& boost);
@@ -656,7 +664,17 @@ namespace arena
         /** A hit landing: damage (boons, weakness, crits, armor), life on hit, poise, knockback, a status, a death. */
         void applyHit(Fighter& attacker, Fighter& target, const AttackDef& attack);
         /** Puts a status on a fighter (stacks add up to its maxStacks): what a hit with one does. */
-        void applyStatus(Fighter& target, const std::string& id, int stacks = 1);
+        void applyStatus(Fighter& target, const std::string& id, int stacks = 1, int source = 0);
+
+        /** Combos (combos.json) the status would set off on the target: their hits go off, and whether one used the
+         *  status up. `hitDamage`: the damage of the hit bringing it, before the attacker's items. */
+        bool setOffCombo(Fighter& attacker, Fighter& target, const std::string& status, float hitDamage);
+
+        /** What combos and the items' bursts do: grown with the waves as the enemies' health is (1 outside a run). */
+        float comboScale() const;
+        /** A combo's damage, set off by a hit of `hitDamage` (before the attacker's items). */
+        float comboDamageOf(const ComboDef& c, const Fighter& attacker, float hitDamage) const;
+        static bool hasStatus(const Fighter& f, const std::string& id);
         const Moveset* movesetOf(const Fighter& f) const;
 
         /**

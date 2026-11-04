@@ -38,6 +38,8 @@ namespace arena
                        "moveset.attacks.*.projectile.model", "moveset.attacks.*.projectile.modelScale", "moveset.attacks.*.projectile.shake"}},
             {"keyword", {"name", "model", "modelScale"}},
             {"element", {"name"}},
+            {"combo", {"name", "text"}},
+            {"status", {"name"}},
             {"spell", {"name", "text"}},
             {"upgrade", {"name", "text"}},
             {"ability", {"name", "text", "attack.swing", "attack.shake", "attack.turn"}},
@@ -793,7 +795,7 @@ namespace arena
             // One file, one entry per definition: statuses (burning, chilled...), the elements of spells,
             // the keywords of spells
             for (const auto& [kind, name] : std::vector<std::pair<std::string, std::string>>{{"status", "statuses.json"}, {"element", "elements.json"}, {"keyword", "keywords.json"},
-                                                                                                 {"upgrade", "upgrades.json"}})
+                                                                                                 {"upgrade", "upgrades.json"}, {"combo", "combos.json"}})
             {
                 const auto file = (dir / name).string();
 
@@ -1170,10 +1172,12 @@ namespace arena
                     continue;
                 }
 
-                checkKeys(j, {"duration", "damagePerSecond", "slow", "maxStacks", "atMax", "stagger", "heavy"}, raw.file, report, "status " + id);
+                checkKeys(j, {"duration", "damagePerSecond", "slow", "maxStacks", "atMax", "stagger", "heavy", "imbue", "name"}, raw.file, report, "status " + id);
 
                 StatusDef s;
                 s.id = id;
+                s.name = splitId(id).second;
+                readStr(j, "name", s.name, raw.file, report);
                 readNum(j, "duration", s.duration, raw.file, report);
                 readNum(j, "damagePerSecond", s.damagePerSecond, raw.file, report);
                 readNum(j, "slow", s.slow, raw.file, report);
@@ -1181,6 +1185,8 @@ namespace arena
                 readStr(j, "atMax", s.atMax, raw.file, report);
                 readInt(j, "stagger", s.stagger, raw.file, report);
                 readBool(j, "heavy", s.heavy, raw.file, report);
+                readStr(j, "imbue", s.imbue, raw.file, report);
+                s.imbue = s.imbue.empty() ? "" : resolveId(s.imbue, raw.mod);
                 s.maxStacks = std::clamp(s.maxStacks, 1, 99);
                 s.duration = std::max(0.05f, s.duration);
                 s.atMax = s.atMax.empty() ? "" : resolveId(s.atMax, raw.mod);
@@ -1192,6 +1198,13 @@ namespace arena
                 {
                     const RawDef& raw = content.raw["status"].at(id);
                     report.error(raw.file, raw.data.line, "status \"" + id + "\": \"atMax\" names \"" + s.atMax + "\", which no statuses.json has");
+                }
+
+            for (const auto& [id, s] : content.statuses)
+                if (not s.imbue.empty() and not content.statuses.count(s.imbue))
+                {
+                    const RawDef& raw = content.raw["status"].at(id);
+                    report.error(raw.file, raw.data.line, "status \"" + id + "\": \"imbue\" names \"" + s.imbue + "\", which no statuses.json has");
                 }
         }
 
@@ -1205,6 +1218,94 @@ namespace arena
 
             if (not content.statuses.count(hit.status))
                 content.report.error(raw.file, raw.data.line, "unknown status \"" + hit.status + "\" (statuses.json)");
+        }
+
+        /** Status ids in a mod's namespace, each one known (statuses.json). */
+        void resolveStatuses(Content& content, std::vector<std::string>& ids, const RawDef& raw, const std::string& what)
+        {
+            for (auto& id : ids)
+            {
+                id = resolveId(id, raw.mod);
+                if (not content.statuses.count(id))
+                    content.report.error(raw.file, raw.data.line, what + ": unknown status \"" + id + "\" (statuses.json)");
+            }
+        }
+
+        /** "against": { "frozen": 2, "any": 0.5 }, "detonate": 1.5, "onCast": "flame_weapon" */
+        void readPayoff(Content& content, const Json& j, const RawDef& raw, Payoff& out, const std::string& what)
+        {
+            auto& report = content.report;
+
+            if (const Json* against = j.find("against"))
+            {
+                if (not against->isObject())
+                    report.error(raw.file, against->line, what + ": \"against\" is { status: more damage }");
+                else
+                    for (const auto& [status, v] : against->object)
+                    {
+                        const std::string id = status == "any" ? status : resolveId(status, raw.mod);
+                        if (id != "any" and not content.statuses.count(id))
+                            report.error(raw.file, v.line, what + ": \"against\" names \"" + id + "\", which no statuses.json has");
+                        else if (not v.isNumber())
+                            report.error(raw.file, v.line, what + ": \"against\" takes numbers (2: three times the damage)");
+                        else
+                            out.against[id] = static_cast<float>(v.number);
+                    }
+            }
+
+            readNum(j, "detonate", out.detonate, raw.file, report);
+            readStr(j, "onCast", out.onCast, raw.file, report);
+            if (not out.onCast.empty())
+            {
+                out.onCast = resolveId(out.onCast, raw.mod);
+                if (not content.statuses.count(out.onCast))
+                    report.error(raw.file, j.line, what + ": \"onCast\" names \"" + out.onCast + "\", which no statuses.json has");
+            }
+        }
+
+        void typeCombos(Content& content)
+        {
+            auto& report = content.report;
+
+            for (const auto& [id, raw] : content.raw["combo"])
+            {
+                const Json& j = raw.data;
+
+                if (not j.isObject())
+                {
+                    report.error(raw.file, j.line, "combo \"" + id + "\" must be an object");
+                    continue;
+                }
+
+                checkKeys(j, {"name", "text", "one", "other", "damage", "base", "radius", "poiseDamage", "knockback", "element", "status", "consume", "cooldown"},
+                          raw.file, report, "combo " + id);
+
+                ComboDef c;
+                c.id = id;
+                c.name = splitId(id).second;
+                readStr(j, "name", c.name, raw.file, report);
+                readStr(j, "text", c.text, raw.file, report);
+                readStringList(j, "one", c.one, raw.file, report);
+                readStringList(j, "other", c.other, raw.file, report);
+                resolveStatuses(content, c.one, raw, "combo \"" + id + "\"");
+                resolveStatuses(content, c.other, raw, "combo \"" + id + "\"");
+                readNum(j, "damage", c.damage, raw.file, report);
+                readNum(j, "base", c.base, raw.file, report);
+                readNum(j, "radius", c.radius, raw.file, report);
+                readNum(j, "poiseDamage", c.poiseDamage, raw.file, report);
+                readNum(j, "knockback", c.knockback, raw.file, report);
+                readElement(j, c.element, raw.file, report);
+                readStatusHit(j, c.status, raw.file, report);
+                resolveStatus(content, c.status, raw);
+                readBool(j, "consume", c.consume, raw.file, report);
+                readNum(j, "cooldown", c.cooldown, raw.file, report);
+                c.cooldown = std::max(0.0f, c.cooldown);
+
+                if (c.one.empty() or c.other.empty())
+                    report.error(raw.file, j.line, "combo \"" + id + "\" needs statuses on both sides, \"one\" and \"other\"");
+                else
+                    content.combos[id] = c;
+            }
         }
 
         /** A boost: { "damage": 0.2, "area": 0.2, "cooldown": 0.15, "cost": 0.2, "duration": 0.3, "speed": 0.25, "attackSpeed": 0.1, "count": 1 } */
@@ -1232,7 +1333,7 @@ namespace arena
 
             for (const auto& b : branches->array)
             {
-                checkKeys(b, {"name", "text", "keywords", "tags", "boost", "element", "status"}, raw.file, report, what + "'s branch");
+                checkKeys(b, {"name", "text", "keywords", "tags", "boost", "element", "status", "against", "detonate", "onCast"}, raw.file, report, what + "'s branch");
                 BranchDef d;
                 readStr(b, "name", d.name, raw.file, report);
                 readStr(b, "text", d.text, raw.file, report);
@@ -1245,6 +1346,7 @@ namespace arena
                 readElement(b, d.element, raw.file, report);
                 readStatusHit(b, d.status, raw.file, report);
                 resolveStatus(content, d.status, raw);
+                readPayoff(content, b, raw, d.payoff, what + "'s branch");
 
                 if (d.name.empty())
                     report.error(raw.file, b.line, what + ": a branch needs a \"name\"");
@@ -1545,7 +1647,7 @@ namespace arena
                 const Json& j = raw.data;
                 checkKeys(j, {"name", "text", "maxHealth", "damage", "dashCharges", "manaCost", "manaRegen", "staminaRegen", "speed", "cooldown", "lifeOnHit",
                               "statusStacks", "most", "armor", "crit", "pickupRange", "regen", "attackSpeed", "horde", "xpGain", "shardChance",
-                              "price", "tag", "boost", "look", "tiers"},
+                              "comboDamage", "statusDuration", "against", "burst", "needs", "needsElements", "price", "tag", "boost", "look", "tiers"},
                           raw.file, report, "boon " + id);
 
                 UpgradeDef u;
@@ -1572,7 +1674,26 @@ namespace arena
                 readNum(j, "horde", u.horde, raw.file, report);
                 readNum(j, "xpGain", u.xpGain, raw.file, report);
                 readNum(j, "shardChance", u.shardChance, raw.file, report);
+                readNum(j, "comboDamage", u.comboDamage, raw.file, report);
+                readNum(j, "statusDuration", u.statusDuration, raw.file, report);
+                readPayoff(content, j, raw, u.payoff, "boon \"" + id + "\"");
+                readStringList(j, "needs", u.needs, raw.file, report);
+                readInt(j, "needsElements", u.needsElements, raw.file, report);
                 readInt(j, "price", u.price, raw.file, report);
+
+                // "burst": { "if": "burn", "radius": 3, "damage": 12, "status": "burn" }: where an enemy dies with that status
+                if (const Json* burst = j.find("burst"))
+                {
+                    checkKeys(*burst, {"if", "radius", "damage", "status"}, raw.file, report, "boon " + id + "'s burst");
+                    readStr(*burst, "if", u.burst.when, raw.file, report);
+                    readNum(*burst, "radius", u.burst.radius, raw.file, report);
+                    readNum(*burst, "damage", u.burst.damage, raw.file, report);
+                    readStatusHit(*burst, u.burst.status, raw.file, report);
+                    resolveStatus(content, u.burst.status, raw);
+                    u.burst.when = resolveId(u.burst.when, raw.mod);
+                    if (not content.statuses.count(u.burst.when))
+                        report.error(raw.file, burst->line, "boon \"" + id + "\": the burst's \"if\" names \"" + u.burst.when + "\", which no statuses.json has");
+                }
 
                 // "tiers": ["Rare"]: it only comes at these rarities (checked against run.json's once it is read)
                 if (const Json* tiers = j.find("tiers"))
@@ -2058,6 +2179,10 @@ namespace arena
                 if (const Json* rest = j.find("rest"))
                     readSwing(*rest, w.rest, raw.file, report);
                 readBool(j, "followSwing", w.followSwing, raw.file, report);
+                readBool(j, "followArm", w.followArm, raw.file, report);
+                w.hasView = j.find("view") != nullptr;
+                readVec3(j, "view", w.view, raw.file, report);
+                readNum(j, "viewTilt", w.viewTilt, raw.file, report);
 
                 requireModel(content, w.model, raw.file, j.find("model") ? j.find("model")->line : j.line);
 
@@ -2179,10 +2304,6 @@ namespace arena
                         readNum(*weak, name, e.weakness[static_cast<int>(el)], raw.file, report);
                     }
                 }
-                readBool(j, "followArm", w.followArm, raw.file, report);
-                w.hasView = j.find("view") != nullptr;
-                readVec3(j, "view", w.view, raw.file, report);
-                readNum(j, "viewTilt", w.viewTilt, raw.file, report);
                 readNum(j, "walkSpeed", e.walkSpeed, raw.file, report);
                 readNum(j, "turnSpeed", e.turnSpeed, raw.file, report);
                 readNum(j, "respawnSeconds", e.respawnSeconds, raw.file, report);
@@ -2671,6 +2792,7 @@ namespace arena
             const glm::vec3 l(partLo[i]), hgh(partHi[i] + glm::ivec3(1));
             const bool head = parts[i].name == "head";
             parts[i].joint = glm::vec3((l.x + hgh.x) * 0.5f, head ? l.y : hgh.y, (l.z + hgh.z) * 0.5f);
+            parts[i].length = hgh.y - l.y;
             out.parts.push_back(std::move(parts[i]));
         }
 
@@ -2696,6 +2818,7 @@ namespace arena
 
         typeBlocks(content);
         typeStatuses(content);
+        typeCombos(content);
         typeElements(content);
         typeKeywords(content);
         loadModels(content);
@@ -2764,4 +2887,3 @@ namespace arena
         return content;
     }
 }
-            parts[i].length = hgh.y - l.y;

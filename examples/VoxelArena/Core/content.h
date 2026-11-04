@@ -112,6 +112,7 @@ namespace arena
     struct StatusDef
     {
         std::string id;
+        std::string name;              // how one with it is called, for the item texts ("burning"); the id when none
         float duration = 3.0f;         // seconds, renewed by a new hit
         float damagePerSecond = 0.0f;  // burning
         float slow = 0.0f;             // move speed taken away, per stack (0.15 = 15%)
@@ -119,6 +120,7 @@ namespace arena
         std::string atMax;             // reaching maxStacks turns it into this status (chill -> frozen)
         int stagger = 0;               // frames of stagger when it lands (0: none): interrupts
         bool heavy = false;            // that stagger cannot be rolled out of (frozen solid)
+        std::string imbue;             // while one has it, its weapon hits leave this status too (a flame weapon: burn)
     };
 
     /** A status a hit applies: which, and how many stacks. */
@@ -126,6 +128,53 @@ namespace arena
     {
         std::string status;            // "" = none
         int stacks = 1;
+    };
+
+    /**
+     * An element combo (combos.json): a status of one side landing on a target that has a status of the
+     * other side (either way round) sets it off. It is one more hit: `damage` times the hit that set it
+     * off plus `base` (grown with the waves as the enemies' health is), on the target alone (radius 0)
+     * or on everyone of its side that close, leaving `status` on them. consume: both sides' statuses are
+     * used up, and the one landing is not left. cooldown: s before that target can have a combo again.
+     */
+    struct ComboDef
+    {
+        std::string id, name, text;
+        std::vector<std::string> one, other;   // status ids
+        float damage = 1.0f;
+        float base = 0.0f;
+        float radius = 0.0f;
+        float poiseDamage = 10.0f;
+        float knockback = 3.0f;
+        Element element = Element::None;     // the target's weakness to it
+        StatusHit status;
+        bool consume = false;
+        float cooldown = 0.5f;
+    };
+
+    /**
+     * What a spell, an attack or an item does to a target with statuses, beyond the hit: against: more
+     * damage to a target with a status ({"base:frozen": 2}: three times; "any": any status); detonate:
+     * the damage over time left on the target dealt at once, times this, and that status gone; onCast
+     * (a spell's): a status the caster gets as it casts (a flame weapon).
+     */
+    struct Payoff
+    {
+        std::map<std::string, float> against;
+        float detonate = 0.0f;
+        std::string onCast;
+
+        bool empty() const { return against.empty() and detonate == 0.0f and onCast.empty(); }
+        bool operator==(const Payoff& o) const { return against == o.against and detonate == o.detonate and onCast == o.onCast; }
+
+        void add(const Payoff& o, float k = 1.0f)
+        {
+            for (const auto& [id, v] : o.against)
+                against[id] += v * k;
+            detonate += o.detonate * k;
+            if (not o.onCast.empty())
+                onCast = o.onCast;
+        }
     };
 
     // --------------------------------------------------------------------------------------------
@@ -220,8 +269,9 @@ namespace arena
         std::string element;
         std::vector<std::string> keywords;
         SpellTweak tweak;
+        Payoff payoff;   // a run's: what its branch does to targets with statuses
 
-        bool operator==(const SpellRecipe& o) const { return element == o.element and keywords == o.keywords and tweak == o.tweak; }
+        bool operator==(const SpellRecipe& o) const { return element == o.element and keywords == o.keywords and tweak == o.tweak and payoff == o.payoff; }
     };
 
     /**
@@ -241,6 +291,7 @@ namespace arena
         SpellTweak boost;
         Element element = Element::None;     // a technique's hits
         StatusHit status;
+        Payoff payoff;                       // against statuses, detonate, a status on casting (a spell's)
     };
 
     struct SpellDef
@@ -281,6 +332,7 @@ namespace arena
         float terrainRadius = 0.0f;   // fire sets alight, ice freezes pits over, this close to the impact
         int count = 1;                // shot at once, fanned out
         float spread = 0.0f;          // degrees between two of them
+        Payoff payoff;                // what it does to targets with statuses (a spell's branch, an attack's)
     };
 
     /**
@@ -337,6 +389,8 @@ namespace arena
 
         Element element = Element::None;
         StatusHit status;
+        Payoff payoff;            // what it does to targets with statuses (a branch's)
+        bool combo = false;       // an element combo's hit (or an item's burst): it sets off no combo of its own
 
         // In the air: gravity while the attack runs (an air slash hangs a little), and the plunge:
         // above 0, the attack dives at this speed once its startup is over and holds its first
@@ -428,6 +482,10 @@ namespace arena
         glm::vec3 grip = glm::vec3(0.0f);    // model-space point held in the hand (in model voxels)
         SwingPose rest;                       // pose when no attack runs
         bool followSwing = false;             // the head (the model's +X side) turns to lead each swing: a scythe's blade
+        bool followArm = false;               // in an attack, held where the arm points (a bow out at the shoulder), not at the hand point
+        glm::vec3 view = glm::vec3(0.0f);     // first person: where it is held from the eye, right, up, forward (tuning firstPerson.weapon if not set)
+        bool hasView = false;
+        float viewTilt = 0.0f;                // first person: leant this many degrees, the top to the left
         Moveset moveset;
         std::string file;
     };
@@ -482,10 +540,6 @@ namespace arena
 
         Moveset moveset;
         std::string file;
-        bool followArm = false;               // in an attack, held where the arm points (a bow out at the shoulder), not at the hand point
-        glm::vec3 view = glm::vec3(0.0f);     // first person: where it is held from the eye, right, up, forward (tuning firstPerson.weapon if not set)
-        bool hasView = false;
-        float viewTilt = 0.0f;                // first person: leant this many degrees, the top to the left
     };
 
     /**
@@ -608,6 +662,23 @@ namespace arena
         float horde = 0.0f;           // this much more enemies come (0.15: 15%), for everyone in the run
         float xpGain = 0.0f;          // this much more XP from each shard picked up (0.15: 15%)
         float shardChance = 0.0f;     // the chance each shard of a kill comes with one more, for everyone in the run
+        float comboDamage = 0.0f;     // element combos do this much more damage (0.4: 40%)
+        float statusDuration = 0.0f;  // the statuses one leaves last this much longer (0.5: 50%)
+        Payoff payoff;                // more damage against statuses ("against")
+
+        // A burst where an enemy dies with a status ("if"): everyone of its side within radius takes
+        // damage (grown with the waves) and gets status
+        struct Burst
+        {
+            std::string when;         // the status the dying one has ("if")
+            float radius = 3.0f, damage = 0.0f;
+            StatusHit status;
+        } burst;
+
+        // Offered only when something of the player has one of these tags, and at least `needsElements`
+        // of the elements among its tags (an item for combos: two)
+        std::vector<std::string> needs;
+        int needsElements = 0;
 
         // A tag item: its boost goes to every spell and technique of the player with the tag ("fire",
         // "projectile", "area", "spell", "technique"...)
@@ -770,6 +841,7 @@ namespace arena
             std::string name;
             VoxelGrid grid;
             glm::vec3 joint = glm::vec3(0.0f);
+            float length = 0.0f;   // how far it reaches from its joint, in voxels (a limb's top to its bottom)
         };
         std::vector<Part> parts;
     };
@@ -800,6 +872,7 @@ namespace arena
         std::map<std::string, AbilityDef> abilities;
 
         std::map<std::string, StatusDef> statuses;   // statuses.json
+        std::map<std::string, ComboDef> combos;      // combos.json
 
         std::map<Element, ElementDef> elements;      // elements.json
         std::map<std::string, KeywordDef> keywords;  // keywords.json
@@ -841,7 +914,6 @@ namespace arena
          * A hash of the gameplay content (definitions after patches, tuning, arena, scripts), with
          * what only looks left out: models, effects, sounds, colours, swing poses, camera shake,
          * names, the camera and the controls. Two machines with the same fingerprint run the same
-            float length = 0.0f;   // how far it reaches from its joint, in voxels (a limb's top to its bottom)
          * game: a client whose fingerprint differs from the server's is refused, while a client with
          * its own looks (a texture pack, other sounds) can join.
          */

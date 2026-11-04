@@ -59,6 +59,19 @@
     "greed":      { "name": "Greed",        "text": "Enemies drop 7% more shards",           "shardChance": 0.07, "price": 14,
                     "look": { "model": "look_pouch", "part": "body", "at": [3.25, 5.25, 4.25] } },
 
+    // Payoff items: more out of statuses and element combos (combos.json). comboDamage 0.4: combos do 40% more;
+    // statusDuration 0.5: the statuses you leave last 50% longer; against: more damage to enemies with a status
+    // ({ "burn": 0.3 }: 30% more to burning ones); burst: an enemy you kill with that status ("if") explodes,
+    // `damage` (grown with the waves) to everyone within `radius`, leaving `status`. needs: offered only when
+    // something of yours has one of these tags (a fire spell, a flame blade); needsElements: only with at least
+    // that many elements among your tags (two make combos).
+    "catalyst":   { "name": "Catalyst",     "comboDamage": 0.4,  "needsElements": 2, "price": 14, "look": { "orbit": [255, 255, 255] } },
+    "kindling":   { "name": "Kindling",     "against": { "burn": 0.3 }, "needs": ["fire"], "price": 12, "look": { "orbit": [255, 72, 24] } },
+    "brittle":    { "name": "Brittle",      "against": { "chill": 0.3, "frozen": 0.3 }, "needs": ["ice"], "price": 12, "look": { "orbit": [120, 200, 255] } },
+    "pyre":       { "name": "Pyre",         "burst": { "if": "burn", "radius": 3, "damage": 14, "status": "burn" }, "needs": ["fire"], "price": 16,
+                    "look": { "orbit": [255, 150, 30] } },
+    "long_fuse":  { "name": "Long fuse",    "statusDuration": 0.5, "needs": ["fire", "ice", "volt"], "price": 10, "look": { "orbit": [200, 150, 255] } },
+
     // Tag items: a boost for every spell and technique of yours with the tag. Spells have "spell", their
     // element and their shapes' ("projectile" for a bolt, "area" for a nova or a zone, "zone", "beam");
     // techniques have "technique", their own ("melee", "area", "dash", "heal"...) and "projectile" when

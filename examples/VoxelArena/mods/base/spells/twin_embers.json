@@ -8,6 +8,6 @@
     "levels": [["enlarge"], ["empower"], ["extend"]],
     "branches": [
         { "name": "Wildfire", "text": "The burning ground explodes when it ends.", "keywords": ["nova"] },
-        { "name": "Embers", "text": "Shoots one more bolt.", "boost": { "count": 1 } }
+        { "name": "Flame weapon", "text": "After you cast it, your weapon hits set enemies on fire for 5 s.", "onCast": "flame_weapon" }
     ]
 }
