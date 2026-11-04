@@ -989,11 +989,15 @@ namespace pg
         {
             auto [nativeFunc, index] = pools.nativeFuncPool.allocateWithIndex();
             nativeFunc->function = function;
+            nativeFunc->measures = isLenNative(function);
 
             Value val = makeNativeFuncValue(static_cast<uint32_t>(index));
 
             return trackNewValue(val);
         }
+
+        // Whether it is the native `len` (AlgorithmModule::nativeLen)
+        static bool isLenNative(const NativeFn& function);
 
         void defineNative(const std::string& name, NativeFn function)
         {

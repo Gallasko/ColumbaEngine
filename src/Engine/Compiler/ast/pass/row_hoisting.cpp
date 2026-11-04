@@ -10,6 +10,7 @@
 #include "logger.h"
 
 #include <algorithm>
+#include <memory>
 
 namespace pg
 {
@@ -46,6 +47,16 @@ namespace pg
             std::set<std::string> measured;
             std::set<std::string> justRead;
 
+            // The blocks the walk stands in, innermost last, each with the statement it stands at
+            // (those before it as rewritten)
+            struct Standing
+            {
+                const std::vector<StatementPtr>* statements;
+                size_t at;
+            };
+
+            std::vector<Standing> blocks;
+
             // Holds the same value from its declaration on
             bool neverChanges(const std::string& name) const
             {
@@ -54,8 +65,8 @@ namespace pg
                 return it != ownership.declared.end() and it->second == 1 and locals.count(name) and not ownership.rebound.count(name);
             }
 
-            // Reading it cannot run code or stop the script
-            bool safe(const ExprPtr& read) const
+            // Reading it cannot run code or stop the script, the list owned by what `lists` knows
+            bool safe(const ExprPtr& read, const FunctionScope& lists) const
             {
                 if (justRead.count(pathOf(read)))
                     return true;
@@ -66,7 +77,7 @@ namespace pg
                 if (not ownership.isInt(g->index))
                     return false;
 
-                return measured.count(list) or (ownershipHolds() and ownership.owned(list));
+                return measured.count(list) or (lists.ownershipHolds() and lists.ownership.owned(list));
             }
         };
 
@@ -268,6 +279,79 @@ namespace pg
             return std::make_shared<BlockStatement>(block);
         }
 
+        // Whether a function or a class the statement defines names it
+        bool namedInFunctions(const StatementPtr& s, const std::string& name)
+        {
+            auto mentions = [&](bool intoFunctions) {
+                long count = 0;
+
+                eachExpr(s, [&](const ExprPtr& e) {
+                    const AstKind type = e->kind();
+
+                    if ((type == AstKind::Var and varName(e) == name)
+                        or (type == AstKind::Assign and std::static_pointer_cast<Assign>(e)->name.text == name)
+                        or (type == AstKind::PreFixExpression and std::static_pointer_cast<PreFixExpression>(e)->name.text == name)
+                        or (type == AstKind::PostFixExpression and std::static_pointer_cast<PostFixExpression>(e)->name.text == name))
+                        ++count;
+                }, intoFunctions);
+
+                return count;
+            };
+
+            return mentions(true) != mentions(false);
+        }
+
+        // A list a block the walk stands in declares, `var x = [...]`, read from there to the statement
+        // the walk stands at: each time the block runs it is a new list, and only those statements run
+        // with it before that one does. What the block does with it after (gives it to a function, say)
+        // reaches the list of a run that is over. Not when a function the block defines names it: that
+        // one could run later with the list still the same. Null when it is not such a list
+        std::unique_ptr<FunctionScope> ownedSince(const std::string& list, const Rows& ctx)
+        {
+            if (not ctx.locals.count(list))
+                return nullptr;
+
+            for (auto b = ctx.blocks.rbegin(); b != ctx.blocks.rend(); ++b)
+            {
+                const std::vector<StatementPtr>& statements = *b->statements;
+
+                // The last declaration before is the one in sight
+                for (size_t d = b->at; d-- > 0; )
+                {
+                    if (not statements[d] or statements[d]->kind() != AstKind::VariableStatement)
+                        continue;
+
+                    auto v = std::static_pointer_cast<VariableStatement>(statements[d]);
+
+                    if (v->name.text != list)
+                        continue;
+
+                    if (not v->expr or v->expr->kind() != AstKind::List)
+                        return nullptr;
+
+                    for (const auto& st : statements)
+                    {
+                        if (st and namedInFunctions(st, list))
+                            return nullptr;
+                    }
+
+                    std::queue<StatementPtr> since;
+
+                    for (size_t k = d; k <= b->at; ++k)
+                        since.push(statements[k]);
+
+                    auto scope = std::make_unique<FunctionScope>(FunctionScope{ctx.scriptNames, ctx.locals,
+                        Ownership::ofFunction({}, std::make_shared<BlockStatement>(since))});
+                    scope->inFunction = ctx.inFunction;
+                    scope->scriptRead = ctx.scriptRead;
+
+                    return scope;
+                }
+            }
+
+            return nullptr;
+        }
+
         // The reads of a loop that hold for all of it, a hidden local each, before it
         StatementPtr hoistLoop(const StatementPtr& s, Rows& ctx)
         {
@@ -300,16 +384,26 @@ namespace pg
                 if (std::any_of(names.begin(), names.end(), [&](const std::string& name) { return facts.mutated.count(name); }))
                     continue;
 
-                if (not ctx.safe(read))
-                    continue;
-
                 const std::string root = rootOf(read);
 
-                RegionCheck check{ctx, root, ctx.ownershipHolds() and ctx.ownership.owned(root), true};
-                check.stmt(s);
+                auto leftAlone = [&](const FunctionScope& lists) {
+                    if (not ctx.safe(read, lists))
+                        return false;
 
-                if (not check.ok)
-                    continue;
+                    RegionCheck check{lists, root, lists.ownershipHolds() and lists.ownership.owned(root), true};
+                    check.stmt(s);
+
+                    return check.ok;
+                };
+
+                if (not leftAlone(ctx))
+                {
+                    // What the function does with the list after the loop may not matter
+                    auto since = ownedSince(root, ctx);
+
+                    if (not since or not leftAlone(*since))
+                        continue;
+                }
 
                 if (ctx.slotsUsed + 1 > kMaxLocalSlots)
                     break;
@@ -347,6 +441,7 @@ namespace pg
             const std::set<std::string> savedLocals = ctx.locals;
             const std::set<std::string> savedMeasured = ctx.measured;
             const std::set<std::string> savedRead = ctx.justRead;
+            const std::vector<Rows::Standing> savedBlocks = std::move(ctx.blocks);
             Ownership savedOwnership = std::move(ctx.ownership);
             const bool savedIn = ctx.inFunction;
             const int savedSlots = ctx.slotsUsed;
@@ -360,6 +455,7 @@ namespace pg
 
             ctx.measured.clear();
             ctx.justRead.clear();
+            ctx.blocks.clear();
             ctx.ownership = Ownership::ofFunction(parameters, body);
             ctx.inFunction = true;
             ctx.slotsUsed = extraSlots + static_cast<int>(parameters.size()) + countLocalSlots(body);
@@ -369,6 +465,7 @@ namespace pg
             ctx.locals = savedLocals;
             ctx.measured = savedMeasured;
             ctx.justRead = savedRead;
+            ctx.blocks = savedBlocks;
             ctx.ownership = std::move(savedOwnership);
             ctx.inFunction = savedIn;
             ctx.slotsUsed = savedSlots;
@@ -440,13 +537,20 @@ namespace pg
             {
                 auto b = std::static_pointer_cast<BlockStatement>(s);
                 const std::set<std::string> saved = ctx.measured;
-                std::vector<StatementPtr> out;
+                std::vector<StatementPtr> out = listOf(b->statements);
 
-                for (const auto& st : listOf(b->statements))
+                ctx.blocks.push_back({&out, 0});
+
+                for (size_t k = 0; k < out.size(); ++k)
                 {
-                    out.push_back(transform(st, ctx));
+                    const StatementPtr st = out[k];
+
+                    ctx.blocks.back().at = k;
+                    out[k] = transform(st, ctx);
                     learnStatement(st, ctx);
                 }
+
+                ctx.blocks.pop_back();
 
                 b->statements = queueOf(out);
                 ctx.measured = saved;

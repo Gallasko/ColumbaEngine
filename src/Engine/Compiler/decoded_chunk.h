@@ -306,6 +306,10 @@ namespace pg
         // counts each instruction
         void pairInstructions(DecodedChunk* decoded, VM* vm);
 
+        // `len(x)`, x a local or `t[i]` of locals: the Get_Constant_Global of `len` measures x itself
+        // while the global is the native (fusion::fusedLen). Needs the global slots resolved
+        void fuseLenCalls(DecodedChunk* decoded, VM* vm);
+
         // Build jump target map for control flow
         void buildJumpTargets(const Chunk& chunk, DecodedChunk* decoded);
 

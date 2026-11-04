@@ -788,6 +788,77 @@ namespace fusion
         return false;
     }
 
+    // `t[a][b]` with all three in locals: GetIndex(L,L) here, GetIndex(S,L) after it. The row is only
+    // looked at, never pushed nor retained; anything but a vector of vectors read inside runs the two
+    PG_FUSION_FLATTEN inline const DecodedInstruction* fusedGetIndex2Locals(VM* vm, const DecodedInstruction& instr)
+    {
+        const DecodedInstruction& second = *(&instr + 1);
+        const Value target = vm->currentFrame->slots[instr.operands.indexed.byte1];
+        const Value index = vm->currentFrame->slots[instr.operands.indexed.byte2];
+        const Value index2 = vm->currentFrame->slots[second.operands.indexed.byte1];
+
+        if (IS_VECTOR(target) and IS_INT(index) and IS_INT(index2))
+        {
+            const ObjVector* vec = vm->asVector(target);
+            const int64_t idx = AS_INT(index);
+
+            if (idx >= 0 and idx < static_cast<int64_t>(vec->fields.size()) and IS_VECTOR(vec->fields[idx]))
+            {
+                const ObjVector* row = vm->asVector(vec->fields[idx]);
+                const int64_t idx2 = AS_INT(index2);
+
+                if (idx2 >= 0 and idx2 < static_cast<int64_t>(row->fields.size()))
+                {
+                    vm->push(vm->retainValue(row->fields[idx2]));
+                    return &second + 1;
+                }
+            }
+        }
+
+        return fusedThen<&fusedGetIndexLocals, &fusedGetIndexByLocal>(vm, instr);
+    }
+
+    // `len(x)`: Get_Constant_Global of `len` here, x read by the instruction after it (a local, or
+    // `t[i]` of locals, `Row`), the Call of one argument after that. While the global holds the native
+    // `len`, a vector or a string is measured where it stands and the two after are passed over; the
+    // instructions are all still there, what is not run as they were
+    template <bool Row>
+    PG_FUSION_FLATTEN const DecodedInstruction* fusedLen(VM* vm, const DecodedInstruction& instr)
+    {
+        const Value callee = vm->globalCells[instr.operands.dword];
+
+        if (IS_NAT_FUNC(callee) and vm->asNativeFunc(callee)->measures)
+        {
+            const DecodedInstruction& arg = *(&instr + 1);
+            Value x;
+
+            if constexpr (Row)
+            {
+                if (not peekIndexLocals(vm, arg, x))
+                    return op_get_constant_global_decoded(vm, instr);
+            }
+            else
+                x = vm->currentFrame->slots[arg.operands.byte];
+
+            int64_t length = -1;
+
+            if (IS_VECTOR(x))
+                length = static_cast<int64_t>(vm->asVector(x)->fields.size());
+            else if (IS_SMALL_STRING(x))
+                length = AS_SMALL_STRING_LENGTH(x);
+            else if (IS_LONG_STRING(x))
+                length = static_cast<int64_t>(vm->asStringPtr(x)->size());
+
+            if (length >= 0)
+            {
+                vm->push(makeIntValue(length));
+                return &instr + 3;
+            }
+        }
+
+        return op_get_constant_global_decoded(vm, instr);
+    }
+
     // `if (line[i] == " ")`: the GetIndex(L,L) here and the compare with a constant after it, the
     // element compared where it stands, never pushed nor retained. What the read leaves runs the two
     template <typename Op>

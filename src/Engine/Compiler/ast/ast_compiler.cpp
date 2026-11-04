@@ -27,6 +27,27 @@ namespace pg
             return e->kind() == AstKind::LogicExpression
                 and std::static_pointer_cast<LogicExpression>(e)->op.type == TokenType::LOGICAND;
         }
+
+        bool isOr(const ExprPtr& e)
+        {
+            return e->kind() == AstKind::LogicExpression
+                and std::static_pointer_cast<LogicExpression>(e)->op.type == TokenType::LOGICOR;
+        }
+
+        // The operands of an `or` chain, left first: `a or b or c` is false only when each is
+        void disjunctsOf(const ExprPtr& e, std::vector<ExprPtr>& out)
+        {
+            if (not isOr(e))
+            {
+                out.push_back(e);
+                return;
+            }
+
+            auto logic = std::static_pointer_cast<LogicExpression>(e);
+
+            disjunctsOf(logic->leftExpr, out);
+            disjunctsOf(logic->rightExpr, out);
+        }
     }
 
     Value AstCompiler::compile(std::queue<Token> tokens)
@@ -1105,6 +1126,34 @@ namespace pg
             return;
         }
 
+        // Each operand but the last: false tries the next, true jumps past the last. The last
+        // leaves for the else as an `and` clause does
+        if (isOr(condition))
+        {
+            std::vector<ExprPtr> disjuncts;
+            disjunctsOf(condition, disjuncts);
+
+            std::vector<int> trueJumps;
+
+            for (size_t i = 0; i + 1 < disjuncts.size(); ++i)
+            {
+                std::vector<int> tryNext;
+                emitAndClauses(disjuncts[i], tryNext);
+
+                trueJumps.push_back(root.parser.emitJump(OpCode::OP_Long_Jump));
+
+                for (int offset : tryNext)
+                    root.parser.patchJump(offset);
+            }
+
+            emitAndClauses(disjuncts.back(), falseJumps);
+
+            for (int offset : trueJumps)
+                root.parser.patchJump(offset);
+
+            return;
+        }
+
         condition->accept(this);
 
         falseJumps.push_back(root.parser.emitJump(OpCode::OP_Long_Jump_If_False_Popping));
@@ -1112,9 +1161,9 @@ namespace pg
 
     void AstCompiler::visitStatement(IfStatement* stmt)
     {
-        // Nothing wants the value of an `and` tested here: each clause leaves for the else on its
-        // own, with no value kept on the stack to test again
-        if (isAnd(stmt->condition))
+        // Nothing wants the value of an `and` or an `or` tested here: each clause leaves for the else
+        // (or for the then) on its own, with no value kept on the stack to test again
+        if (isAnd(stmt->condition) or isOr(stmt->condition))
         {
             std::vector<int> falseJumps;
             emitAndClauses(stmt->condition, falseJumps);

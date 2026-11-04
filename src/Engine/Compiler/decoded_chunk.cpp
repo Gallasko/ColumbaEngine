@@ -193,6 +193,9 @@ namespace pg
         // Optimize: pre-resolve constant-global ops to dense VM global slots.
         resolveGlobalSlots(decoded, chunk, vm);
 
+        if (vm != nullptr and vm->enableDecodeFusion)
+            fuseLenCalls(decoded, vm);
+
         if (vm != nullptr and vm->enableDecodeFusion and not vm->profiler.isEnabled())
             pairInstructions(decoded, vm);
 
@@ -1160,6 +1163,9 @@ namespace pg
                 pairStep<&fusedPopIncrDecrLocal<true>>(r);
                 pairStep<&fusedPopIncrDecrLocal<false>>(r);
 
+                // `t[a][b]`: the row is read where it stands
+                r[{&fusedGetIndexLocals, &fusedGetIndexByLocal}] = &fusedGetIndex2Locals;
+
                 // `line[i] == " "`: the element is compared where it stands
                 r[{&fusedGetIndexLocals, &fusedCmpBranchIfFalse<FEqual, Src::Stack, Src::Const, true>}] = &fusedGetIndexLocalsCmpConst<FEqual>;
                 r[{&fusedGetIndexLocals, &fusedCmpBranchIfFalse<FNotEqual, Src::Stack, Src::Const, true>}] = &fusedGetIndexLocalsCmpConst<FNotEqual>;
@@ -1187,6 +1193,46 @@ namespace pg
                 ++vm->pairedInstructions;
             }
         }
+    }
+
+    void ChunkDecoder::fuseLenCalls(DecodedChunk* decoded, VM* vm)
+    {
+        std::vector<DecodedInstruction>& ins = decoded->instructions;
+        std::vector<DecodedInstructionMeta>& im = decoded->meta;
+        size_t rewrites = 0;
+
+        // The argument and the call stay behind it: what jumps or falls to them runs them as they were
+        for (size_t i = 0; i + 2 < ins.size(); ++i)
+        {
+            if (im[i].fusedLength != 0 or ins[i].decodedHandler != &op_get_constant_global_decoded)
+                continue;
+
+            if (ins[i + 2].decodedHandler != &op_call_decoded or ins[i + 2].operands.byte != 1)
+                continue;
+
+            const std::string name = vm->globalNameForSlot(ins[i].operands.dword);
+
+            if (name != "len" and name != "__len")
+                continue;
+
+            if (ins[i + 1].decodedHandler == &op_get_local_decoded)
+            {
+                ins[i].decodedHandler = &fusion::fusedLen<false>;
+                im[i].fusedName = fusion::internFusionName("FUSED_Len(L)");
+            }
+            else if (ins[i + 1].decodedHandler == &fusion::fusedGetIndexLocals)
+            {
+                ins[i].decodedHandler = &fusion::fusedLen<true>;
+                im[i].fusedName = fusion::internFusionName("FUSED_Len(L[L])");
+            }
+            else
+                continue;
+
+            ++rewrites;
+        }
+
+        if (rewrites > 0)
+            LOG_INFO("ChunkDecoder", "Fused " << rewrites << " len calls");
     }
 
     void ChunkDecoder::compactElided(DecodedChunk* decoded)

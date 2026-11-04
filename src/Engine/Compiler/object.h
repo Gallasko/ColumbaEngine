@@ -52,6 +52,9 @@ namespace pg
     struct NativeFunction
     {
         NativeFn function;
+
+        // It is `len`: a call of it may be answered where its argument stands (fusion::fusedLen)
+        bool measures = false;
     };
 
     struct Closure

@@ -131,7 +131,8 @@ namespace pg
         /** Emit the entry cleanup shared by break/continue (pop locals deeper than the loop) */
         void emitLoopScopeUnwind();
 
-        /** Emit each clause of an `and` chain with a popping jump of its own, added to falseJumps */
+        /** Emit each clause of an `and` chain with a popping jump of its own, added to falseJumps; an
+            `or` jumps over the rest of itself on the first operand true */
         void emitAndClauses(const ExprPtr& condition, std::vector<int>& falseJumps);
 
         VM* vm;

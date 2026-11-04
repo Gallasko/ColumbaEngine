@@ -1065,5 +1065,246 @@ TEST_F(LoopShapes, AnIndexComparedWithAConstantReadsLikeAnyIndex)
     EXPECT_GE(paired, 2u);
 }
 
+TEST_F(LoopShapes, AnOrInAnIfRunsAsItsValue)
+{
+    MockLogger<TerminalSink> logger;
+
+    // Each shape tested by an `if` and by its value, operands of every kind, in the order they run
+    const std::string source =
+        "var log = \"\"\n"
+        "fun at(name, v)\n"
+        "{\n"
+        "    log = log + name\n"
+        "    return v\n"
+        "}\n"
+        "var values = [true, false, none, 0, 1, \"\", \"x\"]\n"
+        "for (var a = 0; a < 7; a++)\n"
+        "{\n"
+        "    for (var b = 0; b < 7; b++)\n"
+        "    {\n"
+        "        for (var c = 0; c < 3; c++)\n"
+        "        {\n"
+        "            var x = values[a]\n"
+        "            var y = values[b]\n"
+        "            var z = values[c]\n"
+        "            var line = \"\"\n"
+        "            log = \"\"\n"
+        "            if (at(\"a\", x) or at(\"b\", y))\n"
+        "                line = line + \"T\"\n"
+        "            else\n"
+        "                line = line + \"F\"\n"
+        "            if (at(\"a\", x) or at(\"b\", y) or at(\"c\", z))\n"
+        "                line = line + \"T\"\n"
+        "            if ((at(\"a\", x) and at(\"b\", y)) or at(\"c\", z))\n"
+        "                line = line + \"T\"\n"
+        "            else\n"
+        "                line = line + \"F\"\n"
+        "            if (at(\"a\", x) or (at(\"b\", y) and at(\"c\", z)))\n"
+        "                line = line + \"T\"\n"
+        "            else\n"
+        "                line = line + \"F\"\n"
+        "            if ((at(\"a\", x) or at(\"b\", y)) and at(\"c\", z))\n"
+        "                line = line + \"T\"\n"
+        "            else\n"
+        "                line = line + \"F\"\n"
+        "            var ifs = line + log\n"
+        "            line = \"\"\n"
+        "            log = \"\"\n"
+        "            var v = at(\"a\", x) or at(\"b\", y)\n"
+        "            if (v)\n"
+        "                line = line + \"T\"\n"
+        "            else\n"
+        "                line = line + \"F\"\n"
+        "            v = at(\"a\", x) or at(\"b\", y) or at(\"c\", z)\n"
+        "            if (v)\n"
+        "                line = line + \"T\"\n"
+        "            v = (at(\"a\", x) and at(\"b\", y)) or at(\"c\", z)\n"
+        "            if (v)\n"
+        "                line = line + \"T\"\n"
+        "            else\n"
+        "                line = line + \"F\"\n"
+        "            v = at(\"a\", x) or (at(\"b\", y) and at(\"c\", z))\n"
+        "            if (v)\n"
+        "                line = line + \"T\"\n"
+        "            else\n"
+        "                line = line + \"F\"\n"
+        "            v = (at(\"a\", x) or at(\"b\", y)) and at(\"c\", z)\n"
+        "            if (v)\n"
+        "                line = line + \"T\"\n"
+        "            else\n"
+        "                line = line + \"F\"\n"
+        "            if (ifs != line + log)\n"
+        "                __dprint(ifs + \" \" + line + log)\n"
+        "        }\n"
+        "    }\n"
+        "}\n"
+        "__dprint(\"done\")\n";
+
+    std::string fused, plain;
+    EXPECT_EQ(runScript(source, true, fused), InterpretResult::OK);
+    EXPECT_EQ(runScript(source, false, plain), InterpretResult::OK);
+
+    EXPECT_EQ(fused, "done\n");
+    EXPECT_EQ(plain, fused);
+
+    // Every operand of the `or` leaves on its own: no value is kept to be tested again
+    std::string output;
+    const auto counts = run(
+        "fun inside(i, j, n)\n"
+        "{\n"
+        "    if (i < 0 or j < 0 or i >= n or j >= n)\n"
+        "        return 0\n"
+        "    return 1\n"
+        "}\n"
+        "var total = 0\n"
+        "for (var i = -1; i < 4; i++)\n"
+        "    total += inside(i, 1, 3) + inside(1, i, 3)\n"
+        "__dprint(total)\n", output);
+
+    EXPECT_EQ(output, "6\n");
+    EXPECT_EQ(runs(counts, "OP_Jump_If_False"), 0u);
+    EXPECT_EQ(runs(counts, "OP_Long_Jump_If_False"), 0u);
+}
+
+TEST_F(LoopShapes, ALenOfALocalIsOneInstruction)
+{
+    MockLogger<TerminalSink> logger;
+
+    std::string output;
+    const auto counts = run(
+        "import \"algorithm\"\n"
+        "fun measure(v, t, i)\n"
+        "{\n"
+        "    return len(v) * 100 + len(t[i])\n"
+        "}\n"
+        "var total = 0\n"
+        "for (var k = 0; k < 10; k++)\n"
+        "    total += measure([1, 2, 3], [[1], \"ab\"], k % 2)\n"
+        "__dprint(total)\n", output);
+
+    EXPECT_EQ(output, "3015\n");
+    EXPECT_EQ(runs(counts, "FUSED_Len(L)"), 10u);
+    EXPECT_EQ(runs(counts, "FUSED_Len(L[L])"), 10u);
+    EXPECT_EQ(runs(counts, "OP_Call"), 10u);
+}
+
+TEST_F(LoopShapes, ALenReadInPlaceMeasuresLikeTheCall)
+{
+    MockLogger<TerminalSink> logger;
+
+    // A vector, a small and a long string, a table, a row of each and one past the end (none): what
+    // is not measured in place goes to the native as it was
+    const std::string source =
+        "import \"algorithm\"\n"
+        "fun measure(v)\n"
+        "{\n"
+        "    return len(v)\n"
+        "}\n"
+        "fun measureRow(t, i)\n"
+        "{\n"
+        "    return len(t[i])\n"
+        "}\n"
+        "var t = {a: 1, b: 2}\n"
+        "var rows = [[1, 2], \"abc\", \"a long string, longer than a small one\", t, []]\n"
+        "for (var i = 0; i < 5; i++)\n"
+        "{\n"
+        "    __dprint(measure(rows[i]))\n"
+        "    __dprint(measureRow(rows, i))\n"
+        "    __dprint(__len(rows[i]))\n"
+        "}\n";
+
+    std::string fused, plain;
+    EXPECT_EQ(runScript(source, true, fused), InterpretResult::OK);
+    EXPECT_EQ(runScript(source, false, plain), InterpretResult::OK);
+
+    EXPECT_EQ(fused, "2\n2\n2\n3\n3\n3\n38\n38\n38\n2\n2\n2\n0\n0\n0\n");
+    EXPECT_EQ(plain, fused);
+
+    // What is not a vector, a string or a table stops the script the same, a row past the end too
+    for (const std::string call : {"measure(5)", "measureRow(rows, 7)", "measureRow(rows, -9)"})
+    {
+        const std::string stops =
+            "import \"algorithm\"\n"
+            "fun measure(v)\n{\n    return len(v)\n}\n"
+            "fun measureRow(t, i)\n{\n    return len(t[i])\n}\n"
+            "var rows = [[1, 2], \"abc\"]\n"
+            "__dprint(" + call + ")\n";
+
+        // The script's own number differs from one VM to the next
+        const std::string withFusion = errorOf(stops, true);
+        const std::string without = errorOf(stops, false);
+        EXPECT_EQ(withFusion.substr(0, withFusion.find("<script")), without.substr(0, without.find("<script"))) << call;
+        EXPECT_NE(withFusion.find("len expects"), std::string::npos) << withFusion;
+    }
+}
+
+TEST_F(LoopShapes, ALenThatIsNotTheNativeIsCalled)
+{
+    MockLogger<TerminalSink> logger;
+
+    // The script's own `len`, and the native's global given another function as the script runs
+    const std::string source =
+        "fun len(v)\n"
+        "{\n"
+        "    return 42\n"
+        "}\n"
+        "fun measure(v)\n"
+        "{\n"
+        "    return len(v)\n"
+        "}\n"
+        "__dprint(measure([1, 2]))\n"
+        "__dprint(measure(\"abc\"))\n";
+
+    std::string fused, plain;
+    EXPECT_EQ(runScript(source, true, fused), InterpretResult::OK);
+    EXPECT_EQ(runScript(source, false, plain), InterpretResult::OK);
+
+    EXPECT_EQ(fused, "42\n42\n");
+    EXPECT_EQ(plain, fused);
+}
+
+TEST_F(LoopShapes, ARowOfARowReadsLikeTwoReads)
+{
+    MockLogger<TerminalSink> logger;
+
+    // A grid of vectors, of strings, of tables, a table of vectors; rows from the end, elements
+    // read past every end and before them
+    const std::string source =
+        "import \"string\"\n"
+        "fun at(t, i, j)\n"
+        "{\n"
+        "    return t[i][j]\n"
+        "}\n"
+        "var grids = [[[1, 2], [3, 4, 5]], [\"ab\", \"cde\"], [{a: 1}, {b: 2}]]\n"
+        "var table = {}\n"
+        "table[0] = [7, 8]\n"
+        "grids.push(table)\n"
+        "var out = \"\"\n"
+        "for (var g = 0; g < 4; g++)\n"
+        "{\n"
+        "    for (var i = -1; i < 2; i++)\n"
+        "    {\n"
+        "        for (var j = -1; j < 4; j++)\n"
+        "        {\n"
+        "            if (g != 3 or i == 0)\n"
+        "                out = out + toString(at(grids[g], i, j)) + \",\"\n"
+        "        }\n"
+        "    }\n"
+        "}\n"
+        "__dprint(out)\n";
+
+    std::string fused, plain;
+    size_t paired = 0;
+    EXPECT_EQ(runScript(source, true, fused, &paired), InterpretResult::OK);
+    EXPECT_EQ(runScript(source, false, plain), InterpretResult::OK);
+
+    EXPECT_EQ(plain, fused);
+    EXPECT_EQ(fused, "5,3,4,5,none,2,1,2,none,none,5,3,4,5,none,"
+                     "e,c,d,e,none,b,a,b,none,none,e,c,d,e,none,"
+                     "none,none,none,none,none,none,none,none,none,none,none,none,none,none,none,"
+                     "8,7,8,none,none,\n");
+    EXPECT_GE(paired, 1u);
+}
+
 } // namespace test
 } // namespace pg

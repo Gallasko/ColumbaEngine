@@ -769,6 +769,55 @@ TEST_F(RowHoisting, AWriteIntoARowLeavesTheRowWhereItIs)
     }
 }
 
+TEST_F(RowHoisting, AListLeavingAfterTheLoopIsTheLoopsOwn)
+{
+    MockLogger<TerminalSink> logger;
+
+    // Each run of the block makes the list anew: what is done with it after the loop reaches the
+    // list of a run that is over
+    const std::vector<std::string> hoisted = {
+        // In a function, given to another after
+        "fun keep(t)\n{\n    return len(t)\n}\n"
+        "fun f(n)\n{\n    var t = []\n    for (var i = 0; i < n; i++)\n    {\n        push(t, [])\n"
+        "        for (var j = 0; j < 3; j++)\n            t[i][j] = i * j\n    }\n"
+        "    return keep(t) * 100 + t[n - 1][2]\n}\n__dprint(f(3))\n",
+
+        // In a block at top level run twice, kept by a function after each run
+        "var kept = []\nfun keep(t)\n{\n    push(kept, t)\n}\n"
+        "for (var k = 0; k < 2; k++)\n{\n    var t = []\n    for (var i = 0; i < 2; i++)\n    {\n        push(t, [0, 0])\n"
+        "        for (var j = 0; j < 2; j++)\n            t[i][j] = k * 10 + i + j\n    }\n    keep(t)\n}\n"
+        "__dprint(kept[0][1][1])\n__dprint(kept[1][1][1])\n",
+    };
+
+    for (const auto& source : hoisted)
+    {
+        EXPECT_EQ(rows(source), 1) << source;
+        expectSameEnd(source);
+    }
+
+    const std::vector<std::string> left = {
+        // Named by another before the loop, which writes through it
+        "fun f(n)\n{\n    var t = []\n    var other = t\n    for (var i = 0; i < n; i++)\n    {\n        push(t, [0, 0])\n"
+        "        for (var j = 0; j < 2; j++)\n        {\n            t[i][j] = j + 1\n            other[i] = [5, 5]\n        }\n    }\n"
+        "    return t[n - 1][1]\n}\n__dprint(f(2))\n",
+
+        // Named by another in the loop the row is read in, after the inner loop
+        "fun f(n)\n{\n    var t = []\n    var other = []\n    for (var i = 0; i < n; i++)\n    {\n        push(t, [0, 0])\n"
+        "        for (var j = 0; j < 2; j++)\n        {\n            t[i][j] = j + 1\n            other[i] = [5, 5]\n        }\n"
+        "        other = t\n    }\n    return t[n - 1][1]\n}\n__dprint(f(3))\n",
+
+        // Named by a function the block defines, which could run with the list still the same
+        "fun f(n)\n{\n    var t = []\n    var g = fun()\n    {\n        t[0] = [9, 9]\n    }\n    for (var i = 0; i < n; i++)\n    {\n"
+        "        push(t, [0, 0])\n        for (var j = 0; j < 2; j++)\n            t[i][j] = j + 1\n    }\n    g()\n    return t[0][0]\n}\n__dprint(f(2))\n",
+    };
+
+    for (const auto& source : left)
+    {
+        EXPECT_EQ(rows(source), 0) << source;
+        expectSameEnd(source);
+    }
+}
+
 TEST_F(RowHoisting, AWriteBackReadsItsPathOnce)
 {
     MockLogger<TerminalSink> logger;

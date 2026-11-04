@@ -51,6 +51,14 @@ namespace pg
         }
     }
 
+    bool VM::isLenNative(const NativeFn& function)
+    {
+        using Plain = Value (*)(VM*, int, Value*);
+        const Plain* plain = function.target<Plain>();
+
+        return plain != nullptr and *plain == &AlgorithmModule::nativeLen;
+    }
+
     bool VM::callValue(const Value& callee, int argCount)
     {
         if (IS_CLOSURE(callee))
