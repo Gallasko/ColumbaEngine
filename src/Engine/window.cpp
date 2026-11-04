@@ -221,7 +221,9 @@ namespace pg
         }
         else
         {
-            window = SDL_CreateWindow(title.c_str(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, flags);
+            int x, y;
+            windowPosition(x, y);
+            window = SDL_CreateWindow(title.c_str(), x, y, width, height, flags);
         }
 
         if (window != nullptr)

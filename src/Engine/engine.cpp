@@ -505,9 +505,12 @@ int Engine::exec()
 
     printf("Creating SDL window...\n");
 
+    int windowX, windowY;
+    windowPosition(windowX, windowY);
+
     SDL_Window* pWindow = SDL_CreateWindow(
         appName.c_str(),
-        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+        windowX, windowY,
         config.width, config.height,
         windowFlags
     );

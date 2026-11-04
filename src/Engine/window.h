@@ -27,8 +27,24 @@
 
 #include <Profiler/framelimiter.h>
 
+#include <cstdio>
+#include <cstdlib>
+
 namespace pg
 {
+    /** Where a new window goes: centred, or at PG_WINDOW_POS="x,y" (desktop pixels: a script putting it on another screen). */
+    inline void windowPosition(int& x, int& y)
+    {
+        x = y = SDL_WINDOWPOS_CENTERED;
+
+        int px = 0, py = 0;
+        if (const char* pos = std::getenv("PG_WINDOW_POS"); pos and std::sscanf(pos, "%d,%d", &px, &py) == 2)
+        {
+            x = px;
+            y = py;
+        }
+    }
+
     // Forward declarations
     class EntitySystem;
     class Input;
