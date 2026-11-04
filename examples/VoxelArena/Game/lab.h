@@ -58,6 +58,12 @@ namespace arena
         std::vector<std::string> stage();
         std::vector<std::string> show();
 
+        /**
+         * Picks by id ("sword" or "base:sword", in any list) at a level (1: the first of the level or rarity row) and
+         * a branch (0: the first, -1: none). False when nothing has that id.
+         */
+        bool pick(const std::string& id, int level, int branch);
+
         /** A key: true when the lab used it. `replay` is set when the pick changed (show it). */
         bool key(int scancode, bool& replay);
         /** A click on the panel: what it changed, as for key. Toggles the game owns come back in `command`. */
@@ -66,6 +72,8 @@ namespace arena
         void scroll(float steps);
         /** The panel covers this window point (the mouse there drives the panel, not the camera). */
         bool covers(const Ui& ui, float px, float py) const;
+        /** The panel's right edge, in window pixels: the arena is seen right of it. */
+        float coverRight(const Ui& ui) const;
 
         struct View
         {
@@ -74,6 +82,9 @@ namespace arena
             std::string caption;        // what the scene is showing now (the script's caption)
         };
         void draw(Ui& ui, const View& v);
+
+        /** The tab shown (Kind). */
+        int kindShown() const { return kind; }
 
         bool loop = false;
         std::string scriptPath;

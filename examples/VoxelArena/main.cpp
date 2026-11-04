@@ -36,6 +36,13 @@ int main(int argc, char* argv[])
             options.startupCommands.push_back(argv[++i]);
         else if (a == "--name" and i + 1 < argc)
             options.name = argv[++i];
+        else if (a == "--lab")
+        {
+            options.lab = true;
+
+            if (i + 1 < argc and std::string(argv[i + 1]).size() > 3 and std::string(argv[i + 1]).rfind(".pg") == std::string(argv[i + 1]).size() - 3)
+                options.labScript = argv[++i];
+        }
         else if (a == "--no-upnp")
             options.upnp = false;
         else if (a == "--upnp-ports" and i + 1 < argc)
@@ -64,7 +71,9 @@ int main(int argc, char* argv[])
     // Several on one desktop (a host and who joined it) tell their windows apart by the title
     std::string title = "Voxel Arena";
 
-    if (options.net == LaunchOptions::Net::Host)
+    if (options.lab)
+        title += " Lab";
+    else if (options.net == LaunchOptions::Net::Host)
         title += " (host)";
     else if (options.net == LaunchOptions::Net::Join)
         title += " (" + options.name + ")";

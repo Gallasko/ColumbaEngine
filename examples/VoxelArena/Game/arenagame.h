@@ -31,6 +31,7 @@
 
 #include "gpumesh.h"
 #include "hud.h"
+#include "lab.h"
 #include "screens.h"
 #include "ui.h"
 #include "particles.h"
@@ -68,6 +69,10 @@ namespace arena
         uint16_t port = 7777;                   // TCP; UDP is the next one
         bool upnp = true;                       // a host opens its ports on the router
         std::string upnpPorts;                  // the outside ports to try there ("" : the game's, then 50000, then 45000-45200)
+
+        /** The lab (--lab): the panel that shows the content, played by a pgscript ("": tools/lab/lab.pg of the source tree). */
+        bool lab = false;
+        std::string labScript;
     };
 
     /** A key or a mouse button an action is bound to (from the "controls" section of the tuning). */
@@ -457,6 +462,36 @@ namespace arena
         int headlineWave = 0;     // the wave whose name was put up, and when (simTime)
         float waveStartedAt = 0.0f;
         void edgeArrows(Hud::View& v, const glm::mat4& proj, const glm::mat4& view);
+
+        // The lab (see Lab): its panel takes the keys and the mouse, its script plays the scenes through the command queue
+        std::unique_ptr<Lab> lab;
+        bool labOpen = false;
+        float labOrbit = 0.0f;              // degrees a second the scene turns the camera round the player (orbit)
+        // The Orbit button: the scene decides, until the player turns it off (a drag does too) or on; then it stays so
+        enum class LabOrbitChoice { Scene, Off, On } labOrbitChoice = LabOrbitChoice::Scene;
+        float labTurn() const
+        {
+            return labOrbitChoice == LabOrbitChoice::Off ? 0.0f : (labOrbitChoice == LabOrbitChoice::On and labOrbit == 0.0f ? 30.0f : labOrbit);
+        }
+        bool labOwnCamera = false;          // the player dragged or zoomed: the scenes of this tab leave the camera where it is
+        int labShownKind = -1;
+        float labFaceYaw = 0.0f;            // where the player's attacks and spells go while the camera turns (face)
+        float labAimPitch = 8.0f;           // ... and how far down they aim, so a spell lands in front of the dummies
+        std::string labCaption;             // what the scene shows now (caption)
+        float labIdle = 0.0f;               // s the scene has been over (Loop plays it again)
+        bool labPlaying = false;
+        enum class LabDrag { None, OnPanel, Turning } labDrag = LabDrag::None;   // a left drag over the arena turns the camera
+        float labDragX = 0.0f, labDragY = 0.0f;
+        std::string labScriptPath() const;
+        void setLabOpen(bool open);
+        void labShow();                     // the pick, played from the start: the stage, then the scene
+        void labTick(float frameSeconds);
+        // The scene's commands, beside the console's queue (typed, --exec) with waits of their own
+        std::deque<std::string> labQueue;
+        int labWaitSteps = 0;
+        std::chrono::steady_clock::time_point labSleepUntil;
+        bool runningLab = false;            // a command of labQueue is running: its wait and sleep are the lab's
+        bool labQueueIdle() const { return labQueue.empty() and labWaitSteps <= 0 and std::chrono::steady_clock::now() >= labSleepUntil; }
 
         // Limbs: a walk cycle per fighter
         struct Gait

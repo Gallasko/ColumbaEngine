@@ -34,6 +34,7 @@ Options:
 | `--join <address>[:port]` | Join a game |
 | `--name <name>` | Your name, as the others see it |
 | `--no-upnp` | Host without asking the router to open the ports |
+| `--lab [script.pg]` | Start in the lab (see The lab), with its scenes from `tools/lab/lab.pg` or the script given |
 
 ## The arena run
 
@@ -258,6 +259,7 @@ for the players from anywhere, whatever its engage range.
 | R, 4 | The weapon's skills (dagger: shadow dash, hold to charge, and backflip; sword: whirlwind and leap slam) |
 | F1 | Debug overlay |
 | F2 | Hitboxes (red: active, orange: winding up) and hurtboxes (green, blue while invulnerable) |
+| F3 | The lab (see The lab), in a game alone |
 | F5 | Reload all content |
 | `` ` `` | Console |
 | Esc | Pause and open the options (alone; a shared game goes on); Esc again resumes. Hold Left Alt to free the mouse for a moment |
@@ -581,6 +583,7 @@ examples/VoxelArena/
                  of rects, text and pixel icons over the engine's 2D entities, UI_SPEC.md's look)
   Net/           the engine's NetworkSystem as the game's transport
   server_main    the dedicated server
+  tools/lab/     the lab's scenes (lab.pg); Game/lab is its panel and script runner
   shader/        the voxel shader
   mods/base/     the game's content
   mods/testmod/  the spear
@@ -740,13 +743,15 @@ Open with `` ` ``. `help` lists the commands.
 | `clear`, `reset` | Remove the enemies; restart the arena |
 | `weapon <id>`, `weapons` | Wield a weapon; list them |
 | `view [first|third]` | Switch the camera |
-| `god`, `ai`, `hitboxes`, `overlay` | Toggles |
+| `god`, `ai`, `hitboxes` `[on\|off]`, `overlay` | Toggles (or set) |
+| `item <id\|all> [rarity]`, `unitems` | Give yourself a shop item (rarity 0-3); take every item back |
+| `grow <weapon\|technique> <level> [branch]` | Its levels and branch, as a run's level ups give them (branch 0 is the first, -1 none). They count in a run and in the lab |
 | `stamina [on\|off]`, `mana [on\|off]` | Infinite stamina (and dash charges), infinite mana for the players (for testing moves and spells) |
 | `pause`, `step [n]`, `slowmo <x>` | Freeze, advance n frames, change the speed (frame data checks) |
 | `place x y z <block>`, `fill x0 y0 z0 x1 y1 z1 <block>` | Edit the arena (`air` digs) |
 | `mods`, `errors`, `warnings` | What is loaded, what went wrong |
 | `players` | Who is in the game, and the round trip to the server |
-| `spell <1-3> <recipe>` | Put a spell on a key: `spell 1 fire bolt multiply zone extend`, or a ready-made id: `spell 2 frost_nova` |
+| `spell <1-3> <recipe>` | Put a spell on a key: `spell 1 fire bolt multiply zone extend`, or a ready-made id: `spell 2 frost_nova`, or one grown: `spell 1 firebolt 5 0` (level 5, its first branch; not kept in the spellbook) |
 | `spells`, `spellbook` | The spells on the keys, the ready-made ones and the keywords; open the spellbook |
 | `arena`, `training`, `wave <n>` | Start the arena run, go back to training, jump to a wave of the run (and its arena) |
 | `map [arena]` | Outside a run: the training ground becomes that arena (`map gorge`, `map training`); alone, the list |
@@ -762,6 +767,74 @@ For example:
 ```sh
 ./release/VoxelArena --exec "hitboxes; slowmo 0.25; teleport 37.5 4 24.4; wait 30; press light"
 ```
+
+## The lab
+
+A tool for making the game: it shows each item, weapon, technique, spell and enemy the mods load,
+one at a time, on the training ground.
+
+```sh
+./release/VoxelArena --lab
+./release/VoxelArena --lab --exec "lab show sword 5 0"   # straight to the sword at level 5, Flame blade
+```
+
+F3 (or the console's `lab`) shows and hides it in any game alone. The panel on the left has a tab for
+each kind and a list of everything in it; picking one plays its scene:
+
+- **Items**: the item on the player, at the rarity picked, the camera turning round it. The list
+  says where each one is worn (`head`, `arm_l`...), `gem` for a tag item's gem, and `no look` for one
+  that does not show yet.
+- **Weapons**: in hand, at the level and branch picked, against three dummies: the light combo (a
+  bow: a tap, then a full draw), the heavy, the dash attack, the air attacks, then each technique of
+  the weapon.
+- **Skills**: one technique at a level and branch (the weapon that uses it in hand), or a terrain
+  ability (wall, pit, mine).
+- **Spells**: a ready-made spell at a level and branch, cast twice at the dummies.
+- **Enemies**: one coming for the player (who cannot be hurt), plain or as an elite with an affix.
+
+Levels and branches count outside a run while the lab is open, so a branch's fire or a level's
+bigger area shows as it would in a run. The player's own HUD is hidden; the enemies' bars, the damage
+numbers and the attack warnings stay.
+
+Keys: Up/Down pick, Left/Right the level (or the rarity), B the next branch, Page Up/Page Down the
+tab, Enter plays it again, L loops it. A left drag over the arena turns the camera, the wheel zooms.
+The buttons at the bottom: Replay, Loop, Slow (a quarter speed), Boxes (the hitboxes), Orbit, and
+the view (third or first person).
+
+The camera stays yours: once you drag or zoom it, the next picks in that tab leave it where it is
+(another tab places it again), and a drag turns Orbit off. Orbit, turned off or on, stays so from one
+pick to the next; until you touch it, each scene decides (the items turn, the fights do not).
+
+**The scenes are a pgscript**, `tools/lab/lab.pg`, read from the source tree: save it and the scene
+plays again, no rebuild. The game calls `stage()` (the ground, the player at its mark), then one
+function with what was picked as a table: `showItem(it)`, `showWeapon(w)`, `showTechnique(t)`,
+`showSpell(s)` or `showEnemy(e)` (the top of the file lists their fields). A function answers with
+console commands, played in order on the game's own steps:
+
+```js
+fun showSpell(s)
+{
+    spell(1, s.id, s.level, s.branch)   // "spell 1 base:firebolt 5 0"
+    dummies("spell")
+    cam(25, 16, 6.5)
+    caption(s.name)
+    press(s.action)                     // spell key 1
+    wait(150)                           // 60 a second
+}
+```
+
+`run(...)` takes any console command, its words joined; `wait`, `sleep`, `press`, `hold`, `caption`,
+`cam`, `orbit`, `face`, `put`, `grow`, `spell`, `weapon`, `item` and a few more are there by name.
+A script error shows in red in the panel until the file is fixed. The lab's own console commands:
+
+| Command | What it does |
+|---|---|
+| `lab [on\|off]`, `lab show <id> [level] [branch]` | Show or hide the lab; open it on something (level 1: the first of its row, branch 0: the first) |
+| `cam <yaw> <pitch> [distance]` | The third person camera, at once (yaw 0: from behind, 180: from the front) |
+| `orbit [degrees a second]` | How fast a scene turns the camera round the player (0 stops); alone, the Orbit button: off or on for good |
+| `face <yaw> [pitch]` | Where the player fights towards while the camera turns, and how far down its spells aim |
+| `put <enemy> x y z [yaw] [affix ...]` | An enemy at a point; with affixes, an elite |
+| `caption <text>` | A line over the arena: what the scene shows now |
 
 ## Not done yet
 

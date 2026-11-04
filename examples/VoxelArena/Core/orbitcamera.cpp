@@ -111,10 +111,10 @@ namespace arena
         pitch = glm::clamp(pitch, t.minPitch, t.maxPitch);
         distance = glm::clamp(distance, t.minDistance, t.maxDistance);
 
-        // Over the right shoulder, but never through a wall beside the head
-        const glm::vec3 right = localToWorld(yaw, glm::vec3(1, 0, 0));
-        const float shoulder = std::max(0.0f, clearance(grid, table, head, right, t.shoulder + t.collisionRadius) - t.collisionRadius);
-        const glm::vec3 wantedPivot = head + right * shoulder;
+        // Over the right shoulder (a negative one: the left), but never through a wall beside the head
+        const glm::vec3 side = localToWorld(yaw, glm::vec3(t.shoulder < 0.0f ? -1.0f : 1.0f, 0, 0));
+        const float shoulder = std::max(0.0f, clearance(grid, table, head, side, std::abs(t.shoulder) + t.collisionRadius) - t.collisionRadius);
+        const glm::vec3 wantedPivot = head + side * shoulder;
 
         if (not placed)
         {

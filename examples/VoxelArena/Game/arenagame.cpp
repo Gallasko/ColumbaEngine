@@ -300,6 +300,9 @@ namespace arena
         lastReload = std::chrono::steady_clock::now();
         loadAll(true);
 
+        if (options.lab)
+            commandQueue.push_back("lab");
+
         for (const auto& c : options.startupCommands)
             commandQueue.push_back(c);
     }
@@ -438,6 +441,13 @@ namespace arena
             print("\\c{255,120,110,255}error: " + content.report.errors[i].str() + "\\c{236,238,242,255}");
         for (size_t i = 0; i < content.report.warnings.size() and i < 4; ++i)
             print("\\c{240,200,110,255}warning: " + content.report.warnings[i].str() + "\\c{236,238,242,255}");
+
+        if (lab)
+        {
+            lab->load(labScriptPath(), content, tuning);
+            if (labOpen)
+                labShow();
+        }
     }
 
     void ArenaGame::loadBlockLooks()
@@ -801,7 +811,7 @@ namespace arena
             return;
 
         // The mouse was let go (Esc in a browser, another window in front): the game pauses in its options
-        if (window->takeCursorLockLost() and not (optionsOpen or bookOpen or shopOpen or titleOpen or endOpen or consoleOpen))
+        if (window->takeCursorLockLost() and not (optionsOpen or bookOpen or shopOpen or titleOpen or endOpen or consoleOpen or labOpen))
             setOptionsOpen(true);
 
         bool altHeld = false;
@@ -810,7 +820,7 @@ namespace arena
             altHeld = held("freeCursor");
         }
 
-        const bool want = not altHeld and not consoleOpen and not cursorFree and not bookOpen and not optionsOpen and not shopOpen and not titleOpen and not endOpen and not armoryOpen and not difficultyOpen;
+        const bool want = not altHeld and not consoleOpen and not cursorFree and not bookOpen and not optionsOpen and not shopOpen and not titleOpen and not endOpen and not armoryOpen and not difficultyOpen and not labOpen;
 
         if (want == cursorLocked)
             return;
@@ -928,6 +938,24 @@ namespace arena
             {
                 consoleKey(p.scancode);
                 continue;
+            }
+
+            // The lab: F3 shows and hides its panel; while it is up, it takes its keys (a menu over it keeps them)
+            if (p.scancode == SDL_SCANCODE_F3 and not p.repeat and not networked() and not controlsOpen)
+            {
+                setLabOpen(not labOpen);
+                continue;
+            }
+
+            if (labOpen and not optionsOpen and not bookOpen)
+            {
+                bool replay = false;
+                if (lab->key(p.scancode, replay))
+                {
+                    if (replay)
+                        labShow();
+                    continue;
+                }
             }
 
             // Joining, over the title: typing goes to the field, Tab the other one, Enter joins, Esc closes
@@ -1311,6 +1339,7 @@ namespace arena
 
         updateShop();
 
+        labTick(frameSeconds);
         runQueue();
         simulate(frameSeconds);
         updateCamera(frameSeconds);
@@ -1456,7 +1485,7 @@ namespace arena
             {
                 std::lock_guard<std::mutex> lock(inputMutex);
 
-                if (not consoleOpen and not bookOpen and not optionsOpen and not shopOpen)
+                if (not consoleOpen and not bookOpen and not optionsOpen and not shopOpen and not labOpen)
                 {
                     glm::vec2 move(0.0f);
                     move.y += held("forward") ? 1.0f : 0.0f;
@@ -1518,6 +1547,8 @@ namespace arena
 
             if (waitSteps > 0)
                 --waitSteps;
+            if (labWaitSteps > 0)
+                --labWaitSteps;
 
             in.equip = pendingEquip;
             pendingEquip = 0;
@@ -1531,6 +1562,17 @@ namespace arena
             // The abilities aim where the camera looks (the crosshair)
             in.aimOrigin = camera.position;
             in.aimDir = camera.forward();
+
+            // The lab, seen from outside: the player fights towards the stage (face), wherever the camera turns
+            if (labOpen and not firstPerson)
+                if (const Fighter* me = world.player())
+                {
+                    const float pitch = glm::radians(labAimPitch);
+                    in.cameraYaw = labFaceYaw;
+                    in.cameraPitch = labAimPitch;
+                    in.aimOrigin = me->body.position + glm::vec3(0, tuning.firstPerson.eyeHeight, 0);
+                    in.aimDir = yawForward(labFaceYaw) * std::cos(pitch) - glm::vec3(0, std::sin(pitch), 0);
+                }
 
             previous.clear();
             for (const auto& f : world.fighters)
@@ -2358,6 +2400,54 @@ namespace arena
         dx *= prefs.sensitivity;
         dy *= prefs.sensitivity * (prefs.invertY ? -1.0f : 1.0f);
 
+        // The lab: the mouse is free. A left drag over the arena turns the camera, the wheel over the panel scrolls
+        // its list, and the camera may turn round the player by itself (orbit)
+        if (labOpen)
+        {
+            float mx = 0.0f, my = 0.0f;
+            {
+                std::lock_guard<std::mutex> lock(inputMutex);
+                mx = mouseX;
+                my = mouseY;
+            }
+
+            if (lab->covers(ui, mx, my))
+            {
+                lab->scroll(zoom);
+                zoom = 0.0f;
+            }
+            else if (zoom != 0.0f)
+                labOwnCamera = true;
+
+            const bool down = input and input->isButtonPressed(static_cast<MouseButton>(SDL_BUTTON_LEFT));
+            if (not down)
+                labDrag = LabDrag::None;
+            else if (labDrag == LabDrag::None)
+            {
+                labDrag = lab->covers(ui, mx, my) ? LabDrag::OnPanel : LabDrag::Turning;   // a press on the panel turns nothing
+                labDragX = mx;
+                labDragY = my;
+
+                // The player takes the camera: it stops turning by itself, and the next picks leave it there
+                if (labDrag == LabDrag::Turning)
+                {
+                    labOrbitChoice = LabOrbitChoice::Off;
+                    labOwnCamera = true;
+                }
+            }
+            else if (labDrag == LabDrag::Turning)
+            {
+                camera.yaw += (mx - labDragX) * 0.35f;
+                camera.pitch = glm::clamp(camera.pitch + (my - labDragY) * 0.25f, firstPerson ? tuning.firstPerson.minPitch : tuning.camera.minPitch,
+                                          firstPerson ? tuning.firstPerson.maxPitch : tuning.camera.maxPitch);
+                labDragX = mx;
+                labDragY = my;
+            }
+
+            if (not firstPerson)
+                camera.yaw += labTurn() * frameSeconds;
+        }
+
         if (cursorLocked and not consoleOpen and mouseLook)
         {
             if (firstPerson)
@@ -2412,7 +2502,18 @@ namespace arena
             const glm::vec3 head = feet + glm::vec3(0, tuning.camera.height + stepOffset, 0);
             // The middle of the body: always free space, the start of the check for a roof over the head
             const glm::vec3 inside = feet + glm::vec3(0, p->body.height * 0.5f, 0);
+
+            // The lab: the player in the middle of what its panel leaves of the screen (the pivot that far to the
+            // player's left), and the camera free to go further out
+            const Tuning::Camera kept = tuning.camera;
+            if (labOpen)
+            {
+                const float shift = lab->coverRight(ui) / std::max(1.0f, screenW);
+                tuning.camera.shoulder = -camera.currentDistance * std::tan(glm::radians(fov()) * 0.5f) * aspect * shift;
+                tuning.camera.maxDistance = 20.0f;
+            }
             camera.update(frameSeconds, head, inside, world.grid, content.blockTable, tuning, simTime);
+            tuning.camera = kept;
         }
 
         auto& cam = masterRenderer->getCamera();
@@ -2824,7 +2925,7 @@ namespace arena
 
     bool ArenaGame::uiTakesClicks() const
     {
-        return optionsOpen or bookOpen or shopOpen or titleOpen or endOpen or armoryOpen or difficultyOpen;
+        return optionsOpen or bookOpen or shopOpen or titleOpen or endOpen or armoryOpen or difficultyOpen or labOpen;
     }
 
     std::string ArenaGame::playerNameOf(int id) const
@@ -3055,6 +3156,18 @@ namespace arena
             {
                 if (optionsOpen and optionsScreen.naming)
                     rename(optionsScreen.commitName());
+                continue;
+            }
+
+            if (lab and Lab::owns(action))
+            {
+                bool replay = false;
+                std::string command;
+                lab->click(action, replay, command);
+                if (not command.empty())
+                    print(runCommand(command));
+                if (replay)
+                    labShow();
                 continue;
             }
 
@@ -3827,6 +3940,13 @@ namespace arena
         if (modal)
             ui.mouse(-1.0f, -1.0f);
 
+        // The lab shows the enemies' bars, the damage numbers and the attacks' warnings, not the player's own HUD
+        if (labOpen)
+        {
+            v.player = false;
+            v.hurt = 0.0f;
+        }
+
         if (not titleOpen)
             hud.draw(ui, v, frameSeconds);
 
@@ -3950,6 +4070,19 @@ namespace arena
 
         if (difficultyOpen and p)
             drawDifficulty();
+
+        if (labOpen)
+        {
+            Lab::View lv;
+            lv.loop = lab->loop;
+            lv.slow = timeScale < 1.0f;
+            lv.boxes = showBoxes;
+            lv.firstPerson = firstPerson;
+            lv.orbit = labTurn() != 0.0f;
+            lv.busy = labPlaying;
+            lv.caption = labCaption;
+            lab->draw(ui, lv);
+        }
 
         if (bookOpen or optionsOpen)
             mouseBack();
@@ -4820,6 +4953,18 @@ namespace arena
 
             print(runCommand(line));
         }
+
+        // The lab's scene, at the same time, with its own waits
+        while (labWaitSteps <= 0 and std::chrono::steady_clock::now() >= labSleepUntil and not labQueue.empty())
+        {
+            const std::string line = labQueue.front();
+            labQueue.pop_front();
+
+            runningLab = true;
+            const std::string said = runCommand(line);
+            runningLab = false;
+            print(said);
+        }
     }
 
     std::string ArenaGame::runCommand(const std::string& line)
@@ -4836,7 +4981,8 @@ namespace arena
         {
             return "reload | tune <key> [value] | tunes [prefix] | spawn <enemy> [count] | elite <enemy> [affix ...] | clear | reset\n"
                    "place x y z <block|air> | fill x0 y0 z0 x1 y1 z1 <block|air>\n"
-                   "view [first|third] | weapon <id> | item <id|all> [rarity] | bot | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | map [arena] | training | difficulty <n> | wave <n> | duel | timeup | join <address> | leave | shards <n> | kill | hurt <damage> | options | mods | errors | warnings\n"
+                   "view [first|third] | weapon <id> | item <id|all> [rarity] | unitems | grow <weapon|technique> <level> [branch] | bot | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | map [arena] | training | difficulty <n> | wave <n> | duel | timeup | join <address> | leave | shards <n> | kill | hurt <damage> | options | mods | errors | warnings\n"
+                   "the lab: lab [on|off] (F3) | lab show <id> [level] [branch] | cam <yaw> <pitch> [distance] | orbit [deg/s] | face <yaw> [pitch] | put <enemy> x y z [yaw] | caption <text>\n"
                    "scripted input: mouse [on|off] | click <x> <y> | hover <x> <y> | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
         }
 
@@ -4859,7 +5005,7 @@ namespace arena
 
         if (cmd == "wait")
         {
-            waitSteps = args.size() > 1 ? std::max(0, std::atoi(args[1].c_str())) : 60;
+            (runningLab ? labWaitSteps : waitSteps) = args.size() > 1 ? std::max(0, std::atoi(args[1].c_str())) : 60;
             return "";
         }
 
@@ -4867,7 +5013,7 @@ namespace arena
         {
             // Real time, unlike wait: lets a script look at a paused frame
             const float seconds = args.size() > 1 ? static_cast<float>(std::atof(args[1].c_str())) : 1.0f;
-            sleepUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(static_cast<int>(seconds * 1000.0f));
+            (runningLab ? labSleepUntil : sleepUntil) = std::chrono::steady_clock::now() + std::chrono::milliseconds(static_cast<int>(seconds * 1000.0f));
             return "";
         }
 
@@ -4951,6 +5097,137 @@ namespace arena
         if (cmd == "overlay")
         {
             showOverlay = not showOverlay;
+            return "";
+        }
+
+        // ---- The lab, and the commands its scenes are made of ----
+        if (cmd == "lab")
+        {
+            if (networked())
+                return "lab: only in a game alone";
+
+            // lab show <id> [level] [branch]: the lab open on that
+            if (args.size() > 2 and args[1] == "show")
+            {
+                setLabOpen(true);
+                if (not lab->pick(args[2], args.size() > 3 ? std::atoi(args[3].c_str()) : 1, args.size() > 4 ? std::atoi(args[4].c_str()) : -1))
+                    return "lab: nothing called " + args[2];
+                labShow();
+                return "";
+            }
+
+            setLabOpen(args.size() > 1 ? args[1] != "off" : not labOpen);
+            return labOpen ? "the lab: " + lab->status : "the lab is hidden (F3 shows it)";
+        }
+
+        if (cmd == "cam")
+        {
+            // The camera from outside: where it looks from (yaw, pitch) and how far
+            if (args.size() < 3)
+                return "cam <yaw> <pitch> [distance]: the third person camera, at once";
+            if (runningLab and labOwnCamera)
+                return "";   // the player moved the camera: a scene leaves it be
+            camera.yaw = static_cast<float>(std::atof(args[1].c_str()));
+            camera.pitch = glm::clamp(static_cast<float>(std::atof(args[2].c_str())), tuning.camera.minPitch, tuning.camera.maxPitch);
+            if (args.size() > 3)
+                camera.distance = camera.currentDistance = glm::clamp(static_cast<float>(std::atof(args[3].c_str())), 1.0f, 20.0f);
+            return "";
+        }
+
+        if (cmd == "orbit")
+        {
+            // A number: how fast the scene turns the camera round the player (0 stops it). Alone: the player turns it
+            // off or on, and that stays over the scenes until the next time
+            if (args.size() > 1)
+                labOrbit = static_cast<float>(std::atof(args[1].c_str()));
+            else
+                labOrbitChoice = labTurn() != 0.0f ? LabOrbitChoice::Off : LabOrbitChoice::On;
+            return labTurn() != 0.0f ? "orbit " + fmt(labTurn(), 0) + " degrees a second" : "orbit off";
+        }
+
+        if (cmd == "face")
+        {
+            // Where the player turns and fights towards in the lab, whatever the camera does
+            if (args.size() < 2)
+                return "face <yaw> [pitch]: where the player's attacks go in the lab, and how far down its spells aim (" + fmt(labAimPitch, 0) + ")";
+            labFaceYaw = static_cast<float>(std::atof(args[1].c_str()));
+            if (args.size() > 2)
+                labAimPitch = glm::clamp(static_cast<float>(std::atof(args[2].c_str())), -60.0f, 60.0f);
+            if (p)
+                p->yaw = labFaceYaw;
+            if (firstPerson)
+            {
+                camera.yaw = labFaceYaw;
+                camera.pitch = labAimPitch;
+            }
+            return "";
+        }
+
+        if (cmd == "caption")
+        {
+            labCaption = line.size() > 8 ? line.substr(8) : "";
+            return "";
+        }
+
+        if (cmd == "unitems" and p)
+        {
+            // The items taken back: the player as it starts
+            p->boons.clear();
+            world.sumBoons(*p);
+            p->maxHealth = world.playerMaxHealth(*p);
+            p->health = p->maxHealth;
+            return "items taken back";
+        }
+
+        if (cmd == "grow")
+        {
+            // A weapon's or a technique's level and branch, as a run's level ups give them (in the lab, outside a run too)
+            if (args.size() < 3 or not p)
+                return "grow <weapon|technique> <level> [branch]: its levels and branch, as a run grows them (branch -1: none)";
+            if (client)
+                return "grow: only the host can do that";
+
+            const std::string id = resolveId(args[1], "base");
+            if (not content.weapons.count(id) and not content.abilities.count(id))
+                return "grow: no weapon or technique " + id;
+
+            auto it = std::find_if(p->runSkills.begin(), p->runSkills.end(), [&](const Fighter::RunSpell& rs) { return rs.id == id; });
+            if (it == p->runSkills.end())
+                it = p->runSkills.insert(p->runSkills.end(), Fighter::RunSpell{id, 1, -1});
+            it->level = std::max(1, std::atoi(args[2].c_str()));
+            it->branch = args.size() > 3 ? std::atoi(args[3].c_str()) : -1;
+            if (not world.inRun() and not world.growsOutsideRun)
+                return id + " level " + std::to_string(it->level) + ": it counts in a run, or in the lab";
+            return id + " level " + std::to_string(it->level) + (it->branch >= 0 ? ", branch " + std::to_string(it->branch) : "");
+        }
+
+        if (cmd == "put" and args.size() > 4)
+        {
+            // An enemy at a point, facing yaw (spawn puts it in front of the camera); with affixes, an elite
+            if (client)
+                return "put: only the host can do that";
+            const std::string id = resolveId(args[1], "base");
+            if (not content.enemies.count(id))
+                return "no enemy " + id;
+
+            std::vector<std::string> affixes;
+            for (size_t k = 6; k < args.size(); ++k)
+            {
+                const std::string affix = resolveId(args[k], "base");
+                if (not content.affixes.count(affix))
+                    return "no affix " + affix;
+                affixes.push_back(affix);
+            }
+
+            const glm::vec3 at(std::atof(args[2].c_str()), std::atof(args[3].c_str()), std::atof(args[4].c_str()));
+            const int spawned = world.spawnEnemy(id, at, args.size() > 5 ? static_cast<float>(std::atof(args[5].c_str())) : 180.0f);
+            if (Fighter* e = world.find(spawned); e and not affixes.empty())
+            {
+                e->elite = true;
+                e->affixes = affixes;
+                e->maxHealth *= 2.5f * (1.0f + world.affixSum(*e, &AffixDef::health));
+                e->health = e->maxHealth;
+            }
             return "";
         }
 
@@ -5206,7 +5483,7 @@ namespace arena
         if (cmd == "spell")
         {
             if (args.size() < 3)
-                return "spell <1-3> <element> <keywords...> (spell 1 fire bolt zone), or spell <1-3> <ready-made id>";
+                return "spell <1-3> <element> <keywords...> (spell 1 fire bolt zone), or spell <1-3> <ready-made id> [level [branch]]";
 
             const int slot = std::atoi(args[1].c_str()) - 1;
 
@@ -5215,6 +5492,27 @@ namespace arena
 
             SpellRecipe recipe;
             std::string error;
+
+            const bool grown = args.size() >= 4 and args.size() <= 5 and content.spells.count(resolveId(args[2], "base")) and
+                               std::all_of(args.begin() + 3, args.end(), [](const std::string& a) { return not a.empty() and (std::isdigit(static_cast<unsigned char>(a.back())) != 0); });
+
+            if (grown)
+            {
+                Fighter::RunSpell rs;
+                rs.id = resolveId(args[2], "base");
+                rs.level = std::max(1, std::atoi(args[3].c_str()));
+                rs.branch = args.size() > 4 ? std::atoi(args[4].c_str()) : -1;
+                recipe = world.spellAt(rs, p);
+
+                if (not p or client)
+                    return "spell: a grown spell is only for a game alone or the host";
+                std::vector<SpellRecipe> spells = p->spells;
+                spells.resize(std::max(spells.size(), static_cast<size_t>(slot + 1)));
+                spells[static_cast<size_t>(slot)] = recipe;
+                world.setSpells(*p, spells);
+                return "[" + args[1] + "] " + rs.id + " level " + std::to_string(rs.level) + (rs.branch >= 0 ? " branch " + std::to_string(rs.branch) : "") + ": " +
+                       recipeText(content, recipe) + "  (" + fmt(world.spellOf(recipe)->mana, 0) + " mana)";
+            }
 
             if (auto s = content.spells.find(resolveId(args[2], "base")); s != content.spells.end() and args.size() == 3)
             {
@@ -5414,7 +5712,7 @@ namespace arena
 
         if (cmd == "god")
         {
-            world.godMode = not world.godMode;
+            world.godMode = args.size() > 1 ? args[1] == "on" : not world.godMode;
             return std::string("god mode ") + (world.godMode ? "on" : "off");
         }
 
@@ -5434,13 +5732,13 @@ namespace arena
 
         if (cmd == "ai")
         {
-            world.aiEnabled = not world.aiEnabled;
+            world.aiEnabled = args.size() > 1 ? args[1] == "on" : not world.aiEnabled;
             return std::string("AI ") + (world.aiEnabled ? "on" : "off");
         }
 
         if (cmd == "hitboxes")
         {
-            showBoxes = not showBoxes;
+            showBoxes = args.size() > 1 ? args[1] == "on" : not showBoxes;
             return std::string("hitboxes ") + (showBoxes ? "shown" : "hidden");
         }
 
@@ -5490,5 +5788,121 @@ namespace arena
         }
 
         return "unknown command " + cmd + " (help)";
+    }
+
+    // --------------------------------------------------------------------------------------------
+    // The lab
+    // --------------------------------------------------------------------------------------------
+
+    std::string ArenaGame::labScriptPath() const
+    {
+        if (not options.labScript.empty())
+            return options.labScript;
+
+#ifdef VOXELARENA_LAB_DIR
+        // From the source tree: an edited scene plays again as soon as it is saved, no rebuild
+        std::error_code ec;
+        if (std::filesystem::exists(std::string(VOXELARENA_LAB_DIR) + "/lab.pg", ec))
+            return std::string(VOXELARENA_LAB_DIR) + "/lab.pg";
+#endif
+
+        return "lab/lab.pg";
+    }
+
+    void ArenaGame::setLabOpen(bool open)
+    {
+        if (open and networked())
+            return;
+
+        if (open and not lab)
+        {
+            lab = std::make_unique<Lab>();
+            lab->load(labScriptPath(), content, tuning);
+        }
+
+        if (open == labOpen)
+            return;
+
+        labOpen = open;
+
+        if (open)
+        {
+            // Levels and branches count outside a run from now on: the lab grows what it shows
+            world.growsOutsideRun = true;
+            titleOpen = false;
+            if (firstPerson)
+                setFirstPerson(false);
+            labShow();
+        }
+        else
+        {
+            labOrbit = 0.0f;
+            labCaption.clear();
+            labPlaying = false;
+        }
+    }
+
+    void ArenaGame::labShow()
+    {
+        if (not lab or not labOpen)
+            return;
+
+        // What the last scene still had to do goes
+        labQueue.clear();
+        labWaitSteps = 0;
+        labSleepUntil = std::chrono::steady_clock::now();
+        injectedHolds.clear();
+        injectedPresses.clear();
+        labCaption.clear();
+        labOrbit = 0.0f;
+
+        // Another tab: its scenes place the camera again
+        if (lab->kindShown() != labShownKind)
+        {
+            labOwnCamera = false;
+            labShownKind = lab->kindShown();
+        }
+
+        // The stage, then the scene of the pick
+        std::vector<std::string> lines = lab->stage();
+        for (auto& l : lab->show())
+            lines.push_back(std::move(l));
+
+        for (auto& l : lines)
+            labQueue.push_back(std::move(l));
+
+        labPlaying = not lines.empty();
+        labIdle = 0.0f;
+    }
+
+    void ArenaGame::labTick(float frameSeconds)
+    {
+        if (not lab)
+            return;
+
+        if (lab->scriptChanged(frameSeconds))
+        {
+            lab->load(labScriptPath(), content, tuning);
+            print(lab->status);
+            if (labOpen)
+                labShow();
+        }
+
+        if (not labOpen)
+            return;
+
+        if (labPlaying and labQueueIdle())
+        {
+            labPlaying = false;
+            labIdle = 0.0f;
+        }
+
+        // Loop: the scene again a moment after it ends
+        if (not labPlaying)
+        {
+            labIdle += frameSeconds;
+            if (lab->loop and labIdle > 1.0f)
+                labShow();
+        }
     }
 }

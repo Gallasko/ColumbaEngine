@@ -21,6 +21,10 @@ struct LaunchOptions
     std::string name = "player";
     bool upnp = true;                  // a host opens its ports on the router (--no-upnp: not)
     std::string upnpPorts;             // the outside ports to try on the router (--upnp-ports 7777,45000-45200)
+
+    /** The lab (--lab [script.pg]): the content shown one by one, played by a pgscript */
+    bool lab = false;
+    std::string labScript;
 };
 
 class GameApp

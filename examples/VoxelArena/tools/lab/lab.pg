@@ -1,0 +1,257 @@
+// The lab's scenes: how each thing the panel lists is shown (./release/VoxelArena --lab).
+//
+// The game calls stage() and then one show function with the pick, a table:
+//   showItem(it)        it.id, it.name, it.text, it.rarity (0-3), it.rarityName, it.orbit (a gem), it.pieces, it.tag
+//   showWeapon(w)       w.id, w.name, w.type, w.role, w.level, w.branch (-1: none), w.branchName,
+//                       w.lightCharge, w.heavyCharge (frames: a draw held, the bow's), w.skills (each: id, name, action, charge)
+//   showTechnique(t)    t.id, t.name, t.abilityKind ("attack", or wall, pit, mine), t.action (its key: "ability4"),
+//                       t.weapon (one that can use it), t.role (that weapon's), t.charge, t.level, t.branch, t.branchName
+//   showSpell(s)        s.id, s.name, s.element, s.keywords, s.action (spell key 1), s.level, s.branch, s.branchName
+//   showEnemy(e)        e.id, e.name, e.boss, e.brain (false: it stands still), e.height, e.attacks, e.affix ("" or an elite's)
+//
+// A function answers with console commands, queued in order and played on the game's steps:
+//   run("any", "command", 3)    any console command, its words joined (run("tune", "player.walkSpeed", 7))
+//   wait(steps)                 60 steps a second       sleep(seconds)   real time, even paused
+//   press(action)               a key for one step: light, heavy, jump, dodge, ability1-8...
+//   hold(action, steps)         a key held that long: forward, sprint, light (a bow's draw)...
+//   caption(text)               a line over the arena: what the scene shows now
+//   cam(yaw, pitch, distance)   the camera from outside, round the player (yaw 0: from behind, 180: in front); left alone once the player moved it
+//   orbit(degrees a second)     the camera turns round the player by itself (0 stops; not once the player turned Orbit off)
+//   face(yaw, pitch)            where the player fights towards, and how far down its spells aim
+//   put(enemy, x, y, z, yaw, affix...)   an enemy at a point (affixes: an elite)
+//   grow(id, level, branch)     a weapon's or a technique's levels and branch, as a run gives them
+//   spell(key, id, level, branch)        a ready-made spell, grown, onto a spell key
+//   weapon(id), item(id, rarity), view("third"), teleport(x, y, z), god("on"), ai("off"), fill(...), place(...), slowmo(x)
+// print(...) writes to the log and under the panel. Saving this file plays the pick again.
+// Numbers join a text with toString (import "string"): "level " + toString(w.level).
+
+import "algorithm"
+import "string"
+
+// Where the scenes play: the open ground in the middle of the training arena, looking towards +Z
+var X = 32.5
+var Y = 4
+var Z = 30.5
+
+fun stage()
+{
+    run("training")                        // the training ground built anew, out of any run: the player as it starts
+    clear()                                // its own enemies go
+    fill(19, 4, 26, 46, 14, 56, "air")     // and the pillars and the rock trap in the middle
+    god("on")
+    run("stamina", "on")
+    run("mana", "on")
+    ai("on")
+    view("third")
+    back()
+}
+
+// The player back at its mark, facing the stage
+fun back()
+{
+    teleport(X, Y, Z)
+    face(0, 8)
+}
+
+// Three dummies in front: close for a melee weapon's reach, further for a bow or a spell
+fun dummies(role)
+{
+    var d = 5
+    var side = 2.5
+    if (role == "melee")
+    {
+        d = 2.2
+        side = 1.6
+    }
+    put("dummy", X, Y, Z + d, 180)
+    put("dummy", X - side, Y, Z + d - 0.4, 180)
+    put("dummy", X + side, Y, Z + d - 0.4, 180)
+}
+
+// A key pressed (and held, for a charge or a draw), then the time to see it play out
+fun use(action, charge, after)
+{
+    press(action)
+    if (charge > 0)
+    {
+        hold(action, charge + 6)
+        wait(charge + 6)
+    }
+    wait(after)
+}
+
+// ---- Items: worn on the body, or a gem circling it ----
+
+fun showItem(it)
+{
+    item(it.id, it.rarity)
+    caption(it.name + "  (" + it.rarityName + ")")
+    cam(180, 10, 3.2)                      // in front of the player, close
+    orbit(35)
+}
+
+// ---- Weapons: every attack of the moveset, then its skills ----
+
+fun showWeapon(w)
+{
+    weapon(w.id)
+    grow(w.id, w.level, w.branch)
+    dummies(w.role)
+    cam(25, 14, 6)
+    wait(40)
+
+    var level = "level " + toString(w.level)
+    if (w.branch >= 0)
+    {
+        level = level + ", " + w.branchName
+    }
+
+    caption(w.name + ": light  (" + level + ")")
+    if (w.lightCharge > 0)
+    {
+        use("light", 0, 30)                // a tap: a weak quick arrow
+        use("light", w.lightCharge, 40)    // a full draw
+    }
+    else
+    {
+        for (var i = 0; i < 4; i++)
+        {
+            press("light")
+            wait(14)
+        }
+        wait(50)
+    }
+
+    caption(w.name + ": heavy")
+    use("heavy", w.heavyCharge, 80)
+
+    caption(w.name + ": dash attack")
+    hold("forward", 26)
+    hold("sprint", 26)
+    wait(20)
+    press("light")
+    wait(60)
+    back()
+
+    caption(w.name + ": in the air")
+    press("jump")
+    wait(12)
+    press("light")
+    wait(60)
+    press("jump")
+    wait(16)
+    press("heavy")
+    wait(80)
+    back()
+
+    for (var k = 0; k < len(w.skills); k++)
+    {
+        var s = w.skills[k]
+        caption(w.name + ": " + s.name)
+        use(s.action, s.charge, 110)
+        back()
+        wait(20)
+    }
+}
+
+// ---- Techniques: the weapon skills at a level and branch, and the terrain abilities ----
+
+fun showTechnique(t)
+{
+    if (t.abilityKind == "attack")
+    {
+        if (t.weapon != "")
+        {
+            weapon(t.weapon)
+        }
+        grow(t.id, t.level, t.branch)
+        dummies(t.role)
+        cam(25, 14, 6)
+        wait(40)
+
+        var title = t.name + "  (level " + toString(t.level)
+        if (t.branch >= 0)
+        {
+            title = title + ", " + t.branchName
+        }
+        caption(title + ")")
+
+        use(t.action, t.charge, 130)
+        back()
+        return
+    }
+
+    caption(t.name)
+    cam(40, 22, 6)
+    wait(30)
+
+    if (t.abilityKind == "wall")
+    {
+        use(t.action, 0, 120)
+    }
+    else if (t.abilityKind == "pit")
+    {
+        face(0, 30)                        // down at the ground in front
+        use(t.action, 0, 120)
+    }
+    else
+    {
+        // Something to dig into: a block wall in front
+        fill(31, 4, 33, 34, 5, 33, "stone")
+        face(0, 22)
+        press(t.action)
+        hold(t.action, 150)
+        wait(170)
+    }
+}
+
+// ---- Spells: cast twice at the dummies ----
+
+fun showSpell(s)
+{
+    spell(1, s.id, s.level, s.branch)
+    dummies("spell")
+    cam(25, 16, 6.5)
+    wait(40)
+
+    var title = s.name + "  (level " + toString(s.level)
+    if (s.branch >= 0)
+    {
+        title = title + ", " + s.branchName
+    }
+    caption(title + ")")
+
+    use(s.action, 0, 150)
+    use(s.action, 0, 150)
+}
+
+// ---- Enemies: one coming for the player (it cannot be hurt) ----
+
+fun showEnemy(e)
+{
+    var far = 8
+    if (e.boss)
+    {
+        far = 12
+    }
+
+    put(e.id, X, Y, Z + far, 180, e.affix)
+
+    var title = e.name
+    if (e.affix != "")
+    {
+        title = title + "  (elite)"
+    }
+    caption(title)
+
+    if (e.brain)
+    {
+        cam(20, 12, 7.5)
+        wait(600)                          // ten seconds of it fighting
+    }
+    else
+    {
+        cam(20, 12, 6)                    // a dummy, a crystal: it only stands there
+        wait(120)
+    }
+}

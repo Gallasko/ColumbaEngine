@@ -1755,6 +1755,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelArena/Game/spellbook.cpp
             examples/VoxelArena/Game/options.cpp
             examples/VoxelArena/Game/shop.cpp
+            examples/VoxelArena/Game/lab.cpp
             examples/VoxelArena/Net/enginetransport.cpp
             examples/VoxelArena/Net/portmapper.cpp
             ${VOXELARENA_CORE}
@@ -1764,6 +1765,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         # Content is read straight from the source tree, so editing a mod and pressing F5 needs no rebuild
         target_compile_definitions(VoxelArena PRIVATE VOXELARENA_MODS_DIR="${CMAKE_SOURCE_DIR}/examples/VoxelArena/mods"
                                                       VOXELARENA_SHADER_DIR="${CMAKE_SOURCE_DIR}/examples/VoxelArena/shader"
+                                                      VOXELARENA_LAB_DIR="${CMAKE_SOURCE_DIR}/examples/VoxelArena/tools/lab"
                                                       ENGINE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
         # The dedicated server: the same simulation, no window

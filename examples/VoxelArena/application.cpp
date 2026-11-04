@@ -74,6 +74,8 @@ GameApp::GameApp(const std::string& appName, const LaunchOptions& opts) : engine
         arena::ArenaOptions arenaOptions;
         arenaOptions.modsDir = pick(options.modsDir, VOXELARENA_MODS_DIR, "mods");
         arenaOptions.startupCommands = options.startupCommands;
+        arenaOptions.lab = options.lab;
+        arenaOptions.labScript = options.labScript;
 
         LOG_INFO(DOM, "Mods from " << arenaOptions.modsDir << ", shaders from " << shaderDir);
 
