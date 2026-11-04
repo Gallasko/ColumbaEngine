@@ -373,6 +373,19 @@ namespace arena
             float timer = 0.0f;
         };
         std::vector<BurningLook> burningLooks;
+        // A beam's bolt (effects.json "beam"), fading. fromHand: the player's own, in first person: it leaves from the
+        // weapon hand in front of the eye (the world's start is the chest: seen end on from the eye, it would not show)
+        struct StrikeLook
+        {
+            glm::vec3 from, to;
+            BeamLook look;
+            float age = 0.0f;
+            uint32_t seed = 0;
+            bool fromHand = false;
+        };
+        std::vector<StrikeLook> strikes;
+        /** Where a beam of the player's leaves from in first person: low and to the right, in front of the eye. */
+        glm::vec3 handPoint() const;
         std::mt19937 lookRng{7};
 
         float hurtFlash = 0.0f;   // the screen's red wash when the player is hit, fading

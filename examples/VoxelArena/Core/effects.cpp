@@ -183,6 +183,7 @@ namespace arena
                 pp.size = static_cast<float>(p->num("size", pp.size));
                 pp.life = static_cast<float>(p->num("life", pp.life));
                 pp.gravity = static_cast<float>(p->num("gravity", pp.gravity));
+                pp.glow = std::clamp(static_cast<float>(p->num("glow", 0.0)), 0.0f, 1.0f);
 
                 if (const Json* c = p->find("color"))
                 {
@@ -192,6 +193,24 @@ namespace arena
                         pp.color = glm::vec3(c->array[0].number, c->array[1].number, c->array[2].number) / 255.0f;
                     else
                         report.error("effects.json", c->line, "effect \"" + name + "\": particle color is [r, g, b] or \"event\"");
+                }
+            }
+
+            // "beam": { "width": 0.05, "life": 0.18, "jagged": 0.3, "color": [r, g, b] } (the colour: the particles' when none)
+            if (const Json* b = j.find("beam"))
+            {
+                BeamLook& bl = e.beam;
+                bl.width = std::max(0.0f, static_cast<float>(b->num("width", 0.05)));
+                bl.life = std::max(0.02f, static_cast<float>(b->num("life", bl.life)));
+                bl.jagged = std::max(0.0f, static_cast<float>(b->num("jagged", 0.0)));
+                bl.color = e.particles.color;
+
+                if (const Json* c = b->find("color"))
+                {
+                    if (c->isArray() and c->array.size() >= 3)
+                        bl.color = glm::vec3(c->array[0].number, c->array[1].number, c->array[2].number) / 255.0f;
+                    else
+                        report.error("effects.json", c->line, "effect \"" + name + "\": beam color is [r, g, b]");
                 }
             }
 

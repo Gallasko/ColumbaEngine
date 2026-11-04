@@ -50,6 +50,16 @@ namespace arena
         float gravity = 12.0f;       // m/s^2
         glm::vec3 color = glm::vec3(1.0f);
         bool eventColor = false;     // "color": "event" takes the colour of what broke
+        float glow = 0.0f;           // 0 lit like a block .. 1 shining its own colour (sparks, embers)
+    };
+
+    /** A line event drawn as a bolt of light from one end to the other, fading (a spell's beam, a chain's jump). */
+    struct BeamLook
+    {
+        float width = 0.0f;          // m, of its bright core (0: no bolt)
+        float life = 0.18f;          // s it fades over
+        float jagged = 0.0f;         // m it zigzags off the straight line (lightning), redrawn as it flickers
+        glm::vec3 color = glm::vec3(1.0f);
     };
 
     /** What a game event looks and sounds like (effects.json). */
@@ -59,6 +69,7 @@ namespace arena
         ParticlePreset particles;
         float shake = 0.0f;          // camera trauma when it happens near the player
         bool along = false;          // particles spread along a line event, not burst from its point
+        BeamLook beam;               // a line event's bolt
 
         // A status's look (the entry named after its id): a glow over the body, and particles every so often
         bool hasTint = false;

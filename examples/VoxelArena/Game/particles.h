@@ -26,6 +26,7 @@ namespace arena
             float life;
             float maxLife;
             float gravity;
+            float glow;
         };
 
         const std::vector<Particle>& all() const { return particles; }

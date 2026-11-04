@@ -2029,13 +2029,20 @@ namespace arena
 
         auto it = effects.find(e.kind);
 
-        // Along a line (a volt arc): the particles spread from one end to the other
+        // Along a line (a volt arc): the particles spread from one end to the other, and a bolt of light along it
         if (it != effects.end() and it->second.along and e.line)
         {
             const EffectDef& look = it->second;
             const Fighter* p = world.player();
             const glm::vec3 middle = (e.position + e.to) * 0.5f;
             playSound(look.sound, middle, p ? glm::length(middle - p->body.position) : 0.0f);
+
+            // The player's own beam in first person leaves from the hand (a chain's jump leaves from who it jumps from)
+            const bool fromHand = firstPerson and p and e.source == p->id and glm::length(e.position - (p->body.position + glm::vec3(0, p->body.height * 0.6f, 0))) < 1.2f;
+            const glm::vec3 from = fromHand ? handPoint() : e.position;
+
+            if (look.beam.width > 0.0f)
+                strikes.push_back({from, e.to, look.beam, 0.0f, static_cast<uint32_t>(lookRng()), fromHand});
 
             ParticlePreset one = look.particles;
             one.count = 1;
@@ -2044,13 +2051,28 @@ namespace arena
             for (int k = 0; k < look.particles.count; ++k)
             {
                 const float t = (static_cast<float>(k) + 0.5f) / static_cast<float>(look.particles.count);
-                particles.burst(one, glm::mix(e.position, e.to, t) + glm::vec3(jitter(lookRng), jitter(lookRng), jitter(lookRng)), e.color);
+                const glm::vec3 at = glm::mix(from, e.to, t);
+
+                // None right in front of the eye: big blocks over the view
+                if (fromHand and glm::length(at - camera.position) < 2.0f)
+                    continue;
+
+                particles.burst(one, at + glm::vec3(jitter(lookRng), jitter(lookRng), jitter(lookRng)), e.color);
             }
 
             return;
         }
 
         playEffect(e.kind, e.position, e.color);
+    }
+
+    glm::vec3 ArenaGame::handPoint() const
+    {
+        const glm::vec3 forward = camera.forward();
+        glm::vec3 right = glm::cross(forward, glm::vec3(0, 1, 0));
+        right = glm::length(right) > 1e-4f ? glm::normalize(right) : glm::vec3(1, 0, 0);
+        const glm::vec3 up = glm::cross(right, forward);
+        return camera.position + forward * 0.55f + right * 0.22f - up * 0.2f;
     }
 
     const EffectDef* ArenaGame::statusLook(const Fighter& f) const
@@ -2077,6 +2099,10 @@ namespace arena
 
     void ArenaGame::stepLooks(float frameSeconds)
     {
+        for (auto& st : strikes)
+            st.age += frameSeconds;
+        strikes.erase(std::remove_if(strikes.begin(), strikes.end(), [](const StrikeLook& st) { return st.age >= st.look.life; }), strikes.end());
+
         std::uniform_real_distribution<float> unit(0.0f, 1.0f);
 
         // Statuses: particles every so often, from the body
@@ -4421,6 +4447,68 @@ namespace arena
             add(boxMesh, litMaterial, OpacityType::Opaque, std::move(d));
         }
 
+        // Beams' bolts: a bright core in a soft glow, fading; lightning zigzags and flickers
+        if (not strikes.empty())
+        {
+            std::vector<float> d;
+
+            auto segment = [&](const glm::vec3& a, const glm::vec3& b, float width, const glm::vec4& tint, const glm::vec4& flash) {
+                const glm::vec3 dd = b - a;
+                const float length = glm::length(dd);
+                if (length < 1e-3f)
+                    return;
+                const glm::vec3 dir = dd / length;
+                const float yaw = std::atan2(dir.x, dir.z) / DEG;
+                const float pitch = -std::asin(glm::clamp(dir.y, -1.0f, 1.0f)) / DEG;
+                const glm::mat4 m = glm::translate(glm::mat4(1.0f), a) * rotY(yaw) * rotX(pitch) * glm::scale(glm::mat4(1.0f), glm::vec3(width, width, length)) *
+                                    glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f, -0.5f, 0.0f));
+                pushInstance(d, view, m, tint, flash);
+            };
+
+            for (const auto& st : strikes)
+            {
+                const glm::vec3 from = st.fromHand ? handPoint() : st.from;
+                const glm::vec3 line = st.to - from;
+                const float length = glm::length(line);
+                if (length < 0.05f or not seen.sees((from + st.to) * 0.5f, length * 0.5f + 1.0f))
+                    continue;
+
+                // The points along it: lightning off the line by up to `jagged` (none at the ends), redrawn 30 times a second
+                const int pieces = st.look.jagged > 0.0f ? std::clamp(static_cast<int>(length / 0.7f), 2, 32) : (st.fromHand ? 6 : 1);
+                const glm::vec3 dir = line / length;
+                glm::vec3 side = glm::cross(dir, glm::vec3(0, 1, 0));
+                side = glm::length(side) > 1e-4f ? glm::normalize(side) : glm::vec3(1, 0, 0);
+                const glm::vec3 lift = glm::cross(side, dir);
+                std::mt19937 rng(st.seed + static_cast<uint32_t>(st.age * 30.0f));
+                std::uniform_real_distribution<float> u(-1.0f, 1.0f);
+
+                std::vector<glm::vec3> points = {from};
+                for (int k = 1; k < pieces; ++k)
+                {
+                    const float t = static_cast<float>(k) / static_cast<float>(pieces);
+                    const float swing = st.look.jagged * std::sin(t * 3.14159265f);
+                    points.push_back(from + line * t + (side * u(rng) + lift * u(rng)) * swing);
+                }
+                points.push_back(st.to);
+
+                // Bright at once, then fading out; thinner as it goes
+                const float t = st.age / st.look.life;
+                const float fade = 1.0f - t * t;
+                const float width = st.look.width * (1.0f - 0.5f * t);
+                const glm::vec3 core = glm::mix(st.look.color, glm::vec3(1.0f), 0.6f);
+
+                for (size_t k = 0; k + 1 < points.size(); ++k)
+                {
+                    // From the hand: thin by the eye, full width a couple of metres on
+                    const float near = st.fromHand ? glm::clamp(glm::length((points[k] + points[k + 1]) * 0.5f - from) / 2.5f, 0.2f, 1.0f) : 1.0f;
+                    segment(points[k], points[k + 1], width * near, glm::vec4(core, fade), glm::vec4(core, 1.0f));
+                    segment(points[k], points[k + 1], width * near * 3.0f, glm::vec4(st.look.color, 0.3f * fade), glm::vec4(st.look.color, 1.0f));
+                }
+            }
+
+            add(boxMesh, debugMaterial, OpacityType::Normal, std::move(d));
+        }
+
         // Particles: little lit cubes, shrinking away
         if (not particles.all().empty())
         {
@@ -4434,7 +4522,7 @@ namespace arena
 
                 const float s = q.size * std::sqrt(std::max(0.0f, q.life / q.maxLife));
                 const glm::mat4 m = glm::translate(glm::mat4(1.0f), q.position - glm::vec3(s * 0.5f)) * glm::scale(glm::mat4(1.0f), glm::vec3(s));
-                pushInstance(d, view, m, glm::vec4(q.color, 1.0f), glm::vec4(0.0f));
+                pushInstance(d, view, m, glm::vec4(q.color, 1.0f), glm::vec4(q.color, q.glow));
             }
 
             add(boxMesh, litMaterial, OpacityType::Opaque, std::move(d));

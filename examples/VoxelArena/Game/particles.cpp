@@ -26,6 +26,7 @@ namespace arena
             q.size = p.size * (0.7f + 0.6f * unit(rng));
             q.maxLife = q.life = p.life * (0.7f + 0.6f * unit(rng));
             q.gravity = p.gravity;
+            q.glow = p.glow;
             particles.push_back(q);
         }
     }
