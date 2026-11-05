@@ -1179,6 +1179,11 @@ TEST_F(ScriptTestBench, MetamethodSetIndexStack)
     testScript("metamethod_set_index_stack");
 }
 
+TEST_F(ScriptTestBench, AnalysisCycleWidening)
+{
+    testScript("analysis_cycle_widening");
+}
+
 TEST_F(ScriptTestBench, MetamethodFieldsPriority)
 {
     testScript("metamethod_fields_priority");

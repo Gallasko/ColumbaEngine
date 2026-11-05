@@ -98,7 +98,22 @@ namespace pg
                     out.rebinds = a.rebinds;
                     out.rebinds.insert(b.rebinds.begin(), b.rebinds.end());
                     out.unknown = a.unknown or b.unknown;
+                    out.wide = a.wide or b.wide;
                     return out;
+                }
+
+                // A summary of a cycle past MaxCycleSummaryEntries, or joined with a wide one, made wide: it writes
+                // and returns anything, as a statement read as anything does. Nothing is bigger, so the cycle ends
+                void widenIfTooBig(Summary& s, Locations& locs)
+                {
+                    if (not s.wide and s.writes.size() + s.edges.size() <= MaxCycleSummaryEntries)
+                        return;
+
+                    s.wide = true;
+                    s.unknown = true;
+                    s.writes = {Write{locs.unknown(), {}}};
+                    s.edges.clear();
+                    s.returns = {locs.unknown()};
                 }
 
                 // One evaluation of one body
@@ -377,7 +392,9 @@ namespace pg
 
                             case Op::Call:
                             {
-                                if (const Summary* callee = calleeOf(n))
+                                const Summary* callee = calleeOf(n);
+
+                                if (callee and not callee->wide)
                                 {
                                     for (auto r : callee->returns)
                                     {
@@ -488,6 +505,13 @@ namespace pg
                         reads.insert(callee.reads.begin(), callee.reads.end());
                         rebinds.insert(callee.rebinds.begin(), callee.rebinds.end());
                         unknown = unknown or callee.unknown;
+
+                        // Too big to follow: what it does to the world, as a call not followed
+                        if (callee.wide)
+                        {
+                            unknownCall(n);
+                            return;
+                        }
 
                         for (const auto& w : callee.writes)
                         {
@@ -1026,7 +1050,7 @@ namespace pg
                 std::ostringstream out;
                 out << "arity " << arity << "; returns " << listed(returned) << "; writes " << listed(written) << "; edges " << listed(stored)
                     << "; reads " << listed({reads.begin(), reads.end()}) << "; rebinds " << listed({rebinds.begin(), rebinds.end()})
-                    << (unknown ? "; unknown" : "");
+                    << (unknown ? "; unknown" : "") << (wide ? "; wide" : "");
                 return out.str();
             }
 
@@ -1125,6 +1149,7 @@ namespace pg
                             Evaluator evaluator(locs, out, followed, defined);
                             Summary next = joined(out[name], evaluator.evaluate(bodies.at(name)));
                             lastCollapsed[name] = evaluator.collapsed();
+                            widenIfTooBig(next, locs);
 
                             std::string digest = next.digest(locs);
 

@@ -36,6 +36,13 @@ namespace pg
         {
             constexpr size_t MaxLocsPerValue = 256;
 
+            // A function of a cycle of calls whose summary has more writes and edges than this is wide. Each round
+            // of the cycle can add paths one key deeper, under every key the bodies name: bounded, but past what a
+            // compile can walk (DeltaBlue's addConstraint / addToGraph went past 200 000 and kept growing). The
+            // biggest in a cycle of a real program, the Chronicle rules' giveGift, is 447; DeltaBlue's planner
+            // cycle ends at about 3 800. A function out of a cycle is evaluated once and has no limit
+            constexpr size_t MaxCycleSummaryEntries = 8192;
+
             // Of the values stored only, so it says nothing alone: nothing may be decided on it until both of
             // these are checked as well.
             // - What guards a store is not looked at: `if (t.on) { t.on = false } else { t.on = true }` stores
@@ -72,6 +79,8 @@ namespace pg
                 std::set<std::string> reads;        // globals read and functions called, transitively through calls
                 std::set<std::string> rebinds;      // globals assigned, transitively through calls
                 bool unknown = false;               // calls what is not followed, or holds a closure
+                bool wide = false;                  // grew past MaxCycleSummaryEntries: it writes and returns anything
+                                                    // (`?`), a call of it is one not followed; reads and rebinds stay
 
                 // A text of the whole summary, the same from one compile to the next
                 std::string digest(const Locations& locs) const;
