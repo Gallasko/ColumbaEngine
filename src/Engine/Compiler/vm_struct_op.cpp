@@ -86,6 +86,12 @@ namespace pg
         return vm->callMethod(instance->klass, name, argCount);
     }
 
+    // Its message built out of line: the invoke keeps no string of its own
+    [[gnu::cold, gnu::noinline]] static const DecodedInstruction* methodNotFound(VM* vm, const std::string& methodName)
+    {
+        return vm->raiseError("Method '" + methodName + "' not found.");
+    }
+
     const DecodedInstruction* op_invoke_decoded(VM* vm, const DecodedInstruction& instr)
     {
         const uint8_t argCount = instr.operands.indexed.byte2;
@@ -97,11 +103,7 @@ namespace pg
         vm->pendingCallResume = &instr + 1;
 
         if (not invoke(vm, methodName, argCount))
-        {
-            vm->runtimeError("Method '" + methodName + "' not found.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
-        }
+            return methodNotFound(vm, methodName);
 
         return vm->completeDecodedFrameSwitch(frameCountBefore, &instr + 1);
     }
@@ -335,7 +337,9 @@ namespace pg
         return getPropertyUncached(vm, instr, instance, shape);
     }
 
-    const DecodedInstruction* op_set_property_decoded(VM* vm, const DecodedInstruction& instr)
+    // Every write op_set_property_decoded does not take itself: not an instance, a proxy, __set,
+    // a shape this write has not learned yet
+    [[gnu::noinline]] static const DecodedInstruction* setPropertyGeneral(VM* vm, const DecodedInstruction& instr)
     {
         if (not IS_INSTANCE(vm->peek(1)))
         {
@@ -581,6 +585,81 @@ namespace pg
 
         vm->push(value);
         return &instr + 1;
+    }
+
+    // A plain instance on a shape this write has learned: the field written in its slot, or added by
+    // the step learned for it. The field is written before the instance is let go, which may be its
+    // last reference
+    const DecodedInstruction* op_set_property_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        const Value target = vm->peek(1);
+
+        if (IS_INSTANCE(target))
+        {
+            ObjInstance* instance = vm->asInstance(target);
+            PropertyCache* cache = instr.propertyCache;
+            Shape* shape = instance->layout();
+
+            if (shape != nullptr and (shape == cache->shape or shape == cache->addFrom)
+                and instance->proxyMeta == nullptr and not instance->klass->hasSetMeta() and not shape->hasSetField())
+            {
+                Value value = vm->pop();
+                Value inst = vm->pop();
+
+                if (shape == cache->shape)
+                {
+                    Value& field = instance->fieldValueRef(cache->slot);
+                    vm->releaseAndDelete(field);
+                    field = vm->retainValue(value);
+                }
+                else
+                    instance->appendAlong(cache->addTo, vm->retainValue(value));
+
+                vm->releaseAndDelete(inst);
+                vm->push(value);
+                return &instr + 1;
+            }
+        }
+
+        return setPropertyGeneral(vm, instr);
+    }
+
+    // `o.f = x` with o a local: its push taken out (ChunkDecoder::fuseDeferredOperands), o read in
+    // its slot (operand byte2: byte1 is the name's). The value stays on the stack as Set_Property
+    // leaves it, for the Pop after (paired with it): a __set this runs resumes at that Pop
+    const DecodedInstruction* fusedSetPropertyLocal(VM* vm, const DecodedInstruction& instr)
+    {
+        const Value target = vm->currentFrame->slots[instr.operands.indexed.byte2];
+
+        if (IS_INSTANCE(target))
+        {
+            ObjInstance* instance = vm->asInstance(target);
+            PropertyCache* cache = instr.propertyCache;
+            Shape* shape = instance->layout();
+
+            if (shape != nullptr and (shape == cache->shape or shape == cache->addFrom)
+                and instance->proxyMeta == nullptr and not instance->klass->hasSetMeta() and not shape->hasSetField())
+            {
+                const Value value = vm->peek();
+
+                if (shape == cache->shape)
+                {
+                    Value& field = instance->fieldValueRef(cache->slot);
+                    vm->releaseAndDelete(field);
+                    field = vm->retainValue(value);
+                }
+                else
+                    instance->appendAlong(cache->addTo, vm->retainValue(value));
+
+                return &instr + 1;
+            }
+        }
+
+        // The write as Get_Local and Set_Property would have run it
+        const Value value = vm->pop();
+        vm->push(vm->retainValue(target));
+        vm->push(value);
+        return setPropertyGeneral(vm, instr);
     }
 
     // ========================================================================
@@ -835,7 +914,10 @@ namespace pg
         return getIndexNotVector(vm, instr, target, index);
     }
 
-    const DecodedInstruction* op_set_index_decoded(VM* vm, const DecodedInstruction& instr)
+    // Every write op_set_index_decoded does not take itself: a table, a string, an index out of
+    // the vector or not an int. Out of line, its strings would give the vector write a frame and
+    // a stack guard
+    [[gnu::noinline]] static const DecodedInstruction* setIndexGeneral(VM* vm, const DecodedInstruction& instr)
     {
         Value value  = vm->pop();
         Value index  = vm->pop();
@@ -1046,6 +1128,43 @@ namespace pg
         return &instr + 1;
     }
 
+    // A vector written in place or appended to at its end, the target left on the stack (the
+    // contract of Set_Index); everything else is setIndexGeneral's
+    const DecodedInstruction* op_set_index_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        const Value target = vm->peek(2);
+        const Value index  = vm->peek(1);
+
+        if (IS_VECTOR(target) and IS_INT(index))
+        {
+            ObjVector* vec = vm->asVector(target);
+            const int64_t size = static_cast<int64_t>(vec->fields.size());
+            int64_t idx = AS_INT(index);
+
+            if (idx < 0)
+                idx += size;
+
+            if (idx >= 0 and idx <= size)
+            {
+                Value value = vm->pop();
+                vm->pop(); // the index, an int
+
+                if (idx == size)
+                    vec->fields.push_back(vm->retainValue(value));
+                else
+                {
+                    vm->releaseAndDelete(vec->fields[idx]);
+                    vec->fields[idx] = vm->retainValue(value);
+                }
+
+                vm->releaseAndDelete(value);
+                return &instr + 1;
+            }
+        }
+
+        return setIndexGeneral(vm, instr);
+    }
+
     // ========================================================================
     // Iterator Operations
     // ========================================================================
@@ -1109,7 +1228,8 @@ namespace pg
         }
 
         // The key of the current slot (it was found by scanning the whole name index, every step)
-        const std::string key = table->fieldName(static_cast<size_t>(index));
+        // Borrowed from the shape (or the dictionary): createString makes the one copy
+        const std::string& key = table->fieldName(static_cast<size_t>(index));
 
         // Pop old iterator state
         vm->pop();  // Remove old iterator state

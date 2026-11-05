@@ -116,6 +116,7 @@ namespace pg
             {
                 shape = next;
                 fieldValueList.push_back(value);
+                noteFieldCount();
 
                 return slot;
             }
@@ -127,6 +128,7 @@ namespace pg
             dictionary = std::make_unique<Dictionary>();
 
         fieldValueList.push_back(value);
+        noteFieldCount();
         dictionary->index[name] = slot;
         dictionary->names.push_back(name);
 

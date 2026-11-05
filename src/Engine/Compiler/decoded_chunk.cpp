@@ -5,6 +5,7 @@
 #include "compiler_debug.h"
 #include "decoded_fusion.h"
 
+#include <array>
 #include <map>
 #include <unordered_set>
 #include <cstdint>
@@ -182,6 +183,7 @@ namespace pg
         {
             fuseInstructions(decoded, chunk, vm);
             fuseIndexedAccess(decoded);
+            fuseDeferredOperands(decoded, chunk, vm);
             compactElided(decoded);
         }
 
@@ -1119,6 +1121,289 @@ namespace pg
             LOG_INFO("ChunkDecoder", "Fused " << rewrites << " local indexed accesses");
     }
 
+    // Third sweep, after fuseIndexedAccess: a local, a constant or a short int pushed before the
+    // right-hand side of the op that takes it, the deeper of its two operands.
+    //
+    //   Get_Local x; <expr>; Add                    → nop; expr; FUSED_Add(L,S)->Push
+    //   Get_Local x; <expr>; FUSED_Add(S,S)->Store x → nop; expr; FUSED_Add(L=,S)->Local
+    //   Constant k;  <expr>; Divide                 → nop; expr; FUSED_Divide(C,S)->Push
+    //   Get_Local o; <expr>; Set_Property f; Pop    → nop; expr; FUSED_SetProperty(L,S); Pop
+    //
+    // The op reads the operand where it is, after the expression has run, which is the same value
+    // when nothing in the expression writes it: a constant never changes; a local only by a store
+    // (none passes the scan) or by a closure that took it, so a call (or what may run script code:
+    // a property read) is let through only for a constant or a local no closure of this function
+    // takes. Like fuseIndexedAccess, the scan follows the stack depth above the operand and stops at
+    // anything of unknown effect, anything digging below it and a branch target inside.
+    void ChunkDecoder::fuseDeferredOperands(DecodedChunk* decoded, const Chunk& chunk, VM* vm)
+    {
+        using namespace fusion;
+
+        const size_t n = decoded->instructions.size();
+        if (n < 3)
+            return;
+
+        std::vector<DecodedInstruction>&     ins = decoded->instructions;
+        std::vector<DecodedInstructionMeta>& im  = decoded->meta;
+
+        auto opcodeOf = [&](size_t idx) { return static_cast<OpCode>(im[idx].originalOpcode); };
+        auto plainAt = [&](size_t idx) { return im[idx].fusedLength < 2; };
+
+        // The locals a closure of this function takes: read from each OP_Closure's upvalue pairs in
+        // the bytecode (op_closure_decoded reads them there too). One unreadable: all are taken
+        std::vector<bool> captured(256, false);
+        for (size_t k = 0; k < n; ++k)
+        {
+            if (not plainAt(k) or opcodeOf(k) != OpCode::OP_Closure)
+                continue;
+
+            const uint8_t constantIndex = ins[k].operands.byte;
+            const bool readable = constantIndex < chunk.constants.size() and IS_FUNC(chunk.constants[constantIndex]);
+            ObjFunction* function = readable ? vm->asFunction(chunk.constants[constantIndex]) : nullptr;
+
+            if (function == nullptr or im[k].bytecodeOffset + 2 + 2 * function->upvalueCount > chunk.code.size())
+            {
+                std::fill(captured.begin(), captured.end(), true);
+                break;
+            }
+
+            for (int u = 0; u < function->upvalueCount; ++u)
+            {
+                const size_t at = im[k].bytecodeOffset + 2 + 2 * u;
+                if (chunk.code[at] != 0)
+                    captured[chunk.code[at + 1]] = true;
+            }
+        }
+
+        std::unordered_set<size_t> targetOffsets;
+        for (size_t i = 0; i < n; ++i)
+        {
+            size_t target = 0;
+            if (branchTargetOffsetOf(ins[i], im[i], target))
+                targetOffsets.insert(target);
+        }
+        std::unordered_set<size_t> targetIndices(decoded->fusedBranchTargets.begin(),
+                                                 decoded->fusedBranchTargets.end());
+        auto isTarget = [&](size_t idx) {
+            return targetIndices.find(idx) != targetIndices.end()
+                or targetOffsets.find(im[idx].bytecodeOffset) != targetOffsets.end();
+        };
+
+        // The stack effect of what may stand between the operand and its op, false for anything
+        // else. `callsSafe`: the operand cannot change in a call (a constant, a local no closure takes)
+        auto effectOf = [&](size_t idx, bool callsSafe, uint8_t& pops, uint8_t& pushes) -> bool {
+            const OpDecodedHandler h = ins[idx].decodedHandler;
+
+            if (h == &fusedElidedProducer)                         { pops = 0; pushes = 0; return true; }
+            if (h == &fusedGetIndexLocal or h == &fusedGetIndexByLocal) { pops = 1; pushes = 1; return true; }
+            if (h == &fusedGetIndexLocals)                         { pops = 0; pushes = 1; return true; }
+            if (h == &fusedGetPropertyLocal)                       { pops = 0; pushes = 1; return callsSafe; }
+
+            if (not plainAt(idx))
+            {
+                // Reads that push their result: binary ops, unary ops, Len. A store, a step or a
+                // branch writes or leaves; they push nothing
+                if (im[idx].stackPops == 0xFF or im[idx].stackPushes != 1)
+                    return false;
+                pops = im[idx].stackPops;
+                pushes = 1;
+                return true;
+            }
+
+            switch (opcodeOf(idx))
+            {
+                case OpCode::OP_Get_Local:
+                case OpCode::OP_Constant:
+                case OpCode::OP_Short_Int:
+                case OpCode::OP_True:
+                case OpCode::OP_False:
+                case OpCode::OP_None:
+                case OpCode::OP_Get_Upvalue:
+                case OpCode::OP_Get_Constant_Global:
+                case OpCode::OP_Get_Long_Constant_Global:
+                    pops = 0; pushes = 1;
+                    return true;
+                case OpCode::OP_Not:
+                case OpCode::OP_Negate:
+                    pops = 1; pushes = 1;
+                    return true;
+                case OpCode::OP_Get_Index:
+                    pops = 2; pushes = 1;
+                    return true;
+                case OpCode::OP_Get_Property:
+                    pops = 1; pushes = 1;
+                    return callsSafe;
+                case OpCode::OP_Call:
+                    pops = static_cast<uint8_t>(ins[idx].operands.byte + 1); pushes = 1;
+                    return callsSafe and ins[idx].operands.byte < 0xFF;
+                case OpCode::OP_Invoke:
+                    pops = static_cast<uint8_t>(ins[idx].operands.indexed.byte2 + 1); pushes = 1;
+                    return callsSafe and ins[idx].operands.indexed.byte2 < 0xFF;
+                default:
+                    if (classifyBinary(im[idx].originalOpcode) != BinOp::None)
+                    {
+                        pops = 2; pushes = 1;
+                        return true;
+                    }
+                    return false;
+            }
+        };
+
+        // The base op of a fused (S,S) instruction with this handler and sink, BinOp::None if not one
+        auto stackStackOp = [&](size_t idx, Sink sink) -> BinOp {
+            const BinOp op = classifyBinary(im[idx].originalOpcode);
+            if (op == BinOp::None or plainAt(idx))
+                return BinOp::None;
+            return ins[idx].decodedHandler == selectFusedBinary(op, Src::Stack, Src::Stack, sink) ? op : BinOp::None;
+        };
+
+        auto elide = [&](size_t idx, const char* name) {
+            ins[idx].decodedHandler = &fusedElidedProducer;
+            im[idx].fusedName = internFusionName(name);
+        };
+
+        constexpr size_t MaxWindow = 32;
+        size_t rewrites = 0;
+
+        for (size_t i = 0; i + 2 < n; ++i)
+        {
+            if (not plainAt(i))
+                continue;
+
+            SrcDesc a;
+            if (ins[i].decodedHandler == &op_get_local_decoded)
+            {
+                a.kind = Src::Local;
+                a.byteVal = ins[i].operands.byte;
+            }
+            else if (opcodeOf(i) == OpCode::OP_Short_Int)
+            {
+                a.kind = Src::ShortInt;
+                a.byteVal = ins[i].operands.byte;
+            }
+            else if (opcodeOf(i) == OpCode::OP_Constant and ins[i].operands.byte < chunk.constants.size())
+            {
+                a.kind = Src::Const;
+                a.constIndex = ins[i].operands.byte;
+            }
+            else
+                continue;
+
+            const bool callsSafe = a.kind != Src::Local or not captured[a.byteVal];
+            Value* constantPtr = a.kind == Src::Const ? const_cast<Value*>(&chunk.constants[a.constIndex]) : nullptr;
+
+            int depth = 0; // values above the operand's place
+
+            for (size_t j = i + 1; j < n and (j - i) <= MaxWindow; ++j)
+            {
+                if (isTarget(j))
+                    break;
+
+                // The op that takes the operand: the value under the one just made
+                if (depth == 1)
+                {
+                    const BinOp plainOp = plainAt(j) ? classifyBinary(im[j].originalOpcode) : BinOp::None;
+                    OpDecodedHandler handler = nullptr;
+                    const std::string* name = nullptr;
+                    uint8_t pushes = 1;
+
+                    if (plainOp != BinOp::None)
+                    {
+                        handler = selectFusedBinary(plainOp, a.kind, Src::Stack, Sink::Push);
+                        name = fusionName(plainOp, a.kind, Src::Stack, Sink::Push);
+                        if (handler != nullptr)
+                        {
+                            ins[j].decodedHandler = handler;
+                            ins[j].operands.indexed.byte1 = a.byteVal;
+                            if (constantPtr != nullptr)
+                                ins[j].constantPtr = constantPtr;
+                        }
+                    }
+                    else if (BinOp op = stackStackOp(j, Sink::Store); op != BinOp::None)
+                    {
+                        const uint8_t dst = ins[j].operands.indexed.byte3;
+                        pushes = 0;
+
+                        if (a.kind == Src::Local and a.byteVal == dst)
+                        {
+                            // `x = x <op> expr`: the slot read and written in place
+                            handler = selectFusedLocalCompound(op, Src::Stack);
+                            name = compoundFusionName(op, Src::Stack);
+                            if (handler != nullptr)
+                            {
+                                ins[j].decodedHandler = handler;
+                                ins[j].operands.indexed.byte1 = dst;
+                            }
+                        }
+                        else
+                        {
+                            handler = selectFusedBinary(op, a.kind, Src::Stack, Sink::Store);
+                            name = fusionName(op, a.kind, Src::Stack, Sink::Store);
+                            if (handler != nullptr)
+                            {
+                                ins[j].decodedHandler = handler;
+                                ins[j].operands.indexed.byte1 = a.byteVal;
+                                if (constantPtr != nullptr)
+                                    ins[j].constantPtr = constantPtr;
+                            }
+                        }
+                    }
+                    else if (a.kind != Src::Const)
+                    {
+                        // A compare and branch: its target pointer stays (no constant takes it)
+                        for (Sink sink : {Sink::BranchIfFalse, Sink::BranchIfTrue})
+                        {
+                            if (BinOp op = stackStackOp(j, sink); op != BinOp::None)
+                            {
+                                handler = selectFusedBinary(op, a.kind, Src::Stack, sink);
+                                name = fusionName(op, a.kind, Src::Stack, sink);
+                                pushes = 0;
+                                if (handler != nullptr)
+                                {
+                                    ins[j].decodedHandler = handler;
+                                    ins[j].operands.indexed.byte1 = a.byteVal;
+                                }
+                                break;
+                            }
+                        }
+
+                        // `o.f = expr;`: the Pop after stays, the value is still left for it
+                        if (handler == nullptr and a.kind == Src::Local and plainAt(j)
+                            and opcodeOf(j) == OpCode::OP_Set_Property
+                            and j + 1 < n and plainAt(j + 1) and opcodeOf(j + 1) == OpCode::OP_Pop)
+                        {
+                            handler = &fusedSetPropertyLocal;
+                            name = internFusionName("FUSED_SetProperty(L,S)");
+                            ins[j].decodedHandler = handler;
+                            ins[j].operands.indexed.byte2 = a.byteVal;
+                        }
+                    }
+
+                    if (handler != nullptr)
+                    {
+                        im[j].fusedLength = std::max<uint8_t>(im[j].fusedLength, 2);
+                        im[j].fusedName = name;
+                        im[j].stackPops = 1;
+                        im[j].stackPushes = pushes;
+                        elide(i, "ELIDED_Producer");
+                        ++rewrites;
+                        break;
+                    }
+                }
+
+                uint8_t pops = 0, pushes = 0;
+                if (not effectOf(j, callsSafe, pops, pushes))
+                    break;
+                if (depth < static_cast<int>(pops))
+                    break; // would take the operand (or dig below it)
+                depth += static_cast<int>(pushes) - static_cast<int>(pops);
+            }
+        }
+
+        if (rewrites > 0)
+            LOG_INFO("ChunkDecoder", "Fused " << rewrites << " deferred operands");
+    }
+
     namespace
     {
         using HandlerPair = std::pair<OpDecodedHandler, OpDecodedHandler>;
@@ -1151,6 +1436,52 @@ namespace pg
             pairStepWithTests<Step, fusion::FNotEqual>(rules);
         }
 
+        // Three that follow each other: a loop's step, the Pop of the locals its body declared (they
+        // are popped after the step, which is in the body), its test
+        using HandlerTriple = std::array<OpDecodedHandler, 3>;
+        using TripleRules = std::map<HandlerTriple, OpDecodedHandler>;
+
+        template <OpDecodedHandler Step, OpDecodedHandler Pop, typename Op>
+        void tripleStepPopWithTests(TripleRules& rules)
+        {
+            using fusion::Src;
+
+            rules[{Step, Pop, &fusion::fusedCmpBranchIfTrue<Op, Src::Local, Src::Local, false>}]
+                = &fusion::fusedThen3<Step, Pop, &fusion::fusedCmpBranchIfTrue<Op, Src::Local, Src::Local, false>>;
+            rules[{Step, Pop, &fusion::fusedCmpBranchIfTrue<Op, Src::Local, Src::ShortInt, false>}]
+                = &fusion::fusedThen3<Step, Pop, &fusion::fusedCmpBranchIfTrue<Op, Src::Local, Src::ShortInt, false>>;
+            rules[{Step, Pop, &fusion::fusedCmpBranchIfTrue<Op, Src::Local, Src::Const, true>}]
+                = &fusion::fusedThen3<Step, Pop, &fusion::fusedCmpBranchIfTrue<Op, Src::Local, Src::Const, true>>;
+        }
+
+        template <OpDecodedHandler Step, OpDecodedHandler Pop>
+        void tripleStepPop(TripleRules& rules)
+        {
+            tripleStepPopWithTests<Step, Pop, fusion::FLess>(rules);
+            tripleStepPopWithTests<Step, Pop, fusion::FLessEqual>(rules);
+            tripleStepPopWithTests<Step, Pop, fusion::FGreater>(rules);
+            tripleStepPopWithTests<Step, Pop, fusion::FGreaterEqual>(rules);
+            tripleStepPopWithTests<Step, Pop, fusion::FNotEqual>(rules);
+        }
+
+        const TripleRules& tripleRules()
+        {
+            using namespace fusion;
+
+            static const TripleRules rules = [] {
+                TripleRules r;
+
+                tripleStepPop<&fusedIncrDecrLocal<true>, &op_pop_n_decoded>(r);
+                tripleStepPop<&fusedIncrDecrLocal<false>, &op_pop_n_decoded>(r);
+                tripleStepPop<&fusedIncrDecrLocal<true>, &op_pop_decoded>(r);
+                tripleStepPop<&fusedIncrDecrLocal<false>, &op_pop_decoded>(r);
+
+                return r;
+            }();
+
+            return rules;
+        }
+
         const PairRules& pairRules()
         {
             using namespace fusion;
@@ -1170,6 +1501,21 @@ namespace pg
                 r[{&fusedGetIndexLocals, &fusedCmpBranchIfFalse<FEqual, Src::Stack, Src::Const, true>}] = &fusedGetIndexLocalsCmpConst<FEqual>;
                 r[{&fusedGetIndexLocals, &fusedCmpBranchIfFalse<FNotEqual, Src::Stack, Src::Const, true>}] = &fusedGetIndexLocalsCmpConst<FNotEqual>;
 
+                // `return x`, `return 1`, `return a + b`, the none a function ends on
+                pairOf<&op_get_local_decoded, &op_return_decoded>(r);
+                pairOf<&op_short_int_decoded, &op_return_decoded>(r);
+                pairOf<&op_constant_decoded, &op_return_decoded>(r);
+                pairOf<&op_true_decoded, &op_return_decoded>(r);
+                pairOf<&op_false_decoded, &op_return_decoded>(r);
+                pairOf<&op_none_decoded, &op_return_decoded>(r);
+                pairOf<&op_add_decoded, &op_return_decoded>(r);
+                pairOf<&op_subtract_decoded, &op_return_decoded>(r);
+                pairOf<&op_multiply_decoded, &op_return_decoded>(r);
+                pairOf<&fusedGetPropertyLocal, &op_return_decoded>(r);
+
+                // `o.f = x;`: the write and its Pop (a __set it runs resumes at the Pop)
+                pairOf<&fusedSetPropertyLocal, &op_pop_decoded>(r);
+
                 return r;
             }();
 
@@ -1181,10 +1527,23 @@ namespace pg
     {
         std::vector<DecodedInstruction>& ins = decoded->instructions;
         const PairRules& rules = pairRules();
+        const TripleRules& triples = tripleRules();
 
         // The second is looked at as it was decoded: one paired before it changed only its first
         for (size_t i = 0; i + 1 < ins.size(); ++i)
         {
+            if (i + 2 < ins.size())
+            {
+                auto triple = triples.find({ins[i].decodedHandler, ins[i + 1].decodedHandler, ins[i + 2].decodedHandler});
+
+                if (triple != triples.end())
+                {
+                    ins[i].decodedHandler = triple->second;
+                    ++vm->pairedInstructions;
+                    continue;
+                }
+            }
+
             auto it = rules.find({ins[i].decodedHandler, ins[i + 1].decodedHandler});
 
             if (it != rules.end())

@@ -358,6 +358,25 @@ namespace fusion
     // generic Set_Index leaves the target on the stack for that Pop). The
     // in-bounds assign and append-at-end fast paths mirror
     // op_set_index_decoded's vector branch minus the handle traffic.
+    // Uncommon shapes delegate; the generic handler leaves the target on
+    // the stack (its contract) — drop it here, standing in for the
+    // elided Pop. Out of line: op_set_index_decoded inlined would give the
+    // fast path its frame and stack guard
+    [[gnu::noinline]] inline const DecodedInstruction* setIndexLocalGeneral(VM* vm, const DecodedInstruction& instr,
+        Value target, Value index, Value value)
+    {
+        vm->push(vm->retainValue(target));
+        vm->push(index);
+        vm->push(value);
+        const DecodedInstruction* next = op_set_index_decoded(vm, instr);
+        if (next == nullptr)
+            return nullptr;
+        const Value handle = vm->pop();
+        if (requiresRefCount(handle))
+            vm->releaseAndDelete(handle);
+        return next;
+    }
+
     inline const DecodedInstruction* fusedSetIndexLocal(VM* vm, const DecodedInstruction& instr)
     {
         const Value target = vm->currentFrame->slots[instr.operands.indexed.byte1];
@@ -387,19 +406,7 @@ namespace fusion
             }
         }
 
-        // Uncommon shapes delegate; the generic handler leaves the target on
-        // the stack (its contract) — drop it here, standing in for the
-        // elided Pop.
-        vm->push(vm->retainValue(target));
-        vm->push(index);
-        vm->push(value);
-        const DecodedInstruction* next = op_set_index_decoded(vm, instr);
-        if (next == nullptr)
-            return nullptr;
-        const Value handle = vm->pop();
-        if (requiresRefCount(handle))
-            vm->releaseAndDelete(handle);
-        return next;
+        return setIndexLocalGeneral(vm, instr, target, index, value);
     }
 
     // r.x with r in a local: the slot keeps the instance alive, so it is neither retained nor
@@ -523,6 +530,19 @@ namespace fusion
     template <typename Op, Src A, Src B>
     const DecodedInstruction* fusedBinaryPush(VM* vm, const DecodedInstruction& instr)
     {
+        if constexpr (B == Src::Stack)
+        {
+            // The right operand is the stack top, the left one inline (a push taken out before the
+            // right-hand side, ChunkDecoder::fuseDeferredOperands): the top replaced in place, as
+            // changeTop releases it
+            static_assert(A != Src::Stack, "Stack/Stack push is the base op");
+
+            Value a = readSrc<A>(vm, instr, instr.operands.indexed.byte1);
+            Value r = Op::apply(vm, a, vm->peek());
+            vm->changeTop(r);
+            return &instr + 1;
+        }
+
         Value b = readSrc<B>(vm, instr, instr.operands.indexed.byte2);
 
         if constexpr (A == Src::Stack)
@@ -738,6 +758,23 @@ namespace fusion
             return next;
 
         return Next(vm, *next);
+    }
+
+    // The same for three: a loop's step, the Pop of the locals its body declared, its test
+    template <OpDecodedHandler First, OpDecodedHandler Second, OpDecodedHandler Third>
+    PG_FUSION_FLATTEN const DecodedInstruction* fusedThen3(VM* vm, const DecodedInstruction& instr)
+    {
+        const DecodedInstruction* next = First(vm, instr);
+
+        if (next != &instr + 1)
+            return next;
+
+        next = Second(vm, *next);
+
+        if (next != &instr + 2)
+            return next;
+
+        return Third(vm, *next);
     }
 
     // t[i] with both in locals, only looked at: a vector's element borrowed, a string's char. False
@@ -969,7 +1006,9 @@ namespace fusion
     {
         switch (b)
         {
-            case Src::Stack:    return (A == Src::Stack) ? pickSink<Op, Src::Stack, Src::Stack>(sink, comparison) : nullptr;
+            // A Stack right operand under a left one that is not: a local or a constant pushed before
+            // the right-hand side was worked out, its push taken out (ChunkDecoder::fuseDeferredOperands)
+            case Src::Stack:    return pickSink<Op, A, Src::Stack>(sink, comparison);
             case Src::Local:    return pickSink<Op, A, Src::Local>(sink, comparison);
             case Src::Const:    return pickSink<Op, A, Src::Const>(sink, comparison);
             case Src::ShortInt: return pickSink<Op, A, Src::ShortInt>(sink, comparison);

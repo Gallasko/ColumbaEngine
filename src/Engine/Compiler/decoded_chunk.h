@@ -297,6 +297,11 @@ namespace pg
         // retained and released around the index expression.
         void fuseIndexedAccess(DecodedChunk* decoded);
 
+        // Third sweep: a local or a constant pushed before the right-hand side of the op that takes
+        // it (`s + v[i]`, `1.0 / (2 * i + 1)`, `o.f = x`): the push taken out, the op reading it where
+        // it is. Calls may stand between for a constant, or a local no closure of the function takes
+        void fuseDeferredOperands(DecodedChunk* decoded, const Chunk& chunk, VM* vm);
+
         // Takes out what fuseIndexedAccess elided, so it costs no dispatch: moves the instructions
         // down and everything that points at them.
         void compactElided(DecodedChunk* decoded);

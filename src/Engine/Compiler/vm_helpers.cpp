@@ -192,7 +192,7 @@ namespace pg
     {
         if (argCount != closure->function->arity)
         {
-            runtimeError((Strfy() << "Expected " << closure->function->arity << " arguments but got: " << argCount << ".").getData());
+            arityError(closure->function->arity, argCount);
 
             return false;
         }
@@ -227,7 +227,7 @@ namespace pg
     {
         if (argCount != closure->function->arity)
         {
-            runtimeError((Strfy() << "Expected " << closure->function->arity << " arguments but got: " << argCount << ".").getData());
+            arityError(closure->function->arity, argCount);
 
             return false;
         }
@@ -581,6 +581,12 @@ namespace pg
     {
         auto [ptr, index] = pools.instancePool.allocateWithIndex(klass);
         ptr->useShapes(&shapeTree);
+
+        // Room for as many fields as its class's instances have reached (no more than 64, a big
+        // table does not make every table big), or 8 while none has a field yet
+        constexpr uint32_t firstReserve = 8;
+        constexpr uint32_t maxReserve = 64;
+        ptr->reserveFields(klass->fieldsReached == 0 ? firstReserve : std::min(klass->fieldsReached, maxReserve));
         Value val = makeInstanceValue(static_cast<uint32_t>(index));
         return trackNewValue(val);
     }

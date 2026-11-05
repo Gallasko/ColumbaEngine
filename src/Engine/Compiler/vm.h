@@ -199,6 +199,7 @@ namespace pg
     const DecodedInstruction* op_invoke_decoded(VM* vm, const DecodedInstruction& instr);
     const DecodedInstruction* op_get_property_decoded(VM* vm, const DecodedInstruction& instr);
     const DecodedInstruction* op_set_property_decoded(VM* vm, const DecodedInstruction& instr);
+    const DecodedInstruction* fusedSetPropertyLocal(VM* vm, const DecodedInstruction& instr);
     const DecodedInstruction* op_short_int_decoded(VM* vm, const DecodedInstruction& instr);
     const DecodedInstruction* op_define_constant_global_decoded(VM* vm, const DecodedInstruction& instr);
     const DecodedInstruction* op_add_ll_decoded(VM* vm, const DecodedInstruction& instr);
@@ -767,6 +768,19 @@ namespace pg
             runtimeError(message);
             vm_return(InterpretResult::RUNTIME_ERROR);
             return nullptr;
+        }
+
+        // A function called with another count of arguments than it takes (VM::call, callBound)
+        [[gnu::cold, gnu::noinline]] void arityError(int arity, int argCount)
+        {
+            runtimeError((Strfy() << "Expected " << arity << " arguments but got: " << argCount << ".").getData());
+        }
+
+        // The global of a slot read or written before it is defined. Its message is built here, so
+        // the handler that raises it keeps no string of its own (no frame, no stack guard)
+        [[gnu::cold, gnu::noinline]] const DecodedInstruction* raiseUndefinedGlobal(uint32_t slot)
+        {
+            return raiseError("Undefined global variable '" + globalNameForSlot(slot) + "'.");
         }
 
         // Native module registry (per VM instance)

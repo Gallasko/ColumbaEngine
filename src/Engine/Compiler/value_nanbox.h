@@ -175,6 +175,20 @@ namespace pg
     }
 
     /**
+     * A tagged value of a sign and a tag: the 17 bits above the payload are the sign, the quiet
+     * NaN and the tag, so both tests are one compare (IS_POS_TAGGED/IS_NEG_TAGGED and GET_TAG)
+     */
+    inline bool HAS_POS_TAG(Value v, uint8_t tag)
+    {
+        return (v >> TAG_SHIFT) == ((POS_TAG_BASE >> TAG_SHIFT) | tag);
+    }
+
+    inline bool HAS_NEG_TAG(Value v, uint8_t tag)
+    {
+        return (v >> TAG_SHIFT) == ((NEG_TAG_BASE >> TAG_SHIFT) | tag);
+    }
+
+    /**
      * Extract 48-bit index from tagged value
      */
     inline uint32_t GET_INDEX(Value v)
@@ -185,73 +199,73 @@ namespace pg
     // Refcounted (sign bit = 0) — heap pool entries.
     inline bool IS_LONG_STRING(Value v)
     {
-        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_STRING;
+        return HAS_POS_TAG(v, TAG_STRING);
     }
 
     inline bool IS_CLOSURE(Value v)
     {
-        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_CLOSURE;
+        return HAS_POS_TAG(v, TAG_CLOSURE);
     }
 
     inline bool IS_FUNC(Value v)
     {
-        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_FUNCTION;
+        return HAS_POS_TAG(v, TAG_FUNCTION);
     }
 
     inline bool IS_UPVALUE(Value v)
     {
-        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_UPVALUE;
+        return HAS_POS_TAG(v, TAG_UPVALUE);
     }
 
     inline bool IS_CLASS(Value v)
     {
-        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_CLASS;
+        return HAS_POS_TAG(v, TAG_CLASS);
     }
 
     inline bool IS_INSTANCE(Value v)
     {
-        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_INSTANCE;
+        return HAS_POS_TAG(v, TAG_INSTANCE);
     }
 
     inline bool IS_BOUND_METHOD(Value v)
     {
-        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_BOUND_METHOD;
+        return HAS_POS_TAG(v, TAG_BOUND_METHOD);
     }
 
     inline bool IS_VECTOR(Value v)
     {
-        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_VECTOR;
+        return HAS_POS_TAG(v, TAG_VECTOR);
     }
 
     // Non-refcounted (sign bit = 1) — immediates and pool-lifetime types.
     inline bool IS_INT(Value v)
     {
-        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_INT;
+        return HAS_NEG_TAG(v, TAG_INT);
     }
 
     inline bool IS_BOOL(Value v)
     {
-        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_BOOL;
+        return HAS_NEG_TAG(v, TAG_BOOL);
     }
 
     inline bool IS_NAT_FUNC(Value v)
     {
-        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_NATIVE;
+        return HAS_NEG_TAG(v, TAG_NATIVE);
     }
 
     inline bool IS_SMALL_STRING(Value v)
     {
-        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_SMALL_STRING;
+        return HAS_NEG_TAG(v, TAG_SMALL_STRING);
     }
 
     inline bool IS_INTERNED_STRING(Value v)
     {
-        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_INTERNED_STRING;
+        return HAS_NEG_TAG(v, TAG_INTERNED_STRING);
     }
 
     inline bool IS_CUSTOM_PTR(Value v)
     {
-        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_CUSTOM_PTR;
+        return HAS_NEG_TAG(v, TAG_CUSTOM_PTR);
     }
 
     inline bool IS_NONE(Value v)
@@ -543,16 +557,9 @@ namespace pg
      */
     inline int64_t AS_INT(Value v)
     {
-        // Extract 47-bit value
-        int64_t i = static_cast<int64_t>(v & INDEX_MASK);
-
-        // Sign extend from bit 46 to 64 bits
-        if (i & 0x400000000000LL)
-        {
-            i |= 0xFFFF800000000000LL;
-        }
-
-        return i;
+        // The 47-bit payload up to the top, then back down: the arithmetic shift copies bit 46 into
+        // the 17 bits above it, a sign extension with no branch
+        return static_cast<int64_t>(v << (64 - TAG_SHIFT)) >> (64 - TAG_SHIFT);
     }
 
     /**

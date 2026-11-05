@@ -127,6 +127,10 @@ namespace pg
         inline bool hasSetMeta() { checkMeta(); return setMeta; }
         inline bool hasGetMeta() { checkMeta(); return getMeta; }
 
+        // The most fields an instance of it has reached: a new instance makes room for that many
+        // at once (VM::createInstance), not growing its values one doubling at a time
+        uint32_t fieldsReached = 0;
+
     private:
         inline void checkMeta()
         {
@@ -343,6 +347,7 @@ namespace pg
         {
             shape = next;
             fieldValueList.push_back(value);
+            noteFieldCount();
         }
 
         // An empty instance given a shape and its values at once (a table literal whose keys made
@@ -354,6 +359,15 @@ namespace pg
 
             for (size_t i = 0; i < count; ++i)
                 fieldValueList.push_back(values[i * stride]);
+
+            noteFieldCount();
+        }
+
+        // Tells its class how many fields it has now, when that is more than any of them had
+        inline void noteFieldCount()
+        {
+            if (klass != nullptr and fieldValueList.size() > klass->fieldsReached)
+                klass->fieldsReached = static_cast<uint32_t>(fieldValueList.size());
         }
 
     private:

@@ -1004,7 +1004,10 @@ namespace pg
         // Save callee's stackBase (where caller's stack ended) before we dec frame count
         Value* calleeStackBase = vm->currentFrame->stackBase;
 
-        vm->closeUpvalues(vm->currentFrame->slots);
+        // Most returns have no upvalue open: closeUpvalues is not called for nothing
+        if (vm->openUpvalues != nullptr)
+            vm->closeUpvalues(vm->currentFrame->slots);
+
         vm->frameCount--;
 
         if (vm->frameCount == 0)
@@ -1050,7 +1053,9 @@ namespace pg
     // argCount directly from the pre-decoded instruction (no *ip++).
     // Native calls fall through; closure/bound calls switch to the callee's
     // decoded instructions via completeDecodedFrameSwitch.
-    const DecodedInstruction* op_call_decoded(VM* vm, const DecodedInstruction& instr)
+    // Every call op_call_decoded does not take itself: a native, a class, a bound method, a wrong
+    // count of arguments, a call too deep
+    [[gnu::noinline]] static const DecodedInstruction* callNotPlain(VM* vm, const DecodedInstruction& instr)
     {
         int argCount = instr.operands.byte;
 
@@ -1070,6 +1075,37 @@ namespace pg
         }
 
         return vm->completeDecodedFrameSwitch(frameCountBefore, &instr + 1);
+    }
+
+    // A script function with the right count of arguments and room for its frame pushes the frame
+    // here, as VM::call does, and runs from its first instruction: no callValue, no call, no
+    // completeDecodedFrameSwitch on the way
+    const DecodedInstruction* op_call_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        const int argCount = instr.operands.byte;
+        const Value function = vm->peek(argCount);
+
+        if (IS_CLOSURE(function))
+        {
+            Closure* closure = vm->asClosure(function);
+
+            if (argCount == closure->function->arity and vm->frameCount != FRAMES_MAX
+                and vm->stack.size() + FRAME_ROOM <= IndexableStack::capacity)
+            {
+                CallFrame* frame = &vm->frames[vm->frameCount++];
+
+                frame->closure = closure;
+                frame->ip = closure->function->chunk.code.data();
+                frame->slots = vm->stack.data() + vm->stack.size() - argCount;
+                frame->stackBase = frame->slots - 1;
+                frame->callerResume = &instr + 1;
+
+                vm->currentFrame = frame;
+                return closure->function->decodedChunk->instructions.data();
+            }
+        }
+
+        return callNotPlain(vm, instr);
     }
 
     const DecodedInstruction* op_debug_print_decoded(VM* vm, const DecodedInstruction& instr)
@@ -1686,10 +1722,7 @@ namespace pg
         // Slot pre-resolved at decode time — a single cell index, no string work.
         auto& cell = vm->globalCells[instr.operands.dword];
         if (IS_UNDEFINED(cell))
-        {
-            return vm->raiseError("Undefined global variable '"
-                                  + vm->globalNameForSlot(instr.operands.dword) + "'.");
-        }
+            return vm->raiseUndefinedGlobal(instr.operands.dword);
 
         vm->push(vm->retainValue(cell));
         return &instr + 1;
@@ -1704,10 +1737,7 @@ namespace pg
         // constantPtr. No name lookup at runtime.
         auto& cell = vm->globalCells[instr.operands.dword];
         if (IS_UNDEFINED(cell))
-        {
-            return vm->raiseError("Undefined global variable '"
-                                  + vm->globalNameForSlot(instr.operands.dword) + "'.");
-        }
+            return vm->raiseUndefinedGlobal(instr.operands.dword);
 
         vm->releaseAndDelete(cell);
         cell = vm->retainValue(*instr.constantPtr);
