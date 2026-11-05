@@ -1174,6 +1174,11 @@ TEST_F(ScriptTestBench, MetamethodSetIndex)
     testScript("metamethod_set_index");
 }
 
+TEST_F(ScriptTestBench, MetamethodSetIndexStack)
+{
+    testScript("metamethod_set_index_stack");
+}
+
 TEST_F(ScriptTestBench, MetamethodFieldsPriority)
 {
     testScript("metamethod_fields_priority");

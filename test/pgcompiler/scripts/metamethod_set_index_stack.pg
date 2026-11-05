@@ -1,0 +1,123 @@
+// A __set run by `t[k] = v` takes the place of its target on the stack: a local
+// declared after the write keeps its value (generic and fused writes, a dynamic
+// __set, one inside a loop with a var, one inside another __set, deep recursion)
+import "string"
+class Box
+{
+    __set(name, value)
+    {
+        this.__last = value;
+        this.__count = this.__count + 1;
+        return 123;
+    }
+}
+
+class Outer
+{
+    __set(name, value)
+    {
+        var inner = this.__inner;
+        var k = name;
+        inner[k] = value * 10;
+        var mark = 5;
+        this.__mark = mark;
+    }
+}
+
+fun makeBox() { var b = Box(); b.__count = 0; return b; }
+
+var g = makeBox();
+
+fun constKey()
+{
+    var b = makeBox();
+    var before = 7;
+    b["a"] = 1;
+    b["b"] = 2;
+    var after = 9;
+    __dprint("constKey " + toString(before) + " " + toString(after) + " " + toString(b.__last) + " " + toString(b.__count));
+}
+
+fun localKey()
+{
+    var b = makeBox();
+    var k = "x";
+    var before = 7;
+    b[k] = 3;
+    b[k] = 4;
+    var after = 9;
+    __dprint("localKey " + toString(before) + " " + toString(after) + " " + toString(b.__last) + " " + toString(b.__count));
+}
+
+fun loopVar()
+{
+    var b = makeBox();
+    var sum = 0;
+    for (var i = 0; i < 5; i++)
+    {
+        var k = "f" + toString(i);
+        b[k] = i;
+        var t = i * 2;
+        sum = sum + t;
+    }
+    var after = 9;
+    __dprint("loopVar " + toString(sum) + " " + toString(after) + " " + toString(b.__last) + " " + toString(b.__count));
+}
+
+fun globalTarget()
+{
+    var before = 7;
+    g["a"] = 11;
+    var k = "c";
+    g[k] = 12;
+    var after = 9;
+    __dprint("global " + toString(before) + " " + toString(after) + " " + toString(g.__last) + " " + toString(g.__count));
+}
+
+fun dynamic()
+{
+    var t = {};
+    t.__n = 0;
+    t.__set = fun(self, name, value) { self.__n = self.__n + value; return 77; };
+    var before = 7;
+    t["a"] = 5;
+    var k = "b";
+    t[k] = 6;
+    var after = 9;
+    __dprint("dynamic " + toString(before) + " " + toString(after) + " " + toString(t.__n));
+}
+
+fun nested()
+{
+    var o = Outer();
+    o.__inner = makeBox();
+    var before = 7;
+    var k = "z";
+    o[k] = 2;
+    o["y"] = 3;
+    var after = 9;
+    __dprint("nested " + toString(before) + " " + toString(after) + " " + toString(o.__inner.__last) + " " + toString(o.__inner.__count) + " " + toString(o.__mark));
+}
+
+fun deep(n)
+{
+    if (n == 0) return 0;
+    var b = makeBox();
+    var k = "d";
+    b[k] = n;
+    var r = deep(n - 1);
+    return r + b.__last;
+}
+
+constKey();
+localKey();
+loopVar();
+globalTarget();
+dynamic();
+nested();
+__dprint("deep " + toString(deep(200)));
+var v = [1, 2, 3];
+var i = 1;
+v[i] = 20;
+v[3] = 4;
+__dprint(toString(v[1]) + " " + toString(v[3]));

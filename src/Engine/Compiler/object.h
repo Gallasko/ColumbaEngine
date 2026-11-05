@@ -99,6 +99,23 @@ namespace pg
         const DecodedInstruction* callerResume = nullptr;
     };
 
+    // A resume point with bit 0 set drops the frame's result instead of pushing it: a __set
+    // run by a fused write whose Pop was elided. Decoded instructions are 8-aligned
+    inline const DecodedInstruction* droppingResult(const DecodedInstruction* resume)
+    {
+        return reinterpret_cast<const DecodedInstruction*>(reinterpret_cast<uintptr_t>(resume) | 1);
+    }
+
+    inline bool dropsResult(const DecodedInstruction* resume)
+    {
+        return (reinterpret_cast<uintptr_t>(resume) & 1) != 0;
+    }
+
+    inline const DecodedInstruction* untagged(const DecodedInstruction* resume)
+    {
+        return reinterpret_cast<const DecodedInstruction*>(reinterpret_cast<uintptr_t>(resume) & ~uintptr_t(1));
+    }
+
     // Value creation functions are now in value_nanbox.h
     // Convenience macros for backward compatibility
     #define BOOL_VAL(value)           makeBoolValue(value)

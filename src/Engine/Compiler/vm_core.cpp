@@ -899,7 +899,7 @@ namespace pg
                 where += "\n[line ?] in " + name;
 
             // The caller stopped on the call, the one before where it resumes
-            at = frames[i].callerResume != nullptr ? frames[i].callerResume - 1 : nullptr;
+            at = frames[i].callerResume != nullptr ? untagged(frames[i].callerResume) - 1 : nullptr;
         }
 
         return where;
@@ -1040,6 +1040,12 @@ namespace pg
         }
 
         vm->stack.truncateTo(stackTruncatePosition);
+
+        if (dropsResult(resume)) [[unlikely]]
+        {
+            vm->releaseAndDelete(value);
+            return untagged(resume);
+        }
 
         vm->push(value);
 

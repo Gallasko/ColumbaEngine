@@ -1030,9 +1030,9 @@ namespace pg
 
                 if (IS_CLOSURE(setMethod))
                 {
-                    // The frame's own reference to the target, which stays on the stack too (the
-                    // frame lets go of what it holds as it returns)
-                    vm->push(vm->retainValue(target));
+                    // The target on the stack is the method's receiver: its result takes the
+                    // target's place, for the Pop after (the frame lets go of what it holds
+                    // as it returns)
                     vm->push(keyValue);
                     vm->push(value);
 

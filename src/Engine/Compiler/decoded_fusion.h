@@ -368,9 +368,16 @@ namespace fusion
         vm->push(vm->retainValue(target));
         vm->push(index);
         vm->push(value);
+        const int framesBefore = vm->frameCount;
         const DecodedInstruction* next = op_set_index_decoded(vm, instr);
         if (next == nullptr)
             return nullptr;
+        // A __set began: the target is its receiver, and its result is the elided Pop's
+        if (vm->frameCount > framesBefore)
+        {
+            vm->currentFrame->callerResume = droppingResult(vm->currentFrame->callerResume);
+            return next;
+        }
         const Value handle = vm->pop();
         if (requiresRefCount(handle))
             vm->releaseAndDelete(handle);
