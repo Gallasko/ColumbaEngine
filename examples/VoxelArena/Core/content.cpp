@@ -1796,7 +1796,7 @@ namespace arena
                 if (u.forTag() != (j.find("boost") != nullptr))
                     report.error(raw.file, j.line, "boon \"" + id + "\": a tag item has both a \"tag\" and a \"boost\"");
 
-                // "look": { "orbit": [255, 106, 61] }, or a piece { "model", "part", "at", "yaw", "scale" }, or a list of pieces
+                // "look": { "orbit": [255, 106, 61], "icon": "fire" }, or a piece { "model", "part", "at", "yaw", "scale" }, or a list of pieces
                 if (const Json* look = j.find("look"))
                 {
                     std::vector<const Json*> pieces;
@@ -1808,7 +1808,7 @@ namespace arena
 
                     for (const Json* p : pieces)
                     {
-                        checkKeys(*p, {"model", "part", "at", "yaw", "scale", "orbit"}, raw.file, report, "boon " + id + "'s look");
+                        checkKeys(*p, {"model", "part", "at", "yaw", "scale", "orbit", "icon"}, raw.file, report, "boon " + id + "'s look");
 
                         if (const Json* orbit = p->find("orbit"))
                         {
@@ -1817,6 +1817,7 @@ namespace arena
                                 u.look.orbit = true;
                                 for (int k = 0; k < 3; ++k)
                                     u.look.colour[k] = std::clamp(static_cast<float>(orbit->array[static_cast<size_t>(k)].number) / 255.0f, 0.0f, 1.0f);
+                                readStr(*p, "icon", u.look.icon, raw.file, report);
                             }
                             else
                                 report.error(raw.file, orbit->line, "boon \"" + id + "\": \"orbit\" is a colour, [r, g, b] (0-255)");

@@ -58,6 +58,7 @@ namespace arena
             bool ally = false;       // a player on your side: their name and health, nothing else
             bool self = false;       // you (third person): your name only
             std::vector<std::pair<std::string, ui::Colour>> affixes;   // an elite's, over its bar in their colours
+            std::string meter;       // a dummy's damage meter, under its bar ("" : none)
         };
 
         /** A damage number rising off what the player hit. */

@@ -420,6 +420,11 @@ namespace arena
 
         loadBlockLooks();
 
+        // A gem's shape is one of the UI's icons: a name it does not know shows a plain gem, and is said
+        for (const auto& [id, u] : content.upgrades)
+            if (not u.look.icon.empty() and ui::icon(u.look.icon).empty())
+                content.report.warn("upgrades.json", 0, "boon \"" + id + "\": no icon \"" + u.look.icon + "\" for its gem (a plain gem instead)");
+
         // Sounds and effects: synthesised into a cache folder (the engine's audio plays files)
         const auto recipes = readSounds(content.sounds, content.report);
         effects = readEffects(content.effects, recipes, content.report);
@@ -2201,6 +2206,68 @@ namespace arena
         return false;
     }
 
+    const glm::vec3* ArenaGame::effectTint(const std::string& effect) const
+    {
+        auto it = effects.find(effect);
+        return it != effects.end() and it->second.hasTint ? &it->second.tint : nullptr;
+    }
+
+    std::shared_ptr<GpuMesh> ArenaGame::iconMesh(const std::string& icon)
+    {
+        auto& mesh = iconMeshes[icon];
+        if (mesh)
+            return mesh;
+
+        // The 7 x 7 pixel icon, two voxels deep, its top row up; white, the gem's colour is its tint
+        VoxelGrid grid(7, 7, 2);
+        grid.outsideSolid = false;
+        const auto& rows = ui::icon(icon);
+        for (size_t r = 0; r < rows.size() and r < 7; ++r)
+            for (size_t c = 0; c < rows[r].size() and c < 7; ++c)
+                if (rows[r][c] == '#')
+                    for (int z = 0; z < 2; ++z)
+                        grid.set(static_cast<int>(c), 6 - static_cast<int>(r), z, 1);
+
+        BlockTable table(2);
+        table[0].visible = false;
+        MeshOptions opt;
+        opt.aoStrength = 0.25f;
+
+        mesh = std::make_shared<GpuMesh>();
+        mesh->setData(buildMesh(grid, table, opt));
+        return mesh;
+    }
+
+    void ArenaGame::stepMeters()
+    {
+        // The dummies' damage meter: health lost since the step before, added up while hits keep coming (3 s without
+        // one starts it over). Health coming back (a dummy mends) is not damage
+        for (const auto& f : world.fighters)
+        {
+            if (f.team != Team::Enemy)
+                continue;
+            auto def = content.enemies.find(f.type);
+            if (def == content.enemies.end() or not def->second.regenerates)
+                continue;
+
+            DamageMeter& m = meters[f.id];
+            if (m.health >= 0.0f and f.health < m.health)
+            {
+                if (simTime - m.last > 3.0f)
+                {
+                    m.total = 0.0f;
+                    m.first = simTime;
+                }
+                m.total += m.health - f.health;
+                m.last = simTime;
+            }
+            m.health = f.health;
+        }
+
+        for (auto it = meters.begin(); it != meters.end();)
+            it = world.find(it->first) ? std::next(it) : meters.erase(it);
+    }
+
     void ArenaGame::stepLooks(float frameSeconds)
     {
         for (auto& st : strikes)
@@ -2230,6 +2297,31 @@ namespace arena
                 }
             }
         }
+
+        // What the last frame drew that sheds particles: a weapon's element, a Legendary item. Each point has its timer,
+        // started at a random moment (points that came together do not burst together)
+        std::set<std::tuple<int, std::string, int>> drawn;
+        for (const auto& lp : lookPoints)
+        {
+            auto it = effects.find(lp.effect);
+            if (it == effects.end() or it->second.every <= 0.0f or it->second.particles.count <= 0)
+                continue;
+
+            const auto key = std::make_tuple(lp.fighter, lp.effect, lp.slot);
+            drawn.insert(key);
+            auto [timer, fresh] = lookTimers.emplace(key, 0.0f);
+            if (fresh)
+                timer->second = unit(lookRng) * it->second.every;
+            timer->second += frameSeconds;
+
+            while (timer->second >= it->second.every)
+            {
+                timer->second -= it->second.every;
+                particles.burst(it->second.particles, lp.at, it->second.particles.color);
+            }
+        }
+        for (auto it = lookTimers.begin(); it != lookTimers.end();)
+            it = drawn.count(it->first) ? std::next(it) : lookTimers.erase(it);
 
         // Timers of statuses gone
         for (auto it = statusTimers.begin(); it != statusTimers.end();)
@@ -2353,6 +2445,7 @@ namespace arena
     void ArenaGame::feedback()
     {
         const Fighter* p = world.player();
+        stepMeters();
 
         for (const auto& e : world.events)
             playEvent(e);
@@ -3109,6 +3202,15 @@ namespace arena
                 bar.name = options.playerName;
             bar.ally = ally;
             bar.self = self;
+
+            // A dummy's damage meter, for a few seconds after the last hit: what it took, and a second over the hits
+            if (auto m = meters.find(f.id); m != meters.end() and m->second.total >= 0.5f and simTime - m->second.last < 4.0f)
+            {
+                const float over = m->second.last - m->second.first;
+                bar.meter = std::to_string(std::lround(m->second.total)) + " damage";
+                if (over >= 0.5f)
+                    bar.meter += ", " + std::to_string(std::lround(m->second.total / over)) + " a second";
+            }
             v.enemies.push_back(bar);
         }
 
@@ -4077,6 +4179,7 @@ namespace arena
             lv.loop = lab->loop;
             lv.slow = timeScale < 1.0f;
             lv.boxes = showBoxes;
+            lv.reach = showReach;
             lv.firstPerson = firstPerson;
             lv.orbit = labTurn() != 0.0f;
             lv.busy = labPlaying;
@@ -4192,7 +4295,10 @@ namespace arena
         // Fighters, grouped by model: one draw per model with an instance per fighter
         std::map<std::string, std::vector<float>> instances;
         std::vector<float> trail, danger;   // see-through: slash trails, heavy attack tells
-        std::vector<float> gems;            // the items circling the players
+        std::vector<float> gems;            // the items circling the players (a plain gem)
+        std::map<std::string, std::vector<float>> badges;   // ... shaped as an icon, by icon
+        std::vector<float> reachRings;      // reach: how far each attack reaches
+        lookPoints.clear();
 
         for (const auto& f : world.fighters)
         {
@@ -4330,12 +4436,20 @@ namespace arena
                 flash = glm::vec4(1.0f, 0.9f, 0.3f, 0.25f + 0.15f * std::sin(frame * 0.6f));
             else if (f.elite and f.alive())
             {
-                // An elite glows its first affix's colour (gold without one)
+                // An elite glows its affix's colour (gold without one); with two, it goes from one to the other
                 glm::vec3 glow(1.0f, 0.75f, 0.2f);
                 if (not f.affixes.empty())
-                    if (auto a = content.affixes.find(f.affixes.front()); a != content.affixes.end())
-                        glow = a->second.colour;
-                flash = glm::vec4(glow, 0.22f + 0.1f * std::sin(simTime * 4.0f + static_cast<float>(f.id)));
+                {
+                    const float t = simTime * 0.7f + static_cast<float>(f.id) * 0.37f;
+                    const size_t n = f.affixes.size(), at = static_cast<size_t>(t) % n;
+                    auto colourOf = [&](size_t k) {
+                        auto a = content.affixes.find(f.affixes[k]);
+                        return a != content.affixes.end() ? a->second.colour : glow;
+                    };
+                    const float blend = n > 1 ? glm::smoothstep(0.75f, 1.0f, t - std::floor(t)) : 0.0f;
+                    glow = glm::mix(colourOf(at), colourOf((at + 1) % n), blend);
+                }
+                flash = glm::vec4(glow, 0.34f + 0.12f * std::sin(simTime * 4.0f + static_cast<float>(f.id)));
             }
 
             const glm::vec4 tint = f.action == Action::Dead ? glm::vec4(0.6f, 0.6f, 0.6f, 1.0f) : WHITE;
@@ -4389,13 +4503,18 @@ namespace arena
 
                     const LookDef& look = u->second.look;
                     const bool flashing = flash.a > 0.0f;
+
+                    // Its rarity: a glow (effects.json "rarity:rare"...), pulsing for Epic, pulsing harder and gold for
+                    // Legendary; those two shed sparkles too
+                    const char* rarityLook = rarity >= 3 ? "rarity:legendary" : rarity == 2 ? "rarity:epic" : rarity == 1 ? "rarity:rare" : nullptr;
+                    const glm::vec3* rarityTint = rarityLook ? effectTint(rarityLook) : nullptr;
                     glm::vec4 glow = flash;
-                    if (not flashing and rarity >= 3)
-                        glow = glm::vec4(1.0f, 0.8f, 0.3f, 0.22f + 0.08f * std::sin(simTime * 3.0f));
-                    else if (not flashing and rarity == 2)
-                        glow = glm::vec4(0.75f, 0.45f, 1.0f, 0.18f);
-                    else if (not flashing and rarity == 1)
-                        glow = glm::vec4(0.45f, 0.7f, 1.0f, 0.12f);
+                    if (not flashing and rarityTint)
+                    {
+                        const float pulse = rarity >= 3 ? 0.42f + 0.2f * std::sin(simTime * 4.0f) : rarity == 2 ? 0.24f + 0.1f * std::sin(simTime * 2.2f) : 0.15f;
+                        glow = glm::vec4(*rarityTint, pulse);
+                    }
+                    const bool sparkles = rarity >= 2 and rarityLook and f.alive();
 
                     for (const auto& piece : look.pieces)
                     {
@@ -4413,15 +4532,43 @@ namespace arena
                         const glm::mat4 m = modelMatrix * local * glm::translate(glm::mat4(1.0f), piece.at) * rotY(piece.yaw) *
                                             glm::scale(glm::mat4(1.0f), glm::vec3(piece.scale / scale)) * glm::translate(glm::mat4(1.0f), -pieceModel->second->pivot);
                         pushInstance(instances[piece.model], view, m, tint, glow);
+
+                        if (sparkles)
+                        {
+                            const VoxelGrid& g = pieceModel->second->grid;
+                            const glm::vec3 middle(static_cast<float>(g.width()) * 0.5f, static_cast<float>(g.height()) * 0.5f, static_cast<float>(g.depth()) * 0.5f);
+                            lookPoints.push_back({f.id, rarityLook, static_cast<int>(lookPoints.size()), glm::vec3(m * glm::vec4(middle, 1.0f))});
+                        }
                     }
 
                     if (look.orbit and f.alive())
                     {
-                        const float a = simTime * 1.6f + 6.2831853f * static_cast<float>(gem) / static_cast<float>(std::max(1, gemCount));
-                        const glm::vec3 at = pos + glm::vec3(std::sin(a) * 0.78f, h * 0.62f + 0.08f * std::sin(simTime * 3.0f + static_cast<float>(gem)), std::cos(a) * 0.78f);
-                        const glm::mat4 m = glm::translate(glm::mat4(1.0f), at) * rotY(simTime * 140.0f + static_cast<float>(gem) * 40.0f) * rotX(45.0f) *
-                                            glm::rotate(glm::mat4(1.0f), 45.0f * DEG, glm::vec3(0, 0, 1)) * glm::scale(glm::mat4(1.0f), glm::vec3(0.085f)) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f));
-                        pushInstance(gems, view, m, glm::vec4(look.colour, 1.0f), glm::vec4(look.colour, not flashing and rarity > 0 ? 0.75f : 0.55f));
+                        // Rings of at most eight round the body, every other one higher or lower and turning the other way:
+                        // many items stay apart. A shaped gem (an icon) faces the camera, so its shape always reads
+                        constexpr int PER_RING = 8;
+                        static const float ringHeights[] = {0.0f, 0.24f, -0.24f, 0.46f};
+                        const int ring = gem / PER_RING, inRing = std::min(PER_RING, gemCount - ring * PER_RING);
+                        const float turn = ring % 2 == 0 ? 1.0f : -1.0f;
+                        const float a = turn * simTime * 1.2f + 6.2831853f * static_cast<float>(gem % PER_RING) / static_cast<float>(std::max(1, inRing)) + static_cast<float>(ring) * 0.39f;
+                        const float radius = 0.8f + 0.05f * static_cast<float>(ring);
+                        const glm::vec3 at = pos + glm::vec3(std::sin(a) * radius, h * 0.62f + ringHeights[std::min(ring, 3)] + 0.05f * std::sin(simTime * 3.0f + static_cast<float>(gem)), std::cos(a) * radius);
+                        const glm::vec4 shine(look.colour, not flashing and rarity > 0 ? 0.6f : 0.42f);
+
+                        if (const auto badge = look.icon.empty() ? nullptr : iconMesh(look.icon); badge and badge->faces() > 0)
+                        {
+                            const glm::mat4 m = glm::translate(glm::mat4(1.0f), at) * rotY(camera.viewYaw + 180.0f) * rotZ(10.0f * std::sin(simTime * 2.0f + static_cast<float>(gem))) *
+                                                glm::scale(glm::mat4(1.0f), glm::vec3(0.032f)) * glm::translate(glm::mat4(1.0f), glm::vec3(-3.5f, -3.5f, -1.0f));
+                            pushInstance(badges[look.icon], view, m, glm::vec4(look.colour, 1.0f), rarityTint and not flashing and rarity >= 2 ? glm::vec4(glm::mix(look.colour, *rarityTint, 0.5f), glow.a + 0.3f) : shine);
+                        }
+                        else
+                        {
+                            const glm::mat4 m = glm::translate(glm::mat4(1.0f), at) * rotY(simTime * 140.0f + static_cast<float>(gem) * 40.0f) * rotX(45.0f) *
+                                                glm::rotate(glm::mat4(1.0f), 45.0f * DEG, glm::vec3(0, 0, 1)) * glm::scale(glm::mat4(1.0f), glm::vec3(0.085f)) * glm::translate(glm::mat4(1.0f), glm::vec3(-0.5f));
+                            pushInstance(gems, view, m, glm::vec4(look.colour, 1.0f), shine);
+                        }
+
+                        if (sparkles)
+                            lookPoints.push_back({f.id, rarityLook, static_cast<int>(lookPoints.size()), at});
                         ++gem;
                     }
                 }
@@ -4489,28 +4636,89 @@ namespace arena
                             glm::translate(glm::mat4(1.0f), -weapon.grip);
                     };
 
-                    pushInstance(instances[weapon.model], view, weaponAt(frame, body), WHITE, f.flash > 0 or charging ? flash * 0.5f : glm::vec4(0.0f));
+                    const VoxelModel& wm = *weaponModel->second;
+                    const float bladeFrom = weapon.grip.z + 1.0f;
+                    const float bladeLength = std::max(1.0f, static_cast<float>(wm.grid.depth()) - bladeFrom);
+                    const glm::mat4 held = weaponAt(frame, body);
+
+                    // The element its branch gives it (Flame blade): the weapon glows it, and it leaves the blade
+                    // (effects.json "weapon:fire"...), so the branch shows before the first hit
+                    const BranchDef* branch = world.weaponBranch(f);
+                    const std::string elementLook = branch and branch->element != Element::None ? std::string("weapon:") + elementName(branch->element) : std::string();
+                    const glm::vec3* elementTint = elementLook.empty() ? nullptr : effectTint(elementLook);
+
+                    glm::vec4 weaponGlow = f.flash > 0 or charging ? flash * 0.5f : glm::vec4(0.0f);
+                    if (weaponGlow.a <= 0.0f and elementTint)
+                        weaponGlow = glm::vec4(*elementTint, 0.32f + 0.12f * std::sin(simTime * 5.0f));
+                    pushInstance(instances[weapon.model], view, held, WHITE, weaponGlow);
+
+                    if (not elementLook.empty())
+                        for (const float along : {0.5f, 1.0f})
+                            lookPoints.push_back({f.id, elementLook, static_cast<int>(lookPoints.size()),
+                                                  glm::vec3(held * glm::vec4(weapon.grip.x, weapon.grip.y, bladeFrom + bladeLength * along, 1.0f))});
 
                     // The slash: ghosts of the blade along the last frames of the swing, fading, while it
-                    // can hit (and a moment after), so the reach and the arc of the attack read at a glance
+                    // can hit (and a moment after), so the reach and the arc of the attack read at a glance.
+                    // In the attack's element (a branch's: Firestorm's flames), and as long as its area makes its reach
                     constexpr float TRAIL = 5.0f;
 
                     if (prefs.trails and attack and frame >= static_cast<float>(attack->startup) and frame < static_cast<float>(attack->startup + attack->active + 2))
                     {
-                        const VoxelModel& wm = *weaponModel->second;
-                        const float bladeFrom = weapon.grip.z + 1.0f;
-                        const float bladeLength = std::max(1.0f, static_cast<float>(wm.grid.depth()) - bladeFrom);
                         const float oldest = std::max(static_cast<float>(attack->startup) - 1.0f, frame - TRAIL);
+
+                        glm::vec3 colour(0.9f, 0.95f, 1.0f);
+                        if (attack->element != Element::None)
+                        {
+                            const ui::Colour e = ui::elementColour(elementName(attack->element));
+                            colour = glm::mix(colour, glm::vec3(e) / 255.0f, 0.8f);
+                        }
+
+                        // The attack as written, to see how much wider its area made it (levels, a branch, items)
+                        const AttackDef* written = nullptr;
+                        if (not f.attack.empty() and f.attack[0] == '@')
+                        {
+                            if (auto a = content.abilities.find(f.attack.substr(1)); a != content.abilities.end())
+                                written = &a->second.attack;
+                        }
+                        else
+                            written = weapon.moveset.find(f.attack);
+                        float wider = 1.0f;
+                        if (written and not written->hitboxes.empty() and not attack->hitboxes.empty() and written->hitboxes[0].size.x > 0.0f)
+                            wider = glm::clamp(attack->hitboxes[0].size.x / written->hitboxes[0].size.x, 1.0f, 3.0f);
 
                         for (float fr = frame; fr >= oldest; fr -= 0.34f)
                         {
                             const float age = (frame - fr) / TRAIL;
-                            const glm::mat4 ghost = weaponAt(fr, bodyAt(fr)) * glm::translate(glm::mat4(1.0f), glm::vec3(weapon.grip.x - 0.6f, weapon.grip.y - 0.6f, bladeFrom)) *
-                                                    glm::scale(glm::mat4(1.0f), glm::vec3(1.2f, 1.2f, bladeLength));
+                            const float thick = 1.2f * std::sqrt(wider);
+                            const glm::mat4 ghost = weaponAt(fr, bodyAt(fr)) * glm::translate(glm::mat4(1.0f), glm::vec3(weapon.grip.x - thick * 0.5f, weapon.grip.y - thick * 0.5f, bladeFrom)) *
+                                                    glm::scale(glm::mat4(1.0f), glm::vec3(thick, thick, bladeLength * wider));
                             // Softer in first person: right in front of the eye
-                            pushInstance(trail, view, ghost, glm::vec4(0.9f, 0.95f, 1.0f, (viewModel ? 0.28f : 0.5f) * (1.0f - age)), glm::vec4(0.0f));
+                            pushInstance(trail, view, ghost, glm::vec4(colour, (viewModel ? 0.28f : 0.5f) * (1.0f - age)), glm::vec4(0.0f));
                         }
                     }
+                }
+            }
+
+            // Reach (reach): how far the attack can hit, a ring on the ground round the fighter from its start until
+            // it stops hitting: its furthest hitbox, its lunge and its healing
+            if (showReach and attack and f.alive() and frame < static_cast<float>(attack->startup + attack->active))
+            {
+                float reach = 0.0f;
+                for (const auto& box : attack->hitboxes)
+                    for (const float z : {box.offset.z - box.size.z * 0.5f, box.offset.z + box.size.z * 0.5f})
+                        reach = std::max(reach, glm::length(glm::vec2(std::fabs(box.offset.x) + box.size.x * 0.5f, z)));
+                if (reach > 0.0f)
+                    reach += attack->lunge * static_cast<float>(std::max(0, attack->lungeTo - attack->lungeFrom)) / 60.0f;
+                reach = std::max({reach, attack->heal.radius, attack->healZone.radius});
+
+                if (reach > 0.0f)
+                {
+                    glm::vec3 colour = f.team == Team::Player ? glm::vec3(1.0f, 0.84f, 0.47f) : glm::vec3(1.0f, 0.3f, 0.2f);
+                    if (attack->element != Element::None)
+                        colour = glm::vec3(ui::elementColour(elementName(attack->element))) / 255.0f;
+                    const bool striking = frame >= static_cast<float>(attack->startup);
+                    const glm::mat4 m = glm::translate(glm::mat4(1.0f), pos + glm::vec3(0, 0.03f, 0)) * glm::scale(glm::mat4(1.0f), glm::vec3(reach * 2.0f, 1.0f, reach * 2.0f));
+                    pushInstance(reachRings, view, m, glm::vec4(colour, striking ? 0.9f : 0.45f), glm::vec4(0.0f));
                 }
             }
 
@@ -4643,6 +4851,9 @@ namespace arena
         add(boxMesh, debugMaterial, OpacityType::Normal, std::move(trail));
         add(boxMesh, debugMaterial, OpacityType::Normal, std::move(danger));
         add(boxMesh, litMaterial, OpacityType::Opaque, std::move(gems));
+        for (auto& [icon, list] : badges)
+            add(iconMesh(icon), litMaterial, OpacityType::Opaque, std::move(list));
+        add(ringMesh, debugMaterial, OpacityType::Normal, std::move(reachRings));
 
         // Projectiles, along their flight
         for (const auto& pr : world.projectiles)
@@ -4981,7 +5192,7 @@ namespace arena
         {
             return "reload | tune <key> [value] | tunes [prefix] | spawn <enemy> [count] | elite <enemy> [affix ...] | clear | reset\n"
                    "place x y z <block|air> | fill x0 y0 z0 x1 y1 z1 <block|air>\n"
-                   "view [first|third] | weapon <id> | item <id|all> [rarity] | unitems | grow <weapon|technique> <level> [branch] | bot | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | map [arena] | training | difficulty <n> | wave <n> | duel | timeup | join <address> | leave | shards <n> | kill | hurt <damage> | options | mods | errors | warnings\n"
+                   "view [first|third] | reach [on|off] | weapon <id> | item <id|all> [rarity] | unitems | grow <weapon|technique> <level> [branch] | bot | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | map [arena] | training | difficulty <n> | wave <n> | duel | timeup | join <address> | leave | shards <n> | kill | hurt <damage> | options | mods | errors | warnings\n"
                    "the lab: lab [on|off] (F3) | lab show <id> [level] [branch] | cam <yaw> <pitch> [distance] | orbit [deg/s] | face <yaw> [pitch] | put <enemy> x y z [yaw] | caption <text>\n"
                    "scripted input: mouse [on|off] | click <x> <y> | hover <x> <y> | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
         }
@@ -5734,6 +5945,12 @@ namespace arena
         {
             world.aiEnabled = args.size() > 1 ? args[1] == "on" : not world.aiEnabled;
             return std::string("AI ") + (world.aiEnabled ? "on" : "off");
+        }
+
+        if (cmd == "reach")
+        {
+            showReach = args.size() > 1 ? args[1] == "on" : not showReach;
+            return std::string("reach rings ") + (showReach ? "shown" : "hidden");
         }
 
         if (cmd == "hitboxes")

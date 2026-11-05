@@ -8,20 +8,20 @@
 // split: when it dies, it splits into `count` of `enemy` (none: its own kind) with `health` of their health.
 // weight: how often it comes. colour: its glow, and its name over its bar.
 {
-    "blazing":     { "name": "Blazing",     "text": "Leaves fire behind it. Its hits burn.", "colour": [255, 110, 40],
+    "blazing":     { "name": "Blazing",     "text": "Leaves fire behind it. Its hits burn.", "colour": [255, 120, 30],
                      "trail": { "radius": 1.1, "duration": 2.5, "perSecond": 6, "element": "fire", "status": "burn", "every": 0.4 },
                      "onHit": "burn" },
-    "frosty":      { "name": "Frosty",      "text": "Its hits slow you. It bursts into frost when it dies.", "colour": [150, 215, 255],
+    "frosty":      { "name": "Frosty",      "text": "Its hits slow you. It bursts into frost when it dies.", "colour": [110, 200, 255],
                      "onHit": "rime",
                      "blast": { "delay": 0.4, "radius": 3.0, "damage": 4, "poiseDamage": 0, "knockback": 0, "element": "ice", "status": "rime" } },
-    "guardian":    { "name": "Guardian",    "text": "Enemies close to it take half damage.", "colour": [235, 235, 255],
+    "guardian":    { "name": "Guardian",    "text": "Enemies close to it take half damage.", "colour": [240, 240, 255],
                      "aura": { "status": "warded", "radius": 6 } },
-    "volatile":    { "name": "Volatile",    "text": "Explodes a moment after it dies.", "colour": [255, 70, 50],
+    "volatile":    { "name": "Volatile",    "text": "Explodes a moment after it dies.", "colour": [255, 40, 120],
                      "blast": { "delay": 1.0, "radius": 3.5, "damage": 22, "terrainDamage": 20, "element": "fire" } },
-    "swift":       { "name": "Swift",       "text": "Moves much faster.", "colour": [255, 240, 120],
+    "swift":       { "name": "Swift",       "text": "Moves much faster.", "colour": [255, 235, 60],
                      "speed": 0.45 },
-    "splitting":   { "name": "Splitting",   "text": "Splits in two when it dies.", "colour": [140, 255, 150],
+    "splitting":   { "name": "Splitting",   "text": "Splits in two when it dies.", "colour": [175, 100, 255],
                      "split": { "count": 2, "health": 0.4 } },
-    "regenerating":{ "name": "Regenerating","text": "Heals quickly when you stop hitting it.", "colour": [90, 240, 120],
+    "regenerating":{ "name": "Regenerating","text": "Heals quickly when you stop hitting it.", "colour": [60, 230, 90],
                      "regen": 0.06 }
 }

@@ -17,7 +17,8 @@
 // look: how the item shows on the player who has it. A piece worn on the body: { "model", "part" (head, body,
 // arm_l, arm_r, leg_l, leg_r: it moves with it), "at" (where the model's bottom centre goes, in the player
 // model's voxels: x 0..7 from its right arm to its left, y up, z 0..5 back to front), "yaw", "scale" (its
-// voxels in m, 0.0625 by default) }, or a list of them; or a gem circling the player: { "orbit": [r, g, b] }.
+// voxels in m, 0.0625 by default) }, or a list of them; or a gem circling the player: { "orbit": [r, g, b], "icon" }, its
+// colour and its shape: one of the UI's pixel icons (fire, ice, volt, clock, shield, skull, heart, sword... see Game/ui.cpp).
 // The base mod's pieces are made by tools/make_looks.py, which prints where they go.
 {
     "tough":      { "name": "Tough",        "text": "+25 max health",                       "maxHealth": 25,     "price": 10,
@@ -65,12 +66,12 @@
     // `damage` (grown with the waves) to everyone within `radius`, leaving `status`. needs: offered only when
     // something of yours has one of these tags (a fire spell, a flame blade); needsElements: only with at least
     // that many elements among your tags (two make combos).
-    "catalyst":   { "name": "Catalyst",     "comboDamage": 0.4,  "needsElements": 2, "price": 14, "look": { "orbit": [255, 255, 255] } },
-    "kindling":   { "name": "Kindling",     "against": { "burn": 0.3 }, "needs": ["fire"], "price": 12, "look": { "orbit": [255, 72, 24] } },
-    "brittle":    { "name": "Brittle",      "against": { "chill": 0.3, "frozen": 0.3 }, "needs": ["ice"], "price": 12, "look": { "orbit": [120, 200, 255] } },
+    "catalyst":   { "name": "Catalyst",     "comboDamage": 0.4,  "needsElements": 2, "price": 14, "look": { "orbit": [255, 255, 255] , "icon": "multiply" } },
+    "kindling":   { "name": "Kindling",     "against": { "burn": 0.3 }, "needs": ["fire"], "price": 12, "look": { "orbit": [255, 72, 24] , "icon": "fire" } },
+    "brittle":    { "name": "Brittle",      "against": { "chill": 0.3, "frozen": 0.3 }, "needs": ["ice"], "price": 12, "look": { "orbit": [120, 200, 255] , "icon": "ice" } },
     "pyre":       { "name": "Pyre",         "burst": { "if": "burn", "radius": 3, "damage": 14, "status": "burn" }, "needs": ["fire"], "price": 16,
-                    "look": { "orbit": [255, 150, 30] } },
-    "long_fuse":  { "name": "Long fuse",    "statusDuration": 0.5, "needs": ["fire", "ice", "volt"], "price": 10, "look": { "orbit": [200, 150, 255] } },
+                    "look": { "orbit": [255, 150, 30] , "icon": "nova" } },
+    "long_fuse":  { "name": "Long fuse",    "statusDuration": 0.5, "needs": ["fire", "ice", "volt"], "price": 10, "look": { "orbit": [200, 150, 255] , "icon": "extend" } },
 
     // Trade-offs: something big for something lost. A rarity makes only the good side bigger: the downside (a
     // negative number, damageTaken) stays as written. healthScale -0.3: 30% less max health; damageTaken 0.2:
@@ -86,10 +87,10 @@
 
     // More damage in the moment: hurtDamage under half health, airDamage in the air, executeDamage against an enemy
     // under 30% health, revengeDamage for 3 s after you take a hit
-    "last_stand":   { "name": "Last stand",   "hurtDamage": 0.4,    "price": 12, "look": { "orbit": [220, 40, 40] } },
-    "sky_striker":  { "name": "Sky striker",  "airDamage": 0.35,    "price": 12, "look": { "orbit": [200, 240, 255] } },
-    "executioner":  { "name": "Executioner",  "executeDamage": 0.5, "price": 12, "look": { "orbit": [120, 20, 30] } },
-    "grudge":       { "name": "Grudge",       "revengeDamage": 0.4, "price": 12, "look": { "orbit": [255, 150, 60] } },
+    "last_stand":   { "name": "Last stand",   "hurtDamage": 0.4,    "price": 12, "look": { "orbit": [220, 40, 40] , "icon": "shield" } },
+    "sky_striker":  { "name": "Sky striker",  "airDamage": 0.35,    "price": 12, "look": { "orbit": [200, 240, 255] , "icon": "wind" } },
+    "executioner":  { "name": "Executioner",  "executeDamage": 0.5, "price": 12, "look": { "orbit": [120, 20, 30] , "icon": "skull" } },
+    "grudge":       { "name": "Grudge",       "revengeDamage": 0.4, "price": 12, "look": { "orbit": [255, 150, 60] , "icon": "empower" } },
 
     // Triggers. thorns 0.8: 80% of the damage an enemy deals you goes back to it. killHeal: health back for each kill.
     // dodgeGround: ground left where you start a roll ({ "radius", "duration", "perSecond", "element", "status" }).
@@ -98,13 +99,13 @@
     // within `radius` for `damage`. Their damage grows with the waves, as the enemies' health does.
     "thorns":       { "name": "Thorns",       "thorns": 0.8, "price": 12,
                       "look": { "model": "look_thorns", "part": "arm_r", "at": [0, 8.5, 2.5] } },
-    "soul_siphon":  { "name": "Soul siphon",  "killHeal": 2, "price": 12, "look": { "orbit": [160, 90, 230] } },
+    "soul_siphon":  { "name": "Soul siphon",  "killHeal": 2, "price": 12, "look": { "orbit": [160, 90, 230] , "icon": "heart" } },
     "ember_trail":  { "name": "Ember trail",  "price": 14,
                       "dodgeGround": { "radius": 1.6, "duration": 3, "perSecond": 10, "element": "fire", "status": "burn" },
                       "look": [{ "model": "look_anklet", "part": "leg_r", "at": [2, 1, 2.5], "scale": 0.03125 }, { "model": "look_anklet", "part": "leg_l", "at": [5, 1, 2.5], "scale": 0.03125 }] },
     "static_charge":{ "name": "Static charge","price": 16,
                       "proc": { "every": 5, "chains": 2, "damage": 14, "element": "volt", "status": "shock" },
-                      "look": { "orbit": [255, 250, 140] } },
+                      "look": { "orbit": [255, 250, 140] , "icon": "bolt" } },
     "meteor_boots": { "name": "Meteor boots", "price": 12,
                       "landing": { "radius": 3.5, "damage": 30 },
                       "look": [{ "model": "look_heel", "part": "leg_r", "at": [2, 0, 0.5] }, { "model": "look_heel", "part": "leg_l", "at": [5, 0, 0.5] }] },
@@ -116,18 +117,18 @@
     // "support"), its type ("sword") and "projectile" when they shoot (they take damage, area and
     // projectile speed, not more projectiles). A boost: damage, area, cooldown, cost (mana or stamina), duration, speed (projectile
     // speed), count (more projectiles: not scaled by rarity). Offered only when something of yours has the tag.
-    "searing":    { "name": "Searing",      "tag": "fire",       "boost": { "damage": 0.2 },   "price": 12, "look": { "orbit": [255, 106, 61] } },
-    "frostbite":  { "name": "Frostbite",    "tag": "ice",        "boost": { "damage": 0.2 },   "price": 12, "look": { "orbit": [158, 232, 255] } },
-    "overcharge": { "name": "Overcharge",   "tag": "volt",       "boost": { "damage": 0.2 },   "price": 12, "look": { "orbit": [255, 225, 74] } },
-    "split_shot": { "name": "Split shot",   "tag": "projectile", "boost": { "count": 1 },      "most": 3, "price": 17, "tiers": ["Rare"], "look": { "orbit": [232, 232, 240] } },
-    "fleet":      { "name": "Fleet",        "tag": "projectile", "boost": { "speed": 0.25 },   "most": 4, "price": 8, "look": { "orbit": [156, 240, 122] } },
-    "widening":   { "name": "Widening",     "tag": "area",       "boost": { "area": 0.2 },     "price": 12, "look": { "orbit": [255, 160, 74] } },
-    "lingering":  { "name": "Lingering",    "tag": "zone",       "boost": { "duration": 0.3 }, "price": 10, "look": { "orbit": [176, 122, 255] } },
-    "hastened":   { "name": "Hastened",     "tag": "spell",      "boost": { "cooldown": 0.15 },"price": 14, "look": { "orbit": [106, 168, 255] } },
-    "frugal":     { "name": "Frugal",       "tag": "spell",      "boost": { "cost": 0.2 },     "price": 10, "look": { "orbit": [90, 224, 200] } },
-    "honed":      { "name": "Honed",        "tag": "melee",      "boost": { "damage": 0.2 },   "price": 12, "look": { "orbit": [208, 72, 72] } },
-    "whetstone":  { "name": "Whetstone",    "tag": "attack",     "boost": { "damage": 0.15 },  "price": 12, "look": { "orbit": [168, 176, 192] } },
-    "drilled":    { "name": "Drilled",      "tag": "technique",  "boost": { "cooldown": 0.15 },"price": 14, "look": { "orbit": [200, 240, 80] } },
-    "tireless":   { "name": "Tireless",     "tag": "technique",  "boost": { "cost": 0.2 },     "price": 10, "look": { "orbit": [240, 192, 80] } },
-    "blessed":    { "name": "Blessed",      "tag": "heal",       "boost": { "damage": 0.25 },  "price": 12, "look": { "orbit": [255, 184, 224] } }
+    "searing":    { "name": "Searing",      "tag": "fire",       "boost": { "damage": 0.2 },   "price": 12, "look": { "orbit": [255, 106, 61] , "icon": "fire" } },
+    "frostbite":  { "name": "Frostbite",    "tag": "ice",        "boost": { "damage": 0.2 },   "price": 12, "look": { "orbit": [158, 232, 255] , "icon": "ice" } },
+    "overcharge": { "name": "Overcharge",   "tag": "volt",       "boost": { "damage": 0.2 },   "price": 12, "look": { "orbit": [255, 225, 74] , "icon": "volt" } },
+    "split_shot": { "name": "Split shot",   "tag": "projectile", "boost": { "count": 1 },      "most": 3, "price": 17, "tiers": ["Rare"], "look": { "orbit": [232, 232, 240] , "icon": "stacks" } },
+    "fleet":      { "name": "Fleet",        "tag": "projectile", "boost": { "speed": 0.25 },   "most": 4, "price": 8, "look": { "orbit": [156, 240, 122] , "icon": "dash" } },
+    "widening":   { "name": "Widening",     "tag": "area",       "boost": { "area": 0.2 },     "price": 12, "look": { "orbit": [255, 160, 74] , "icon": "enlarge" } },
+    "lingering":  { "name": "Lingering",    "tag": "zone",       "boost": { "duration": 0.3 }, "price": 10, "look": { "orbit": [176, 122, 255] , "icon": "zone" } },
+    "hastened":   { "name": "Hastened",     "tag": "spell",      "boost": { "cooldown": 0.15 },"price": 14, "look": { "orbit": [106, 168, 255] , "icon": "clock" } },
+    "frugal":     { "name": "Frugal",       "tag": "spell",      "boost": { "cost": 0.2 },     "price": 10, "look": { "orbit": [90, 224, 200] , "icon": "drop" } },
+    "honed":      { "name": "Honed",        "tag": "melee",      "boost": { "damage": 0.2 },   "price": 12, "look": { "orbit": [208, 72, 72] , "icon": "sword" } },
+    "whetstone":  { "name": "Whetstone",    "tag": "attack",     "boost": { "damage": 0.15 },  "price": 12, "look": { "orbit": [168, 176, 192] , "icon": "keen" } },
+    "drilled":    { "name": "Drilled",      "tag": "technique",  "boost": { "cooldown": 0.15 },"price": 14, "look": { "orbit": [200, 240, 80] , "icon": "target" } },
+    "tireless":   { "name": "Tireless",     "tag": "technique",  "boost": { "cost": 0.2 },     "price": 10, "look": { "orbit": [240, 192, 80] , "icon": "leap" } },
+    "blessed":    { "name": "Blessed",      "tag": "heal",       "boost": { "damage": 0.25 },  "price": 12, "look": { "orbit": [255, 184, 224] , "icon": "plus" } }
 }

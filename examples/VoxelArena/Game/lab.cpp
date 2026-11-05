@@ -831,6 +831,7 @@ namespace arena
             case ACTION_LOOP: loop = not loop; return true;
             case ACTION_SLOW: command = "slowmo"; return true;
             case ACTION_BOXES: command = "hitboxes"; return true;
+            case ACTION_REACH: command = "reach"; return true;
             case ACTION_VIEW: command = "view"; return true;
             case ACTION_ORBIT: command = "orbit"; return true;
             case ACTION_CLOSE: command = "lab off"; return true;
@@ -993,10 +994,12 @@ namespace arena
                 int action;
                 bool on;
             };
-            const Button buttons[] = {{"Replay", ACTION_REPLAY, false}, {"Loop", ACTION_LOOP, v.loop},     {"Slow", ACTION_SLOW, v.slow},
-                                      {"Boxes", ACTION_BOXES, v.boxes},  {"Orbit", ACTION_ORBIT, v.orbit}, {v.firstPerson ? "1st" : "3rd", ACTION_VIEW, false}};
-            const float gap = 4.0f, bw = (inner - gap * 5.0f) / 6.0f;
-            for (int b = 0; b < 6; ++b)
+            const Button buttons[] = {{"Replay", ACTION_REPLAY, false}, {"Loop", ACTION_LOOP, v.loop},   {"Slow", ACTION_SLOW, v.slow},
+                                      {"Boxes", ACTION_BOXES, v.boxes},  {"Reach", ACTION_REACH, v.reach}, {"Orbit", ACTION_ORBIT, v.orbit},
+                                      {v.firstPerson ? "1st" : "3rd", ACTION_VIEW, false}};
+            constexpr int COUNT = 7;
+            const float gap = 4.0f, bw = (inner - gap * (COUNT - 1)) / COUNT;
+            for (int b = 0; b < COUNT; ++b)
             {
                 const auto s = ui.scope(static_cast<uint64_t>(b));
                 const float bx = x0 + static_cast<float>(b) * (bw + gap);

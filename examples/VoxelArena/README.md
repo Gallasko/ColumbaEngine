@@ -83,7 +83,7 @@ and enemies that come back), **O** for the options.
 - **Elites**: from wave 7 some come as elites: tougher, harder hitting, three times the shards, and now
   and then (35%, three a wave at most) a **present**: a gold box with a red ribbon. Each one picked up is
   a free shop item, picked among three after the level ups. An elite comes with an **affix**
-  (`affixes.json`), two from wave 15 (`run.json` `eliteAffixes`). It glows the first one's colour and
+  (`affixes.json`), two from wave 15 (`run.json` `eliteAffixes`). It glows its affix's colour (two: from one to the other) and
   their names show over its bar:
   - *Blazing*: leaves fire behind it as it walks, and its hits burn;
   - *Frosty*: its hits slow you (frost: 30% slower, it never freezes you solid), and it bursts into frost as it dies;
@@ -118,7 +118,9 @@ and enemies that come back), **O** for the options.
     you take one, for good. Firebolt's Inferno makes its burning patch burst as it ends, Twin bolts
     shoots one more bolt; the Whirlwind's Firestorm sets enemies on fire, Cyclone spins far wider; the
     sword's Flame blade sets enemies on fire, Cleave swings far wider...
-    A branch adds keywords (a spell), an element and a status (a technique, a weapon), tags and a boost;
+    A branch adds keywords (a spell), an element and a status (a technique, a weapon), tags and a boost.
+    It shows: a weapon whose branch gives it an element glows it and sheds it from the blade
+    (`effects.json` `weapon:fire`...), and a slash's trail takes the attack's element and grows with its area;
   - every level past those is **mastery**: +10% damage and a 3% faster recharge each (`mastery`).
 
   Each card shows what changes, before -> after (green better, red worse). The XP to the next level
@@ -192,9 +194,13 @@ and enemies that come back), **O** for the options.
 
   **Items show on you**: each one you have is worn (shoulder pads for Tough, a breastplate for Plated,
   horns for Horde, a coin pouch for Greed, wings at the heels for Nimble...), and each tag item is a gem
-  in its colour circling you. The rarer, the more it glows. The others see yours. They are data: an
-  item's `look` in `upgrades.json` (a model on a body part, or `"orbit"`: a gem's colour); the base
-  mod's pieces come from `tools/make_looks.py`. Console: `item <id|all> [rarity]` gives you items.
+  circling you, in its colour and the shape of what it is about (a flame for Searing, a clock for
+  Hastened, a skull for Executioner), in rings of eight that turn either way. The rarer, the more it
+  glows: Rare a blue glow, Epic a purple pulse and sparkles, Legendary a gold pulse and more sparkles
+  (`effects.json` `rarity:rare`, `rarity:epic`, `rarity:legendary`). The others see yours. They are
+  data: an item's `look` in `upgrades.json` (a model on a body part, or `"orbit"`: a gem's colour, with
+  `"icon"`: one of the UI's pixel icons); the base mod's pieces come from `tools/make_looks.py`.
+  Console: `item <id|all> [rarity]` gives you items.
 - **Bosses**: the **Brute Chieftain** on wave 10 (a brute twice the size: a slam, a stomp all around
   when crowded, a rush when you keep away) and the **Stone Warden** on wave 20 (a slam, a sweep all
   around, a long charge, a thrown rock; volt cracks it, fire barely warms it). A boss wave lasts until
@@ -220,6 +226,8 @@ and enemies that come back), **O** for the options.
 - **Your damage**: the end screen's panel on the right lists what your damage came from, the most first:
   your weapon, each spell and technique, element combos, burns, item triggers, the sapper blasts you set
   off... with each one's share. Alone and in co-op.
+- **The damage meter**: a training dummy shows under its bar what it took and how much a second, for a few
+  seconds after the last hit (the training ground and the lab).
 - **Damage numbers**: your hits' damage rises off what you hit (bigger for a kill, gold for a crit; a
   quick run of hits on one enemy adds up into one number). Options: Damage numbers.
 - **The recap**: with two players or more, the end screen has a row for each player: their level,
@@ -743,6 +751,7 @@ Open with `` ` ``. `help` lists the commands.
 | `clear`, `reset` | Remove the enemies; restart the arena |
 | `weapon <id>`, `weapons` | Wield a weapon; list them |
 | `view [first|third]` | Switch the camera |
+| `reach [on\|off]` | Reach rings: how far each attack reaches, round whoever attacks |
 | `god`, `ai`, `hitboxes` `[on\|off]`, `overlay` | Toggles (or set) |
 | `item <id\|all> [rarity]`, `unitems` | Give yourself a shop item (rarity 0-3); take every item back |
 | `grow <weapon\|technique> <level> [branch]` | Its levels and branch, as a run's level ups give them (branch 0 is the first, -1 none). They count in a run and in the lab |
@@ -798,8 +807,9 @@ numbers and the attack warnings stay.
 
 Keys: Up/Down pick, Left/Right the level (or the rarity), B the next branch, Page Up/Page Down the
 tab, Enter plays it again, L loops it. A left drag over the arena turns the camera, the wheel zooms.
-The buttons at the bottom: Replay, Loop, Slow (a quarter speed), Boxes (the hitboxes), Orbit, and
-the view (third or first person).
+The buttons at the bottom: Replay, Loop, Slow (a quarter speed), Boxes (the hitboxes), Reach (each
+attack's furthest reach, a ring on the ground: faint while it winds up, full while it can hit, in its
+element's colour), Orbit, and the view (third or first person).
 
 The camera stays yours: once you drag or zoom it, the next picks in that tab leave it where it is
 (another tab places it again), and a drag turns Orbit off. Orbit, turned off or on, stays so from one

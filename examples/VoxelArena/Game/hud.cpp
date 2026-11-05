@@ -608,6 +608,9 @@ namespace arena
             if (pw > 0.0f)
                 ui.rect(x, top + 9, pw, 2, POISE);
 
+            if (not e.meter.empty())
+                ui.textShadow(cx, top + 15, e.meter, Font::Text700, 11, GOLD, 2.0f, Align::Centre);
+
             // An elite's affixes over its bar (staggered: that over them)
             if (e.staggered)
                 ui.textShadow(cx, top - (e.affixes.empty() ? 20.0f : 37.0f), "STAGGERED", Font::Display, 16, POISE, 2.0f, Align::Centre, 1.0f);

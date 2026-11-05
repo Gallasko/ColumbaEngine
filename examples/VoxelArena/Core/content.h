@@ -690,6 +690,7 @@ namespace arena
 
         bool orbit = false;           // a gem circling the player, in this colour (0-1)
         glm::vec3 colour = glm::vec3(1.0f);
+        std::string icon;             // ... shaped as this UI icon ("fire", "clock"), "" a plain gem
 
         bool empty() const { return pieces.empty() and not orbit; }
     };

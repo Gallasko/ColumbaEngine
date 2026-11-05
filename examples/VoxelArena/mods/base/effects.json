@@ -97,6 +97,17 @@
     "base:shock":  { "tint": [255, 245, 120], "every": 0.06, "particles": { "count": 2, "speed": 3, "up": 0.3, "size": 0.05, "life": 0.12, "gravity": 0, "color": [255, 250, 180] } },
 
     // A weapon imbued by a spell: the player glows the element's colour
+    // A weapon whose branch gives it an element ("weapon:" + the element): it glows tint, and the particles leave its
+    // blade every `every` seconds
+    "weapon:fire": { "tint": [255, 110, 30],  "every": 0.07, "particles": { "count": 1, "speed": 0.5, "up": 1.0, "size": 0.06, "life": 0.45, "gravity": -3, "color": [255, 140, 40], "glow": 1 } },
+    "weapon:ice":  { "tint": [150, 215, 255], "every": 0.12, "particles": { "count": 1, "speed": 0.3, "up": 0.3, "size": 0.05, "life": 0.6, "gravity": 1.5, "color": [220, 242, 255], "glow": 0.6 } },
+    "weapon:volt": { "tint": [255, 240, 120], "every": 0.06, "particles": { "count": 1, "speed": 2.2, "up": 0.3, "size": 0.04, "life": 0.12, "gravity": 0, "color": [255, 250, 180], "glow": 1 } },
+
+    // An item's rarity, on the pieces worn and the gems: tint is its glow, and Epic and Legendary shed sparkles
+    "rarity:rare":      { "tint": [115, 180, 255] },
+    "rarity:epic":      { "tint": [190, 115, 255], "every": 0.7, "particles": { "count": 1, "speed": 0.3, "up": 1.0, "size": 0.04, "life": 0.7, "gravity": -0.6, "color": [215, 170, 255], "glow": 1 } },
+    "rarity:legendary": { "tint": [255, 205, 80],  "every": 0.22, "particles": { "count": 1, "speed": 0.4, "up": 1.0, "size": 0.05, "life": 0.8, "gravity": -0.8, "color": [255, 225, 130], "glow": 1 } },
+
     "base:flame_weapon": { "every": 0.1,  "particles": { "count": 1, "speed": 0.6, "up": 1.0, "size": 0.07, "life": 0.4, "gravity": -3, "color": [255, 140, 40] } },
     "base:frost_weapon": { "every": 0.15, "particles": { "count": 1, "speed": 0.4, "up": 0.5, "size": 0.06, "life": 0.5, "gravity": 1,  "color": [200, 235, 255] } },
     "base:storm_weapon": { "every": 0.08, "particles": { "count": 1, "speed": 2.5, "up": 0.3, "size": 0.04, "life": 0.12, "gravity": 0, "color": [255, 250, 180] } },

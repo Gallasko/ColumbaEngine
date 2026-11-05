@@ -42,7 +42,7 @@ namespace arena
         static constexpr int ACTION_LEVEL = 3400;    // + the level (0-based)
         static constexpr int ACTION_BRANCH = 3500;   // + 1 + the branch (-1: none)
         static constexpr int ACTION_REPLAY = 3600, ACTION_LOOP = 3601, ACTION_SLOW = 3602, ACTION_BOXES = 3603, ACTION_VIEW = 3604, ACTION_ORBIT = 3605,
-                             ACTION_CLOSE = 3606, ACTION_STAGE = 3607;
+                             ACTION_CLOSE = 3606, ACTION_STAGE = 3607, ACTION_REACH = 3608;
         static bool owns(int action) { return action >= ACTION_KIND and action < ACTION_KIND + 1000; }
 
         Lab();
@@ -77,7 +77,7 @@ namespace arena
 
         struct View
         {
-            bool loop = false, slow = false, boxes = false, firstPerson = false, orbit = false;
+            bool loop = false, slow = false, boxes = false, reach = false, firstPerson = false, orbit = false;
             bool busy = false;          // the scene is still playing
             std::string caption;        // what the scene is showing now (the script's caption)
         };

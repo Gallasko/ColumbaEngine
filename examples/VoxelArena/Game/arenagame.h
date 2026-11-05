@@ -9,6 +9,7 @@
 #include <random>
 #include <set>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "ECS/system.h"
@@ -371,6 +372,37 @@ namespace arena
         const EffectDef* statusLook(const Fighter& f) const;
         bool heldStill(const Fighter& f) const;   // a status that stops the body (frozen solid)
         std::map<std::pair<int, std::string>, float> statusTimers;
+
+        // Points the frame drew that shed particles (a weapon's blade with its branch's element, a Legendary item):
+        // gathered by buildRenderCalls, thrown by stepLooks with the effect named, each with its own timer
+        struct LookPoint
+        {
+            int fighter = 0;
+            std::string effect;          // effects.json ("weapon:fire", "rarity:legendary")
+            int slot = 0;                // which point of that fighter's (a timer each)
+            glm::vec3 at = glm::vec3(0.0f);
+        };
+        std::vector<LookPoint> lookPoints;
+        std::map<std::tuple<int, std::string, int>, float> lookTimers;
+        /** An effect's tint (its glow), or none. */
+        const glm::vec3* effectTint(const std::string& effect) const;
+
+        // The gems' shapes: a UI icon made a voxel badge (LookDef::icon), a mesh each, kept like the models
+        std::map<std::string, std::shared_ptr<GpuMesh>> iconMeshes;
+        std::shared_ptr<GpuMesh> iconMesh(const std::string& icon);
+
+        // The dummies' damage meter: what they took since the first hit of the latest burst of hits
+        struct DamageMeter
+        {
+            float total = 0.0f;
+            float first = 0.0f, last = -100.0f;   // simTime of its first and latest damage
+            float health = -1.0f;                 // the health it had at the step before
+        };
+        std::map<int, DamageMeter> meters;
+        void stepMeters();
+
+        // Reach rings (reach): each attack's furthest reach on the ground round the fighter, while it winds up and strikes
+        bool showReach = false;
         struct BurningLook
         {
             glm::ivec3 cell;
