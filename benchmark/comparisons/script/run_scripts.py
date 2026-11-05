@@ -18,8 +18,8 @@ Pluggable per-language: each entry in LANGUAGES describes its file extension,
 the command vector, and the count-passing convention.
 
 Usage:
-    python3 run_scripts.py [--languages=pgscript,python] [--scenarios=...]
-                           [--counts=...] [--runs=5] [--warmup=1]
+    python3 run_scripts.py [--languages=pgscript,python] [--suite=micro,wren,clox]
+                           [--scenarios=...] [--counts=...] [--runs=5] [--warmup=1]
                            [--output=results.csv] [--append]
 """
 
@@ -96,10 +96,28 @@ LANGUAGES = {
     # "gdscript": {"ext": "gd", "cmd": lambda s, n: ["godot", "--headless", "--script", s, "--", str(n)], "opt_level": "default"},
 }
 
-SCENARIOS = [
-    "compute_pi", "fib_recursive", "hot_loop",
-    "binary_tree", "matmul", "table_lookup",
-]
+# A scenario is a path under scripts/ without the extension. `micro` is our
+# own set; `wren` and `clox` are ports of Wren's test/benchmark and Crafting
+# Interpreters' test/benchmark, each run at the size its suite uses (count is
+# the suite's size knob, see each script's header).
+SUITES = {
+    "micro": [
+        "compute_pi", "fib_recursive", "hot_loop",
+        "binary_tree", "matmul", "table_lookup",
+    ],
+    "wren": [
+        "wren/binary_trees", "wren/delta_blue", "wren/fib", "wren/for",
+        "wren/method_call", "wren/map_numeric", "wren/map_string",
+        "wren/string_equals", "wren/fannkuch",
+    ],
+    "clox": [
+        "clox/binary_trees", "clox/equality", "clox/fib",
+        "clox/instantiation", "clox/invocation", "clox/method_call",
+        "clox/properties", "clox/string_equality", "clox/trees",
+        "clox/zoo", "clox/zoo_batch",
+    ],
+}
+SCENARIOS = [s for suite in SUITES.values() for s in suite]
 DEFAULT_COUNTS = {
     "compute_pi":    [10_000, 100_000, 1_000_000],
     "fib_recursive": [20, 25, 28],          # exponential; fib(28) ~ 800k calls
@@ -107,6 +125,28 @@ DEFAULT_COUNTS = {
     "binary_tree":   [10, 14, 16],          # depth; nodes = 2^(d+1)-1
     "matmul":        [16, 32, 64],          # matrix size n; work = n^3
     "table_lookup":  [10_000, 100_000, 1_000_000],
+
+    "wren/binary_trees":   [12],            # max depth
+    "wren/delta_blue":     [40],            # chain + projection test rounds
+    "wren/fib":            [28],            # n, run five times
+    "wren/for":            [1_000_000],     # list length
+    "wren/method_call":    [100_000],       # passes of ten calls
+    "wren/map_numeric":    [2_000_000],     # keys
+    "wren/map_string":     [1],             # rounds over ~160k keys
+    "wren/string_equals":  [1_000_000],     # passes of ten comparisons
+    "wren/fannkuch":       [9],             # permutation length
+
+    "clox/binary_trees":    [14],           # max depth
+    "clox/equality":        [10_000_000],   # passes; prints compare-minus-loop ns
+    "clox/fib":             [35],
+    "clox/instantiation":   [500_000],      # passes of 30
+    "clox/invocation":      [500_000],      # passes of 30
+    "clox/method_call":     [100_000],      # passes of ten calls
+    "clox/properties":      [500_000],      # passes of 30
+    "clox/string_equality": [100_000],      # passes; prints compare-minus-loop ns
+    "clox/trees":           [100],          # walks of a depth-8 five-way tree
+    "clox/zoo":             [10_000_000],   # sum to reach
+    "clox/zoo_batch":       [200],          # batches of 10000 passes
 }
 
 # ----------------------------------------------------------------------
@@ -188,8 +228,10 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--languages", default=",".join(LANGUAGES.keys()),
                    help="comma-separated language IDs (default: all)")
-    p.add_argument("--scenarios", default=",".join(SCENARIOS),
-                   help="comma-separated scenario names (default: all)")
+    p.add_argument("--suite", default="micro",
+                   help="comma-separated suites: " + ", ".join(SUITES) + " (default: micro)")
+    p.add_argument("--scenarios", default="",
+                   help="comma-separated scenario names (overrides --suite)")
     p.add_argument("--counts", default="",
                    help="override count list (comma-separated). default: per-scenario defaults")
     p.add_argument("--runs", type=int, default=5)
@@ -201,7 +243,12 @@ def main():
     args = p.parse_args()
 
     languages = parse_csv_list(args.languages)
-    scenarios = parse_csv_list(args.scenarios)
+    suites = parse_csv_list(args.suite)
+    for s in suites:
+        if s not in SUITES:
+            print(f"unknown suite: {s}", file=sys.stderr)
+            return 1
+    scenarios = parse_csv_list(args.scenarios) or [s for suite in suites for s in SUITES[suite]]
     counts_override = [int(c) for c in parse_csv_list(args.counts)] if args.counts else None
 
     for lang in languages:
@@ -259,7 +306,7 @@ def main():
                         rows_per_lang[lang] += 1
                         out.flush()
 
-                    print(f"  {lang:<10} {scen:<14} n={n:<10} done", file=sys.stderr)
+                    print(f"  {lang:<10} {scen:<22} n={n:<10} done", file=sys.stderr)
     finally:
         if out is not sys.stdout:
             out.close()

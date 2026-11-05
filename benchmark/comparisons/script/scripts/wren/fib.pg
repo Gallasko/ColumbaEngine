@@ -1,0 +1,22 @@
+// wren/fib.pg -- Wren's test/benchmark/fib: naive recursive Fibonacci, run
+// five times. `count` is n (Wren: 28). Prints fib(n) five times, then the
+// elapsed ns.
+
+fun fib(n)
+{
+    if (n < 2)
+        return n;
+    return fib(n - 1) + fib(n - 2);
+}
+
+fun main(n)
+{
+    for (var i = 0; i < 5; i++)
+        print(fib(n));
+}
+
+var t0 = now();
+main(count);
+var elapsed = now() - t0;
+
+print(elapsed);

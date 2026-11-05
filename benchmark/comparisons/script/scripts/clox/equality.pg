@@ -1,0 +1,44 @@
+// clox/equality.pg -- Crafting Interpreters' test/benchmark/equality.lox:
+// == between ints, none, bools and strings, 19 a pass, each value thrown
+// away. A first loop pushes and drops the same operands without comparing;
+// the result is the second loop's time minus the first's. `count` is the
+// number of passes (clox: 10000000). Prints the passes, then the equality
+// ns. The operands are constants: an optimizer may drop or hoist them
+// (compare with --no-opt).
+
+fun main(n)
+{
+    var i = 0;
+
+    var loopStart = now();
+    while (i < n)
+    {
+        i = i + 1;
+
+        1; 1; 1; 2; 1; none; 1; "str"; 1; true;
+        none; none; none; 1; none; "str"; none; true;
+        true; true; true; 1; true; false; true; "str"; true; none;
+        "str"; "str"; "str"; "stru"; "str"; 1; "str"; none; "str"; true;
+    }
+    var loopTime = now() - loopStart;
+
+    var start = now();
+    i = 0;
+    while (i < n)
+    {
+        i = i + 1;
+
+        1 == 1; 1 == 2; 1 == none; 1 == "str"; 1 == true;
+        none == none; none == 1; none == "str"; none == true;
+        true == true; true == 1; true == false; true == "str"; true == none;
+        "str" == "str"; "str" == "stru"; "str" == 1; "str" == none; "str" == true;
+    }
+    var elapsed = now() - start;
+
+    print(i);
+    return elapsed - loopTime;
+}
+
+var equals = main(count);
+
+print(equals);

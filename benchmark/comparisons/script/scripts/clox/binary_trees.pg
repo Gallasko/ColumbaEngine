@@ -1,0 +1,77 @@
+// clox/binary_trees.pg -- Crafting Interpreters' test/benchmark/
+// binary_trees.lox: the Wren binary_trees with a Tree class that also stores
+// its depth and sets both children to nil at a leaf. `count` is maxDepth
+// (clox: 14). Prints each check value on its own line, then the elapsed ns.
+
+class Tree
+{
+    init(item, depth)
+    {
+        this.item = item;
+        this.depth = depth;
+        if (depth > 0)
+        {
+            var item2 = item + item;
+            depth = depth - 1;
+            this.left = Tree(item2 - 1, depth);
+            this.right = Tree(item2, depth);
+        }
+        else
+        {
+            this.left = none;
+            this.right = none;
+        }
+    }
+
+    check()
+    {
+        if (this.left == none)
+            return this.item;
+        return this.item + this.left.check() - this.right.check();
+    }
+}
+
+fun main(maxDepth)
+{
+    var minDepth = 4;
+    var stretchDepth = maxDepth + 1;
+
+    var stretch = Tree(0, stretchDepth);
+    print(stretch.check());
+
+    var longLivedTree = Tree(0, maxDepth);
+
+    var iterations = 1;
+    var d = 0;
+    while (d < maxDepth)
+    {
+        iterations = iterations * 2;
+        d = d + 1;
+    }
+
+    var depth = minDepth;
+    while (depth < stretchDepth)
+    {
+        var check = 0;
+        var i = 1;
+        while (i <= iterations)
+        {
+            var a = Tree(i, depth);
+            var b = Tree(-i, depth);
+            check = check + a.check() + b.check();
+            i = i + 1;
+        }
+
+        print(check);
+        iterations = iterations / 4;
+        depth = depth + 2;
+    }
+
+    print(longLivedTree.check());
+}
+
+var t0 = now();
+main(count);
+var elapsed = now() - t0;
+
+print(elapsed);

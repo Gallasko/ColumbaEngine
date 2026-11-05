@@ -1,0 +1,71 @@
+// wren/binary_trees.pg -- Wren's test/benchmark/binary_trees (ported there
+// from the Benchmarks Game Python version). Object creation and GC: a stretch
+// tree, a long-lived tree, then many short-lived trees. `count` is maxDepth
+// (Wren: 12). The driver lives in a function so its variables are locals.
+// Prints each check value on its own line, then the elapsed ns.
+
+class Tree
+{
+    init(item, depth)
+    {
+        this.item = item;
+        if (depth > 0)
+        {
+            var item2 = item + item;
+            depth = depth - 1;
+            this.left = Tree(item2 - 1, depth);
+            this.right = Tree(item2, depth);
+        }
+        else
+        {
+            this.left = none;
+            this.right = none;
+        }
+    }
+
+    check()
+    {
+        if (this.left == none)
+            return this.item;
+        return this.item + this.left.check() - this.right.check();
+    }
+}
+
+fun main(maxDepth)
+{
+    var minDepth = 4;
+    var stretchDepth = maxDepth + 1;
+
+    var stretch = Tree(0, stretchDepth);
+    print(stretch.check());
+
+    var longLivedTree = Tree(0, maxDepth);
+
+    var iterations = 1;
+    for (var d = 0; d < maxDepth; d++)
+        iterations = iterations * 2;
+
+    var depth = minDepth;
+    while (depth < stretchDepth)
+    {
+        var check = 0;
+        for (var i = 1; i <= iterations; i++)
+        {
+            var a = Tree(i, depth);
+            var b = Tree(-i, depth);
+            check = check + a.check() + b.check();
+        }
+
+        print(check);
+        iterations = iterations / 4;
+        depth = depth + 2;
+    }
+
+    print(longLivedTree.check());
+}
+
+var t0 = now();
+main(count);
+var elapsed = now() - t0;
+
+print(elapsed);

@@ -1,0 +1,68 @@
+// clox/zoo.pg -- Crafting Interpreters' test/benchmark/zoo.lox: six method
+// calls a pass, each returning a field, until their sum reaches `count`
+// (clox: 10000000). Prints the sum, then the elapsed ns.
+
+class Zoo
+{
+    init()
+    {
+        this.aarvark = 1;
+        this.baboon = 1;
+        this.cat = 1;
+        this.donkey = 1;
+        this.elephant = 1;
+        this.fox = 1;
+    }
+
+    ant()
+    {
+        return this.aarvark;
+    }
+
+    banana()
+    {
+        return this.baboon;
+    }
+
+    tuna()
+    {
+        return this.cat;
+    }
+
+    hay()
+    {
+        return this.donkey;
+    }
+
+    grass()
+    {
+        return this.elephant;
+    }
+
+    mouse()
+    {
+        return this.fox;
+    }
+}
+
+fun main(n)
+{
+    var zoo = Zoo();
+    var sum = 0;
+    while (sum < n)
+    {
+        sum = sum + zoo.ant() +
+                    zoo.banana() +
+                    zoo.tuna() +
+                    zoo.hay() +
+                    zoo.grass() +
+                    zoo.mouse();
+    }
+    print(sum);
+}
+
+var t0 = now();
+main(count);
+var elapsed = now() - t0;
+
+print(elapsed);

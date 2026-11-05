@@ -1,0 +1,105 @@
+// wren/fannkuch.pg -- fannkuch from Wren's test/benchmark (Benchmarks Game
+// fannkuch-redux; Wren has Lua, Python and Ruby versions only). Ported from
+// Mike Pall's Lua program: the lists are 1-based like his (slot 0 unused)
+// and the parallel assignments become temporaries. `count` is n (Wren: 9).
+// Prints the checksum and the maximum flips, then the elapsed ns.
+
+fun fannkuch(n)
+{
+    var p = [];
+    var q = [];
+    var s = [];
+    for (var i = 0; i <= n; i++)
+    {
+        p.push(i);
+        q.push(i);
+        s.push(i);
+    }
+    var sign = 1;
+    var maxflips = 0;
+    var sum = 0;
+
+    while (true)
+    {
+        // Copy and flip.
+        var q1 = p[1];
+        if (q1 != 1)
+        {
+            for (var i = 2; i <= n; i++)
+                q[i] = p[i];
+            var flips = 1;
+            while (true)
+            {
+                var qq = q[q1];
+                if (qq == 1)
+                {
+                    sum = sum + sign * flips;
+                    if (flips > maxflips)
+                        maxflips = flips;
+                    break;
+                }
+                q[q1] = q1;
+                if (q1 >= 4)
+                {
+                    var i = 2;
+                    var j = q1 - 1;
+                    while (true)
+                    {
+                        var t = q[i];
+                        q[i] = q[j];
+                        q[j] = t;
+                        i = i + 1;
+                        j = j - 1;
+                        if (i >= j)
+                            break;
+                    }
+                }
+                q1 = qq;
+                flips = flips + 1;
+            }
+        }
+
+        // Permute.
+        if (sign == 1)
+        {
+            var t = p[2];
+            p[2] = p[1];
+            p[1] = t;
+            sign = -1;
+        }
+        else
+        {
+            var t = p[2];
+            p[2] = p[3];
+            p[3] = t;
+            sign = 1;
+            for (var i = 3; i <= n; i++)
+            {
+                var sx = s[i];
+                if (sx != 1)
+                {
+                    s[i] = sx - 1;
+                    break;
+                }
+                if (i == n)
+                {
+                    print(sum);
+                    print(maxflips);
+                    return maxflips;
+                }
+                s[i] = i;
+                // Rotate 1<-...<-i+1.
+                var t1 = p[1];
+                for (var j = 1; j <= i; j++)
+                    p[j] = p[j + 1];
+                p[i + 1] = t1;
+            }
+        }
+    }
+}
+
+var t0 = now();
+fannkuch(count);
+var elapsed = now() - t0;
+
+print(elapsed);

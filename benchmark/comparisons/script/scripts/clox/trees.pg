@@ -1,0 +1,52 @@
+// clox/trees.pg -- Crafting Interpreters' test/benchmark/trees.lox: build a
+// five-way tree of depth 8 once, then walk it `count` times (clox: 100),
+// field reads and method calls. Prints the last walk's sum (122068), then
+// the elapsed ns. The tree is built before the timer, as in clox.
+
+class Tree
+{
+    init(depth)
+    {
+        this.depth = depth;
+        if (depth > 0)
+        {
+            this.a = Tree(depth - 1);
+            this.b = Tree(depth - 1);
+            this.c = Tree(depth - 1);
+            this.d = Tree(depth - 1);
+            this.e = Tree(depth - 1);
+        }
+    }
+
+    walk()
+    {
+        if (this.depth == 0)
+            return 0;
+        return this.depth +
+              this.a.walk() +
+              this.b.walk() +
+              this.c.walk() +
+              this.d.walk() +
+              this.e.walk();
+    }
+}
+
+fun main(tree, n)
+{
+    var last = 0;
+    for (var i = 0; i < n; i++)
+    {
+        last = tree.walk();
+        if (last != 122068)
+            print("Error");
+    }
+    print(last);
+}
+
+var tree = Tree(8);
+
+var t0 = now();
+main(tree, count);
+var elapsed = now() - t0;
+
+print(elapsed);

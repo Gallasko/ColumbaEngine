@@ -1,0 +1,224 @@
+// clox/string_equality.pg -- Crafting Interpreters' test/benchmark/
+// string_equality.lox: == between eight 64-character strings that differ only
+// in the last character, 640 a pass, each result thrown away. A first loop
+// reads the same operands without comparing; the result is the second loop's
+// time minus the first's. `count` is the number of passes (clox: 100000).
+// The strings are locals here (globals in clox). Prints the passes, then the
+// equality ns. The values never change: an optimizer may drop or hoist the
+// comparisons (compare with --no-opt).
+
+fun main(n)
+{
+    var a1 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1";
+    var a2 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2";
+    var a3 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa3";
+    var a4 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa4";
+    var a5 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa5";
+    var a6 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa6";
+    var a7 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa7";
+    var a8 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa8";
+
+    var i = 0;
+
+    var loopStart = now();
+    while (i < n)
+    {
+        i = i + 1;
+
+        a1; a1; a1; a2; a1; a3; a1; a4; a1; a5; a1; a6; a1; a7; a1; a8;
+        a2; a1; a2; a2; a2; a3; a2; a4; a2; a5; a2; a6; a2; a7; a2; a8;
+        a3; a1; a3; a2; a3; a3; a3; a4; a3; a5; a3; a6; a3; a7; a3; a8;
+        a4; a1; a4; a2; a4; a3; a4; a4; a4; a5; a4; a6; a4; a7; a4; a8;
+        a5; a1; a5; a2; a5; a3; a5; a4; a5; a5; a5; a6; a5; a7; a5; a8;
+        a6; a1; a6; a2; a6; a3; a6; a4; a6; a5; a6; a6; a6; a7; a6; a8;
+        a7; a1; a7; a2; a7; a3; a7; a4; a7; a5; a7; a6; a7; a7; a7; a8;
+        a8; a1; a8; a2; a8; a3; a8; a4; a8; a5; a8; a6; a8; a7; a8; a8;
+
+        a1; a1; a1; a2; a1; a3; a1; a4; a1; a5; a1; a6; a1; a7; a1; a8;
+        a2; a1; a2; a2; a2; a3; a2; a4; a2; a5; a2; a6; a2; a7; a2; a8;
+        a3; a1; a3; a2; a3; a3; a3; a4; a3; a5; a3; a6; a3; a7; a3; a8;
+        a4; a1; a4; a2; a4; a3; a4; a4; a4; a5; a4; a6; a4; a7; a4; a8;
+        a5; a1; a5; a2; a5; a3; a5; a4; a5; a5; a5; a6; a5; a7; a5; a8;
+        a6; a1; a6; a2; a6; a3; a6; a4; a6; a5; a6; a6; a6; a7; a6; a8;
+        a7; a1; a7; a2; a7; a3; a7; a4; a7; a5; a7; a6; a7; a7; a7; a8;
+        a8; a1; a8; a2; a8; a3; a8; a4; a8; a5; a8; a6; a8; a7; a8; a8;
+
+        a1; a1; a1; a2; a1; a3; a1; a4; a1; a5; a1; a6; a1; a7; a1; a8;
+        a2; a1; a2; a2; a2; a3; a2; a4; a2; a5; a2; a6; a2; a7; a2; a8;
+        a3; a1; a3; a2; a3; a3; a3; a4; a3; a5; a3; a6; a3; a7; a3; a8;
+        a4; a1; a4; a2; a4; a3; a4; a4; a4; a5; a4; a6; a4; a7; a4; a8;
+        a5; a1; a5; a2; a5; a3; a5; a4; a5; a5; a5; a6; a5; a7; a5; a8;
+        a6; a1; a6; a2; a6; a3; a6; a4; a6; a5; a6; a6; a6; a7; a6; a8;
+        a7; a1; a7; a2; a7; a3; a7; a4; a7; a5; a7; a6; a7; a7; a7; a8;
+        a8; a1; a8; a2; a8; a3; a8; a4; a8; a5; a8; a6; a8; a7; a8; a8;
+
+        a1; a1; a1; a2; a1; a3; a1; a4; a1; a5; a1; a6; a1; a7; a1; a8;
+        a2; a1; a2; a2; a2; a3; a2; a4; a2; a5; a2; a6; a2; a7; a2; a8;
+        a3; a1; a3; a2; a3; a3; a3; a4; a3; a5; a3; a6; a3; a7; a3; a8;
+        a4; a1; a4; a2; a4; a3; a4; a4; a4; a5; a4; a6; a4; a7; a4; a8;
+        a5; a1; a5; a2; a5; a3; a5; a4; a5; a5; a5; a6; a5; a7; a5; a8;
+        a6; a1; a6; a2; a6; a3; a6; a4; a6; a5; a6; a6; a6; a7; a6; a8;
+        a7; a1; a7; a2; a7; a3; a7; a4; a7; a5; a7; a6; a7; a7; a7; a8;
+        a8; a1; a8; a2; a8; a3; a8; a4; a8; a5; a8; a6; a8; a7; a8; a8;
+
+        a1; a1; a1; a2; a1; a3; a1; a4; a1; a5; a1; a6; a1; a7; a1; a8;
+        a2; a1; a2; a2; a2; a3; a2; a4; a2; a5; a2; a6; a2; a7; a2; a8;
+        a3; a1; a3; a2; a3; a3; a3; a4; a3; a5; a3; a6; a3; a7; a3; a8;
+        a4; a1; a4; a2; a4; a3; a4; a4; a4; a5; a4; a6; a4; a7; a4; a8;
+        a5; a1; a5; a2; a5; a3; a5; a4; a5; a5; a5; a6; a5; a7; a5; a8;
+        a6; a1; a6; a2; a6; a3; a6; a4; a6; a5; a6; a6; a6; a7; a6; a8;
+        a7; a1; a7; a2; a7; a3; a7; a4; a7; a5; a7; a6; a7; a7; a7; a8;
+        a8; a1; a8; a2; a8; a3; a8; a4; a8; a5; a8; a6; a8; a7; a8; a8;
+
+        a1; a1; a1; a2; a1; a3; a1; a4; a1; a5; a1; a6; a1; a7; a1; a8;
+        a2; a1; a2; a2; a2; a3; a2; a4; a2; a5; a2; a6; a2; a7; a2; a8;
+        a3; a1; a3; a2; a3; a3; a3; a4; a3; a5; a3; a6; a3; a7; a3; a8;
+        a4; a1; a4; a2; a4; a3; a4; a4; a4; a5; a4; a6; a4; a7; a4; a8;
+        a5; a1; a5; a2; a5; a3; a5; a4; a5; a5; a5; a6; a5; a7; a5; a8;
+        a6; a1; a6; a2; a6; a3; a6; a4; a6; a5; a6; a6; a6; a7; a6; a8;
+        a7; a1; a7; a2; a7; a3; a7; a4; a7; a5; a7; a6; a7; a7; a7; a8;
+        a8; a1; a8; a2; a8; a3; a8; a4; a8; a5; a8; a6; a8; a7; a8; a8;
+
+        a1; a1; a1; a2; a1; a3; a1; a4; a1; a5; a1; a6; a1; a7; a1; a8;
+        a2; a1; a2; a2; a2; a3; a2; a4; a2; a5; a2; a6; a2; a7; a2; a8;
+        a3; a1; a3; a2; a3; a3; a3; a4; a3; a5; a3; a6; a3; a7; a3; a8;
+        a4; a1; a4; a2; a4; a3; a4; a4; a4; a5; a4; a6; a4; a7; a4; a8;
+        a5; a1; a5; a2; a5; a3; a5; a4; a5; a5; a5; a6; a5; a7; a5; a8;
+        a6; a1; a6; a2; a6; a3; a6; a4; a6; a5; a6; a6; a6; a7; a6; a8;
+        a7; a1; a7; a2; a7; a3; a7; a4; a7; a5; a7; a6; a7; a7; a7; a8;
+        a8; a1; a8; a2; a8; a3; a8; a4; a8; a5; a8; a6; a8; a7; a8; a8;
+
+        a1; a1; a1; a2; a1; a3; a1; a4; a1; a5; a1; a6; a1; a7; a1; a8;
+        a2; a1; a2; a2; a2; a3; a2; a4; a2; a5; a2; a6; a2; a7; a2; a8;
+        a3; a1; a3; a2; a3; a3; a3; a4; a3; a5; a3; a6; a3; a7; a3; a8;
+        a4; a1; a4; a2; a4; a3; a4; a4; a4; a5; a4; a6; a4; a7; a4; a8;
+        a5; a1; a5; a2; a5; a3; a5; a4; a5; a5; a5; a6; a5; a7; a5; a8;
+        a6; a1; a6; a2; a6; a3; a6; a4; a6; a5; a6; a6; a6; a7; a6; a8;
+        a7; a1; a7; a2; a7; a3; a7; a4; a7; a5; a7; a6; a7; a7; a7; a8;
+        a8; a1; a8; a2; a8; a3; a8; a4; a8; a5; a8; a6; a8; a7; a8; a8;
+
+        a1; a1; a1; a2; a1; a3; a1; a4; a1; a5; a1; a6; a1; a7; a1; a8;
+        a2; a1; a2; a2; a2; a3; a2; a4; a2; a5; a2; a6; a2; a7; a2; a8;
+        a3; a1; a3; a2; a3; a3; a3; a4; a3; a5; a3; a6; a3; a7; a3; a8;
+        a4; a1; a4; a2; a4; a3; a4; a4; a4; a5; a4; a6; a4; a7; a4; a8;
+        a5; a1; a5; a2; a5; a3; a5; a4; a5; a5; a5; a6; a5; a7; a5; a8;
+        a6; a1; a6; a2; a6; a3; a6; a4; a6; a5; a6; a6; a6; a7; a6; a8;
+        a7; a1; a7; a2; a7; a3; a7; a4; a7; a5; a7; a6; a7; a7; a7; a8;
+        a8; a1; a8; a2; a8; a3; a8; a4; a8; a5; a8; a6; a8; a7; a8; a8;
+
+        a1; a1; a1; a2; a1; a3; a1; a4; a1; a5; a1; a6; a1; a7; a1; a8;
+        a2; a1; a2; a2; a2; a3; a2; a4; a2; a5; a2; a6; a2; a7; a2; a8;
+        a3; a1; a3; a2; a3; a3; a3; a4; a3; a5; a3; a6; a3; a7; a3; a8;
+        a4; a1; a4; a2; a4; a3; a4; a4; a4; a5; a4; a6; a4; a7; a4; a8;
+        a5; a1; a5; a2; a5; a3; a5; a4; a5; a5; a5; a6; a5; a7; a5; a8;
+        a6; a1; a6; a2; a6; a3; a6; a4; a6; a5; a6; a6; a6; a7; a6; a8;
+        a7; a1; a7; a2; a7; a3; a7; a4; a7; a5; a7; a6; a7; a7; a7; a8;
+        a8; a1; a8; a2; a8; a3; a8; a4; a8; a5; a8; a6; a8; a7; a8; a8;
+    }
+    var loopTime = now() - loopStart;
+
+    var start = now();
+    i = 0;
+    while (i < n)
+    {
+        i = i + 1;
+
+        a1 == a1; a1 == a2; a1 == a3; a1 == a4; a1 == a5; a1 == a6; a1 == a7; a1 == a8;
+        a2 == a1; a2 == a2; a2 == a3; a2 == a4; a2 == a5; a2 == a6; a2 == a7; a2 == a8;
+        a3 == a1; a3 == a2; a3 == a3; a3 == a4; a3 == a5; a3 == a6; a3 == a7; a3 == a8;
+        a4 == a1; a4 == a2; a4 == a3; a4 == a4; a4 == a5; a4 == a6; a4 == a7; a4 == a8;
+        a5 == a1; a5 == a2; a5 == a3; a5 == a4; a5 == a5; a5 == a6; a5 == a7; a5 == a8;
+        a6 == a1; a6 == a2; a6 == a3; a6 == a4; a6 == a5; a6 == a6; a6 == a7; a6 == a8;
+        a7 == a1; a7 == a2; a7 == a3; a7 == a4; a7 == a5; a7 == a6; a7 == a7; a7 == a8;
+        a8 == a1; a8 == a2; a8 == a3; a8 == a4; a8 == a5; a8 == a6; a8 == a7; a8 == a8;
+
+        a1 == a1; a1 == a2; a1 == a3; a1 == a4; a1 == a5; a1 == a6; a1 == a7; a1 == a8;
+        a2 == a1; a2 == a2; a2 == a3; a2 == a4; a2 == a5; a2 == a6; a2 == a7; a2 == a8;
+        a3 == a1; a3 == a2; a3 == a3; a3 == a4; a3 == a5; a3 == a6; a3 == a7; a3 == a8;
+        a4 == a1; a4 == a2; a4 == a3; a4 == a4; a4 == a5; a4 == a6; a4 == a7; a4 == a8;
+        a5 == a1; a5 == a2; a5 == a3; a5 == a4; a5 == a5; a5 == a6; a5 == a7; a5 == a8;
+        a6 == a1; a6 == a2; a6 == a3; a6 == a4; a6 == a5; a6 == a6; a6 == a7; a6 == a8;
+        a7 == a1; a7 == a2; a7 == a3; a7 == a4; a7 == a5; a7 == a6; a7 == a7; a7 == a8;
+        a8 == a1; a8 == a2; a8 == a3; a8 == a4; a8 == a5; a8 == a6; a8 == a7; a8 == a8;
+
+        a1 == a1; a1 == a2; a1 == a3; a1 == a4; a1 == a5; a1 == a6; a1 == a7; a1 == a8;
+        a2 == a1; a2 == a2; a2 == a3; a2 == a4; a2 == a5; a2 == a6; a2 == a7; a2 == a8;
+        a3 == a1; a3 == a2; a3 == a3; a3 == a4; a3 == a5; a3 == a6; a3 == a7; a3 == a8;
+        a4 == a1; a4 == a2; a4 == a3; a4 == a4; a4 == a5; a4 == a6; a4 == a7; a4 == a8;
+        a5 == a1; a5 == a2; a5 == a3; a5 == a4; a5 == a5; a5 == a6; a5 == a7; a5 == a8;
+        a6 == a1; a6 == a2; a6 == a3; a6 == a4; a6 == a5; a6 == a6; a6 == a7; a6 == a8;
+        a7 == a1; a7 == a2; a7 == a3; a7 == a4; a7 == a5; a7 == a6; a7 == a7; a7 == a8;
+        a8 == a1; a8 == a2; a8 == a3; a8 == a4; a8 == a5; a8 == a6; a8 == a7; a8 == a8;
+
+        a1 == a1; a1 == a2; a1 == a3; a1 == a4; a1 == a5; a1 == a6; a1 == a7; a1 == a8;
+        a2 == a1; a2 == a2; a2 == a3; a2 == a4; a2 == a5; a2 == a6; a2 == a7; a2 == a8;
+        a3 == a1; a3 == a2; a3 == a3; a3 == a4; a3 == a5; a3 == a6; a3 == a7; a3 == a8;
+        a4 == a1; a4 == a2; a4 == a3; a4 == a4; a4 == a5; a4 == a6; a4 == a7; a4 == a8;
+        a5 == a1; a5 == a2; a5 == a3; a5 == a4; a5 == a5; a5 == a6; a5 == a7; a5 == a8;
+        a6 == a1; a6 == a2; a6 == a3; a6 == a4; a6 == a5; a6 == a6; a6 == a7; a6 == a8;
+        a7 == a1; a7 == a2; a7 == a3; a7 == a4; a7 == a5; a7 == a6; a7 == a7; a7 == a8;
+        a8 == a1; a8 == a2; a8 == a3; a8 == a4; a8 == a5; a8 == a6; a8 == a7; a8 == a8;
+
+        a1 == a1; a1 == a2; a1 == a3; a1 == a4; a1 == a5; a1 == a6; a1 == a7; a1 == a8;
+        a2 == a1; a2 == a2; a2 == a3; a2 == a4; a2 == a5; a2 == a6; a2 == a7; a2 == a8;
+        a3 == a1; a3 == a2; a3 == a3; a3 == a4; a3 == a5; a3 == a6; a3 == a7; a3 == a8;
+        a4 == a1; a4 == a2; a4 == a3; a4 == a4; a4 == a5; a4 == a6; a4 == a7; a4 == a8;
+        a5 == a1; a5 == a2; a5 == a3; a5 == a4; a5 == a5; a5 == a6; a5 == a7; a5 == a8;
+        a6 == a1; a6 == a2; a6 == a3; a6 == a4; a6 == a5; a6 == a6; a6 == a7; a6 == a8;
+        a7 == a1; a7 == a2; a7 == a3; a7 == a4; a7 == a5; a7 == a6; a7 == a7; a7 == a8;
+        a8 == a1; a8 == a2; a8 == a3; a8 == a4; a8 == a5; a8 == a6; a8 == a7; a8 == a8;
+
+        a1 == a1; a1 == a2; a1 == a3; a1 == a4; a1 == a5; a1 == a6; a1 == a7; a1 == a8;
+        a2 == a1; a2 == a2; a2 == a3; a2 == a4; a2 == a5; a2 == a6; a2 == a7; a2 == a8;
+        a3 == a1; a3 == a2; a3 == a3; a3 == a4; a3 == a5; a3 == a6; a3 == a7; a3 == a8;
+        a4 == a1; a4 == a2; a4 == a3; a4 == a4; a4 == a5; a4 == a6; a4 == a7; a4 == a8;
+        a5 == a1; a5 == a2; a5 == a3; a5 == a4; a5 == a5; a5 == a6; a5 == a7; a5 == a8;
+        a6 == a1; a6 == a2; a6 == a3; a6 == a4; a6 == a5; a6 == a6; a6 == a7; a6 == a8;
+        a7 == a1; a7 == a2; a7 == a3; a7 == a4; a7 == a5; a7 == a6; a7 == a7; a7 == a8;
+        a8 == a1; a8 == a2; a8 == a3; a8 == a4; a8 == a5; a8 == a6; a8 == a7; a8 == a8;
+
+        a1 == a1; a1 == a2; a1 == a3; a1 == a4; a1 == a5; a1 == a6; a1 == a7; a1 == a8;
+        a2 == a1; a2 == a2; a2 == a3; a2 == a4; a2 == a5; a2 == a6; a2 == a7; a2 == a8;
+        a3 == a1; a3 == a2; a3 == a3; a3 == a4; a3 == a5; a3 == a6; a3 == a7; a3 == a8;
+        a4 == a1; a4 == a2; a4 == a3; a4 == a4; a4 == a5; a4 == a6; a4 == a7; a4 == a8;
+        a5 == a1; a5 == a2; a5 == a3; a5 == a4; a5 == a5; a5 == a6; a5 == a7; a5 == a8;
+        a6 == a1; a6 == a2; a6 == a3; a6 == a4; a6 == a5; a6 == a6; a6 == a7; a6 == a8;
+        a7 == a1; a7 == a2; a7 == a3; a7 == a4; a7 == a5; a7 == a6; a7 == a7; a7 == a8;
+        a8 == a1; a8 == a2; a8 == a3; a8 == a4; a8 == a5; a8 == a6; a8 == a7; a8 == a8;
+
+        a1 == a1; a1 == a2; a1 == a3; a1 == a4; a1 == a5; a1 == a6; a1 == a7; a1 == a8;
+        a2 == a1; a2 == a2; a2 == a3; a2 == a4; a2 == a5; a2 == a6; a2 == a7; a2 == a8;
+        a3 == a1; a3 == a2; a3 == a3; a3 == a4; a3 == a5; a3 == a6; a3 == a7; a3 == a8;
+        a4 == a1; a4 == a2; a4 == a3; a4 == a4; a4 == a5; a4 == a6; a4 == a7; a4 == a8;
+        a5 == a1; a5 == a2; a5 == a3; a5 == a4; a5 == a5; a5 == a6; a5 == a7; a5 == a8;
+        a6 == a1; a6 == a2; a6 == a3; a6 == a4; a6 == a5; a6 == a6; a6 == a7; a6 == a8;
+        a7 == a1; a7 == a2; a7 == a3; a7 == a4; a7 == a5; a7 == a6; a7 == a7; a7 == a8;
+        a8 == a1; a8 == a2; a8 == a3; a8 == a4; a8 == a5; a8 == a6; a8 == a7; a8 == a8;
+
+        a1 == a1; a1 == a2; a1 == a3; a1 == a4; a1 == a5; a1 == a6; a1 == a7; a1 == a8;
+        a2 == a1; a2 == a2; a2 == a3; a2 == a4; a2 == a5; a2 == a6; a2 == a7; a2 == a8;
+        a3 == a1; a3 == a2; a3 == a3; a3 == a4; a3 == a5; a3 == a6; a3 == a7; a3 == a8;
+        a4 == a1; a4 == a2; a4 == a3; a4 == a4; a4 == a5; a4 == a6; a4 == a7; a4 == a8;
+        a5 == a1; a5 == a2; a5 == a3; a5 == a4; a5 == a5; a5 == a6; a5 == a7; a5 == a8;
+        a6 == a1; a6 == a2; a6 == a3; a6 == a4; a6 == a5; a6 == a6; a6 == a7; a6 == a8;
+        a7 == a1; a7 == a2; a7 == a3; a7 == a4; a7 == a5; a7 == a6; a7 == a7; a7 == a8;
+        a8 == a1; a8 == a2; a8 == a3; a8 == a4; a8 == a5; a8 == a6; a8 == a7; a8 == a8;
+
+        a1 == a1; a1 == a2; a1 == a3; a1 == a4; a1 == a5; a1 == a6; a1 == a7; a1 == a8;
+        a2 == a1; a2 == a2; a2 == a3; a2 == a4; a2 == a5; a2 == a6; a2 == a7; a2 == a8;
+        a3 == a1; a3 == a2; a3 == a3; a3 == a4; a3 == a5; a3 == a6; a3 == a7; a3 == a8;
+        a4 == a1; a4 == a2; a4 == a3; a4 == a4; a4 == a5; a4 == a6; a4 == a7; a4 == a8;
+        a5 == a1; a5 == a2; a5 == a3; a5 == a4; a5 == a5; a5 == a6; a5 == a7; a5 == a8;
+        a6 == a1; a6 == a2; a6 == a3; a6 == a4; a6 == a5; a6 == a6; a6 == a7; a6 == a8;
+        a7 == a1; a7 == a2; a7 == a3; a7 == a4; a7 == a5; a7 == a6; a7 == a7; a7 == a8;
+        a8 == a1; a8 == a2; a8 == a3; a8 == a4; a8 == a5; a8 == a6; a8 == a7; a8 == a8;
+    }
+    var elapsed = now() - start;
+
+    print(i);
+    return elapsed - loopTime;
+}
+
+var equals = main(count);
+
+print(equals);

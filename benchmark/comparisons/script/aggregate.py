@@ -20,19 +20,9 @@ from collections import defaultdict
 SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CSV = os.path.join(SCRIPT_DIR, "..", "results", "raw", "scripts.csv")
 
-SCENARIOS = [
-    "compute_pi", "fib_recursive", "hot_loop",
-    "binary_tree", "matmul", "table_lookup",
-]
-
-COUNTS = {
-    "compute_pi":    [10_000, 100_000, 1_000_000],
-    "fib_recursive": [20, 25, 28],
-    "hot_loop":      [10_000, 100_000, 1_000_000],
-    "binary_tree":   [10, 14, 16],
-    "matmul":        [16, 32, 64],
-    "table_lookup":  [10_000, 100_000, 1_000_000],
-}
+sys.path.insert(0, SCRIPT_DIR)
+sys.dont_write_bytecode = True  # no __pycache__ next to the scripts
+from run_scripts import SCENARIOS  # noqa: E402  (scenario order of the table)
 
 # Order matters: PgScript first so it's the leftmost column when present.
 LANG_ORDER = ["pgscript", "pgscript-ast", "pgscript-noopt", "lua", "python"]
@@ -93,15 +83,18 @@ def main():
 
     label = "WALL TIME (incl. startup)" if args.wall else "SCRIPT TIME (pure VM, in-script self-timed)"
     print(f"\n=== {label} — min of runs ===\n")
-    header = f"  {'scenario':<14} {'count':>10}   " + "  ".join(f"{LANG_LABEL.get(l, l):>12}" for l in langs)
+    header = f"  {'scenario':<22} {'count':>10}   " + "  ".join(f"{LANG_LABEL.get(l, l):>12}" for l in langs)
     print(header)
     print("  " + "-" * (len(header) - 2))
+    # Only the scenarios and counts the CSV holds, in the harness's order
     for s in SCENARIOS:
-        for n in COUNTS[s]:
+        counts = sorted({k[2] for k in rows if k[1] == s})
+        for n in counts:
             row = {l: (min(rows[(l, s, n)]) if rows.get((l, s, n)) else 0) for l in langs}
             cells = "  ".join(f"{fmt_ms(row[l]):>12}" for l in langs)
-            print(f"  {s:<14} {n:>10}   {cells}")
-        print()
+            print(f"  {s:<22} {n:>10}   {cells}")
+        if counts:
+            print()
 
 
 if __name__ == "__main__":

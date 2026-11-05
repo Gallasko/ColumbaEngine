@@ -1,0 +1,21 @@
+// clox/fib.pg -- Crafting Interpreters' test/benchmark/fib.lox: naive
+// recursive Fibonacci. `count` is n (clox: 35). Prints fib(n), then the
+// elapsed ns.
+
+fun fib(n)
+{
+    if (n < 2)
+        return n;
+    return fib(n - 2) + fib(n - 1);
+}
+
+fun main(n)
+{
+    print(fib(n));
+}
+
+var t0 = now();
+main(count);
+var elapsed = now() - t0;
+
+print(elapsed);

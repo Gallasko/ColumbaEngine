@@ -1,0 +1,26 @@
+// wren/map_numeric.pg -- Wren's test/benchmark/map_numeric: insert keys 1..n
+// into a map, read them back, then remove them. `count` is n (Wren: 2000000).
+// Prints the sum, then the elapsed ns.
+//
+// PgScript tables cannot remove a key: the removal pass writes none instead.
+
+fun main(n)
+{
+    var map = {};
+    for (var i = 1; i <= n; i++)
+        map[i] = i;
+
+    var sum = 0;
+    for (var i = 1; i <= n; i++)
+        sum = sum + map[i];
+    print(sum);
+
+    for (var i = 1; i <= n; i++)
+        map[i] = none;
+}
+
+var t0 = now();
+main(count);
+var elapsed = now() - t0;
+
+print(elapsed);

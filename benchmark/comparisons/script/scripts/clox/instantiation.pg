@@ -1,0 +1,57 @@
+// clox/instantiation.pg -- Crafting Interpreters' test/benchmark/
+// instantiation.lox: creating instances and calling an empty initializer,
+// 30 a pass. `count` is the number of passes (clox: 500000). Prints the
+// passes done, then the elapsed ns.
+
+class Foo
+{
+    init()
+    {
+    }
+}
+
+fun main(n)
+{
+    var i = 0;
+    while (i < n)
+    {
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        Foo();
+        i = i + 1;
+    }
+    print(i);
+}
+
+var t0 = now();
+main(count);
+var elapsed = now() - t0;
+
+print(elapsed);

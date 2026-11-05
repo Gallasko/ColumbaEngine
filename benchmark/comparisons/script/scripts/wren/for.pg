@@ -1,0 +1,21 @@
+// wren/for.pg -- Wren's test/benchmark/for: fill a list with 0..n-1, then sum
+// it with a for-in loop. `count` is n (Wren: 1000000). Prints the sum, then
+// the elapsed ns.
+
+fun main(n)
+{
+    var list = [];
+    for (var i = 0; i < n; i++)
+        list.push(i);
+
+    var sum = 0;
+    for (var i : list)
+        sum = sum + i;
+    print(sum);
+}
+
+var t0 = now();
+main(count);
+var elapsed = now() - t0;
+
+print(elapsed);

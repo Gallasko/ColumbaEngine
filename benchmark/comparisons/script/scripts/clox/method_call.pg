@@ -1,0 +1,106 @@
+// clox/method_call.pg -- Crafting Interpreters' test/benchmark/method_call.lox
+// (Wren's benchmark in Lox): dynamic dispatch through two classes, the body
+// unrolled ten times so loop overhead stays small. `count` is n (clox:
+// 100000). Prints the two final values (true, false), then the elapsed ns.
+//
+// PgScript has no inheritance: NthToggle is its own class with its own
+// value(), and Lox's `super.activate()` is a call to toggleActivate(this),
+// a plain function, so it still costs one call; Lox's `super.init` is inlined.
+
+class Toggle
+{
+    init(startState)
+    {
+        this.state = startState;
+    }
+
+    value()
+    {
+        return this.state;
+    }
+
+    activate()
+    {
+        this.state = not this.state;
+        return this;
+    }
+}
+
+fun toggleActivate(t)
+{
+    t.state = not t.state;
+    return t;
+}
+
+class NthToggle
+{
+    init(startState, maxCounter)
+    {
+        this.state = startState;
+        this.countMax = maxCounter;
+        this.count = 0;
+    }
+
+    value()
+    {
+        return this.state;
+    }
+
+    activate()
+    {
+        this.count = this.count + 1;
+        if (this.count >= this.countMax)
+        {
+            toggleActivate(this);
+            this.count = 0;
+        }
+        return this;
+    }
+}
+
+fun main(n)
+{
+    var val = true;
+    var toggle = Toggle(val);
+
+    for (var i = 0; i < n; i++)
+    {
+        val = toggle.activate().value();
+        val = toggle.activate().value();
+        val = toggle.activate().value();
+        val = toggle.activate().value();
+        val = toggle.activate().value();
+        val = toggle.activate().value();
+        val = toggle.activate().value();
+        val = toggle.activate().value();
+        val = toggle.activate().value();
+        val = toggle.activate().value();
+    }
+
+    print(toggle.value());
+
+    val = true;
+    var ntoggle = NthToggle(val, 3);
+
+    for (var i = 0; i < n; i++)
+    {
+        val = ntoggle.activate().value();
+        val = ntoggle.activate().value();
+        val = ntoggle.activate().value();
+        val = ntoggle.activate().value();
+        val = ntoggle.activate().value();
+        val = ntoggle.activate().value();
+        val = ntoggle.activate().value();
+        val = ntoggle.activate().value();
+        val = ntoggle.activate().value();
+        val = ntoggle.activate().value();
+    }
+
+    print(ntoggle.value());
+}
+
+var t0 = now();
+main(count);
+var elapsed = now() - t0;
+
+print(elapsed);

@@ -1,0 +1,76 @@
+// clox/zoo_batch.pg -- Crafting Interpreters' test/benchmark/zoo_batch.lox:
+// zoo's six calls in batches of 10000 passes. clox runs batches for ten
+// seconds and reports how many it did; here `count` is the number of batches
+// (fixed work, so the harness can time it). Prints the sum and the batches,
+// then the elapsed ns.
+
+class Zoo
+{
+    init()
+    {
+        this.aarvark = 1;
+        this.baboon = 1;
+        this.cat = 1;
+        this.donkey = 1;
+        this.elephant = 1;
+        this.fox = 1;
+    }
+
+    ant()
+    {
+        return this.aarvark;
+    }
+
+    banana()
+    {
+        return this.baboon;
+    }
+
+    tuna()
+    {
+        return this.cat;
+    }
+
+    hay()
+    {
+        return this.donkey;
+    }
+
+    grass()
+    {
+        return this.elephant;
+    }
+
+    mouse()
+    {
+        return this.fox;
+    }
+}
+
+fun main(n)
+{
+    var zoo = Zoo();
+    var sum = 0;
+    var batch = 0;
+    while (batch < n)
+    {
+        for (var i = 0; i < 10000; i = i + 1)
+        {
+            sum = sum + zoo.ant() +
+                        zoo.banana() +
+                        zoo.tuna() +
+                        zoo.hay() +
+                        zoo.grass() +
+                        zoo.mouse();
+        }
+        batch = batch + 1;
+    }
+    print(sum);
+    print(batch);
+}
+
+var t0 = now();
+main(count);
+var elapsed = now() - t0;
+
+print(elapsed);

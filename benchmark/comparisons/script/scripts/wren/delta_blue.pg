@@ -1,0 +1,932 @@
+// delta_blue.pg -- the DeltaBlue constraint solver, run `count` times (Wren's
+// suite uses 40), each a chainTest(100) and a projectionTest(100). Ported from
+// Wren's test/benchmark/delta_blue.py (from V8's deltablue.js, itself from the
+// Smalltalk DeltaBlue by John Maloney and Mario Wolczko), quirks kept so the
+// `total` matches. PgScript has no inheritance: the Constraint / UrnaryConstraint
+// / BinaryConstraint hierarchy is flattened, each concrete class carries its own
+// copy of every inherited method. Directions are int literals (NONE 0,
+// FORWARD 1, BACKWARD -1); a Variable's name is its prefix only (no int-to-string
+// without modules; the name is never read); `/` is int division (always exact here).
+
+// Strength
+
+class Strength
+{
+    init(strength, name)
+    {
+        this.strength = strength;
+        this.name = name;
+    }
+
+    // The Python version's (bugged, kept) map: index is this.strength;
+    // NEXT_WEAKER[6] reads none where Python raises KeyError (never reached).
+    nextWeaker() { return NEXT_WEAKER[this.strength]; }
+}
+
+fun stronger(s1, s2) { return s1.strength < s2.strength; }
+
+fun weaker(s1, s2) { return s1.strength > s2.strength; }
+
+fun weakestOf(s1, s2)
+{
+    if (weaker(s1, s2))
+        return s1;
+
+    return s2;
+}
+
+fun strongest(s1, s2)
+{
+    if (stronger(s1, s2))
+        return s1;
+
+    return s2;
+}
+
+var REQUIRED = Strength(0, "required");
+var STRONG_PREFERRED = Strength(1, "strongPreferred");
+var PREFERRED = Strength(2, "preferred");
+var STRONG_DEFAULT = Strength(3, "strongDefault");
+var NORMAL = Strength(4, "normal");
+var WEAK_DEFAULT = Strength(5, "weakDefault");
+var WEAKEST = Strength(6, "weakest");
+
+var NEXT_WEAKER = [WEAKEST, WEAK_DEFAULT, NORMAL, STRONG_DEFAULT, PREFERRED, REQUIRED];
+
+// UrnaryConstraint whose execute does nothing.
+class StayConstraint
+{
+    init(v, strength)
+    {
+        this.strength = strength;
+        this.myOutput = v;
+        this.satisfied = false;
+        this.addConstraint();
+    }
+
+    addConstraint()
+    {
+        this.addToGraph();
+        planner.incrementalAdd(this);
+    }
+
+    satisfy(mark)
+    {
+        this.chooseMethod(mark);
+
+        if (not this.isSatisfied())
+        {
+            if (this.strength == REQUIRED)
+                print("Could not satisfy a required constraint!");
+
+            return none;
+        }
+
+        this.markInputs(mark);
+        var out = this.output();
+        var overridden = out.determinedBy;
+
+        if (overridden != none)
+            overridden.markUnsatisfied();
+
+        out.determinedBy = this;
+
+        if (not planner.addPropagate(this, mark))
+            print("Cycle encountered");
+
+        out.mark = mark;
+        return overridden;
+    }
+
+    destroyConstraint()
+    {
+        if (this.isSatisfied())
+            planner.incrementalRemove(this);
+        else
+            this.removeFromGraph();
+    }
+
+    addToGraph()
+    {
+        this.myOutput.addConstraint(this);
+        this.satisfied = false;
+    }
+
+    chooseMethod(mark)
+    {
+        if (this.myOutput.mark != mark and stronger(this.strength, this.myOutput.walkStrength))
+            this.satisfied = true;
+        else
+            this.satisfied = false;
+    }
+
+    isSatisfied() { return this.satisfied; }
+
+    markInputs(mark) { }
+
+    output() { return this.myOutput; }
+
+    recalculate()
+    {
+        this.myOutput.walkStrength = this.strength;
+        this.myOutput.stay = not this.isInput();
+
+        if (this.myOutput.stay)
+            this.execute();
+    }
+
+    markUnsatisfied() { this.satisfied = false; }
+
+    inputsKnown(mark) { return true; }
+
+    removeFromGraph()
+    {
+        if (this.myOutput != none)
+        {
+            this.myOutput.removeConstraint(this);
+            this.satisfied = false;
+        }
+    }
+
+    isInput() { return false; }
+
+    execute() { }
+}
+
+// UrnaryConstraint that is an input; execute does nothing.
+class EditConstraint
+{
+    init(v, strength)
+    {
+        this.strength = strength;
+        this.myOutput = v;
+        this.satisfied = false;
+        this.addConstraint();
+    }
+
+    addConstraint()
+    {
+        this.addToGraph();
+        planner.incrementalAdd(this);
+    }
+
+    satisfy(mark)
+    {
+        this.chooseMethod(mark);
+
+        if (not this.isSatisfied())
+        {
+            if (this.strength == REQUIRED)
+                print("Could not satisfy a required constraint!");
+
+            return none;
+        }
+
+        this.markInputs(mark);
+        var out = this.output();
+        var overridden = out.determinedBy;
+
+        if (overridden != none)
+            overridden.markUnsatisfied();
+
+        out.determinedBy = this;
+
+        if (not planner.addPropagate(this, mark))
+            print("Cycle encountered");
+
+        out.mark = mark;
+        return overridden;
+    }
+
+    destroyConstraint()
+    {
+        if (this.isSatisfied())
+            planner.incrementalRemove(this);
+        else
+            this.removeFromGraph();
+    }
+
+    addToGraph()
+    {
+        this.myOutput.addConstraint(this);
+        this.satisfied = false;
+    }
+
+    chooseMethod(mark)
+    {
+        if (this.myOutput.mark != mark and stronger(this.strength, this.myOutput.walkStrength))
+            this.satisfied = true;
+        else
+            this.satisfied = false;
+    }
+
+    isSatisfied() { return this.satisfied; }
+
+    markInputs(mark) { }
+
+    output() { return this.myOutput; }
+
+    recalculate()
+    {
+        this.myOutput.walkStrength = this.strength;
+        this.myOutput.stay = not this.isInput();
+
+        if (this.myOutput.stay)
+            this.execute();
+    }
+
+    markUnsatisfied() { this.satisfied = false; }
+
+    inputsKnown(mark) { return true; }
+
+    removeFromGraph()
+    {
+        if (this.myOutput != none)
+        {
+            this.myOutput.removeConstraint(this);
+            this.satisfied = false;
+        }
+    }
+
+    isInput() { return true; }
+
+    execute() { }
+}
+
+// BinaryConstraint: output = input.
+class EqualityConstraint
+{
+    init(v1, v2, strength)
+    {
+        this.strength = strength;
+        this.v1 = v1;
+        this.v2 = v2;
+        this.direction = 0;
+        this.addConstraint();
+    }
+
+    addConstraint()
+    {
+        this.addToGraph();
+        planner.incrementalAdd(this);
+    }
+
+    satisfy(mark)
+    {
+        this.chooseMethod(mark);
+
+        if (not this.isSatisfied())
+        {
+            if (this.strength == REQUIRED)
+                print("Could not satisfy a required constraint!");
+
+            return none;
+        }
+
+        this.markInputs(mark);
+        var out = this.output();
+        var overridden = out.determinedBy;
+
+        if (overridden != none)
+            overridden.markUnsatisfied();
+
+        out.determinedBy = this;
+
+        if (not planner.addPropagate(this, mark))
+            print("Cycle encountered");
+
+        out.mark = mark;
+        return overridden;
+    }
+
+    destroyConstraint()
+    {
+        if (this.isSatisfied())
+            planner.incrementalRemove(this);
+        else
+            this.removeFromGraph();
+    }
+
+    chooseMethod(mark)
+    {
+        if (this.v1.mark == mark)
+        {
+            if (this.v2.mark != mark and stronger(this.strength, this.v2.walkStrength))
+                this.direction = 1;
+            else
+                this.direction = -1;
+        }
+
+        if (this.v2.mark == mark)
+        {
+            if (this.v1.mark != mark and stronger(this.strength, this.v1.walkStrength))
+                this.direction = -1;
+            else
+                this.direction = 0;
+        }
+
+        if (weaker(this.v1.walkStrength, this.v2.walkStrength))
+        {
+            if (stronger(this.strength, this.v1.walkStrength))
+                this.direction = -1;
+            else
+                this.direction = 0;
+        }
+        else
+        {
+            if (stronger(this.strength, this.v2.walkStrength))
+                this.direction = 1;
+            else
+                this.direction = -1;
+        }
+    }
+
+    isSatisfied() { return this.direction != 0; }
+
+    input()
+    {
+        if (this.direction == 1)
+            return this.v1;
+
+        return this.v2;
+    }
+
+    output()
+    {
+        if (this.direction == 1)
+            return this.v2;
+
+        return this.v1;
+    }
+
+    markUnsatisfied() { this.direction = 0; }
+
+    inputsKnown(mark)
+    {
+        var i = this.input();
+        return i.mark == mark or i.stay or i.determinedBy == none;
+    }
+
+    addToGraph()
+    {
+        this.v1.addConstraint(this);
+        this.v2.addConstraint(this);
+        this.direction = 0;
+    }
+
+    markInputs(mark)
+    {
+        var i = this.input();
+        i.mark = mark;
+    }
+
+    recalculate()
+    {
+        var ihn = this.input();
+        var out = this.output();
+        out.walkStrength = weakestOf(this.strength, ihn.walkStrength);
+        out.stay = ihn.stay;
+
+        if (out.stay)
+            this.execute();
+    }
+
+    removeFromGraph()
+    {
+        if (this.v1 != none)
+            this.v1.removeConstraint(this);
+
+        if (this.v2 != none)
+            this.v2.removeConstraint(this);
+
+        this.direction = 0;
+    }
+
+    isInput() { return false; }
+
+    execute()
+    {
+        var out = this.output();
+        var i = this.input();
+        out.value = i.value;
+    }
+}
+
+// BinaryConstraint: v2 = v1 * scale + offset.
+class ScaleConstraint
+{
+    init(src, scale, offset, dest, strength)
+    {
+        this.direction = 0;
+        this.scale = scale;
+        this.offset = offset;
+        this.strength = strength;
+        this.v1 = src;
+        this.v2 = dest;
+        this.direction = 0;
+        this.addConstraint();
+    }
+
+    addConstraint()
+    {
+        this.addToGraph();
+        planner.incrementalAdd(this);
+    }
+
+    satisfy(mark)
+    {
+        this.chooseMethod(mark);
+
+        if (not this.isSatisfied())
+        {
+            if (this.strength == REQUIRED)
+                print("Could not satisfy a required constraint!");
+
+            return none;
+        }
+
+        this.markInputs(mark);
+        var out = this.output();
+        var overridden = out.determinedBy;
+
+        if (overridden != none)
+            overridden.markUnsatisfied();
+
+        out.determinedBy = this;
+
+        if (not planner.addPropagate(this, mark))
+            print("Cycle encountered");
+
+        out.mark = mark;
+        return overridden;
+    }
+
+    destroyConstraint()
+    {
+        if (this.isSatisfied())
+            planner.incrementalRemove(this);
+        else
+            this.removeFromGraph();
+    }
+
+    chooseMethod(mark)
+    {
+        if (this.v1.mark == mark)
+        {
+            if (this.v2.mark != mark and stronger(this.strength, this.v2.walkStrength))
+                this.direction = 1;
+            else
+                this.direction = -1;
+        }
+
+        if (this.v2.mark == mark)
+        {
+            if (this.v1.mark != mark and stronger(this.strength, this.v1.walkStrength))
+                this.direction = -1;
+            else
+                this.direction = 0;
+        }
+
+        if (weaker(this.v1.walkStrength, this.v2.walkStrength))
+        {
+            if (stronger(this.strength, this.v1.walkStrength))
+                this.direction = -1;
+            else
+                this.direction = 0;
+        }
+        else
+        {
+            if (stronger(this.strength, this.v2.walkStrength))
+                this.direction = 1;
+            else
+                this.direction = -1;
+        }
+    }
+
+    isSatisfied() { return this.direction != 0; }
+
+    input()
+    {
+        if (this.direction == 1)
+            return this.v1;
+
+        return this.v2;
+    }
+
+    output()
+    {
+        if (this.direction == 1)
+            return this.v2;
+
+        return this.v1;
+    }
+
+    markUnsatisfied() { this.direction = 0; }
+
+    inputsKnown(mark)
+    {
+        var i = this.input();
+        return i.mark == mark or i.stay or i.determinedBy == none;
+    }
+
+    addToGraph()
+    {
+        this.v1.addConstraint(this);
+        this.v2.addConstraint(this);
+        this.direction = 0;
+        this.scale.addConstraint(this);
+        this.offset.addConstraint(this);
+    }
+
+    removeFromGraph()
+    {
+        if (this.v1 != none)
+            this.v1.removeConstraint(this);
+
+        if (this.v2 != none)
+            this.v2.removeConstraint(this);
+
+        this.direction = 0;
+
+        if (this.scale != none)
+            this.scale.removeConstraint(this);
+
+        if (this.offset != none)
+            this.offset.removeConstraint(this);
+    }
+
+    markInputs(mark)
+    {
+        var i = this.input();
+        i.mark = mark;
+        this.scale.mark = mark;
+        this.offset.mark = mark;
+    }
+
+    execute()
+    {
+        if (this.direction == 1)
+            this.v2.value = this.v1.value * this.scale.value + this.offset.value;
+        else
+            this.v1.value = (this.v2.value - this.offset.value) / this.scale.value;
+    }
+
+    recalculate()
+    {
+        var ihn = this.input();
+        var out = this.output();
+        out.walkStrength = weakestOf(this.strength, ihn.walkStrength);
+        out.stay = ihn.stay and this.scale.stay and this.offset.stay;
+
+        if (out.stay)
+            this.execute();
+    }
+
+    isInput() { return false; }
+}
+
+// Variable
+
+class Variable
+{
+    init(name, initialValue)
+    {
+        this.name = name;
+        this.value = initialValue;
+        this.constraints = [];
+        this.determinedBy = none;
+        this.mark = 0;
+        this.walkStrength = WEAKEST;
+        this.stay = true;
+    }
+
+    addConstraint(constraint)
+    {
+        this.constraints.push(constraint);
+    }
+
+    // Python's list.remove: drop the first element equal to `constraint`.
+    removeConstraint(constraint)
+    {
+        var cs = this.constraints;
+        var n = cs.len();
+        for (var i = 0; i < n; i++)
+        {
+            if (cs[i] == constraint)
+            {
+                cs.removeAt(i);
+                break;
+            }
+        }
+
+        if (this.determinedBy == constraint)
+            this.determinedBy = none;
+    }
+}
+
+// Planner
+
+class Planner
+{
+    init()
+    {
+        this.currentMark = 0;
+    }
+
+    incrementalAdd(constraint)
+    {
+        var mark = this.newMark();
+        var overridden = constraint.satisfy(mark);
+
+        while (overridden != none)
+            overridden = overridden.satisfy(mark);
+    }
+
+    incrementalRemove(constraint)
+    {
+        var out = constraint.output();
+        constraint.markUnsatisfied();
+        constraint.removeFromGraph();
+        var unsatisfied = this.removePropagateFrom(out);
+        var strength = REQUIRED;
+        // Do-while, with nextWeaker inside the for as in the Python version.
+        var repeat = true;
+
+        while (repeat)
+        {
+            for (var u : unsatisfied)
+            {
+                if (u.strength == strength)
+                    this.incrementalAdd(u);
+
+                strength = strength.nextWeaker();
+            }
+
+            repeat = strength != WEAKEST;
+        }
+    }
+
+    newMark()
+    {
+        this.currentMark = this.currentMark + 1;
+        return this.currentMark;
+    }
+
+    makePlan(sources)
+    {
+        var mark = this.newMark();
+        var plan = Plan();
+        var todo = sources;
+
+        while (todo.len() > 0)
+        {
+            var c = todo.removeAt(0);
+
+            if (c.output().mark != mark and c.inputsKnown(mark))
+            {
+                plan.addConstraint(c);
+                var out = c.output();
+                out.mark = mark;
+                this.addConstraintsConsumingTo(out, todo);
+            }
+        }
+
+        return plan;
+    }
+
+    extractPlanFromConstraints(constraints)
+    {
+        var sources = [];
+
+        for (var c : constraints)
+        {
+            if (c.isInput() and c.isSatisfied())
+                sources.push(c);
+        }
+
+        return this.makePlan(sources);
+    }
+
+    addPropagate(c, mark)
+    {
+        var todo = [];
+        todo.push(c);
+
+        while (todo.len() > 0)
+        {
+            var d = todo.removeAt(0);
+
+            if (d.output().mark == mark)
+            {
+                this.incrementalRemove(c);
+                return false;
+            }
+
+            d.recalculate();
+            this.addConstraintsConsumingTo(d.output(), todo);
+        }
+
+        return true;
+    }
+
+    removePropagateFrom(out)
+    {
+        out.determinedBy = none;
+        out.walkStrength = WEAKEST;
+        out.stay = true;
+        var unsatisfied = [];
+        var todo = [];
+        todo.push(out);
+
+        while (todo.len() > 0)
+        {
+            var v = todo.removeAt(0);
+
+            for (var c : v.constraints)
+            {
+                if (not c.isSatisfied())
+                    unsatisfied.push(c);
+            }
+
+            var determining = v.determinedBy;
+
+            for (var c : v.constraints)
+            {
+                if (c != determining and c.isSatisfied())
+                {
+                    c.recalculate();
+                    todo.push(c.output());
+                }
+            }
+        }
+
+        return unsatisfied;
+    }
+
+    addConstraintsConsumingTo(v, coll)
+    {
+        var determining = v.determinedBy;
+        var cc = v.constraints;
+
+        for (var c : cc)
+        {
+            if (c != determining and c.isSatisfied())
+                coll.push(c);
+        }
+    }
+}
+
+// Plan
+
+class Plan
+{
+    init()
+    {
+        this.v = [];
+    }
+
+    addConstraint(c)
+    {
+        this.v.push(c);
+    }
+
+    execute()
+    {
+        for (var c : this.v)
+            c.execute();
+    }
+}
+
+// Main
+
+var total = 0;
+var planner = none;
+
+// The standard DeltaBlue benchmark: a long chain of equality constraints with
+// a stay constraint on one end and an edit constraint on the other.
+fun chainTest(n)
+{
+    planner = Planner();
+    var prev = none;
+    var first = none;
+    var last = none;
+
+    // We need to go up to n inclusively.
+    for (var i = 0; i < n + 1; i++)
+    {
+        var v = Variable("v", 0);
+
+        if (prev != none)
+            EqualityConstraint(prev, v, REQUIRED);
+
+        if (i == 0)
+            first = v;
+
+        if (i == n)
+            last = v;
+
+        prev = v;
+    }
+
+    StayConstraint(last, STRONG_DEFAULT);
+    var edit = EditConstraint(first, PREFERRED);
+    var edits = [];
+    edits.push(edit);
+    var plan = planner.extractPlanFromConstraints(edits);
+
+    for (var i = 0; i < 100; i++)
+    {
+        first.value = i;
+        plan.execute();
+
+        total = total + last.value;
+        if (last.value != i)
+            print("Chain test failed.");
+    }
+}
+
+fun change(v, newValue)
+{
+    var edit = EditConstraint(v, PREFERRED);
+    var edits = [];
+    edits.push(edit);
+
+    var plan = planner.extractPlanFromConstraints(edits);
+
+    for (var i = 0; i < 10; i++)
+    {
+        v.value = newValue;
+        plan.execute();
+    }
+
+    edit.destroyConstraint();
+}
+
+// Two sets of variables related by a linear transformation (scale and
+// offset); change a variable on either side and the scale and offset.
+fun projectionTest(n)
+{
+    planner = Planner();
+    var scale = Variable("scale", 10);
+    var offset = Variable("offset", 1000);
+    var src = none;
+    var dst = none;
+
+    var dests = [];
+
+    for (var i = 0; i < n; i++)
+    {
+        src = Variable("src", i);
+        dst = Variable("dst", i);
+        dests.push(dst);
+        StayConstraint(src, NORMAL);
+        ScaleConstraint(src, scale, offset, dst, REQUIRED);
+    }
+
+    change(src, 17);
+
+    total = total + dst.value;
+    if (dst.value != 1170)
+        print("Projection 1 failed");
+
+    change(dst, 1050);
+
+    total = total + src.value;
+    if (src.value != 5)
+        print("Projection 2 failed");
+
+    change(scale, 5);
+
+    for (var i = 0; i < n - 1; i++)
+    {
+        var d = dests[i];
+        total = total + d.value;
+        if (d.value != i * 5 + 1000)
+            print("Projection 3 failed");
+    }
+
+    change(offset, 2000);
+
+    for (var i = 0; i < n - 1; i++)
+    {
+        var d = dests[i];
+        total = total + d.value;
+        if (d.value != i * 5 + 2000)
+            print("Projection 4 failed");
+    }
+}
+
+fun main()
+{
+    var t0 = now();
+    for (var i = 0; i < count; i++)
+    {
+        chainTest(100);
+        projectionTest(100);
+    }
+    var elapsed = now() - t0;
+    print(total);
+    print(elapsed);
+}
+
+main();
