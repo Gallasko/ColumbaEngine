@@ -25,10 +25,10 @@ sys.dont_write_bytecode = True  # no __pycache__ next to the scripts
 from run_scripts import SCENARIOS  # noqa: E402  (scenario order of the table)
 
 # Order matters: PgScript first so it's the leftmost column when present.
-LANG_ORDER = ["pgscript", "pgscript-ast", "pgscript-noopt", "lua", "python"]
+LANG_ORDER = ["pgscript", "pgscript-pratt", "pgscript-noopt", "lua", "python"]
 LANG_LABEL = {
     "pgscript":        "PgScript O3",
-    "pgscript-ast":    "PgScript AST",
+    "pgscript-pratt":  "PgScript Pratt",
     "pgscript-noopt":  "PgScript O0",
     "lua":             "Lua 5.4",
     "python":          "CPython",

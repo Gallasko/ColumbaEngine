@@ -18,8 +18,8 @@ mkdir -p "$(dirname "$CSV")"
 cd "$(git -C "$HERE" rev-parse --show-toplevel)/release"
 
 python3 "$HERE/run_scripts.py" \
-    --languages=pgscript,pgscript-ast \
+    --languages=pgscript,pgscript-pratt \
     --runs=5 --warmup=1 \
     --output="$CSV"
 
-python3 "$HERE/aggregate.py" --csv="$CSV" --lang=pgscript,pgscript-ast
+python3 "$HERE/aggregate.py" --csv="$CSV" --lang=pgscript,pgscript-pratt

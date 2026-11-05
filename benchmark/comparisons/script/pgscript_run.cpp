@@ -5,42 +5,26 @@
  * Used by the script benchmark harness so PgScript can be measured the same
  * way as Python / Lua / Wren — as a subprocess invoked once per (scenario, N).
  *
- * Adds one bench-only native:
+ * The VM is set up by EntitySystem::setupVm, as the game and the
+ * PgCompiler CLI do: the same modules (math, algorithm, string, ...), the
+ * same `print`, the same pass pipeline for the chosen -O level, and the AST
+ * front-end unless --frontend=pratt. Adds one bench-only native:
  *   now()  -> int64 ns from std::chrono::steady_clock
  *
  * The script sets `count` from the global passed via --count=N, runs its work,
  * and is expected to print its self-timed duration as the last line of stdout
- * (the harness parses the last integer on stdout).
+ * (the harness parses the last integer on stdout). Compile and runtime
+ * errors go to stderr.
  *
  * Usage:
  *   pgscript_run --script=path/to/scenario.pg --count=1000000
  */
 
+#include "logger.h"
+#include "ECS/entitysystem.h"
 #include "Compiler/vm.h"
 #include "Compiler/compiler_debug.h"
 #include "Compiler/object.h"
-
-// Bytecode optimization passes — replicate the O3 pipeline that
-// EntitySystem::setOptimizationPasses installs by default. Without these,
-// PgScript runs unoptimized bytecode and the cross-language comparison is
-// unfair to itself.
-#include "Compiler/pass/basic_operator_local_indexing.h"
-#include "Compiler/pass/comparison_local_indexing.h"
-#include "Compiler/pass/constant_folding.h"
-#include "Compiler/pass/constant_var_access.h"
-#include "Compiler/pass/fuse_op_pop.h"
-#include "Compiler/pass/set_local_pop_fusion.h"
-#include "Compiler/pass/increment_optimization_pass.h"
-#include "Compiler/pass/long_jump_optimization_pass.h"
-#include "Compiler/pass/popping_jump_pass.h"
-#include "Compiler/pass/remove_def_get_global_redunduncy.h"
-#include "Compiler/pass/remove_useless_jump_pass.h"
-#include "Compiler/pass/simplify_constant_pass.h"
-#include "Compiler/pass/loop_rotation_pass.h"
-
-// AST-level passes (only run when --frontend=ast selects the AST front-end)
-#include "Compiler/ast/pass/static_loop_evaluation.h"
-#include "Compiler/ast/pass/loop_invariant_hoisting.h"
 
 #include <chrono>
 #include <cstdio>
@@ -56,23 +40,28 @@ static int64_t nowNs()
         .count();
 }
 
-// Print a single Value to stdout in a benchmark-friendly form. Numbers as
-// plain digits (no trailing newline noise), one value per call.
-static void printValueToStdout(VM* vm, Value v)
+// Errors to stderr: stdout is the script's own output, which the harness
+// reads, and the harness shows stderr when a run fails. Warnings are left out
+// as in the CLI: the ECS's disabled SaveManager warns at exit that it cannot
+// write the file ''.
+class StderrSink : public Logger::LogSink
 {
-    if (IS_INT(v))       std::printf("%lld\n", static_cast<long long>(AS_INT(v)));
-    else if (IS_DOUBLE(v)) std::printf("%g\n", AS_DOUBLE(v));
-    else if (IS_BOOL(v)) std::printf("%s\n", AS_BOOL(v) ? "true" : "false");
-    else if (IS_STRING(v)) std::printf("%s\n", vm->asString(v).c_str());
-    else std::printf("<value>\n");
-}
+private:
+    void processLog(const Logger::Info& log) override
+    {
+        if (log.level < Logger::InfoLevel::error)
+            return;
+
+        std::fprintf(stderr, "[Error]: %s\n", log.message.c_str());
+    }
+};
 
 int main(int argc, char** argv)
 {
     std::string scriptPath;
     int64_t     count         = 0;
-    bool        optimize      = true;  // O3 by default — match EntitySystem
-    bool        useAst        = false; // compile through the AST front-end
+    auto        optLevel      = VmOptimizationLevel::O3; // the engine's default
+    bool        useAst        = true;  // the engine's default front-end
     bool        dumpBytecode  = false; // print disassembly for every compiled function
     bool        debugPasses   = false; // print each pass's effect (verbose)
     bool        profile       = false; // enable instruction-level profiling
@@ -84,8 +73,14 @@ int main(int argc, char** argv)
             scriptPath = a.substr(std::strlen("--script="));
         else if (a.rfind("--count=", 0) == 0)
             count = std::stoll(a.substr(std::strlen("--count=")));
-        else if (a == "--no-opt")
-            optimize = false;
+        else if (a == "--no-opt" || a == "-O0")
+            optLevel = VmOptimizationLevel::O0;
+        else if (a == "-O1")
+            optLevel = VmOptimizationLevel::O1;
+        else if (a == "-O2")
+            optLevel = VmOptimizationLevel::O2;
+        else if (a == "-O3")
+            optLevel = VmOptimizationLevel::O3;
         else if (a == "--frontend=ast")
             useAst = true;
         else if (a == "--frontend=pratt")
@@ -101,13 +96,15 @@ int main(int argc, char** argv)
             std::fprintf(stderr,
                 "Usage: %s --script=PATH [--count=N] [options]\n"
                 "\n"
-                "Runs a PgScript file with the bench `now()` and `print()` natives.\n"
-                "If --count is given, the script can read it via the global `count`.\n"
+                "Runs a PgScript file in a VM set up as the engine does, plus the bench\n"
+                "`now()` native. If --count is given, the script can read it via the\n"
+                "global `count`.\n"
                 "\n"
                 "Options:\n"
-                "  --no-opt          disable PgScript bytecode optimization passes\n"
-                "  --frontend=ast    compile through the AST front-end (AstCompiler)\n"
-                "  --frontend=pratt  compile through the Pratt front-end (default)\n"
+                "  -O0 .. -O3        optimization level (default: -O3, as the engine)\n"
+                "  --no-opt          same as -O0\n"
+                "  --frontend=ast    compile through the AST front-end (default)\n"
+                "  --frontend=pratt  compile through the Pratt front-end\n"
                 "  --dump-bytecode   disassemble every compiled function after passes\n"
                 "  --debug-passes    print disassembly after each optimization pass\n"
                 "  --profile         enable instruction profiling; print report at exit\n",
@@ -127,62 +124,29 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    Logger::registerSink<StderrSink>();
+
+    // Before the VM, so it outlives it, as in the CLI: the `ecs` module
+    // points at it.
+    EntitySystem ecs;
     VM vm;
 
-    // Install the same O3 bytecode-optimization pipeline EntitySystem uses.
-    // Default ON — that's what real PgScript users get. --no-opt for ablation.
-    // Operand-elision specialization happens at decode time (decoded_fusion.h);
-    // the passes below are pure bytecode peepholes.
-    if (optimize)
-    {
-        vm.enableBytecodeOptimization();
-        vm.enableDecodeFusion = true;
-        vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
-        vm.addOptimizationPass(std::make_unique<PoppingJumpPass>());
-        vm.addOptimizationPass(std::make_unique<RemoveUselessJumpPass>());
-        vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
-        // Increment must run before FuseOpPop coalesces its trailing Pop
-        // into a PopN.
-        vm.addOptimizationPass(std::make_unique<IncrementOptimizationPass>());
-        vm.addOptimizationPass(std::make_unique<FuseOpPop>());
-        vm.addOptimizationPass(std::make_unique<ConstantFoldingPass>());
-        vm.addOptimizationPass(std::make_unique<ConstantVarAccess>());
-        vm.addOptimizationPass(std::make_unique<SimplifyConstantToShort>());
-        vm.addOptimizationPass(std::make_unique<LoopRotationPass>());
+    // Profiling first: setupVm times itself when it is on. --dump-bytecode
+    // needs it too (compiledFunctions is filled only when profiling is on).
+    if (dumpBytecode || profile) vm.enableProfiling();
 
-        // AST-level passes: no-ops on the Pratt path, active with
-        // --frontend=ast (same registration order as EntitySystem)
-        vm.addAstPass(std::make_unique<StaticLoopEvaluationPass>());
-        vm.addAstPass(std::make_unique<LoopInvariantHoistingPass>());
-    }
-    else
-    {
-        vm.disableBytecodeOptimization();
-        vm.enableDecodeFusion = false;
-    }
-
-    if (useAst)
-        vm.setFrontEnd(VM::FrontEnd::Ast);
+    // Modules, natives and the pass pipeline for the level, as the engine
+    // sets up every VM.
+    ecs.setVMOptimizationLevel(optLevel);
+    ecs.setVMFrontEnd(useAst ? ScriptFrontEnd::Ast : ScriptFrontEnd::Pratt);
+    ecs.setupVm(vm);
 
     if (debugPasses) vm.enableOptimizationDebugging();
-
-    // Enable instruction profiling for either --dump-bytecode (which uses
-    // compiledFunctions, populated only when profiling is on) or --profile
-    // (which prints the per-opcode report at exit).
-    if (dumpBytecode || profile) vm.enableProfiling();
 
     // now() -> int64 ns since steady_clock epoch. Bench-only; not part of the
     // engine's core natives. Used by scenarios for in-script self-timing.
     vm.registerNative("now", [](VM*, int /*argCount*/, Value* /*args*/) -> Value {
         return makeIntValue(nowNs());
-    });
-
-    // print(x) -> prints x to stdout. PgScript's __dprint goes to a test
-    // buffer, which is the wrong sink for a CLI; this gives bench scripts
-    // a plain stdout channel.
-    vm.registerNative("print", [](VM* vm, int argCount, Value* args) -> Value {
-        for (int i = 0; i < argCount; ++i) printValueToStdout(vm, args[i]);
-        return makeIntValue(0);
     });
 
     if (count > 0)

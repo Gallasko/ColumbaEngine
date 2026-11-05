@@ -60,8 +60,9 @@ def _pgscript_bin():
 
 
 LANGUAGES = {
-    # `opt_level` is a free-form tag written to the CSV. Comparing PgScript O3
-    # vs O0 lets us measure what the bytecode pipeline actually buys.
+    # `opt_level` is a free-form tag written to the CSV. pgscript_run sets its
+    # VM up as the engine does: AST front-end and the O3 pipeline by default.
+    # Comparing O3 vs O0 measures what the whole pipeline buys.
     "pgscript": {
         "ext": "pg",
         "cmd": lambda script, n: [_pgscript_bin(), f"--script={script}", f"--count={n}"],
@@ -72,13 +73,13 @@ LANGUAGES = {
         "cmd": lambda script, n: [_pgscript_bin(), f"--script={script}", f"--count={n}", "--no-opt"],
         "opt_level": "O0",
     },
-    # AST front-end (AstCompiler): same O3 pipeline plus the AST-level passes
-    # (static loop evaluation, loop-invariant hoisting). Comparing this row
-    # against plain `pgscript` isolates what the AST front-end buys.
-    "pgscript-ast": {
+    # Pratt front-end: the bytecode passes of O3 without the AST-level ones
+    # (inlining, hoisting, run-once, ...). Against plain `pgscript` it shows
+    # what the AST front-end and its passes buy.
+    "pgscript-pratt": {
         "ext": "pg",
-        "cmd": lambda script, n: [_pgscript_bin(), f"--script={script}", f"--count={n}", "--frontend=ast"],
-        "opt_level": "O3-ast",
+        "cmd": lambda script, n: [_pgscript_bin(), f"--script={script}", f"--count={n}", "--frontend=pratt"],
+        "opt_level": "O3-pratt",
     },
     "python": {
         "ext": "py",
