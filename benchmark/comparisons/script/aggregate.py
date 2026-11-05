@@ -83,7 +83,7 @@ def main():
 
     label = "WALL TIME (incl. startup)" if args.wall else "SCRIPT TIME (pure VM, in-script self-timed)"
     print(f"\n=== {label} — min of runs ===\n")
-    header = f"  {'scenario':<22} {'count':>10}   " + "  ".join(f"{LANG_LABEL.get(l, l):>12}" for l in langs)
+    header = f"  {'scenario':<28} {'count':>10}   " + "  ".join(f"{LANG_LABEL.get(l, l):>12}" for l in langs)
     print(header)
     print("  " + "-" * (len(header) - 2))
     # Only the scenarios and counts the CSV holds, in the harness's order
@@ -92,7 +92,7 @@ def main():
         for n in counts:
             row = {l: (min(rows[(l, s, n)]) if rows.get((l, s, n)) else 0) for l in langs}
             cells = "  ".join(f"{fmt_ms(row[l]):>12}" for l in langs)
-            print(f"  {s:<22} {n:>10}   {cells}")
+            print(f"  {s:<28} {n:>10}   {cells}")
         if counts:
             print()
 

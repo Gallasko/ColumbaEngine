@@ -112,10 +112,10 @@ SUITES = {
         "wren/string_equals", "wren/fannkuch",
     ],
     "clox": [
-        "clox/binary_trees", "clox/equality", "clox/fib",
+        "clox/binary_trees", "clox/equality", "clox/equality_count", "clox/fib",
         "clox/instantiation", "clox/invocation", "clox/method_call",
-        "clox/properties", "clox/string_equality", "clox/trees",
-        "clox/zoo", "clox/zoo_batch",
+        "clox/properties", "clox/string_equality", "clox/string_equality_count",
+        "clox/trees", "clox/zoo", "clox/zoo_batch",
     ],
 }
 SCENARIOS = [s for suite in SUITES.values() for s in suite]
@@ -139,12 +139,14 @@ DEFAULT_COUNTS = {
 
     "clox/binary_trees":    [14],           # max depth
     "clox/equality":        [10_000_000],   # passes; prints compare-minus-loop ns
+    "clox/equality_count":  [10_000_000],   # passes; comparisons counted, whole loop timed
     "clox/fib":             [35],
     "clox/instantiation":   [500_000],      # passes of 30
     "clox/invocation":      [500_000],      # passes of 30
     "clox/method_call":     [100_000],      # passes of ten calls
     "clox/properties":      [500_000],      # passes of 30
     "clox/string_equality": [100_000],      # passes; prints compare-minus-loop ns
+    "clox/string_equality_count": [100_000],  # passes; comparisons counted, whole loop timed
     "clox/trees":           [100],          # walks of a depth-8 five-way tree
     "clox/zoo":             [10_000_000],   # sum to reach
     "clox/zoo_batch":       [200],          # batches of 10000 passes
@@ -307,7 +309,7 @@ def main():
                         rows_per_lang[lang] += 1
                         out.flush()
 
-                    print(f"  {lang:<10} {scen:<22} n={n:<10} done", file=sys.stderr)
+                    print(f"  {lang:<10} {scen:<28} n={n:<10} done", file=sys.stderr)
     finally:
         if out is not sys.stdout:
             out.close()

@@ -1,0 +1,60 @@
+// clox/equality_count.pg -- clox's equality.lox made to count: each of its 19
+// comparisons adds one to a count when true, so none can be dropped, and the
+// values are locals swapped in pairs at the end of each pass (1 and 2, "str"
+// and "stru", true and false), so none is the same from one pass to the next
+// and none can be folded or moved out of the loop. The swaps keep every
+// result: 4 comparisons are true each pass. The whole loop is timed. `count`
+// is the number of passes (clox: 10000000). Prints the count, then the
+// elapsed ns.
+
+fun main(n)
+{
+    var one = 1;
+    var two = 2;
+    var nul = none;
+    var str = "str";
+    var stru = "stru";
+    var yes = true;
+    var no = false;
+    var count = 0;
+
+    for (var i = 0; i < n; i++)
+    {
+        if (one == one) count = count + 1;
+        if (one == two) count = count + 1;
+        if (one == nul) count = count + 1;
+        if (one == str) count = count + 1;
+        if (one == yes) count = count + 1;
+        if (nul == nul) count = count + 1;
+        if (nul == one) count = count + 1;
+        if (nul == str) count = count + 1;
+        if (nul == yes) count = count + 1;
+        if (yes == yes) count = count + 1;
+        if (yes == one) count = count + 1;
+        if (yes == no) count = count + 1;
+        if (yes == str) count = count + 1;
+        if (yes == nul) count = count + 1;
+        if (str == str) count = count + 1;
+        if (str == stru) count = count + 1;
+        if (str == one) count = count + 1;
+        if (str == nul) count = count + 1;
+        if (str == yes) count = count + 1;
+
+        var t = one;
+        one = two;
+        two = t;
+        t = str;
+        str = stru;
+        stru = t;
+        t = yes;
+        yes = no;
+        no = t;
+    }
+    print(count);
+}
+
+var t0 = now();
+main(count);
+var elapsed = now() - t0;
+
+print(elapsed);
