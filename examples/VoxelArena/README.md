@@ -94,7 +94,9 @@ and enemies that come back), **O** for the options.
   - *Splitting*: splits into two plain copies with 40% of the health as it dies;
   - *Regenerating*: heals 6% of its health a second once you stop hitting it for 2 s.
 - **Blasts**: what explodes as it dies (a sapper, a volatile elite) first shows a red ring on the ground
-  that fills in, for its `delay`; then everyone in it is hit. Enemies' ground (a blazing trail, a frost
+  that fills in, for its `delay`, while its body counts down (it swells and blinks faster and faster, sparks
+  fly off its fuse: a blast's `"fuse"` is where on the model); then everyone in it is hit, a shockwave
+  sweeps the ground, and nothing is left of the body. Enemies' ground (a blazing trail, a frost
   puddle) has a red edge: it hurts you, not them.
 - **Shards**: what the enemies drop. They fly to you within pickup range (and the ones left lying
   are yours at the end of the wave). They are money and XP at once. In co-op every player gets every
@@ -408,7 +410,7 @@ Each one is a JSON file in `mods/base/enemies/` and a pgscript brain in `mods/ba
 | Archer | Ranged | Keeps 6 to 14 m away, backs off when you close in, moves sideways to find a line of fire when a block is in the way, shoots sooner while you are busy. |
 | Skulker | Flanker | Fast and weak. Goes round to your back while someone else holds your attention, bites when you cannot see it, backs off after each bite. |
 | Stone Warden | Boss | Slow and huge. Slams, sweeps all around once angry, charges from the middle distance, throws rocks when you keep away. Weak to volt, resists fire. Three phases, shielded by four crystals between them. |
-| Sapper | Bomber | The Stockade on. Runs straight at you; close enough, it lights its fuse (it glows red) and goes up. However it goes down, its keg explodes a second later: a red ring shows where, and it hurts everyone in it, enemies too, and sets planks and hay alight. A sapper you kill counts its blast as yours. |
+| Sapper | Bomber | The Stockade on. Runs straight at you; close enough, it lights its fuse: sparks fly off it, and it shakes, swells and blinks red and white, faster and faster, then goes up. However it goes down, it slumps over its keg and the fuse burns on: the keg explodes a second later (a fireball, a shockwave over the ground, smoke, debris, and nothing left of it). A red ring shows where, and it hurts everyone in it, enemies too, and sets planks and hay alight. A sapper you kill counts its blast as yours. |
 | Mender | Support | The Gorge on. Keeps behind the others like an archer, and when some of them are hurt it mends everyone within 7 m (a green pulse, stronger as the waves go on). Never mends a boss's crystal. Its own attack is a weak bolt. |
 | Rimecaller | Area denial | The Icefall on. Keeps its distance and lobs orbs of frost over walls; where one lands the ground stays frozen for a few seconds and slows you. Fire hurts it more. |
 | Golem | Tank | The Quarry on. Slow and tough, slams the ground through blocks. As it falls it breaks into three pebbles. Lightning cracks it. |

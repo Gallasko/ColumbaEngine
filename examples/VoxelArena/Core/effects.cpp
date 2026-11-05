@@ -158,6 +158,16 @@ namespace arena
             e.along = j.flag("along", false);
             e.every = static_cast<float>(j.num("every", 0.0));
 
+            if (const Json* also = j.find("also"))
+            {
+                if (also->isArray())
+                    for (const auto& a : also->array)
+                        if (a.isString())
+                            e.also.push_back(a.string);
+                if (e.also.empty())
+                    report.error("effects.json", also->line, "effect \"" + name + "\": also is a list of effect names");
+            }
+
             if (const Json* t = j.find("tint"))
             {
                 if (t->isArray() and t->array.size() >= 3)

@@ -75,6 +75,8 @@ namespace arena
         bool hasTint = false;
         glm::vec3 tint = glm::vec3(1.0f);
         float every = 0.0f;          // s between particle bursts while it lasts (0: none)
+
+        std::vector<std::string> also;   // other effects played with it, at the same place (an explosion's smoke, its debris)
     };
 
     std::map<std::string, SoundRecipe> readSounds(const Json& tree, ContentReport& report);

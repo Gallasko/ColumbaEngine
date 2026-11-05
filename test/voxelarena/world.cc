@@ -1488,3 +1488,24 @@ TEST(arena_climb, a_wide_or_narrow_enemy_gets_out_of_uneven_craters)
         }
     }
 }
+
+TEST(arena_world, a_sapper_s_keg_counts_down_on_it_then_nothing_is_left)
+{
+    // Killed, its blast is its own (the countdown shows on its body), and once it goes off the body is gone
+    Arena a;
+    const int id = a.world.spawnEnemy("base:sapper", a.player().body.position + glm::vec3(0, 0, 6.0f), 180.0f);
+    a.settle(5);
+    Fighter& sapper = *a.world.find(id);
+    sapper.health = 0.01f;
+    a.world.applyStatus(sapper, "base:burn");
+    a.run(30);
+
+    ASSERT_FALSE(a.world.find(id)->alive());
+    const bool counting = std::any_of(a.world.zones.begin(), a.world.zones.end(), [&](const Zone& z) { return z.blasting() and z.owner == id; });
+    EXPECT_TRUE(counting);
+    EXPECT_FALSE(a.world.find(id)->blownUp);
+
+    a.run(60);
+    EXPECT_TRUE(a.world.find(id)->blownUp);
+    EXPECT_FALSE(std::any_of(a.world.zones.begin(), a.world.zones.end(), [&](const Zone& z) { return z.blasting() and z.owner == id; }));
+}

@@ -493,6 +493,7 @@ namespace arena
         f.yaw = f.spawnYaw;
         f.stepOffset = 0.0f;
         f.climbTo = -1.0f;
+        f.blownUp = false;
         f.sinceHit = 100.0f;
         f.sinceAttack = 100.0f;
     }
@@ -2846,7 +2847,12 @@ namespace arena
             const Zone done = z;
             zones.erase(zones.begin() + static_cast<std::ptrdiff_t>(i));
             if (done.blasting())
+            {
                 detonate(done);
+                // What it came out of (a sapper's keg, a volatile elite) goes with it
+                if (Fighter* body = find(done.owner); body and not body->alive())
+                    body->blownUp = true;
+            }
             runStage(done.spell, done.stage + 1, done.position + glm::vec3(0, 0.8f, 0), done.dir, done.owner, done.team, nullptr);
         }
     }

@@ -2097,6 +2097,10 @@ namespace arena
 
     void ArenaGame::playEvent(const WorldEvent& e)
     {
+        // A blast: its shockwave over the ground (the event is at its heart, 0.6 m up; its strength is its radius)
+        if (e.kind == "blast")
+            shockwaves.push_back({e.position - glm::vec3(0, 0.57f, 0), std::max(0.5f, e.strength), 0.0f});
+
         // The player's own hits: their damage rises off what they hit (a crit's event comes just before its hit's)
         if (e.kind == "crit")
             critOn = e.fighter;
@@ -2270,6 +2274,10 @@ namespace arena
 
     void ArenaGame::stepLooks(float frameSeconds)
     {
+        for (auto& w : shockwaves)
+            w.age += frameSeconds;
+        shockwaves.erase(std::remove_if(shockwaves.begin(), shockwaves.end(), [](const Shockwave& w) { return w.age >= 0.45f; }), shockwaves.end());
+
         for (auto& st : strikes)
             st.age += frameSeconds;
         strikes.erase(std::remove_if(strikes.begin(), strikes.end(), [](const StrikeLook& st) { return st.age >= st.look.life; }), strikes.end());
@@ -2440,6 +2448,15 @@ namespace arena
 
         if (e.shake > 0.0f and distance < 12.0f)
             camera.addTrauma(e.shake * (1.0f - distance / 12.0f));
+
+        // What comes with it (one level: an "also" of an "also" is not followed)
+        for (const auto& more : e.also)
+            if (auto m = effects.find(more); m != effects.end())
+            {
+                playSound(m->second.sound, at, distance);
+                if (m->second.particles.count > 0)
+                    particles.burst(m->second.particles, at, color);
+            }
     }
 
     void ArenaGame::feedback()
@@ -4348,6 +4365,10 @@ namespace arena
 
             const VoxelModel& model = *modelIt->second;
 
+            // Its blast went off: nothing of it is left
+            if (f.blownUp)
+                continue;
+
             glm::vec3 pos = f.body.position;
             float yaw = f.yaw;
             float stepOffset = f.stepOffset;
@@ -4377,6 +4398,22 @@ namespace arena
 
             const AttackDef* attack = world.currentAttack(f);
 
+            // A blast counting down on it, 0..1: its lit fuse (an attack that ends in its death: the first half), then,
+            // dead, until its blast goes off (the second half)
+            float countdown = -1.0f;
+            const BlastDef* ownBlast = nullptr;
+            if (f.team == Team::Enemy)
+            {
+                if (auto d = content.enemies.find(f.type); d != content.enemies.end() and d->second.blast.any())
+                    ownBlast = &d->second.blast;
+                if (attack and attack->dies and f.alive())
+                    countdown = 0.5f * glm::clamp(frame / std::max(1.0f, static_cast<float>(attack->startup + attack->active)), 0.0f, 1.0f);
+                else if (not f.alive())
+                    for (const auto& z : world.zones)
+                        if (z.blasting() and z.owner == f.id)
+                            countdown = 0.5f + 0.5f * glm::clamp(1.0f - z.remaining / std::max(STEP_SECONDS, z.duration), 0.0f, 1.0f);
+            }
+
             // Out of view: none of it is drawn. The sphere takes in the weapon's reach and a body thrown about by
             // its action; a heavy attack's tell lands further ahead on the ground, and the first person view model
             // is always in front of the eye
@@ -4405,6 +4442,11 @@ namespace arena
                     // Rocked back, then recovering
                     const float t = fr / std::max(1.0f, static_cast<float>(f.actionLength));
                     body = body * rotX(-14.0f * std::sin(glm::clamp(t, 0.0f, 1.0f) * 3.14159f) - 4.0f * std::sin(fr * 0.9f) * (1.0f - t));
+                }
+                else if (f.action == Action::Dead and countdown >= 0.0f)
+                {
+                    // Dead with its blast to come: slumped forward on its knees, what it carries (a keg, its fuse) up
+                    body = body * glm::translate(glm::mat4(1.0f), glm::vec3(0, -h * 0.18f, 0)) * rotX(38.0f);
                 }
                 else if (f.action == Action::Dead)
                 {
@@ -4437,9 +4479,26 @@ namespace arena
                 return body;
             };
 
-            const glm::mat4 body = bodyAt(frame);
+            glm::mat4 body = bodyAt(frame);
+
+            // Counting down: it shakes, harder, and swells as it comes
+            if (countdown >= 0.0f)
+            {
+                const float u = countdown, jitter = 0.04f * u;
+                const glm::vec3 shake(jitter * std::sin(simTime * 61.0f + static_cast<float>(f.id)), 0.0f, jitter * std::cos(simTime * 53.0f + static_cast<float>(f.id) * 1.7f));
+                const float swell = 1.0f + 0.24f * u * u + 0.04f * u * std::sin(simTime * 38.0f);
+                body = glm::translate(glm::mat4(1.0f), shake) * body * glm::translate(glm::mat4(1.0f), glm::vec3(0, h * 0.4f, 0)) *
+                       glm::scale(glm::mat4(1.0f), glm::vec3(swell)) * glm::translate(glm::mat4(1.0f), glm::vec3(0, -h * 0.4f, 0));
+            }
 
             const glm::mat4 modelMatrix = body * glm::scale(glm::mat4(1.0f), glm::vec3(scale)) * glm::translate(glm::mat4(1.0f), -model.pivot);
+
+            // ... and sparks fly off its fuse (effects.json "fuse"; a blast's "fuse" is where it is on the model)
+            if (countdown >= 0.0f)
+            {
+                const glm::vec3 fuse = ownBlast and ownBlast->hasFuse ? ownBlast->fuse : glm::vec3(model.pivot.x, static_cast<float>(model.grid.height()), model.pivot.z);
+                lookPoints.push_back({f.id, "fuse", static_cast<int>(lookPoints.size()), glm::vec3(modelMatrix * glm::vec4(fuse, 1.0f))});
+            }
 
             // Hit flash (white), wind-up glow (orange, growing), stagger (yellow pulse)
             glm::vec4 flash(0.0f);
@@ -4450,7 +4509,14 @@ namespace arena
             const bool charging = attack and attack->charge.at >= 0 and f.chargeFrames > 0 and frame <= static_cast<float>(attack->charge.at + 1);
             const float charge = f.chargeRatio(attack);
 
-            if (charging)
+            if (countdown >= 0.0f)
+            {
+                // A blast coming: it blinks red and white-hot, faster and faster
+                const float u = countdown, rate = 2.0f + 16.0f * u * u;
+                const bool hot = std::fmod(simTime * rate + static_cast<float>(f.id) * 0.3f, 1.0f) < 0.5f;
+                flash = hot ? glm::vec4(1.0f, 0.95f, 0.75f, 0.55f + 0.3f * u) : glm::vec4(1.0f, 0.2f, 0.08f, 0.4f + 0.25f * u);
+            }
+            else if (charging)
                 flash = glm::vec4(0.65f, 0.85f, 1.0f, charge >= 1.0f ? 0.55f + 0.2f * std::sin(simTime * 20.0f) : 0.15f + 0.4f * charge);
             else if (f.flash > 0)
                 flash = glm::vec4(1.0f, 1.0f, 1.0f, 0.85f * static_cast<float>(f.flash) / static_cast<float>(std::max(1, tuning.feel.hitFlashFrames)));
@@ -4861,6 +4927,23 @@ namespace arena
             const glm::vec3 edge = z.team == Team::Enemy ? glm::mix(tint, glm::vec3(1.0f, 0.15f, 0.1f), 0.6f) : tint;
             pushInstance(zoneRings, view, glm::translate(glm::mat4(1.0f), glm::vec3(0, 0.004f, 0)) * m, glm::vec4(edge, 0.7f * fade), glm::vec4(0.0f));
         }
+        // Blasts going off: a ring sweeping out to the radius, thicker as it goes, and a white-hot flash at the heart
+        for (const auto& w : shockwaves)
+        {
+            const float t = glm::clamp(w.age / 0.45f, 0.0f, 1.0f), out = easeOut(glm::clamp(w.age / 0.3f, 0.0f, 1.0f));
+            const float r = w.radius * (0.2f + 0.85f * out);
+            for (const float band : {1.0f, 0.93f, 0.86f})
+            {
+                const glm::mat4 m = glm::translate(glm::mat4(1.0f), w.at + glm::vec3(0, 0.03f, 0)) * glm::scale(glm::mat4(1.0f), glm::vec3(r * 2.0f * band, 1.0f, r * 2.0f * band));
+                pushInstance(zoneRings, view, m, glm::vec4(1.0f, 0.75f + 0.2f * band, 0.45f, (1.0f - t) * 0.9f), glm::vec4(0.0f));
+            }
+            if (w.age < 0.15f)
+            {
+                const glm::mat4 m = glm::translate(glm::mat4(1.0f), w.at + glm::vec3(0, 0.035f, 0)) * glm::scale(glm::mat4(1.0f), glm::vec3(w.radius * 1.4f, 1.0f, w.radius * 1.4f));
+                pushInstance(zoneDiscs, view, m, glm::vec4(1.0f, 0.92f, 0.7f, 0.55f * (1.0f - w.age / 0.15f)), glm::vec4(0.0f));
+            }
+        }
+
         add(discMesh, debugMaterial, OpacityType::Normal, std::move(zoneDiscs));
         add(ringMesh, debugMaterial, OpacityType::Normal, std::move(zoneRings));
 

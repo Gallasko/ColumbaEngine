@@ -383,6 +383,15 @@ namespace arena
             glm::vec3 at = glm::vec3(0.0f);
         };
         std::vector<LookPoint> lookPoints;
+
+        // A blast's shockwave: a ring sweeping out over the ground to its radius, a flash at its heart, fading
+        struct Shockwave
+        {
+            glm::vec3 at = glm::vec3(0.0f);   // on the ground
+            float radius = 1.0f;
+            float age = 0.0f;
+        };
+        std::vector<Shockwave> shockwaves;
         std::map<std::tuple<int, std::string, int>, float> lookTimers;
         /** An effect's tint (its glow), or none. */
         const glm::vec3* effectTint(const std::string& effect) const;

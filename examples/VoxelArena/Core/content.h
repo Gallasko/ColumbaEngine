@@ -163,6 +163,9 @@ namespace arena
         Element element = Element::None;   // sets the arena alight, freezes pits...
         StatusHit status;
         bool everyone = false;
+        // Looks: where its fuse is on the model (in its voxels), the sparks of its countdown; none: the top of the body
+        glm::vec3 fuse = glm::vec3(0.0f);
+        bool hasFuse = false;
 
         bool any() const { return radius > 0.0f and (damage > 0.0f or terrainDamage > 0.0f); }
     };

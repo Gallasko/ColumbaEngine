@@ -125,8 +125,14 @@
     "base:warded":   { "tint": [235, 235, 255], "every": 0.3,  "particles": { "count": 1, "speed": 0.5, "up": 1.0, "size": 0.06, "life": 0.6, "gravity": -1, "color": [245, 245, 255] } },
 
     // A blast's warning ring as it shows, then the blast; something splitting as it dies
+    // A blast's countdown (a sapper's lit fuse, then its keg; a volatile elite): sparks off its fuse every `every` s
+    "fuse":          { "every": 0.025, "particles": { "count": 3, "speed": 2.4, "up": 0.75, "size": 0.07, "life": 0.35, "gravity": 6, "color": [255, 205, 95], "glow": 1 } },
     "blast_warn":    { "sound": "growl" },
-    "blast":         { "sound": "boom",        "particles": { "count": 56, "speed": 7, "up": 0.5, "size": 0.15, "life": 0.6, "gravity": 4,  "color": [255, 170, 90] },  "shake": 0.5 },
+    // The explosion: a fireball, then (also) smoke rising and debris thrown about
+    "blast":         { "sound": "boom",        "particles": { "count": 70, "speed": 7, "up": 0.5, "size": 0.18, "life": 0.55, "gravity": 2,  "color": [255, 170, 90], "glow": 1 },  "shake": 0.6,
+                       "also": ["blast_smoke", "blast_debris"] },
+    "blast_smoke":   {                         "particles": { "count": 26, "speed": 1.6, "up": 0.9, "size": 0.32, "life": 1.6, "gravity": -1.5, "color": [70, 64, 60] } },
+    "blast_debris":  {                         "particles": { "count": 22, "speed": 8, "up": 0.8, "size": 0.12, "life": 1.1, "gravity": 22, "color": [110, 76, 46] } },
     "enemy_heal":    { "sound": "ice_cast",    "particles": { "count": 46, "speed": 5, "up": 0.5, "size": 0.1,  "life": 0.7, "gravity": -1, "color": [120, 255, 140] } },
     "split":         { "sound": "snap",        "particles": { "count": 26, "speed": 4, "up": 0.7, "size": 0.12, "life": 0.6, "gravity": 12, "color": [150, 140, 130] } },
 

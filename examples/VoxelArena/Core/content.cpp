@@ -512,10 +512,15 @@ namespace arena
             g.every = std::max(0.1f, g.every);
         }
 
-        /** "blast": { "delay", "radius", "damage", "poiseDamage", "knockback", "terrainDamage", "element", "status", "everyone" } */
+        /** "blast": { "delay", "radius", "damage", "poiseDamage", "knockback", "terrainDamage", "element", "status", "everyone", "fuse" } */
         void readBlast(const Json& j, BlastDef& b, const std::string& file, ContentReport& report, const std::string& what)
         {
-            checkKeys(j, {"delay", "radius", "damage", "poiseDamage", "knockback", "terrainDamage", "element", "status", "everyone"}, file, report, what);
+            checkKeys(j, {"delay", "radius", "damage", "poiseDamage", "knockback", "terrainDamage", "element", "status", "everyone", "fuse"}, file, report, what);
+            if (j.find("fuse"))
+            {
+                readVec3(j, "fuse", b.fuse, file, report);
+                b.hasFuse = true;
+            }
             readNum(j, "delay", b.delay, file, report);
             readNum(j, "radius", b.radius, file, report);
             readNum(j, "damage", b.damage, file, report);

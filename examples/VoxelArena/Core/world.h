@@ -267,6 +267,7 @@ namespace arena
         float climbTo = -1.0f;
         float climbSpeed = 0.0f;   // m/s up (the tuning's climb: its size, the wall's height)
         float climbWait = 0.0f;    // s before it tries to climb again, after a climb dropped
+        bool blownUp = false;      // dead, and its blast went off: nothing of it is left to draw
         glm::vec3 climbDir = glm::vec3(0.0f);
 
         float respawnTimer = 0.0f;
