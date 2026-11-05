@@ -263,6 +263,12 @@ namespace arena
 
         float stepOffset = 0.0f;   // visual: smooths the pop of an auto step-up
 
+        // An enemy climbing a wall (out of a pit): the height its feet go up to (< 0: not climbing), towards where
+        float climbTo = -1.0f;
+        float climbSpeed = 0.0f;   // m/s up (the tuning's climb: its size, the wall's height)
+        float climbWait = 0.0f;    // s before it tries to climb again, after a climb dropped
+        glm::vec3 climbDir = glm::vec3(0.0f);
+
         float respawnTimer = 0.0f;
         glm::vec3 spawnPosition = glm::vec3(0.0f);
         float spawnYaw = 0.0f;
@@ -451,6 +457,7 @@ namespace arena
         int alliesHurt = 0;          // other enemies within 10 m with less than 80% of their health (a healer's to mend)
         float targetFacing = 0.0f;   // degrees between where the target looks and self: 0 in its face, 180 behind it
         bool hunting = false;        // in an arena run: come for the target from anywhere (no engage range)
+        bool climbable = false;      // in a hole it can climb out of (walking into its wall climbs it)
     };
 
     struct BrainOrder
@@ -764,6 +771,20 @@ namespace arena
         void stepPlayer(Fighter& f, const InputFrame& in);
         void stepEnemy(Fighter& f);
         void stepCommon(Fighter& f, glm::vec3 wantedVelocity, bool canJump, const InputFrame* in);
+        /**
+         * An enemy walking into a wall it can climb starts up it, when it is in a hole or its target is above it; one
+         * climbing goes on, or stops. Returns true while it climbs.
+         */
+        bool stepClimb(Fighter& f, const EnemyDef& def, const glm::vec3& wanted, bool targetAbove);
+        /** Walls on three sides of the fighter at least (a pit, a pen): what it may climb out of. */
+        bool inHole(const Fighter& f) const;
+        /**
+         * Blocks up to a ledge it can climb onto over the nearest wall along dir, within 3 m and anywhere across its width
+         * (0: none, a step, or too high); wallAt: how far that wall is.
+         */
+        int ledgeAbove(const Fighter& f, const glm::vec3& dir, float* wallAt = nullptr) const;
+        /** Offsets across a fighter's width, to look at what its whole side touches. */
+        std::vector<float> across(const Fighter& f) const;
         /** pitch: NAN aims at the target (aim assist's for the player), a number aims there (first person). */
         void startAttack(Fighter& f, const std::string& name, const glm::vec3& aimDir, bool aimAssist = true, float pitch = NAN);
         void startDodge(Fighter& f, const glm::vec3& dir);

@@ -67,7 +67,8 @@ and enemies that come back), **O** for the options.
 
   A new arena is built as its first wave starts (its name under the wave's), everyone at its spawn
   point; within an arena it is built anew before each wave, whatever was broken. The HUD names it
-  under the wave's pips. Enemies only step up one block, so every floor has steps.
+  under the wave's pips. Enemies walk up one block; higher, up to four, they climb (slowly: see Terrain as a
+  weapon), so every floor still has steps.
 
 - **Twenty timed waves**, from 45 seconds to a minute and a half. Enemies keep coming in from the edges
   all through a wave (their spawn point glows red a moment first; one out of view, an arrow at the
@@ -429,6 +430,9 @@ let an arrow through; a block stops it (and takes `terrainDamage`), so a raised 
 
 ## Sounds, particles and animation
 
+- **Shadows**: a soft dark disc on the ground under every fighter and projectile, wider and fainter the higher
+  it is (gone past 10 m): where something is over the ground, and how high, reads at a glance.
+
 - **Effects** (`mods/base/effects.json`): for each game event (`hit`, `stagger`, `kill`, `swing`,
   `windup`, `shoot`, `arrow_hit`, `dodge`, `jump`, `land`, `hard_land`, `step`, `chip`, `break`,
   `raise`, `dig`, `piece_fall`, `piece_land`), the sound it plays, the particles it throws and the
@@ -459,8 +463,13 @@ The arena can be broken, and breaking it is part of the fight.
 - **Attacks break terrain** with `terrainDamage`: the brute's slam goes through a raised wall, and its
   script slams on purpose when a block stands between it and you (`me.blocked`). The sword's heavy
   breaks earth too.
-- An enemy that falls in a pit cannot step out (step-up is one block); the pit fills back in after
-  `lifetime` seconds.
+- An enemy in a hole climbs out of it: walking into the wall of a hole (walls on three sides), or of anything
+  with its player above it, it climbs up, from two blocks to four (`climb` in the tuning). A big one climbs
+  faster than a small one, and a high wall slows it down: a brute is out of a two-deep pit in a little over a
+  second, a pebble out of a four-deep one in about fifteen. A hit knocks a climber off, and a wall on open ground
+  (your raised earth) is never climbed. Its script knows (`me.climbable`): the brute climbs out of a pit rather
+  than slam its wall (a slam would dig it deeper). Deeper than four blocks, a hole keeps it. A pit fills back
+  in after `lifetime` seconds.
 
 ## Multiplayer
 

@@ -106,6 +106,11 @@ namespace arena
         f("feel.landingShake", feel.landingShake);
         f("feel.gameSpeed", feel.gameSpeed);
 
+        f("climb.maxHeight", climb.maxHeight);
+        f("climb.speed", climb.speed);
+        f("climb.sizeRef", climb.sizeRef);
+        f("climb.deepSlow", climb.deepSlow);
+
         f("terrain.gravity", terrain.gravity);
         f("terrain.crushDamage", terrain.crushDamage);
         f("terrain.crushPerBlock", terrain.crushPerBlock);

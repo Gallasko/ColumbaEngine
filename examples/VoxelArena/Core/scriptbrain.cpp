@@ -346,6 +346,7 @@ namespace arena
         me->setField("alliesHurt", makeIntValue(view.alliesHurt));
         me->setField("targetFacing", makeDoubleValue(view.targetFacing));
         me->setField("hunting", makeBoolValue(view.hunting));
+        me->setField("climbable", makeBoolValue(view.climbable));
 
         const std::string action = actionName(target.action);
 

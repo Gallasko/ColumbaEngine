@@ -492,6 +492,7 @@ namespace arena
         f.body.onGround = false;
         f.yaw = f.spawnYaw;
         f.stepOffset = 0.0f;
+        f.climbTo = -1.0f;
         f.sinceHit = 100.0f;
         f.sinceAttack = 100.0f;
     }
@@ -1414,6 +1415,13 @@ namespace arena
             {
                 f.sinceAttack += dt;
 
+                // Climbing out of a hole: on up the wall, whatever the script would say
+                if (f.climbTo >= 0.0f)
+                {
+                    wanted = f.climbDir;
+                    break;
+                }
+
                 BrainOrder order;
 
                 if (brain and aiEnabled and not def.script.empty() and targetAlive)
@@ -1427,6 +1435,11 @@ namespace arena
                     view.angle = -wrapDegrees(yawOf(dirToTarget) - f.yaw);
                     view.time = time;
                     view.hunting = inRun();
+
+                    // In a hole it can climb out of (or below its target), on any side
+                    if (not def.anchored and def.walkSpeed > 0.0f and (inHole(f) or target->body.position.y > f.body.position.y + 1.5f))
+                        for (const glm::vec3 side : {glm::vec3(1, 0, 0), glm::vec3(-1, 0, 0), glm::vec3(0, 0, 1), glm::vec3(0, 0, -1)})
+                            view.climbable = view.climbable or ledgeAbove(f, side) > 0;
 
                     // Is a block in the way? (a raised wall, a pillar): from chest to chest
                     const glm::vec3 from = f.body.position + glm::vec3(0, f.body.height * 0.6f, 0);
@@ -1579,10 +1592,186 @@ namespace arena
                 break;
         }
 
+        // Walking into the wall of a hole it can climb (a pit its own slam dug): it climbs, pressed against the wall
+        if (stepClimb(f, def, wanted, targetAlive and target->body.position.y > f.body.position.y + 1.5f))
+            wanted = f.climbDir * 0.5f;
+
         stepCommon(f, wanted * speedScale(f), false, nullptr);
 
         if (f.action != Action::Free)
             ++f.frame;
+    }
+
+    bool ArenaWorld::stepClimb(Fighter& f, const EnemyDef& def, const glm::vec3& wanted, bool targetAbove)
+    {
+        const auto& C = tuning.climb;
+        const BlockTable& table = content->blockTable;
+        Body& body = f.body;
+        auto solid = [&](float x, float y, float z) { return grid.isSolid(table, static_cast<int>(std::floor(x)), static_cast<int>(std::floor(y)), static_cast<int>(std::floor(z))); };
+
+        // Climbing: up, until the feet are at the ledge; knocked off by anything but walking (a hit, a stagger), a roof,
+        // or the wall going (broken) on the way up
+        if (f.climbTo >= 0.0f)
+        {
+            if (body.position.y >= f.climbTo - 0.1f)
+            {
+                // At the top: the feet on the ledge, a step onto it
+                body.position.y = f.climbTo;
+                body.velocity = f.climbDir * def.walkSpeed;
+                body.velocity.y = 0.0f;
+                f.climbTo = -1.0f;
+                return false;
+            }
+
+            // The wall, anywhere across its width, at its feet or its middle
+            const glm::vec3 side(-f.climbDir.z, 0.0f, f.climbDir.x);
+            bool wall = false;
+            for (const float o : across(f))
+            {
+                const glm::vec3 ahead = body.position + f.climbDir * (body.width * 0.5f + 0.15f) + side * o;
+                wall = wall or solid(ahead.x, body.position.y + 0.05f, ahead.z) or solid(ahead.x, body.position.y + body.height * 0.5f, ahead.z);
+            }
+
+            if (f.action != Action::Free or body.hitY or not wall)
+            {
+                // Knocked off, or nothing to climb after all: it tries again in a moment, not at once (a climb started
+                // and dropped every other step looked like climbing on the spot)
+                f.climbTo = -1.0f;
+                f.climbWait = 0.6f;
+                return false;
+            }
+
+            body.velocity.y = f.climbSpeed;
+            return true;
+        }
+
+        // Starting: walking into a wall, on the ground, in a hole (walls on three sides at least) or below its target: a
+        // wall on open ground (a player's raised earth, the player behind it) stays something to go round or smash
+        if (f.climbWait > 0.0f)
+        {
+            f.climbWait -= STEP_SECONDS;
+            return false;
+        }
+        if (f.action != Action::Free or not body.onGround or def.walkSpeed <= 0.0f or def.anchored or not (body.hitX or body.hitZ))
+            return false;
+
+        const glm::vec3 flatWanted(wanted.x, 0.0f, wanted.z);
+        if (glm::length(flatWanted) < 0.3f)
+            return false;
+
+        glm::vec3 dir(0.0f);
+        if (body.hitX and (not body.hitZ or std::fabs(flatWanted.x) >= std::fabs(flatWanted.z)) and std::fabs(flatWanted.x) > 0.05f)
+            dir.x = flatWanted.x > 0.0f ? 1.0f : -1.0f;
+        else if (body.hitZ and std::fabs(flatWanted.z) > 0.05f)
+            dir.z = flatWanted.z > 0.0f ? 1.0f : -1.0f;
+        else
+            return false;
+
+        if (not targetAbove and not inHole(f))
+            return false;
+
+        float wallAt = 0.0f;
+        const int up = ledgeAbove(f, dir, &wallAt);
+        if (up == 0 or wallAt > body.width * 0.5f + 0.45f)   // none, or not the wall it walked into
+            return false;
+
+        // Bigger climbs faster, a higher wall slower
+        const float size = glm::clamp(body.height / std::max(0.1f, C.sizeRef), 0.35f, 2.5f);
+        f.climbSpeed = C.speed * size / (1.0f + C.deepSlow * static_cast<float>(up - 1));
+        f.climbTo = std::floor(body.position.y + 0.05f) + static_cast<float>(up) + 0.02f;
+        f.climbDir = dir;
+        f.yaw = yawOf(dir);
+        event("climb", body.position, 1.0f, f.id);
+        return true;
+    }
+
+    bool ArenaWorld::inHole(const Fighter& f) const
+    {
+        // Walls on three sides at least, within 3 m of the body: a pit, a pen. A wall on open ground (a player's raised
+        // earth) is no hole: something to go round or smash
+        const Body& body = f.body;
+        const float feet = body.position.y + 0.05f;
+        int walls = 0;
+
+        for (const glm::vec3 side : {glm::vec3(1, 0, 0), glm::vec3(-1, 0, 0), glm::vec3(0, 0, 1), glm::vec3(0, 0, -1)})
+            for (float d = body.width * 0.5f + 0.2f; d <= body.width * 0.5f + 3.0f; d += 0.5f)
+                if (grid.isSolid(content->blockTable, static_cast<int>(std::floor(body.position.x + side.x * d)), static_cast<int>(std::floor(feet)),
+                                 static_cast<int>(std::floor(body.position.z + side.z * d))))
+                {
+                    ++walls;
+                    break;
+                }
+
+        return walls >= 3;
+    }
+
+    std::vector<float> ArenaWorld::across(const Fighter& f) const
+    {
+        // Points across the body's width (a wide one touches a wall with only part of its side)
+        const float half = f.body.width * 0.5f - 0.05f;
+        std::vector<float> out;
+        for (float o = -half; o < half; o += 0.45f)
+            out.push_back(o);
+        out.push_back(half);
+        return out;
+    }
+
+    int ArenaWorld::ledgeAbove(const Fighter& f, const glm::vec3& dir, float* wallAt) const
+    {
+        // The nearest wall along dir (within 3 m), anywhere across the body's width; the highest of its columns there
+        // (the feet must clear them all); room to rise where the fighter is (its whole footprint, up to that plus its
+        // height) and to stand on the ledge. The blocks up, if more than a step and no more than climb.maxHeight (else 0)
+        const Body& body = f.body;
+        auto solid = [&](const glm::vec3& at, int y) {
+            return grid.isSolid(content->blockTable, static_cast<int>(std::floor(at.x)), y, static_cast<int>(std::floor(at.z)));
+        };
+
+        const glm::vec3 side(-dir.z, 0.0f, dir.x);
+        const float half = body.width * 0.5f;
+        const int base = static_cast<int>(std::floor(body.position.y + 0.05f));
+        const int headroom = std::max(1, static_cast<int>(std::ceil(body.height)));
+        const int most = static_cast<int>(tuning.climb.maxHeight);
+        const std::vector<float> spread = across(f);
+
+        float at = -1.0f;
+        for (float d = half + 0.15f; d <= half + 3.0f and at < 0.0f; d += 0.25f)
+            for (const float o : spread)
+                if (solid(body.position + dir * d + side * o, base))
+                {
+                    at = d;
+                    break;
+                }
+        if (at < 0.0f)
+            return 0;
+        if (wallAt)
+            *wallAt = at;
+
+        int up = 0;
+        for (const float o : spread)
+        {
+            const glm::vec3 column = body.position + dir * at + side * o;
+            if (not solid(column, base))
+                continue;
+            int k = 1;
+            while (k <= most and solid(column, base + k))
+                ++k;
+            if (k > most)
+                return 0;   // a part of it too high
+            up = std::max(up, k);
+        }
+
+        for (const float o : spread)
+            for (const float d : {-half + 0.05f, 0.0f, half - 0.05f})
+                for (int y = base + 1; y < base + up + headroom; ++y)
+                    if (solid(body.position + side * o + dir * d, y))
+                        return 0;
+
+        for (const float o : spread)
+            for (int y = base + up; y < base + up + headroom; ++y)
+                if (solid(body.position + dir * (at + 0.3f) + side * o, y))
+                    return 0;
+
+        return static_cast<float>(base + up) - body.position.y > tuning.player.stepHeight ? up : 0;
     }
 
     void ArenaWorld::stepCommon(Fighter& f, glm::vec3 wanted, bool canJump, const InputFrame* in)
@@ -1750,7 +1939,7 @@ namespace arena
         }
 
         // An air dash, and a plunge (its own speed), fly straight
-        const bool noGravity = f.action == Action::AirDash or
+        const bool noGravity = f.action == Action::AirDash or f.climbTo >= 0.0f or
                                (attack and attack->plungeSpeed > 0.0f and not body.onGround and (attack->leapAt < 0 or f.frame >= attack->startup));
 
         if (not noGravity)

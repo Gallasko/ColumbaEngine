@@ -617,7 +617,7 @@ namespace arena::net
         w.u16(names.id(f.aiMove));
 
         w.u8(static_cast<uint8_t>(std::clamp(f.chargeFrames, 0, 255)));   // a charge shows
-        w.boolean(f.elite);
+        w.u8((f.elite ? 0x01 : 0) | (f.climbTo >= 0.0f ? 0x02 : 0));                         // an elite; climbing (its pose)
         w.u8(static_cast<uint8_t>(std::clamp(f.phase, 0, 127)) | (f.shielded ? 0x80 : 0));   // a boss's phase, its shield
         w.u8(static_cast<uint8_t>(std::min<size_t>(f.affixes.size(), 8)));                  // an elite's affixes: they show
         for (size_t i = 0; i < f.affixes.size() and i < 8; ++i)
@@ -798,7 +798,9 @@ namespace arena::net
         f.aiMove = names.name(r.u16());
 
         f.chargeFrames = r.u8();
-        f.elite = r.boolean();
+        const uint8_t flags = r.u8();
+        f.elite = (flags & 0x01) != 0;
+        f.climbTo = (flags & 0x02) != 0 ? f.body.position.y + 1.0f : -1.0f;   // the pose only: the server climbs it
         const uint8_t phase = r.u8();
         f.phase = phase & 0x7F;
         f.shielded = (phase & 0x80) != 0;

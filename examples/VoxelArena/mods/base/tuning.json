@@ -193,6 +193,16 @@
     },
 
     // Pieces of the arena that lose their support fall, and crush what they land on
+    // Enemies climb a wall they walk into, out of a pit or up a ledge, from a step up to maxHeight blocks: at speed m/s
+    // for one sizeRef m tall (a bigger one climbs faster, a small one slower), slower the higher it is
+    // (speed / (1 + deepSlow x (blocks - 1))). A hit knocks a climber off.
+    "climb": {
+        "maxHeight": 4,
+        "speed": 1.6,
+        "sizeRef": 1.8,
+        "deepSlow": 0.35
+    },
+
     "terrain": {
         "gravity": 30,
         "crushDamage": 30,

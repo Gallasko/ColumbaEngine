@@ -2703,6 +2703,15 @@ namespace arena
         if (part == "leg_fr" or part == "leg_bl")
             return forward(-swing * 1.2f);
 
+        // Climbing out of a hole: the hands up the wall in turn, the legs pushing
+        if (f.climbTo >= 0.0f)
+        {
+            const float t = simTime * 7.0f + static_cast<float>(f.id);
+            if (arm)
+                return forward(150.0f + 22.0f * std::sin(t + (left ? 0.0f : 3.14159f)));
+            return forward(30.0f * std::sin(t + (left ? 3.14159f : 0.0f)));
+        }
+
         // In the air: a stride
         if (not f.body.onGround and leg)
             return forward(left ? -20.0f : 25.0f);
@@ -4300,6 +4309,22 @@ namespace arena
         std::vector<float> reachRings;      // reach: how far each attack reaches
         lookPoints.clear();
 
+        // Shadows: a soft dark disc on the ground under each fighter and projectile, fainter and a little wider the
+        // higher it is, gone past 10 m: where it is over the ground, and how high, read at a glance
+        std::vector<float> shadows;
+        auto shadow = [&](const glm::vec3& at, float radius, float strength) {
+            const RayHit ground = raycast(world.grid, content.blockTable, at + glm::vec3(0, 0.25f, 0), glm::vec3(0, -1, 0), 10.25f);
+            if (not ground.hit)
+                return;
+            const float height = std::max(0.0f, ground.distance - 0.25f);
+            const float fade = strength * (1.0f - height / 10.0f);
+            if (fade <= 0.02f)
+                return;
+            const float r = radius * (1.0f + 0.08f * height);
+            const glm::mat4 m = glm::translate(glm::mat4(1.0f), glm::vec3(at.x, at.y + 0.25f - ground.distance + 0.015f, at.z)) * glm::scale(glm::mat4(1.0f), glm::vec3(r * 2.0f, 1.0f, r * 2.0f));
+            pushInstance(shadows, view, m, glm::vec4(0.02f, 0.03f, 0.05f, fade), glm::vec4(0.0f));
+        };
+
         for (const auto& f : world.fighters)
         {
             std::string modelId;
@@ -4358,6 +4383,10 @@ namespace arena
             if (f.id != world.localPlayerId and not (attack and attack->tellHeavy) and
                 not seen.sees(pos + glm::vec3(0, h * 0.5f, 0), std::max(h, f.body.width) + 1.5f))
                 continue;
+
+            // Its shadow (the player's own in first person has no body to cast it)
+            if (not (firstPerson and f.team == Team::Player and f.id == world.localPlayerId))
+                shadow(pos, std::max(0.35f, f.body.width * 0.82f), 0.46f);
 
             // The body frame at a frame of the action: feet, facing, then the action's pose (a function
             // of the frame, so the slash trail can ask where the body was a few frames ago)
@@ -4875,7 +4904,9 @@ namespace arena
 
             const glm::mat4 mm = glm::translate(glm::mat4(1.0f), at) * rotY(yaw) * rotX(pitch) * glm::scale(glm::mat4(1.0f), glm::vec3(pr.def.modelScale)) * glm::translate(glm::mat4(1.0f), -centre);
             pushInstance(instances[pr.def.model], view, mm, WHITE, glm::vec4(0.0f));
+            shadow(at, std::max(0.12f, pr.def.radius * 1.4f), 0.3f);
         }
+        add(discMesh, debugMaterial, OpacityType::Normal, std::move(shadows));
 
         // A run's shards: little spinning crystals, bobbing where they lie, streaking to whoever picks them up
         if (not world.pickups.empty())

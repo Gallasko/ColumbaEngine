@@ -174,6 +174,19 @@ namespace arena
             float dashAttackWindow = 0.15f; // s after a sprint ends that a light press is still a dash attack
         } combat;
 
+        /**
+         * Enemies climbing a wall they walk into (out of a pit, up a ledge): from the step height up to maxHeight blocks.
+         * They rise at speed m/s for an enemy sizeRef m tall, faster the taller (from 0.35 to 2.5 times), and slower the
+         * higher the ledge: speed / (1 + deepSlow x (blocks - 1)).
+         */
+        struct Climb
+        {
+            float maxHeight = 4.0f;
+            float speed = 1.6f;
+            float sizeRef = 1.8f;
+            float deepSlow = 0.35f;
+        } climb;
+
         struct Terrain
         {
             float gravity = 30.0f;          // m/s^2 for falling pieces

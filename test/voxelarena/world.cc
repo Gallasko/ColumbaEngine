@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include <random>
+
 #include <chrono>
 #include <cmath>
 #include <iostream>
@@ -1305,4 +1307,184 @@ TEST(arena_world, an_attack_aims_down_at_an_enemy_below_the_ledge)
 
     EXPECT_EQ(attempt(false), 1);   // third person: aim assist picks it, the swing tilts down to it
     EXPECT_EQ(attempt(true), 1);    // first person: the swing follows the view down
+}
+
+namespace
+{
+    /** A brain that only ever goes for the player: what the climbing is checked with, whatever the enemy's script. */
+    struct ChaseBrain : public Brain
+    {
+        bool think(const std::string&, const BrainView&, BrainOrder& order, std::string&) override
+        {
+            order.move = "chase";
+            return true;
+        }
+    };
+
+    /** A pit `depth` blocks deep (bedrock: nothing digs out of it) and 5 wide in the middle, an enemy at its bottom, the player on its rim. */
+    struct Pit
+    {
+        Arena a;
+        ChaseBrain brain;
+        int enemy = 0;
+
+        Pit(int depth, const std::string& type)
+        {
+            const BlockId bedrock = a.content.block("base:bedrock");
+            a.world.grid.fill({0, 1, 0}, {31, depth, 31}, bedrock);
+            a.world.grid.fill({14, 1, 14}, {18, depth, 18}, AIR);
+            a.world.setBrain(&brain);
+            a.player().body.position = glm::vec3(16.5f, static_cast<float>(depth) + 1.0f, 23.5f);
+            enemy = a.world.spawnEnemy(type, glm::vec3(16.5f, 1.0f, 16.5f), 0.0f);
+            a.settle(10);
+        }
+
+        Fighter& foe() { return *a.world.find(enemy); }
+
+        /** Steps until the enemy's feet are on the rim (true), or the time runs out. */
+        bool climbsOut(float seconds, float rim, int* steps = nullptr)
+        {
+            for (int i = 0; i < static_cast<int>(seconds * 60.0f); ++i)
+            {
+                a.world.step(InputFrame{});
+                if (foe().body.position.y >= rim - 0.01f and foe().body.onGround)
+                {
+                    if (steps)
+                        *steps = i;
+                    return true;
+                }
+            }
+            return false;
+        }
+    };
+}
+
+TEST(arena_climb, an_enemy_climbs_out_of_a_pit_two_blocks_deep)
+{
+    Pit pit(2, "base:brute");
+    EXPECT_TRUE(pit.climbsOut(8.0f, 3.0f)) << "the brute is still at " << pit.foe().body.position.y;
+}
+
+TEST(arena_climb, a_pit_deeper_than_the_climb_keeps_it)
+{
+    Pit pit(5, "base:brute");
+    EXPECT_FALSE(pit.climbsOut(10.0f, 6.0f));
+    EXPECT_LT(pit.foe().body.position.y, 2.0f);   // not stuck halfway up the wall either
+}
+
+TEST(arena_climb, a_deeper_pit_takes_longer_and_a_small_enemy_climbs_slower)
+{
+    int brute2 = 0, brute4 = 0, pebble4 = 0;
+    {
+        Pit pit(2, "base:brute");
+        ASSERT_TRUE(pit.climbsOut(10.0f, 3.0f, &brute2));
+    }
+    {
+        Pit pit(4, "base:brute");
+        ASSERT_TRUE(pit.climbsOut(15.0f, 5.0f, &brute4));
+    }
+    {
+        Pit pit(4, "base:pebble");
+        ASSERT_TRUE(pit.climbsOut(40.0f, 5.0f, &pebble4));
+    }
+    EXPECT_GT(brute4, brute2);
+    EXPECT_GT(pebble4, brute4);
+}
+
+TEST(arena_climb, a_wall_on_open_ground_is_not_climbed)
+{
+    // A player's raised earth stays cover: walls on one side only are no hole
+    Arena a;
+    ChaseBrain brain;
+    a.world.setBrain(&brain);
+    a.world.grid.fill({10, 1, 19}, {22, 2, 19}, a.content.block("base:bedrock"));
+    a.player().body.position = glm::vec3(16.5f, 1.0f, 23.5f);
+    const int id = a.world.spawnEnemy("base:brute", glm::vec3(16.5f, 1.0f, 16.5f), 0.0f);
+    a.run(60 * 5);
+    EXPECT_LT(a.world.find(id)->body.position.y, 1.5f);
+}
+
+TEST(arena_climb, the_brute_s_script_climbs_out_of_a_stone_pit_rather_than_dig)
+{
+    // Its own script this time, in a pit it could smash: me.climbable sends it up the wall
+    Arena a;
+    ScriptBrain brain;
+    ContentReport report;
+    brain.load(a.content, report);
+    a.world.setBrain(&brain);
+
+    const BlockId stone = a.content.block("base:stone");
+    a.world.grid.fill({0, 1, 0}, {31, 2, 31}, stone);
+    a.world.grid.fill({14, 1, 14}, {18, 2, 18}, AIR);
+    a.player().body.position = glm::vec3(16.5f, 3.0f, 24.5f);
+    a.world.godMode = true;
+    const int id = a.world.spawnEnemy("base:brute", glm::vec3(16.5f, 1.0f, 16.5f), 0.0f);
+
+    bool out = false;
+    for (int i = 0; i < 60 * 8 and not out; ++i)
+    {
+        a.world.step(InputFrame{});
+        out = a.world.find(id)->body.position.y >= 2.99f and a.world.find(id)->body.onGround;
+    }
+    EXPECT_TRUE(out) << "at " << a.world.find(id)->body.position.y << " " << a.world.find(id)->aiMove << " " << a.world.find(id)->aiLastError;
+}
+
+TEST(arena_climb, a_wide_enemy_climbs_a_wall_that_touches_only_part_of_its_side)
+{
+    // An uneven pit (dug by slams): a one-block step along half of the wall it walks into, the player on the rim at
+    // a slant. The wall is beside the middle of the chieftain's body, not in front of it: it must still climb
+    Arena a;
+    ChaseBrain brain;
+    a.world.setBrain(&brain);
+    const BlockId bedrock = a.content.block("base:bedrock");
+    a.world.grid.fill({0, 1, 0}, {31, 3, 31}, bedrock);
+    a.world.grid.fill({12, 1, 12}, {20, 3, 20}, AIR);       // a pit 3 deep, 9 wide
+    a.world.grid.fill({17, 1, 18}, {20, 1, 20}, bedrock);   // a step in one corner
+    a.player().body.position = glm::vec3(19.5f, 4.0f, 23.5f);
+    const int id = a.world.spawnEnemy("base:chieftain", glm::vec3(16.0f, 1.0f, 17.0f), 0.0f);
+
+    bool out = false;
+    for (int i = 0; i < 60 * 15 and not out; ++i)
+    {
+        a.world.step(InputFrame{});
+        out = a.world.find(id)->body.position.y >= 3.99f and a.world.find(id)->body.onGround;
+    }
+    EXPECT_TRUE(out) << "the chieftain is at " << a.world.find(id)->body.position.x << " " << a.world.find(id)->body.position.y << " "
+                     << a.world.find(id)->body.position.z << ", climbing to " << a.world.find(id)->climbTo;
+}
+
+TEST(arena_climb, a_wide_or_narrow_enemy_gets_out_of_uneven_craters)
+{
+    // Craters of a few overlapping boxes, 1 to 3 deep (as slams dig them), the player somewhere on the rim: whatever
+    // the shape, whatever wall touches it where, it climbs out (a chieftain once climbed on the spot at an uneven wall)
+    for (const char* type : {"base:chieftain", "base:brute"})
+    {
+        std::mt19937 rng(5);
+        for (int trial = 0; trial < 25; ++trial)
+        {
+            Arena a;
+            ChaseBrain brain;
+            a.world.setBrain(&brain);
+            a.world.grid.fill({0, 1, 0}, {31, 3, 31}, a.content.block("base:bedrock"));
+            std::uniform_int_distribution<int> corner(11, 17), size(2, 5), depth(1, 3);
+            for (int k = 0; k < 4; ++k)
+            {
+                const int x = corner(rng), z = corner(rng), w = size(rng), d = size(rng);
+                a.world.grid.fill({x, 4 - depth(rng), z}, {x + w, 3, z + d}, AIR);
+            }
+            a.world.grid.fill({12, 1, 12}, {16, 3, 16}, AIR);   // where it starts, 3 deep
+
+            std::uniform_real_distribution<float> rim(8.0f, 24.0f);
+            glm::vec3 player(rim(rng), 4.0f, rim(rng));
+            if (player.x > 10.0f and player.x < 23.0f and player.z > 10.0f and player.z < 23.0f)
+                player.z = 25.0f;
+            a.player().body.position = player;
+
+            const int id = a.world.spawnEnemy(type, glm::vec3(14.5f, 1.0f, 14.5f), 0.0f);
+            a.run(60 * 15);
+            const Fighter& f = *a.world.find(id);
+            EXPECT_GE(f.body.position.y, 3.9f) << type << ", crater " << trial << ": still at " << f.body.position.x << " " << f.body.position.y << " "
+                                               << f.body.position.z;
+        }
+    }
 }
