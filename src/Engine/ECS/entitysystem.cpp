@@ -95,6 +95,7 @@ namespace
 #include "Compiler/ast/pass/row_hoisting.h"
 #include "Compiler/ast/pass/run_once.h"
 #include "Compiler/ast/pass/program_consts.h"
+#include "Compiler/ast/pass/useless_statements.h"
 #include "Compiler/pass/comparison_local_indexing.h"
 #include "Compiler/pass/remove_def_get_global_redunduncy.h"
 #include "Compiler/pass/constant_var_access.h"
@@ -1156,9 +1157,11 @@ namespace pg
             // Inlining comes second: the calls it folds away are calls those
             // two would otherwise refuse. The lengths go before the invariants: a
             // len() left in a loop is a call, which LoopInvariantHoisting refuses. The
-            // rows go after: a key may be what the invariants named.
+            // rows go after: a key may be what the invariants named. Useless statements
+            // (`a == b;`) go right after inlining, before anything moves or folds them.
             vm.addAstPass(std::make_unique<EntityLoopLoweringPass>());
             vm.addAstPass(std::make_unique<FunctionInliningPass>());
+            vm.addAstPass(std::make_unique<UselessStatementsPass>());
             vm.addAstPass(std::make_unique<StaticLoopEvaluationPass>());
             vm.addAstPass(std::make_unique<LengthHoistingPass>());
             vm.addAstPass(std::make_unique<LoopInvariantHoistingPass>());

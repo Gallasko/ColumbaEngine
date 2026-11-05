@@ -6,6 +6,7 @@
 #include "Compiler/ast/pass/loop_invariant_hoisting.h"
 #include "Compiler/ast/pass/row_hoisting.h"
 #include "Compiler/ast/pass/static_loop_evaluation.h"
+#include "Compiler/ast/pass/useless_statements.h"
 
 #include "ECS/entitysystem.h"
 
@@ -1725,6 +1726,228 @@ TEST_F(ListMethods, LoopsAreHoistedAsWithTheFunctions)
 
     expectPrints(methods, "2\n");
     expectSameEnd(methods);
+}
+
+class UselessStatements : public AstPassBase
+{
+protected:
+    std::string transform(const std::string& source, bool& changed)
+    {
+        UselessStatementsPass pass;
+        return transformWith(pass, source, changed);
+    }
+
+    static size_t statementsLeft(const std::string& printed)
+    {
+        size_t count = 0;
+
+        for (auto at = printed.find("Expression statement"); at != std::string::npos; at = printed.find("Expression statement", at + 1))
+            ++count;
+
+        return count;
+    }
+
+    // The body of the program's function `name`, the pass run over the program
+    std::shared_ptr<BlockStatement> bodyAfter(const std::string& source, const std::string& name)
+    {
+        Lexer lexer;
+        lexer.readFromText(source);
+
+        Parser parser(lexer.getTokens());
+        auto statements = parser.parse();
+
+        EXPECT_FALSE(parser.hasError()) << "test source failed to parse";
+
+        UselessStatementsPass pass;
+        pass.runPass(nullptr, statements);
+
+        for (; not statements.empty(); statements.pop())
+        {
+            const auto& s = statements.front();
+
+            if (s and s->kind() == AstKind::FunctionStatement)
+            {
+                auto f = std::static_pointer_cast<FunctionStatement>(s);
+
+                if (f->name.text == name)
+                    return std::static_pointer_cast<BlockStatement>(f->body);
+            }
+        }
+
+        ADD_FAILURE() << "no function " << name;
+        return nullptr;
+    }
+
+    void expectPrintsAtEveryLevel(const std::string& source, const std::string& expected)
+    {
+        for (auto level : {VmOptimizationLevel::O0, VmOptimizationLevel::O2, VmOptimizationLevel::O3})
+        {
+            EntitySystem ecs;
+            ecs.setVMOptimizationLevel(level);
+            ecs.setVMFrontEnd(ScriptFrontEnd::Ast);
+
+            VM vm;
+            ecs.setupVm(vm);
+
+            EXPECT_EQ(vm.interpretFromText(source), InterpretResult::OK) << source;
+            EXPECT_EQ(vm.testOutput, expected) << source;
+        }
+    }
+};
+
+TEST_F(UselessStatements, RemovesComparisonsReadsAndLiteralsOfLocals)
+{
+    MockLogger<TerminalSink> logger;
+
+    bool changed = false;
+    auto printed = transform(
+        "{\n"
+        "    var a = 1;\n"
+        "    var b = \"str\";\n"
+        "    a == b;\n"
+        "    a != 2;\n"
+        "    a;\n"
+        "    1;\n"
+        "    \"str\";\n"
+        "    none;\n"
+        "    true == false;\n"
+        "    not (a == b);\n"
+        "    (a == b) and (b != none);\n"
+        "    a == 1 or not true;\n"
+        "}\n", changed);
+
+    EXPECT_TRUE(changed);
+    EXPECT_EQ(statementsLeft(printed), 0u) << printed;
+}
+
+TEST_F(UselessStatements, KeepsWhatMayStopTheScriptOrRunCode)
+{
+    MockLogger<TerminalSink> logger;
+
+    bool changed = false;
+    auto printed = transform(
+        "var g = 1;\n"
+        "fun f()\n"
+        "{\n"
+        "    return 1;\n"
+        "}\n"
+        "{\n"
+        "    var a = 1;\n"
+        "    var t = [1];\n"
+        "    g;\n"
+        "    g == a;\n"
+        "    a + 1;\n"
+        "    a < 2;\n"
+        "    -a;\n"
+        "    not a;\n"
+        "    f();\n"
+        "    t[0];\n"
+        "    t.x;\n"
+        "    a = 2;\n"
+        "    a++;\n"
+        "    later;\n"
+        "    var later = 3;\n"
+        "}\n", changed);
+
+    EXPECT_FALSE(changed);
+    EXPECT_EQ(statementsLeft(printed), 12u) << printed;
+}
+
+TEST_F(UselessStatements, NamesOfTheTopLevelAreGlobals)
+{
+    MockLogger<TerminalSink> logger;
+
+    bool changed = false;
+    auto printed = transform(
+        "var a = 1;\n"
+        "a;\n"
+        "a == a;\n"
+        "1;\n", changed);
+
+    EXPECT_TRUE(changed);
+    EXPECT_EQ(statementsLeft(printed), 2u) << printed;
+}
+
+TEST_F(UselessStatements, ParametersAndUpvaluesAreLocals)
+{
+    MockLogger<TerminalSink> logger;
+
+    auto body = bodyAfter(
+        "fun f(p)\n"
+        "{\n"
+        "    var a = 1;\n"
+        "    p == a;\n"
+        "    fun g()\n"
+        "    {\n"
+        "        a == p;\n"
+        "        return a;\n"
+        "    }\n"
+        "    return g();\n"
+        "}\n", "f");
+
+    ASSERT_TRUE(body);
+    ASSERT_EQ(body->statements.size(), 3u);
+
+    auto inner = body->statements;
+    inner.pop();
+    ASSERT_EQ(inner.front()->kind(), AstKind::FunctionStatement);
+
+    auto g = std::static_pointer_cast<FunctionStatement>(inner.front());
+    EXPECT_EQ(std::static_pointer_cast<BlockStatement>(g->body)->statements.size(), 1u);
+}
+
+TEST_F(UselessStatements, ABodyLeftEmptyStillRuns)
+{
+    MockLogger<TerminalSink> logger;
+
+    const std::string source =
+        "var out = 0;\n"
+        "{\n"
+        "    var a = 1;\n"
+        "    if (a == 1)\n"
+        "        a == 2;\n"
+        "    else\n"
+        "        out = 5;\n"
+        "    while (out < 3)\n"
+        "    {\n"
+        "        out = out + 1;\n"
+        "        a;\n"
+        "    }\n"
+        "    for (var i = 0; i < 2; i++)\n"
+        "        i == a;\n"
+        "}\n"
+        "__dprint(out);\n";
+
+    bool changed = false;
+    auto printed = transform(source, changed);
+
+    EXPECT_TRUE(changed);
+    EXPECT_EQ(statementsLeft(printed), 2u) << printed;  // out = 5, out = out + 1
+
+    expectPrintsAtEveryLevel(source, "3\n");
+    expectFrontEndsAgree(source);
+}
+
+TEST_F(UselessStatements, ALoopOfComparisonsKeepsItsCount)
+{
+    MockLogger<TerminalSink> logger;
+
+    // clox's equality benchmark: the comparisons go, the loop and its count stay
+    expectPrintsAtEveryLevel(
+        "fun main(n)\n"
+        "{\n"
+        "    var a1 = \"aaaa1\";\n"
+        "    var a2 = \"aaaa2\";\n"
+        "    var i = 0;\n"
+        "    while (i < n)\n"
+        "    {\n"
+        "        i = i + 1;\n"
+        "        1 == 1; 1 == none; none == \"str\"; true == 1;\n"
+        "        a1 == a1; a1 == a2; a2 != a1;\n"
+        "    }\n"
+        "    return i;\n"
+        "}\n"
+        "__dprint(main(50));\n", "50\n");
 }
 
 } // namespace test

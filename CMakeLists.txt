@@ -210,6 +210,7 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Compiler/ast/ast_pass.cpp
     src/Engine/Compiler/ast/pass/ast_analysis.cpp
     src/Engine/Compiler/ast/pass/loop_invariant_hoisting.cpp
+    src/Engine/Compiler/ast/pass/useless_statements.cpp
     src/Engine/Compiler/ast/pass/static_loop_evaluation.cpp
     src/Engine/Compiler/ast/pass/entity_loop_lowering.cpp
     src/Engine/Compiler/ast/pass/ast_survey.cpp
@@ -312,6 +313,7 @@ set(ENGINESOURCE
     src/Engine/Compiler/ast/ast_pass.cpp
     src/Engine/Compiler/ast/pass/ast_analysis.cpp
     src/Engine/Compiler/ast/pass/loop_invariant_hoisting.cpp
+    src/Engine/Compiler/ast/pass/useless_statements.cpp
     src/Engine/Compiler/ast/pass/static_loop_evaluation.cpp
     src/Engine/Compiler/ast/pass/entity_loop_lowering.cpp
     src/Engine/Compiler/ast/pass/ast_survey.cpp
