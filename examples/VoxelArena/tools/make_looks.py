@@ -190,9 +190,6 @@ def build():
         anklet.at(x, 0, z, c).at(x, 1, z, c)
     m["look_anklet"] = anklet
 
-    # Meteor boots: a rock at each heel, behind it, narrower than the leg (never one surface with it), glowing
-    m["look_heel"] = Model().box(0, 0, 0, 2, 1, 1, (110, 100, 96)).box(1, 0, 0, 1, 0, 0, (255, 120, 50)).at(0, 0, 0, (255, 160, 80))
-
     return m
 
 
@@ -224,7 +221,6 @@ PIECES = {
     "overclock":   [("look_gear", "arm_l", (7.0, 8.0, 0.5))],
     "thorns":      [("look_thorns", "arm_r", (-1.0, 8.5, 0.0))],
     "ember_trail": [("look_anklet", "leg_r", (0.75, 1.0, 0.75), FINE), ("look_anklet", "leg_l", (3.75, 1.0, 0.75), FINE)],
-    "meteor_boots":[("look_heel", "leg_r", (1.25, 0.0, 0.0)), ("look_heel", "leg_l", (4.25, 0.0, 0.0))],
 }
 
 

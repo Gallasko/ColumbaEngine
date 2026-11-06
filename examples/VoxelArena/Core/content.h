@@ -163,6 +163,7 @@ namespace arena
         Element element = Element::None;   // sets the arena alight, freezes pits...
         StatusHit status;
         bool everyone = false;
+        bool whenPlayerKills = true;       // false: a player killing it (its hit, its burn) puts it out: only its own end sets it off
         // Looks: where its fuse is on the model (in its voxels), the sparks of its countdown; none: the top of the body
         glm::vec3 fuse = glm::vec3(0.0f);
         bool hasFuse = false;
@@ -711,6 +712,7 @@ namespace arena
         float damage = 0.0f;
         int dashCharges = 0;
         float manaCost = 0.0f;
+        float staminaCost = 0.0f;     // the weapon's attacks and the techniques cost this much less stamina (0.2: 20%)
         float manaRegen = 0.0f;
         float staminaRegen = 0.0f;
         float speed = 0.0f;

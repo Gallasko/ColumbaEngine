@@ -3896,7 +3896,7 @@ namespace arena
             ArmoryView::Spell card;
             card.name = sp.name;
             card.element = sp.recipe.element;
-            card.text = (sp.text.empty() ? "" : sp.text + " ") + describe(content, compileSpell(content, sp.recipe));
+            card.text = (sp.text.empty() ? "" : sp.text + "\n") + describe(content, compileSpell(content, sp.recipe));
             card.chosen = me and not me->runSpells.empty() and me->runSpells.front().id == id;
             v.spells.push_back(card);
         }

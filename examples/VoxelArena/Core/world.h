@@ -149,7 +149,7 @@ namespace arena
         std::vector<RunSpell> runSkills;
         struct Boons
         {
-            float maxHealth = 0.0f, damage = 0.0f, manaCost = 0.0f, manaRegen = 0.0f, staminaRegen = 0.0f;
+            float maxHealth = 0.0f, damage = 0.0f, manaCost = 0.0f, staminaCost = 0.0f, manaRegen = 0.0f, staminaRegen = 0.0f;
             float speed = 0.0f, cooldown = 0.0f, lifeOnHit = 0.0f, armor = 0.0f, crit = 0.0f, pickupRange = 0.0f, regen = 0.0f, attackSpeed = 0.0f;
             float horde = 0.0f, xpGain = 0.0f, shardChance = 0.0f;
             int dashCharges = 0, statusStacks = 0;
@@ -692,6 +692,8 @@ namespace arena
         float damageFalloff(float extra) const;
         float teamShardChance() const;
         int maxDashes(const Fighter& f) const { return tuning.dash.charges + f.boon.dashCharges; }
+        /** What the stamina of an attack or a technique costs a player, times its cost (Tireless: 70% off at most). */
+        float staminaCostScale(const Fighter& f) const { return 1.0f - std::clamp(f.boon.staminaCost, 0.0f, 0.7f); }
         /** Health a second a fighter gets back: its regen items and its weapon's mending. */
         float healthRegen(const Fighter& f) const;
         /** How fast a fighter moves, of its walk speed: statuses slow it, items and affixes speed it up. */

@@ -206,7 +206,7 @@ namespace arena
         if (not spell.valid())
             return spell.error;
 
-        // One plain sentence a part: "Bolt: 12 damage. Area: 6 damage per second for 4 s, 2.2 m wide."
+        // A line a part: "Bolt: 12 damage", then "Area: 6 damage per second for 4 s, 2.2 m wide"
         std::string out;
 
         for (const SpellStage& st : spell.stages)
@@ -234,7 +234,7 @@ namespace arena
             if (st.bounces > 0)
                 part += ", bounces " + std::to_string(st.bounces) + (st.bounces == 1 ? " time" : " times");
 
-            out += (out.empty() ? "" : " ") + part + ".";
+            out += (out.empty() ? "" : "\n") + part;   // a line each
         }
 
         return out;

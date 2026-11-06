@@ -159,7 +159,7 @@ and enemies that come back), **O** for the options.
   is ready; in co-op the next wave waits for everyone. On sale, only items (`upgrades.json`):
   - stat items: health, damage, armor, crit, speed, attack speed (Frenzy: the weapon's light and heavy
     attacks 10% quicker each, and as much cheaper in stamina), regeneration, pickup range, dash charges,
-    cheaper spells, faster cooldowns, life on hit...;
+    cheaper spells, cheaper attacks and techniques in stamina (Tireless), faster cooldowns, life on hit...;
   - tag items: a boost for **every** spell and technique of yours with a tag. Spells are tagged with
     "spell", their element and their shapes ("projectile" for a bolt, "area" for a nova or a zone,
     "zone", "beam"); techniques with "technique", their own ("melee", "area", "dash", "heal") and
@@ -168,7 +168,7 @@ and enemies that come back), **O** for the options.
     and projectile speed, not more projectiles). Searing: +20% fire damage; Honed: +20% melee damage (your
     sword's swings too); Whetstone: +15% weapon attack damage; Split shot: +1 projectile; Fleet: +25%
     projectile speed; Widening: +20% area size; Lingering: +30% zone duration; Hastened: -15% spell
-    cooldown; Tireless: -20% technique stamina cost... One is offered only when something of yours has
+    cooldown... One is offered only when something of yours has
     its tag. Leech (life on hit) heals in full from a direct hit (a
     swing, an arrow, a bolt or a beam striking), a fifth from an area's, a zone's or a chain's.
   - trade-offs, something big for something lost: Glass cannon (+35% damage, -30% max health),
@@ -179,8 +179,7 @@ and enemies that come back), **O** for the options.
     Executioner (+50% to enemies under 30% health), Grudge (+40% for 3 s after you take a hit);
   - triggers: Thorns (enemies that hit you take 80% of it back), Soul siphon (heal 2 on each kill), Ember
     trail (a roll leaves burning ground where it starts), Static charge (every 5th weapon hit deals 14
-    lightning damage and jumps to 2 more enemies), Meteor boots (a hard landing, a fast fall, hits
-    everyone within 3.5 m for 30). Their damage grows with the waves, as the enemies' health does;
+    lightning damage and jumps to 2 more enemies). Their damage grows with the waves, as the enemies' health does;
   - payoff items, for statuses and combos, offered only when something of yours makes what they need
     (`needs`, `needsElements`): Catalyst (combos do 40% more damage; with two elements), Kindling
     (+30% damage to burning enemies), Brittle (+30% to slowed and frozen ones), Pyre (burning enemies
@@ -416,7 +415,7 @@ Each one is a JSON file in `mods/base/enemies/` and a pgscript brain in `mods/ba
 | Archer | Ranged | Keeps 6 to 14 m away, backs off when you close in, moves sideways to find a line of fire when a block is in the way, shoots sooner while you are busy. |
 | Skulker | Flanker | Fast and weak. Goes round to your back while someone else holds your attention, bites when you cannot see it, backs off after each bite. |
 | Stone Warden | Boss | Slow and huge. Slams, sweeps all around once angry, charges from the middle distance, throws rocks when you keep away. Weak to volt, resists fire. Three phases, shielded by four crystals between them. |
-| Sapper | Bomber | The Stockade on. Runs straight at you; close enough, it lights its fuse: sparks fly off it, and it shakes, swells and blinks red and white, faster and faster, then goes up. However it goes down, it slumps over its keg and the fuse burns on: the keg explodes a second later (a fireball, a shockwave over the ground, smoke, debris, and nothing left of it). A red ring shows where, and it hurts everyone in it, enemies too, and sets planks and hay alight. A sapper you kill counts its blast as yours. |
+| Sapper | Bomber | The Stockade on. Runs straight at you; close enough, it lights its fuse: sparks fly off it, and it shakes, swells and blinks red and white, faster and faster, then goes up. Kill it before that and its keg does not go off. Any other end (its fuse burning down, another sapper's blast) and it slumps over its keg and the fuse burns on: the keg explodes a second later (a fireball, a shockwave over the ground, smoke, debris, and nothing left of it). A red ring shows where, and it hurts everyone in it, enemies too, and sets planks and hay alight. |
 | Mender | Support | The Gorge on. Keeps behind the others like an archer, and when some of them are hurt it mends everyone within 7 m (a green pulse, stronger as the waves go on). Never mends a boss's crystal. Its own attack is a weak bolt. |
 | Rimecaller | Area denial | The Icefall on. Keeps its distance and lobs orbs of frost over walls; where one lands the ground stays frozen for a few seconds and slows you. Fire hurts it more. |
 | Golem | Tank | The Quarry on. Slow and tough, slams the ground through blocks. As it falls it breaks into three pebbles. Lightning cracks it. |

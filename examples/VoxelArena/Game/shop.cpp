@@ -26,6 +26,7 @@ namespace arena
         constexpr int CARDS = 4;
         constexpr float CARD_X[CARDS] = {66, 287, 508, 729};
         constexpr float CARD_Y = 186, CARD_W = 209, CARD_H = 416;
+        constexpr float BUILD_X = 954, BUILD_Y = 108, BUILD_W = 260;   // the build panel, and the tooltip over it
 
         std::string percent(float v) { return std::to_string(static_cast<int>(std::lround(v * 100.0f))) + "%"; }
 
@@ -147,9 +148,10 @@ namespace arena
         if (t.speed != 0.0f) parts.push_back("+" + pc(t.speed) + (tag == "projectile" ? " projectile speed" : " " + of + "projectile speed"));
         if (t.attackSpeed != 0.0f) parts.push_back("+" + pc(t.attackSpeed) + " attack speed");
 
+        // A line each: each effect starts its own line
         std::string out;
         for (const auto& part : parts)
-            out += (out.empty() ? "" : ", ") + part;
+            out += (out.empty() ? "" : "\n") + part;
         return out;
     }
 
@@ -216,7 +218,7 @@ namespace arena
             if (at.healZone.perSecond > 0.0f) out.push_back({"heal a second", at.healZone.perSecond});
             if (at.healZone.radius > 0.0f) out.push_back({"area", at.healZone.radius});
             if (at.healZone.duration > 0.0f) out.push_back({"lasts", at.healZone.duration});
-            out.push_back({"stamina", a.staminaCost * std::max(0.2f, 1.0f - boost.cost)});
+            out.push_back({"stamina", a.staminaCost * std::max(0.2f, 1.0f - boost.cost) * world.staminaCostScale(f)});
             out.push_back({"cooldown", a.cooldown * std::max(0.3f, 1.0f - f.boon.cooldown) * std::max(0.2f, 1.0f - boost.cooldown)});
             return out;
         }
@@ -254,7 +256,8 @@ namespace arena
             return {
                 {"Health", f.maxHealth}, {"Damage %", b.damage * 100.0f}, {"Armor %", std::min(b.armor, 0.7f) * 100.0f}, {"Crit %", b.crit * 100.0f},
                 {"Speed %", b.speed * 100.0f}, {"Regen /s", world.healthRegen(f)}, {"Dashes", static_cast<float>(world.maxDashes(f))},
-                {"Pickup m", content.run.pickupRange + b.pickupRange}, {"Spell cost -%", b.manaCost * 100.0f}, {"Mana regen %", b.manaRegen * 100.0f},
+                {"Pickup m", content.run.pickupRange + b.pickupRange}, {"Spell cost -%", b.manaCost * 100.0f}, {"Stamina cost -%", std::min(b.staminaCost, 0.7f) * 100.0f},
+                {"Mana regen %", b.manaRegen * 100.0f},
                 {"Stamina regen %", b.staminaRegen * 100.0f}, {"Cooldowns -%", b.cooldown * 100.0f}, {"Life on hit", b.lifeOnHit},
                 {"Status stacks", static_cast<float>(b.statusStacks)}, {"Attack speed %", b.attackSpeed * 100.0f},
                 {"More enemies %", b.horde * 100.0f}, {"XP per shard %", b.xpGain * 100.0f}, {"Extra shards %", b.shardChance * 100.0f},
@@ -292,9 +295,16 @@ namespace arena
         {
             for (const std::string& name : {m->light, m->heavy})
             {
-                const AttackDef* was = world.attackDef(before, name);
+                // A copy of the attack as it was: `before` and `after` are the same fighter to the world's cache of
+                // boosted attacks, so asking for `after`'s makes the one `before`'s pointed to anew (its numbers were lost:
+                // a light attack's area read 0.0 -> 4.1)
+                const AttackDef* wasPtr = world.attackDef(before, name);
+                if (not wasPtr)
+                    continue;
+                const AttackDef wasCopy = *wasPtr;
+                const AttackDef* was = &wasCopy;
                 const AttackDef* now = world.attackDef(after, name);
-                if (not was or not now)
+                if (not now)
                     continue;
 
                 auto attackStats = [](const AttackDef& a) {
@@ -346,20 +356,21 @@ namespace arena
             if (u.healthScale != 0.0f) parts.push_back(sign(u.healthScale) + pc(u.healthScale) + " max health");
             if (u.dashCharges != 0) parts.push_back("+" + std::to_string(u.dashCharges) + (u.dashCharges == 1 ? " dash charge" : " dash charges"));
             if (u.manaCost != 0.0f) parts.push_back("Spells cost " + pc(u.manaCost) + (u.manaCost > 0.0f ? " less" : " more"));
+            if (u.staminaCost != 0.0f) parts.push_back((u.staminaCost > 0.0f ? "-" : "+") + pc(u.staminaCost) + " stamina cost");
             if (u.manaRegen != 0.0f) parts.push_back(sign(u.manaRegen) + pc(u.manaRegen) + " mana regeneration");
             if (u.staminaRegen != 0.0f) parts.push_back(sign(u.staminaRegen) + pc(u.staminaRegen) + " stamina regeneration");
             if (u.speed != 0.0f) parts.push_back(sign(u.speed) + pc(u.speed) + " move speed");
             if (u.cooldown != 0.0f) parts.push_back((u.cooldown > 0.0f ? "-" : "+") + pc(u.cooldown) + " cooldown on all skills and spells");
             if (u.lifeOnHit != 0.0f) parts.push_back("Heal " + num(u.lifeOnHit) + " on every hit");
-            if (u.statusStacks != 0) parts.push_back("Your statuses land " + std::to_string(u.statusStacks) + (u.statusStacks == 1 ? " stack deeper" : " stacks deeper"));
+            if (u.statusStacks != 0) parts.push_back("You can apply " + (u.statusStacks == 1 ? std::string("one more debuff stack") : std::to_string(u.statusStacks) + " more debuff stacks"));
             if (u.armor != 0.0f) parts.push_back("Take " + pc(u.armor) + (u.armor > 0.0f ? " less damage" : " more damage"));
             if (u.crit != 0.0f) parts.push_back("+" + pc(u.crit) + " chance of a critical hit");
             if (u.pickupRange != 0.0f) parts.push_back("Pick up shards " + num(u.pickupRange) + " m further");
             if (u.regen != 0.0f) parts.push_back("Regenerate " + num(u.regen) + " health a second");
-            if (u.attackSpeed != 0.0f) parts.push_back("+" + pc(u.attackSpeed) + " attack speed (your weapon's light and heavy attacks)");
-            if (u.horde != 0.0f) parts.push_back(pc(u.horde) + " more enemies come (more shards to pick up)");
+            if (u.attackSpeed != 0.0f) parts.push_back("+" + pc(u.attackSpeed) + " attack speed");
+            if (u.horde != 0.0f) parts.push_back(pc(u.horde) + " more enemies");
             if (u.xpGain != 0.0f) parts.push_back("+" + pc(u.xpGain) + " XP from each shard");
-            if (u.shardChance != 0.0f) parts.push_back("Enemies drop " + pc(u.shardChance) + " more shards (by chance)");
+            if (u.shardChance != 0.0f) parts.push_back("Enemies drop " + pc(u.shardChance) + " more shards");
             if (u.comboDamage != 0.0f) parts.push_back("Element combos do " + pc(u.comboDamage) + " more damage");
             if (u.statusDuration != 0.0f) parts.push_back("Your burns, slows and stuns last " + pc(u.statusDuration) + " longer");
             // A downside is never scaled: damageTaken as written
@@ -374,8 +385,8 @@ namespace arena
             if (u.dodgeGround.any())
             {
                 const std::string what = u.dodgeGround.element == Element::Fire ? "burning" : (u.dodgeGround.element == Element::Ice ? "freezing" : "charged");
-                parts.push_back("Rolling leaves " + what + " ground behind you for " + oneDecimal(u.dodgeGround.duration) + " s (" + num(u.dodgeGround.perSecond) +
-                                " damage a second)");
+                parts.push_back("Rolling leaves " + what + " ground behind you for " + oneDecimal(u.dodgeGround.duration) + " s");
+                parts.push_back("It deals " + num(u.dodgeGround.perSecond) + " damage a second");
             }
             if (u.proc.every > 0 and u.proc.damage > 0.0f)
             {
@@ -388,7 +399,7 @@ namespace arena
                 parts.push_back(part);
             }
             if (u.landing.damage > 0.0f)
-                parts.push_back("Landing hard (a fast fall) hits enemies within " + oneDecimal(u.landing.radius) + " m for " + num(u.landing.damage) + " damage");
+                parts.push_back("Landing hard hits enemies within " + oneDecimal(u.landing.radius) + " m for " + num(u.landing.damage) + " damage");
 
             // "+30% damage to slowed and frozen enemies": the statuses with the same number together
             auto called = [&](const std::string& id) {
@@ -424,10 +435,10 @@ namespace arena
         if (parts.empty())
             return u.text;
 
-        // Several effects (a trade-off's good and bad sides): a sentence each
+        // Several effects (a trade-off's good and bad sides): a line each
         std::string out;
         for (const auto& part : parts)
-            out += (out.empty() ? "" : ". ") + part;
+            out += (out.empty() ? "" : "\n") + part;
         return out;
     }
 
@@ -586,7 +597,7 @@ namespace arena
 
             // The interest the kept shards earned
             if (me.interest > 0)
-                ui.text(x + shardW, 98, "+" + std::to_string(me.interest) + " interest (on " + std::to_string(me.banked) + " saved shards)", Font::Text600, 11, GOOD, Align::Right);
+                ui.text(x + shardW, 98, "+" + std::to_string(me.interest) + " interest on " + std::to_string(me.banked) + " saved shards", Font::Text600, 11, GOOD, Align::Right);
         }
 
         // What is sold, by rarity
@@ -642,7 +653,7 @@ namespace arena
             ui.rect(x + 14, cy + 2, 8, 8, o.bought ? MUTED : kind);
             float kx = x + 28.0f + ui.text(x + 28, cy, kindText, Font::Text700, 11, o.bought ? MUTED : kind, Align::Left, 1.5f);
             if (had > 0)
-                ui.text(kx + 8, cy, "(have " + std::to_string(had) + ")", Font::Text600, 11, MUTED);
+                ui.text(kx + 8, cy, "have " + std::to_string(had), Font::Text600, 11, MUTED);
             cy += 14.0f + 10.0f;
 
             // The icon (a spell item: its spell's)
@@ -706,7 +717,7 @@ namespace arena
 
         // The build so far
         {
-            const float x = 954, y = 108, w = 260;
+            const float x = BUILD_X, y = BUILD_Y, w = BUILD_W;
             ui.raised(x, y, w, 494, CARD, 3.0f);
             ui.text(x + 14, y + 12, "YOUR BUILD", Font::Text700, 11, MUTED, Align::Left, 1.5f);
 
@@ -879,13 +890,12 @@ namespace arena
             const std::vector<Change> changes = whatChanges(content, world, me, after);
             auto faded = [&](const Colour& c) { return withAlpha(c, alpha * c.a / 255.0f); };
 
+            // On the far right, over the build panel (the numbers it changes are there): it never hides the cards
             const auto tipScope = ui.scope(900);
-            const float w = 300.0f, line = 20.0f;
+            const float w = BUILD_W, line = 20.0f;
             const size_t lines = std::max<size_t>(changes.size(), 1);
             const float h = 44.0f + line * static_cast<float>(std::min<size_t>(lines, 14));
-            const float cardX = CARD_X[hovered];
-            const float x = hovered < CARDS - 1 ? cardX + CARD_W - 20.0f : cardX - w + 20.0f;
-            const float y = CARD_Y + 90.0f;
+            const float x = BUILD_X, y = BUILD_Y;
 
             ui.rect(x + 3, y + 3, w, h, faded(INK));
             ui.box(x, y, w, h, faded(PANEL), 2.0f, faded(GOLD));
@@ -899,7 +909,7 @@ namespace arena
             {
                 const auto lineScope = ui.scope(1000 + k);
                 const Change& c = changes[k];
-                ui.text(x + 14, ly, ui.fit(c.what, Font::Text500, 13, 150.0f), Font::Text500, 13, faded(TEXT_DIM));
+                ui.text(x + 14, ly, ui.fit(c.what, Font::Text500, 13, w - 128.0f), Font::Text500, 13, faded(TEXT_DIM));
                 ui.text(x + w - 14, ly - 2, c.after, Font::Display, 18, faded(c.better ? GOOD : WARNING), Align::Right);
                 const float aw = ui.measure(c.after, Font::Display, 18);
                 ui.text(x + w - 14 - aw - 8, ly, c.before + "  ->", Font::Text600, 12, faded(MUTED), Align::Right);
@@ -951,7 +961,7 @@ namespace arena
                 if (isNew)
                 {
                     card.kind = "NEW SPELL";
-                    card.text = (def.text.empty() ? "" : def.text + " ") + describe(content, *world.spellOf(world.spellAt(next, &after)));
+                    card.text = (def.text.empty() ? "" : def.text + "\n") + describe(content, *world.spellOf(world.spellAt(next, &after)));
                     return card;
                 }
 
@@ -969,7 +979,7 @@ namespace arena
                 else
                 {
                     card.kind = "MASTERY \xC2\xB7 LEVEL " + std::to_string(next.level);
-                    card.text = upperFirst(boostText(content.run.mastery)) + ".";
+                    card.text = upperFirst(boostText(content.run.mastery));
                 }
             }
             else if (auto a = content.abilities.find(id); a != content.abilities.end())
@@ -996,12 +1006,12 @@ namespace arena
                 else if (next.level - 2 < static_cast<int>(def.levels.size()))
                 {
                     card.kind = "TECHNIQUE LEVEL " + std::to_string(next.level);
-                    card.text = upperFirst(boostText(def.levels[static_cast<size_t>(next.level - 2)])) + ".";
+                    card.text = upperFirst(boostText(def.levels[static_cast<size_t>(next.level - 2)]));
                 }
                 else
                 {
                     card.kind = "MASTERY \xC2\xB7 LEVEL " + std::to_string(next.level);
-                    card.text = upperFirst(boostText(content.run.mastery)) + ".";
+                    card.text = upperFirst(boostText(content.run.mastery));
                 }
             }
             else if (auto wp = content.weapons.find(id); wp != content.weapons.end())
@@ -1030,12 +1040,12 @@ namespace arena
                 else if (next.level - 2 < static_cast<int>(def.levels.size()))
                 {
                     card.kind = "WEAPON LEVEL " + std::to_string(next.level);
-                    card.text = upperFirst(boostText(def.levels[static_cast<size_t>(next.level - 2)])) + ".";
+                    card.text = upperFirst(boostText(def.levels[static_cast<size_t>(next.level - 2)]));
                 }
                 else
                 {
                     card.kind = "MASTERY \xC2\xB7 LEVEL " + std::to_string(next.level);
-                    card.text = upperFirst(boostText(content.run.mastery)) + ".";
+                    card.text = upperFirst(boostText(content.run.mastery));
                 }
             }
 
@@ -1069,7 +1079,7 @@ namespace arena
                 cy += 22.0f + 8.0f;
             }
 
-            cy += ui.paragraph(x + 18, cy, w - 36.0f, card.text, Font::Text500, 14, TEXT_DIM, 19.6f, 5) + 10.0f;
+            cy += ui.paragraph(x + 18, cy, w - 36.0f, card.text, Font::Text500, 14, TEXT_DIM, 19.6f, 8) + 10.0f;   // a spell: its text, then a line a part
 
             // What it changes
             const float bottom = y + h - 18.0f - 44.0f - 10.0f;

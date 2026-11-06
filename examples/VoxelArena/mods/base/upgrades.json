@@ -106,9 +106,6 @@
     "static_charge":{ "name": "Static charge","price": 16,
                       "proc": { "every": 5, "chains": 2, "damage": 14, "element": "volt", "status": "shock" },
                       "look": { "orbit": [255, 250, 140] , "icon": "bolt" } },
-    "meteor_boots": { "name": "Meteor boots", "price": 12,
-                      "landing": { "radius": 3.5, "damage": 30 },
-                      "look": [{ "model": "look_heel", "part": "leg_r", "at": [2, 0, 0.5] }, { "model": "look_heel", "part": "leg_l", "at": [5, 0, 0.5] }] },
 
     // Tag items: a boost for every spell and technique of yours with the tag. Spells have "spell", their
     // element and their shapes' ("projectile" for a bolt, "area" for a nova or a zone, "zone", "beam");
@@ -129,6 +126,6 @@
     "honed":      { "name": "Honed",        "tag": "melee",      "boost": { "damage": 0.2 },   "price": 12, "look": { "orbit": [208, 72, 72] , "icon": "sword" } },
     "whetstone":  { "name": "Whetstone",    "tag": "attack",     "boost": { "damage": 0.15 },  "price": 12, "look": { "orbit": [168, 176, 192] , "icon": "keen" } },
     "drilled":    { "name": "Drilled",      "tag": "technique",  "boost": { "cooldown": 0.15 },"price": 14, "look": { "orbit": [200, 240, 80] , "icon": "target" } },
-    "tireless":   { "name": "Tireless",     "tag": "technique",  "boost": { "cost": 0.2 },     "price": 10, "look": { "orbit": [240, 192, 80] , "icon": "leap" } },
+    "tireless":   { "name": "Tireless",     "staminaCost": 0.2,                                "price": 10, "look": { "orbit": [240, 192, 80] , "icon": "leap" } },
     "blessed":    { "name": "Blessed",      "tag": "heal",       "boost": { "damage": 0.25 },  "price": 12, "look": { "orbit": [255, 184, 224] , "icon": "plus" } }
 }

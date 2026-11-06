@@ -1,8 +1,9 @@
 // The sapper (the Stockade on): a small runner with a keg of powder on its back. It runs straight at you and, close
-// enough, lights its fuse: it glows red, then goes up. However it goes down, its keg goes off a second later (a red
-// ring on the ground shows where), hurting everyone in it, enemies too, and setting planks and hay alight.
-// Kill it from far away, or next to its friends. "blast": see affixes.json ("fuse": where on the model the sparks of its
-// countdown come from, in its voxels). "dies": the attack ends in its death.
+// enough, lights its fuse: it glows red, then goes up. Killed by a player first, its keg does not go off
+// ("whenPlayerKills": false); any other end (its fuse, another blast) sets it off a second later, a red ring on the
+// ground showing where, hurting everyone in it, enemies too, and setting planks and hay alight.
+// "blast": see affixes.json ("fuse": where on the model the sparks of its countdown come from, in its voxels).
+// "dies": the attack ends in its death.
 {
     "name": "Sapper",
     "model": "sapper",
@@ -24,7 +25,7 @@
     "weakness": { "fire": 1.5 },
 
     "blast": { "delay": 1.0, "radius": 3.2, "damage": 26, "poiseDamage": 30, "knockback": 9, "terrainDamage": 25,
-               "element": "fire", "status": "burn", "everyone": true, "fuse": [3.5, 12.5, 1.5] },
+               "element": "fire", "status": "burn", "everyone": true, "fuse": [3.5, 12.5, 1.5], "whenPlayerKills": false },
 
     "script": "sapper",
     "params": {

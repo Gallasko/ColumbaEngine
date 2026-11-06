@@ -251,19 +251,40 @@ TEST(arena_variety, a_volatile_elite_explodes_a_moment_after_it_dies)
     EXPECT_FALSE(std::any_of(v.world.zones.begin(), v.world.zones.end(), [](const Zone& z) { return z.blasting(); }));
 }
 
-TEST(arena_variety, a_sappers_blast_hurts_the_enemies_too_for_whoever_killed_it)
+TEST(arena_variety, a_sapper_the_player_kills_does_not_go_off)
 {
+    // Killed by a player before its fuse burns down: no blast (its keg is put out), whatever stands by it
     Variety v;
     const int sapper = v.spawn("base:sapper", glm::vec3(0, 0, 8));
     const int brute = v.spawn("base:brute", glm::vec3(1.5f, 0, 8));
-    const float health = v.player().health;
     v.kill(sapper);
     v.step(70);
 
+    EXPECT_FALSE(v.f(sapper).alive());
+    EXPECT_FALSE(v.f(sapper).blownUp);
+    EXPECT_FLOAT_EQ(v.f(brute).health, v.f(brute).maxHealth);
+    EXPECT_FALSE(v.player().stats.bySource.count("base:sapper"));
+}
+
+TEST(arena_variety, a_sapper_s_blast_sets_off_another_sapper_and_hurts_the_enemies_too)
+{
+    // Its fuse burnt down: the blast hurts the enemies by it, and a sapper it kills goes off in turn (no player killed it)
+    Variety v;
+    const int first = v.spawn("base:sapper", glm::vec3(0, 0, 8));
+    const int second = v.spawn("base:sapper", glm::vec3(1.2f, 0, 8));
+    const int brute = v.spawn("base:brute", glm::vec3(-1.4f, 0, 8));
+    v.f(second).health = 1.0f;
+
+    Fighter& s = v.f(first);
+    s.action = Action::Attack;
+    s.attack = "fuse";
+    s.frame = 0;
+    v.step(v.content.enemies.at("base:sapper").moveset.attacks.at("fuse").total() + 70);
+
     EXPECT_LT(v.f(brute).health, v.f(brute).maxHealth);
-    EXPECT_FLOAT_EQ(v.player().health, health);   // too far away
-    ASSERT_TRUE(v.player().stats.bySource.count("base:sapper"));
-    EXPECT_GT(v.player().stats.bySource.at("base:sapper"), 0.0f);
+    EXPECT_FALSE(v.f(second).alive());
+    v.step(70);
+    EXPECT_TRUE(v.f(second).blownUp);
 }
 
 TEST(arena_variety, a_sapper_that_lights_its_fuse_goes_up_and_gives_nothing)
@@ -631,10 +652,17 @@ TEST(arena_variety, static_charge_zaps_on_every_fifth_weapon_hit)
     EXPECT_GT(v.player().stats.bySource.at("base:static_charge"), 0.0f);
 }
 
-TEST(arena_variety, meteor_boots_turn_a_hard_landing_into_a_hit_around)
+TEST(arena_variety, an_item_s_landing_turns_a_hard_landing_into_a_hit_around)
 {
+    // No base item has one any more (Meteor boots went): a mod's may, so one made here
     Variety v;
-    v.world.takeBoon(v.player(), {"base:meteor_boots", 0});
+    UpgradeDef boots;
+    boots.id = "test:boots";
+    boots.name = "Boots";
+    boots.landing.radius = 3.5f;
+    boots.landing.damage = 30.0f;
+    v.content.upgrades[boots.id] = boots;
+    v.world.takeBoon(v.player(), {"test:boots", 0});
     const int brute = v.spawn("base:brute", glm::vec3(1.8f, 0, 0));
 
     v.player().body.position.y += 9.0f;

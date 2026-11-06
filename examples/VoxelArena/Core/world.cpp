@@ -781,7 +781,7 @@ namespace arena
         f.attackPitch = std::clamp(pitch, -tuning.combat.maxAttackPitch, tuning.combat.maxAttackPitch);
 
         if (f.team == Team::Player)
-            spendStamina(f, a->staminaCost);
+            spendStamina(f, a->staminaCost * staminaCostScale(f));
         else
             event("windup", chest(f), static_cast<float>(a->startup), f.id);
 
@@ -2372,7 +2372,7 @@ namespace arena
             {
                 // A run's technique: its levels and tag items may make it cheaper and quicker to come back
                 const SpellTweak boost = techniqueBoost(f, a->id);
-                spendStamina(f, a->staminaCost * std::max(0.2f, 1.0f - boost.cost));
+                spendStamina(f, a->staminaCost * std::max(0.2f, 1.0f - boost.cost) * staminaCostScale(f));
                 f.abilityCooldown[i] = a->cooldown * std::max(0.3f, 1.0f - f.boon.cooldown) * std::max(0.2f, 1.0f - boost.cooldown);
 
 
@@ -3870,6 +3870,8 @@ namespace arena
         if (target.team == Team::Enemy and target.alive())
         {
             const glm::vec3 at = target.body.position;
+            const Fighter* killer = attackerId ? find(attackerId) : nullptr;
+            const bool playerKill = killer and killer->team == Team::Player;
             auto splitInto = [&](const SplitDef& sd) {
                 if (not sd.any() or target.split or not inRun())
                     return;
@@ -3880,7 +3882,9 @@ namespace arena
 
             if (auto def = content->enemies.find(target.type); def != content->enemies.end())
             {
-                startBlast(def->second.blast, at, target.id, target.team, target.type, attackerId);
+                // A player's kill puts out a blast that only goes off by itself (a sapper's lit keg)
+                if (def->second.blast.whenPlayerKills or not playerKill)
+                    startBlast(def->second.blast, at, target.id, target.team, target.type, attackerId);
                 splitInto(def->second.split);
             }
             for (const auto& id : target.affixes)

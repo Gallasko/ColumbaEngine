@@ -1491,7 +1491,8 @@ TEST(arena_climb, a_wide_or_narrow_enemy_gets_out_of_uneven_craters)
 
 TEST(arena_world, a_sapper_s_keg_counts_down_on_it_then_nothing_is_left)
 {
-    // Killed, its blast is its own (the countdown shows on its body), and once it goes off the body is gone
+    // Dead by no player's hand (a burn nobody left), its blast is its own (the countdown shows on its body), and once it
+    // goes off the body is gone
     Arena a;
     const int id = a.world.spawnEnemy("base:sapper", a.player().body.position + glm::vec3(0, 0, 6.0f), 180.0f);
     a.settle(5);

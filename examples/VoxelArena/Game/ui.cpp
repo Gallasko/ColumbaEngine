@@ -707,26 +707,33 @@ namespace arena
 
     std::vector<std::string> Ui::wrap(const std::string& t, ui::Font f, float size, float width) const
     {
+        // A line break starts a new line (an item's effects, a line each), then each part wraps on its own
         std::vector<std::string> lines;
-        std::string line, word;
-        std::istringstream words(t);
+        std::istringstream parts(t);
+        std::string part;
 
-        while (words >> word)
+        while (std::getline(parts, part, '\n'))
         {
-            const std::string candidate = line.empty() ? word : line + " " + word;
-            if (not line.empty() and measure(candidate, f, size) > width)
-            {
-                lines.push_back(line);
-                line = word;
-            }
-            else
-            {
-                line = candidate;
-            }
-        }
+            std::string line, word;
+            std::istringstream words(part);
 
-        if (not line.empty())
-            lines.push_back(line);
+            while (words >> word)
+            {
+                const std::string candidate = line.empty() ? word : line + " " + word;
+                if (not line.empty() and measure(candidate, f, size) > width)
+                {
+                    lines.push_back(line);
+                    line = word;
+                }
+                else
+                {
+                    line = candidate;
+                }
+            }
+
+            if (not line.empty())
+                lines.push_back(line);
+        }
         return lines;
     }
 

@@ -488,7 +488,7 @@ namespace arena
         {
             const std::string sentence = not preview.empty() ? preview : (spell.valid() ? describe(content, spell) : spell.error);
             const Colour c = not preview.empty() ? GOLD : (spell.valid() ? TEXT_DIM : WARNING);
-            ui.paragraph(904, 228, 272, sentence, Font::Text500, 13, c, 17.0f, 2);
+            ui.paragraph(904, 228, 272, sentence, Font::Text500, 13, c, 17.0f, 3);   // a line a part: three fit over the diagram
         }
 
         // ---- The diagram

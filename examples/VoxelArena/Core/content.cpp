@@ -512,10 +512,12 @@ namespace arena
             g.every = std::max(0.1f, g.every);
         }
 
-        /** "blast": { "delay", "radius", "damage", "poiseDamage", "knockback", "terrainDamage", "element", "status", "everyone", "fuse" } */
+        /** "blast": { "delay", "radius", "damage", "poiseDamage", "knockback", "terrainDamage", "element", "status", "everyone", "fuse", "whenPlayerKills" } */
         void readBlast(const Json& j, BlastDef& b, const std::string& file, ContentReport& report, const std::string& what)
         {
-            checkKeys(j, {"delay", "radius", "damage", "poiseDamage", "knockback", "terrainDamage", "element", "status", "everyone", "fuse"}, file, report, what);
+            checkKeys(j, {"delay", "radius", "damage", "poiseDamage", "knockback", "terrainDamage", "element", "status", "everyone", "fuse", "whenPlayerKills"}, file, report,
+                      what);
+            readBool(j, "whenPlayerKills", b.whenPlayerKills, file, report);
             if (j.find("fuse"))
             {
                 readVec3(j, "fuse", b.fuse, file, report);
@@ -1698,7 +1700,7 @@ namespace arena
             for (const auto& [id, raw] : content.raw["upgrade"])
             {
                 const Json& j = raw.data;
-                checkKeys(j, {"name", "text", "maxHealth", "damage", "dashCharges", "manaCost", "manaRegen", "staminaRegen", "speed", "cooldown", "lifeOnHit",
+                checkKeys(j, {"name", "text", "maxHealth", "damage", "dashCharges", "manaCost", "staminaCost", "manaRegen", "staminaRegen", "speed", "cooldown", "lifeOnHit",
                               "statusStacks", "most", "armor", "crit", "pickupRange", "regen", "attackSpeed", "horde", "xpGain", "shardChance",
                               "comboDamage", "statusDuration", "against", "burst", "needs", "needsElements", "price", "tag", "boost", "look", "tiers",
                               "healthScale", "damageTaken", "hurtDamage", "airDamage", "executeDamage", "revengeDamage", "thorns", "killHeal", "dodgeGround",
@@ -1714,6 +1716,7 @@ namespace arena
                 readNum(j, "damage", u.damage, raw.file, report);
                 readInt(j, "dashCharges", u.dashCharges, raw.file, report);
                 readNum(j, "manaCost", u.manaCost, raw.file, report);
+                readNum(j, "staminaCost", u.staminaCost, raw.file, report);
                 readNum(j, "manaRegen", u.manaRegen, raw.file, report);
                 readNum(j, "staminaRegen", u.staminaRegen, raw.file, report);
                 readNum(j, "speed", u.speed, raw.file, report);

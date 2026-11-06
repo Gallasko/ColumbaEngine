@@ -126,6 +126,7 @@ namespace arena
             o.damage += up(u.damage);
             o.dashCharges += u.dashCharges;
             o.manaCost += up(u.manaCost);
+            o.staminaCost += up(u.staminaCost);
             o.manaRegen += up(u.manaRegen);
             o.staminaRegen += up(u.staminaRegen);
             o.speed += up(u.speed);
@@ -233,6 +234,7 @@ namespace arena
         capped(u.armor, f.boon.armor, 0.7f);
         capped(u.cooldown, f.boon.cooldown, 0.7f);
         capped(u.manaCost, f.boon.manaCost, 0.7f);
+        capped(u.staminaCost, f.boon.staminaCost, 0.7f);
         capped(u.crit, f.boon.crit, 1.0f);
 
         // Any other number always does a little more
