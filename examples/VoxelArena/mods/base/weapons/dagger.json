@@ -20,7 +20,8 @@
     "heavyText": "A spin, then a cut that launches enemies.",
     "levels": [{ "attackSpeed": 0.1 }, { "damage": 0.2 }, { "damage": 0.15, "attackSpeed": 0.1 }],
     "branches": [
-        { "name": "Frost fang", "text": "Your hits slow enemies. Enough hits freeze them.", "element": "ice", "status": "chill" },
+        { "name": "Frost fang", "text": "Your hits slow enemies, and hit harder. Enough hits freeze them.", "element": "ice", "status": "chill",
+          "boost": { "damage": 0.1 } },
         { "name": "Flurry", "text": "Faster attacks that hit harder.", "boost": { "attackSpeed": 0.2, "damage": 0.1 } }
     ],
     "model": "dagger",
@@ -40,7 +41,7 @@
             "jab1": {
                 "moveSpeed": 1.0,
                 "startup": 4, "active": 3, "recovery": 11,
-                "damage": 6, "poiseDamage": 6, "staminaCost": 4,
+                "damage": 7, "poiseDamage": 6, "staminaCost": 3,
                 "knockback": 1.5, "hitstop": 2, "shake": 0.1,
                 "hitboxes": [ { "offset": [0, 1.1, 0.8], "size": [1.2, 0.9, 1.3] } ],
                 "lunge": 4, "lungeFrom": 1, "lungeTo": 6,
@@ -52,7 +53,7 @@
             "jab2": {
                 "moveSpeed": 1.0,
                 "startup": 4, "active": 3, "recovery": 11,
-                "damage": 6, "poiseDamage": 6, "staminaCost": 4,
+                "damage": 7, "poiseDamage": 6, "staminaCost": 3,
                 "knockback": 1.5, "hitstop": 2, "shake": 0.1,
                 "hitboxes": [ { "offset": [0, 1.1, 0.8], "size": [1.2, 0.9, 1.3] } ],
                 "lunge": 4, "lungeFrom": 1, "lungeTo": 6,
@@ -64,7 +65,7 @@
             "jab3": {
                 "moveSpeed": 1.0,
                 "startup": 5, "active": 3, "recovery": 13,
-                "damage": 8, "poiseDamage": 8, "staminaCost": 4,
+                "damage": 9, "poiseDamage": 8, "staminaCost": 3,
                 "knockback": 2, "hitstop": 3, "shake": 0.15,
                 "hitboxes": [ { "offset": [0, 1.1, 0.9], "size": [1.3, 1.0, 1.4] } ],
                 "lunge": 5, "lungeFrom": 1, "lungeTo": 7,
@@ -76,7 +77,7 @@
             "spin_cut": {
                 "moveSpeed": 0.6,
                 "startup": 6, "active": 6, "recovery": 14,
-                "damage": 9, "poiseDamage": 12, "staminaCost": 6,
+                "damage": 10, "poiseDamage": 12, "staminaCost": 4,
                 "knockback": 3, "hitstop": 3, "shake": 0.2,
                 "hitboxes": [ { "offset": [0, 1.0, 0.0], "size": [2.8, 1.1, 2.8] } ],
                 "turnRate": 6,
@@ -88,7 +89,7 @@
             "rising_cut": {
                 "moveSpeed": 0.4,
                 "startup": 5, "active": 4, "recovery": 16,
-                "damage": 10, "poiseDamage": 14, "staminaCost": 6,
+                "damage": 11, "poiseDamage": 14, "staminaCost": 4,
                 "knockback": 2, "knockup": 7, "hitstop": 3, "shake": 0.25,
                 "hitboxes": [ { "offset": [0, 1.4, 0.9], "size": [1.4, 1.8, 1.4] } ],
                 "bufferFrom": 3, "chainFrom": 11, "dodgeCancelFrom": 12,
@@ -98,7 +99,7 @@
             "dash_finisher": {
                 "moveSpeed": 0,
                 "startup": 3, "active": 8, "recovery": 16,
-                "damage": 16, "poiseDamage": 22, "staminaCost": 7,
+                "damage": 18, "poiseDamage": 22, "staminaCost": 5,
                 "knockback": 5, "hitstop": 4, "shake": 0.3,
                 "hitboxes": [ { "offset": [0, 1.0, 0.6], "size": [1.4, 1.4, 1.8] } ],
                 "lunge": 20, "lungeFrom": 2, "lungeTo": 12, "dash": true,
@@ -109,7 +110,7 @@
             "backflip_finisher": {
                 "moveSpeed": 0,
                 "startup": 3, "active": 4, "recovery": 22,
-                "damage": 14, "poiseDamage": 20, "staminaCost": 7,
+                "damage": 16, "poiseDamage": 20, "staminaCost": 5,
                 "knockback": 3, "knockup": 9, "hitstop": 3, "shake": 0.3,
                 "hitboxes": [ { "offset": [0, 1.2, 0.8], "size": [1.4, 2.0, 1.4] } ],
                 "leap": [-7, 10], "leapAt": 6,
@@ -120,7 +121,7 @@
             "slide_cut": {
                 "moveSpeed": 0,
                 "startup": 3, "active": 6, "recovery": 12,
-                "damage": 9, "poiseDamage": 10, "staminaCost": 6,
+                "damage": 9, "poiseDamage": 10, "staminaCost": 4,
                 "knockback": 2, "knockup": 5, "hitstop": 3, "shake": 0.2,
                 "hitboxes": [ { "offset": [0, 0.6, 0.9], "size": [1.4, 0.9, 1.6] } ],
                 "lunge": 15, "lungeFrom": 0, "lungeTo": 10, "dash": true,
@@ -131,7 +132,7 @@
             "air_flurry": {
                 "moveSpeed": 0.9, "gravityScale": 0.3,
                 "startup": 3, "active": 6, "recovery": 10,
-                "damage": 5, "poiseDamage": 6, "staminaCost": 4,
+                "damage": 5, "poiseDamage": 6, "staminaCost": 3,
                 "knockback": 1.5, "knockup": 3, "hitstop": 2, "shake": 0.1,
                 "hitboxes": [ { "offset": [0, 0.9, 0.6], "size": [2.0, 1.6, 2.0] } ],
                 "dodgeCancelFrom": 8,
@@ -141,7 +142,7 @@
             "dive_stab": {
                 "plungeSpeed": 34,
                 "startup": 5, "active": 5, "recovery": 14,
-                "damage": 14, "poiseDamage": 18, "staminaCost": 7,
+                "damage": 14, "poiseDamage": 18, "staminaCost": 5,
                 "knockback": 4, "knockup": 3, "hitstop": 4, "shake": 0.4,
                 "hitboxes": [ { "offset": [0, 0.5, 0.5], "size": [1.8, 1.2, 1.8] } ],
                 "swing": { "yaw": 0, "pitch": -80, "reach": 0.4 }
@@ -149,7 +150,7 @@
             "roll_stab": {
                 "moveSpeed": 0.5,
                 "startup": 2, "active": 4, "recovery": 10,
-                "damage": 10, "poiseDamage": 10, "staminaCost": 4,
+                "damage": 10, "poiseDamage": 10, "staminaCost": 3,
                 "knockback": 2.5, "hitstop": 3, "shake": 0.15,
                 "hitboxes": [ { "offset": [0, 1.0, 0.9], "size": [1.2, 1.0, 1.5] } ],
                 "lunge": 8, "lungeFrom": 0, "lungeTo": 6,

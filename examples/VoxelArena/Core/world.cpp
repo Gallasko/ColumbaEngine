@@ -340,6 +340,9 @@ namespace arena
             if (auto spell = content->spells.find(id); spell != content->spells.end())
                 p.spells.push_back(spell->second.recipe);
         p.spells.resize(SPELL_SLOTS);
+        // Joining a run as its first spells are picked: an offer of its own
+        if (inRun())
+            p.firstSpellOffer = rollFirstSpells();
 
         fighters.push_back(p);
         respawn(fighters.back());

@@ -1509,3 +1509,186 @@ TEST(arena_world, a_sapper_s_keg_counts_down_on_it_then_nothing_is_left)
     EXPECT_TRUE(a.world.find(id)->blownUp);
     EXPECT_FALSE(std::any_of(a.world.zones.begin(), a.world.zones.end(), [&](const Zone& z) { return z.blasting() and z.owner == id; }));
 }
+
+// ---- Weapon balance: damage a second, on demand ------------------------------------------------------------------
+// ./release/test_voxelarena --gtest_also_run_disabled_tests --gtest_filter='*weapon_dps*'
+// Each weapon fights dummies (health that never runs out, held in place) as the game plays it: stamina, hitstop,
+// combos, burns. At level 1, and level 5 without and with each branch. For each, the best of the ways a player fights
+// (light pressed over and over, heavy, a combo ended by a heavy, a held draw), on one dummy and on three.
+namespace
+{
+    struct DpsResult
+    {
+        float single = 0.0f, group = 0.0f, endless = 0.0f;
+        std::string pattern, endlessPattern;
+    };
+
+    /** Damage a second dealt to the dummies over `seconds`, playing `pattern` (L light, H heavy, D a full draw of the light,
+        . a third of a second without pressing: a player lets stamina come back between combos). */
+    float measureDps(const std::string& weapon, int level, int branch, const std::string& pattern, int dummies, float seconds, bool endless = false)
+    {
+        Arena a;
+        a.world.growsOutsideRun = true;
+        a.world.infiniteStamina = endless;
+        const auto& order = a.content.weaponOrder;
+        const int slot = static_cast<int>(std::find(order.begin(), order.end(), weapon) - order.begin());
+
+        InputFrame equip;
+        equip.equip = slot + 1;
+        a.world.step(equip);
+        a.settle(10);
+        if (level > 1 or branch >= 0)
+            a.player().runSkills.push_back({weapon, level, branch});
+
+        // (the player is looked up each time: spawning the dummies moves the fighters in memory)
+        // The dummies just inside the light attack's reach (a bow, a staff: 2 m), the others either side
+        float reach = 0.0f;
+        if (const auto w = a.content.weapons.find(weapon); w != a.content.weapons.end())
+            if (const AttackDef* light = w->second.moveset.find(w->second.moveset.light))
+                for (const auto& box : light->hitboxes)
+                    reach = std::max(reach, box.offset.z + box.size.z * 0.5f);
+        const float d = reach > 0.0f ? std::min(2.0f, reach + 0.1f) : 2.0f;
+        const glm::vec3 me = a.player().body.position;
+        std::vector<glm::vec3> spots = {me + glm::vec3(0, 0, d), me + glm::vec3(-1.3f, 0, d * 0.8f), me + glm::vec3(1.3f, 0, d * 0.8f)};
+        std::vector<int> ids;
+        for (int k = 0; k < dummies; ++k)
+        {
+            const int id = a.world.spawnEnemy("base:dummy", spots[static_cast<size_t>(k)], 180.0f);
+            Fighter& d = *a.world.find(id);
+            d.maxHealth = d.health = 1e5f;   // not more: a float that big drops a burn's tenth of a point a step
+            ids.push_back(id);
+        }
+
+        const int drawFrames = [&] {
+            const auto w = a.content.weapons.find(weapon);
+            const AttackDef* light = w != a.content.weapons.end() ? w->second.moveset.find(w->second.moveset.light) : nullptr;
+            return light and light->charge.frames > 0 ? light->charge.at + light->charge.frames + 2 : 0;
+        }();
+
+        float dealt = 0.0f;
+        std::map<int, float> before;
+        size_t at = 0;
+        int held = 0;
+        std::string lastAttack;
+        int lastFrame = 0;
+        const int warm = 30, steps = static_cast<int>(seconds * 60.0f);
+
+        for (int i = 0; i < warm + steps; ++i)
+        {
+            for (size_t k = 0; k < ids.size(); ++k)
+            {
+                Fighter& d = *a.world.find(ids[k]);
+                d.body.position = spots[k];
+                d.body.velocity = glm::vec3(0.0f);
+                d.health = std::max(d.health, 5e4f);
+                before[ids[k]] = d.health;
+            }
+
+            // The next press of the pattern; a new attack started moves it on
+            const char button = pattern[at % pattern.size()];
+            // Facing the dummy, as a player turns back to it (a dash goes through and past)
+            const glm::vec3 to = spots[0] - a.player().body.position;
+            InputFrame in;
+            in.cameraYaw = glm::degrees(std::atan2(to.x, to.z));
+            in.aimOrigin = a.player().body.position + glm::vec3(0, 1.6f, 0);
+            in.aimDir = glm::normalize(spots[0] + glm::vec3(0, 1.0f, 0) - in.aimOrigin);
+            if (button == 'L')
+                in.lightPressed = true;
+            else if (button == 'H')
+                in.heavyPressed = true;
+            else if (button == '.')
+            {
+                if (++held >= 20)
+                {
+                    held = 0;
+                    ++at;
+                }
+            }
+            else if (button == 'D')
+            {
+                in.lightPressed = held == 0;
+                in.lightHeld = held < drawFrames;
+                ++held;
+                if (held > drawFrames + 1)
+                {
+                    held = 0;
+                    ++at;
+                }
+            }
+            a.world.step(in);
+
+            Fighter& p = a.player();
+            const bool started = p.action == Action::Attack and (p.attack != lastAttack or p.frame < lastFrame);
+            if (button != 'D' and button != '.' and started)
+                ++at;
+            // Each attack from the same spot: a lunge is counted, it does not carry the fight away
+            if (started)
+            {
+                p.body.position = me;
+                p.body.velocity = glm::vec3(0.0f);
+            }
+            lastAttack = p.action == Action::Attack ? p.attack : std::string();
+            lastFrame = p.frame;
+
+            if (i >= warm)
+                for (const int id : ids)
+                    dealt += std::max(0.0f, before[id] - a.world.find(id)->health);
+        }
+        return dealt / seconds;
+    }
+
+    DpsResult bestDps(const std::string& weapon, int level, int branch, bool draws)
+    {
+        std::vector<std::string> patterns = {"L", "H", "LLLH", "LH", "LLH", "LLL..", "LLLL...", "LLLH..", "LLH..", "H.", "LLLL....."};
+        if (draws)
+        {
+            patterns.push_back("D");
+            patterns.push_back("D.");
+        }
+
+        DpsResult best;
+        for (const auto& pattern : patterns)
+        {
+            const float single = measureDps(weapon, level, branch, pattern, 1, 20.0f);
+            if (single > best.single)
+            {
+                best.single = single;
+                best.pattern = pattern;
+            }
+            const float endless = measureDps(weapon, level, branch, pattern, 1, 10.0f, true);
+            if (endless > best.endless)
+            {
+                best.endless = endless;
+                best.endlessPattern = pattern;
+            }
+        }
+        best.group = measureDps(weapon, level, branch, best.pattern, 3, 20.0f);
+        return best;
+    }
+}
+
+TEST(arena_balance, DISABLED_weapon_dps)
+{
+    Arena a;
+    printf("\n%-16s %-20s %-6s %8s %10s   %s\n", "weapon", "level", "best", "1 dummy", "3 dummies", "no stamina limit (best)");
+    for (const auto& id : a.content.weaponOrder)
+    {
+        const WeaponDef& w = a.content.weapons.at(id);
+        const AttackDef* light = w.moveset.find(w.moveset.light);
+        const bool draws = light and light->charge.frames > 0;
+
+        auto row = [&](const std::string& label, int level, int branch) {
+            const DpsResult r = bestDps(id, level, branch, draws);
+            printf("%-16s %-20s %-6s %8.1f %10.1f   %6.1f (%s)\n", w.name.c_str(), label.c_str(), r.pattern.c_str(), r.single, r.group, r.endless, r.endlessPattern.c_str());
+            fflush(stdout);
+        };
+
+        row("1", 1, -1);
+        if (not w.levels.empty() or not w.branches.empty())
+        {
+            row("5, no branch", 5, -1);
+            for (size_t b = 0; b < w.branches.size(); ++b)
+                row("5, " + w.branches[b].name, 5, static_cast<int>(b));
+        }
+    }
+}

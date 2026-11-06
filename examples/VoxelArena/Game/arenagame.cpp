@@ -3890,7 +3890,7 @@ namespace arena
         if (me and content.weapons.count(me->weapon))
             v.weapon = content.weapons.at(me->weapon).name;
 
-        for (const auto& id : content.run.startChoices)
+        for (const auto& id : me and not me->firstSpellOffer.empty() ? me->firstSpellOffer : content.run.startChoices)
         {
             const SpellDef& sp = content.spells.at(id);
             ArmoryView::Spell card;

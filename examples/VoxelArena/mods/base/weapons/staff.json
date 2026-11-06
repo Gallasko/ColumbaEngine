@@ -12,7 +12,8 @@
     "levels": [{ "damage": 0.2 }, { "area": 0.2 }, { "damage": 0.2 }],
     "branches": [
         { "name": "Sunfire", "text": "Your orbs set enemies on fire.", "element": "fire", "status": "burn" },
-        { "name": "Frost orbs", "text": "Your orbs slow enemies. Enough hits freeze them.", "element": "ice", "status": "chill" }
+        { "name": "Frost orbs", "text": "Your orbs slow enemies, and hit harder. Enough hits freeze them.", "element": "ice", "status": "chill",
+          "boost": { "damage": 0.15 } }
     ],
     "model": "staff",
     "modelScale": 0.0625,
@@ -31,26 +32,26 @@
             "orb1": {
                 "moveSpeed": 0.7,
                 "startup": 10, "active": 1, "recovery": 18,
-                "damage": 0, "poiseDamage": 0, "staminaCost": 8,
+                "damage": 0, "poiseDamage": 0, "staminaCost": 7,
                 "hitboxes": [],
                 "chainFrom": 18, "bufferFrom": 6,
                 "next": { "light": "orb2" },
                 "dodgeCancelFrom": 10,
                 "projectile": { "speed": 26, "gravity": 0, "radius": 0.25, "lifetime": 1.6, "burst": 1.0,
-                                "damage": 7, "poiseDamage": 5, "knockback": 2, "terrainDamage": 4,
+                                "damage": 8, "poiseDamage": 5, "knockback": 2, "terrainDamage": 4,
                                 "hitstop": 2, "shake": 0.1, "spawn": [0.25, 1.5, 0.6], "model": "volt_orb", "modelScale": 0.06 },
                 "swing": { "yaw": 0, "pitchFrom": 20, "pitchTo": -10 }
             },
             "orb2": {
                 "moveSpeed": 0.7,
                 "startup": 9, "active": 1, "recovery": 20,
-                "damage": 0, "poiseDamage": 0, "staminaCost": 8,
+                "damage": 0, "poiseDamage": 0, "staminaCost": 7,
                 "hitboxes": [],
                 "chainFrom": 19, "bufferFrom": 6,
                 "next": { "light": "orb1" },
                 "dodgeCancelFrom": 10,
                 "projectile": { "speed": 26, "gravity": 0, "radius": 0.25, "lifetime": 1.6, "burst": 1.0,
-                                "damage": 8, "poiseDamage": 6, "knockback": 2, "terrainDamage": 4,
+                                "damage": 9, "poiseDamage": 6, "knockback": 2, "terrainDamage": 4,
                                 "hitstop": 2, "shake": 0.1, "spawn": [0.25, 1.5, 0.6], "model": "volt_orb", "modelScale": 0.06 },
                 "swing": { "yaw": 0, "pitchFrom": 20, "pitchTo": -10 }
             },

@@ -18,9 +18,10 @@
     "text": "Wide, slow sweeps. Hits whole groups.",
     "lightText": "Two wide sweeps, then a spin that hits all around you.",
     "heavyText": "A slow cut that pulls enemies towards you.",
-    "levels": [{ "damage": 0.2 }, { "area": 0.15 }, { "damage": 0.2, "attackSpeed": 0.1 }],
+    "levels": [{ "damage": 0.25 }, { "area": 0.15 }, { "damage": 0.25, "attackSpeed": 0.1 }],
     "branches": [
-        { "name": "Frost reaper", "text": "Your hits slow enemies. Enough hits freeze them.", "element": "ice", "status": "chill" },
+        { "name": "Frost reaper", "text": "Your hits slow enemies, and hit harder. Enough hits freeze them.", "element": "ice", "status": "chill",
+          "boost": { "damage": 0.15 } },
         { "name": "Grim harvest", "text": "Your swings hit much harder.", "boost": { "damage": 0.3, "area": 0.1 } }
     ],
     "model": "scythe",

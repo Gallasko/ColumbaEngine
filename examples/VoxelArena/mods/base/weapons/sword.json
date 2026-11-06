@@ -24,10 +24,10 @@
     "text": "Balanced close combat.",
     "lightText": "A fast three-hit combo.",
     "heavyText": "A slow, strong slash that staggers enemies.",
-    "levels": [{ "damage": 0.2 }, { "attackSpeed": 0.1 }, { "damage": 0.2, "area": 0.15 }],
+    "levels": [{ "damage": 0.15 }, { "attackSpeed": 0.1 }, { "damage": 0.15 }],
     "branches": [
         { "name": "Flame blade", "text": "Your hits set enemies on fire.", "element": "fire", "status": "burn" },
-        { "name": "Cleave", "text": "Much wider swings that hit harder.", "boost": { "area": 0.4, "damage": 0.15 } }
+        { "name": "Cleave", "text": "Much wider swings that hit harder.", "boost": { "area": 0.4, "damage": 0.1 } }
     ],
     "model": "sword",
     "modelScale": 0.0625,

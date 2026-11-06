@@ -16,7 +16,9 @@ cd release
 make -j18 VoxelArena VoxelArenaServer test_voxelarena
 cd ..
 ./release/VoxelArena            # or ./make_and_play.sh VoxelArena
-./release/test_voxelarena       # 268 tests, about four seconds
+./release/test_voxelarena       # 277 tests, about eight seconds
+# Each weapon's damage a second, at level 1 and level 5 with each branch, on one dummy and on three:
+./release/test_voxelarena --gtest_also_run_disabled_tests --gtest_filter='*weapon_dps*'
 ```
 
 The game reads its mods and its shader straight from the source tree (`examples/VoxelArena/mods`,
@@ -102,9 +104,9 @@ and enemies that come back), **O** for the options.
   are yours at the end of the wave). They are money and XP at once. In co-op every player gets every
   shard anyone picks up, money and XP.
 - **Spells and techniques come from levels**: no spell is made in a run. After the weapon, each
-  player picks a **first spell** for key 1 (1-3 or a click; Backspace back to the weapons): Firebolt
-  (fire: a bolt leaving a burning patch), Frostbolt (ice: a bolt bursting into a chilling blast) or
-  Spark (volt: a bolt jumping on to 2 more enemies) — `run.json` `start.chooseSpell`. As a wave ends, after a moment (**Wave cleared**: 2.5 s in which nothing can be clicked, so a
+  player picks a **first spell** for key 1 (1-3 or a click; Backspace back to the weapons) among three
+  drawn at random each run, of different elements while it can (Firebolt, Frostbolt, Spark, Fireball,
+  Chain lightning...) — `run.json` `start.chooseSpell` (the pool) and `chooseCount` (how many). As a wave ends, after a moment (**Wave cleared**: 2.5 s in which nothing can be clicked, so a
   click from the fight buys nothing), each level up offers three picks (1-3 or a click): a **new
   spell** (while one of the three spell keys is free), a **new technique** of the weapon in hand, the
   **next level of the weapon** in hand (it starts at level 1), or the **next level** of one you have.
@@ -116,7 +118,7 @@ and enemies that come back), **O** for the options.
   `levelBanishes`). Levels never run out:
   - a spell's written `levels` add keywords (Firebolt II adds Enlarge, III Extend, IV Empower); a
     technique's add a boost (+15% damage, a faster recharge...); the weapon's boost its light and
-    heavy attacks (Iron Sword II: +20% damage, III: +10% attack speed...);
+    heavy attacks (Iron Sword II: +15% damage, III: +10% attack speed...);
   - at level 5 (`run.json` `branchLevel`) it **branches**: its branches are offered side by side and
     you take one, for good. Firebolt's Inferno makes its burning patch burst as it ends, Twin bolts
     shoots one more bolt; the Whirlwind's Firestorm sets enemies on fire, Cyclone spins far wider; the
@@ -134,7 +136,7 @@ and enemies that come back), **O** for the options.
   everyone. No weapon is for sale after that: level ups offer the skills of the one in hand instead
   (`run.json` `chooseWeapon`; off, the start kit's weapon is the one, and weapons are for sale).
 - **The bow** (ranged): arrows where you aim. Light is drawn while you hold it: a tap is a weak quick
-  arrow, a full draw (0.6 s, the pips under the crosshair) three times as hard and faster, and it
+  arrow, a full draw (0.6 s, the pips under the crosshair) three and a half times as hard and faster, and it
   waits for you to let go. Heavy is a slow power shot; Volley
   (five arrows fanned out) and Disengage (a leap back out of reach, an arrow as you go) by level ups.
 - **The scythe** (melee): slow, wide sweeps with a long reach that hit whole groups. Light is two
@@ -152,7 +154,7 @@ and enemies that come back), **O** for the options.
   and **Lock** (Shift + 1-4) keeps one for the next shop. **R** rerolls (dearer each time), **Enter**
   is ready; in co-op the next wave waits for everyone. On sale, only items (`upgrades.json`):
   - stat items: health, damage, armor, crit, speed, attack speed (Frenzy: the weapon's light and heavy
-    attacks 10% quicker each), regeneration, pickup range, dash charges,
+    attacks 10% quicker each, and as much cheaper in stamina), regeneration, pickup range, dash charges,
     cheaper spells, faster cooldowns, life on hit...;
   - tag items: a boost for **every** spell and technique of yours with a tag. Spells are tagged with
     "spell", their element and their shapes ("projectile" for a bolt, "area" for a nova or a zone,

@@ -899,7 +899,8 @@ namespace arena
         std::string startWeapon = "base:sword";
         std::vector<std::string> startOwned = {"element:fire", "base:bolt"};
         std::vector<std::string> startSpells;   // the spells a run starts with (spells/*.json ids), on keys 1, 2, 3
-        std::vector<std::string> startChoices;  // the first spell each player picks among, with the weapon (then on key 1)
+        std::vector<std::string> startChoices;  // the first spells each player picks among, with the weapon (then on key 1): the pool
+        int startChoiceCount = 0;               // ... of which each player is offered this many, at random (0: all of them)
 
         // Level ups, picked as a wave ends: a new spell, a spell's next level, or one of these weapon skills
         std::vector<std::string> levelSkills;

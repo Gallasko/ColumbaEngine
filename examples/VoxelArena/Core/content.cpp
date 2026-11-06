@@ -2087,7 +2087,9 @@ namespace arena
 
             if (const Json* start = j.find("start"))
             {
-                checkKeys(*start, {"weapon", "owned", "spells", "chooseSpell"}, raw.file, report, "the run's start");
+                checkKeys(*start, {"weapon", "owned", "spells", "chooseSpell", "chooseCount"}, raw.file, report, "the run's start");
+                readInt(*start, "chooseCount", r.startChoiceCount, raw.file, report);
+                r.startChoiceCount = std::clamp(r.startChoiceCount, 0, 8);
                 readStr(*start, "weapon", r.startWeapon, raw.file, report);
                 r.startWeapon = resolveId(r.startWeapon, raw.mod);
                 if (start->has("owned"))

@@ -26,6 +26,33 @@ namespace arena
         return x;
     }
 
+    std::vector<std::string> ArenaWorld::rollFirstSpells()
+    {
+        // The pool shuffled (the run's seed), then taken in order: first one of each element not offered yet, then any
+        std::vector<std::string> pool = content->run.startChoices;
+        for (size_t i = pool.size(); i > 1; --i)
+            std::swap(pool[i - 1], pool[runRandom() % i]);
+
+        const size_t count = content->run.startChoiceCount > 0 ? std::min(pool.size(), static_cast<size_t>(content->run.startChoiceCount)) : pool.size();
+        std::vector<std::string> out;
+        std::vector<std::string> elements;
+        auto elementOf = [&](const std::string& id) {
+            auto s = content->spells.find(id);
+            return s != content->spells.end() ? s->second.recipe.element : std::string();
+        };
+
+        for (const auto& id : pool)
+            if (out.size() < count and std::find(elements.begin(), elements.end(), elementOf(id)) == elements.end())
+            {
+                out.push_back(id);
+                elements.push_back(elementOf(id));
+            }
+        for (const auto& id : pool)
+            if (out.size() < count and std::find(out.begin(), out.end(), id) == out.end())
+                out.push_back(id);
+        return out;
+    }
+
     std::vector<std::string> ArenaWorld::rollAffixes(int count)
     {
         std::vector<std::string> out;
@@ -454,6 +481,10 @@ namespace arena
             return;
 
         const float k = 1.0f / (1.0f + speed);
+
+        // As much less stamina as it is quicker: the same stamina a second, so attack speed is more damage, not a
+        // faster way to run out
+        a.staminaCost *= k;
         auto frames = [&](int& v, int least) {
             if (v >= 0)
                 v = std::max(least, static_cast<int>(std::lround(static_cast<float>(v) * k)));
@@ -737,6 +768,7 @@ namespace arena
             f.level = 1;
             f.shop.clear();
             f.levelOffer.clear();
+            f.firstSpellOffer = rollFirstSpells();
             f.runSkills.clear();
             f.presents = f.banked = f.interest = 0;
             f.presentOffer.clear();
@@ -778,7 +810,8 @@ namespace arena
     void ArenaWorld::chooseFirstSpell(Fighter& f, const std::string& id)
     {
         const auto& choices = content->run.startChoices;
-        if (std::find(choices.begin(), choices.end(), id) == choices.end())
+        const auto& offered = f.firstSpellOffer.empty() ? choices : f.firstSpellOffer;
+        if (std::find(offered.begin(), offered.end(), id) == offered.end())
             return;
 
         // Key 1's spell (one picked before is changed for it); the start kit's others stay after it
@@ -1969,8 +2002,9 @@ namespace arena
                         chooseWeapon(f, content->weaponOrder[static_cast<size_t>(pick)]);
 
                     const int spell = pickOf(f) - InputFrame::FIRST_SPELL;
-                    if (spell >= 0 and spell < static_cast<int>(def.startChoices.size()))
-                        chooseFirstSpell(f, def.startChoices[static_cast<size_t>(spell)]);
+                    const auto& offered = f.firstSpellOffer.empty() ? def.startChoices : f.firstSpellOffer;
+                    if (spell >= 0 and spell < static_cast<int>(offered.size()))
+                        chooseFirstSpell(f, offered[static_cast<size_t>(spell)]);
 
                     all = all and f.ready;
                 }

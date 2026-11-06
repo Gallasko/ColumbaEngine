@@ -727,6 +727,9 @@ namespace arena::net
         w.u8(static_cast<uint8_t>(std::min<size_t>(f.levelOffer.size(), 8)));
         for (size_t i = 0; i < f.levelOffer.size() and i < 8; ++i)
             w.u16(names.id(f.levelOffer[i]));
+        w.u8(static_cast<uint8_t>(std::min<size_t>(f.firstSpellOffer.size(), 8)));
+        for (size_t i = 0; i < f.firstSpellOffer.size() and i < 8; ++i)
+            w.u16(names.id(f.firstSpellOffer[i]));
 
         // ... presents, the interest
         w.u8(static_cast<uint8_t>(std::clamp(f.presents, 0, 255)));
@@ -923,6 +926,10 @@ namespace arena::net
         const uint8_t level = r.u8();
         for (uint8_t k = 0; k < level and k < 8 and not r.failed; ++k)
             f.levelOffer.push_back(names.name(r.u16()));
+        f.firstSpellOffer.clear();
+        const uint8_t first = r.u8();
+        for (uint8_t k = 0; k < first and k < 8 and not r.failed; ++k)
+            f.firstSpellOffer.push_back(names.name(r.u16()));
 
         f.presents = r.u8();
         f.presentOffer.clear();

@@ -12,7 +12,8 @@
 // a boss's health goes up this much for each player past the first (0.75: x1.75 for two, x2.5 for three).
 // xp: shards to level 2, and how many more for each level after.
 // start: the weapon in hand, what is owned (weapons, weapon skills) and the spells (spells/*.json) the
-// run starts with; chooseSpell: the first spell each player picks among, after the weapon (fire, ice, volt). Players make no spells in a run: level ups give them. As a wave ends, after
+// run starts with; chooseSpell: the first spells each player may pick among, after the weapon; chooseCount: how many of
+// them each player is offered, at random each run (of different elements while it can; 0: all). Players make no spells in a run: level ups give them. As a wave ends, after
 // `intermission` s, each level up offers levelChoices picks: a spell not had yet (while one of the
 // three spell keys is free), a technique of levelSkills for the weapon in hand not had yet, or the
 // next level of one had (or of the weapon in hand). One of the picks is always a next level (a branch
@@ -94,7 +95,9 @@
     "bosses": { "10": "chieftain", "20": "warden" },
 
     "xp": { "base": 10, "step": 3 },
-    "start": { "weapon": "sword", "owned": [], "spells": [], "chooseSpell": ["firebolt", "frostbolt", "spark"] },
+    "start": { "weapon": "sword", "owned": [], "spells": [],
+               "chooseSpell": ["firebolt", "frostbolt", "spark", "fireball", "twin_embers", "ice_shards", "frost_nova", "glacier", "chain_lightning", "thunderclap"],
+               "chooseCount": 3 },
     "levelRerolls": 3,
     "levelBanishes": 3,
     "levelSkills": ["leap_slam", "whirlwind", "shadow_dash", "backflip", "volley", "disengage", "sanctuary", "radiance", "harvest", "grim_vault"],

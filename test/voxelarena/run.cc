@@ -1788,8 +1788,12 @@ TEST(arena_run, each_player_picks_a_first_spell_after_the_weapon)
     EXPECT_FALSE(r.player().ready);
     EXPECT_EQ(r.world.run.phase, RunPhase::Armory);
 
-    // Ice: on key 1, and the wave begins
-    r.pick(InputFrame::FIRST_SPELL + 1);
+    // Ice: on key 1, and the wave begins (the three come in a random order: the card it is)
+    const auto& offer = r.player().firstSpellOffer;
+    ASSERT_EQ(offer.size(), 3u);
+    const int ice = static_cast<int>(std::find(offer.begin(), offer.end(), "base:frostbolt") - offer.begin());
+    ASSERT_LT(ice, 3);
+    r.pick(InputFrame::FIRST_SPELL + ice);
     ASSERT_EQ(r.world.run.phase, RunPhase::Fighting);
     ASSERT_EQ(r.player().runSpells.size(), 1u);
     EXPECT_EQ(r.player().runSpells[0].id, "base:frostbolt");
@@ -2113,4 +2117,29 @@ TEST(arena_run, horde_brings_more_enemies_for_everyone)
     const int many = horde.enemies() + static_cast<int>(horde.world.run.pending.size());
     EXPECT_GT(few, 0);
     EXPECT_GE(many, few * 3 / 2);
+}
+
+TEST(arena_run, the_first_spells_offered_are_drawn_at_random_of_different_elements)
+{
+    // Three of the pool each run, one of each element while it can, and not the same three every run
+    std::set<std::string> seen;
+    for (uint32_t seed : {3u, 11u, 29u, 71u, 97u})
+    {
+        RunArena r;
+        r.content.run.chooseWeapon = true;
+        r.content.run.startChoices = {"base:firebolt", "base:frostbolt", "base:spark", "base:fireball", "base:ice_shards", "base:chain_lightning"};
+        r.content.run.startChoiceCount = 3;
+        r.world.startRun(seed);
+
+        const auto& offer = r.player().firstSpellOffer;
+        ASSERT_EQ(offer.size(), 3u);
+        std::set<std::string> elements;
+        for (const auto& id : offer)
+        {
+            elements.insert(r.content.spells.at(id).recipe.element);
+            seen.insert(id);
+        }
+        EXPECT_EQ(elements.size(), 3u);
+    }
+    EXPECT_GT(seen.size(), 3u);
 }

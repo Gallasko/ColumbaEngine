@@ -185,6 +185,7 @@ namespace arena
         bool armed = false;           // a run's weapon was chosen (the first spell comes next)
         int interest = 0;             // shards the last interest gave
         std::vector<std::string> levelOffer;   // a level up's picks: a spell (new, or its next level) or a weapon skill
+        std::vector<std::string> firstSpellOffer;   // a run's first spell: the ones this player may pick among (run.json chooseSpell)
         bool ready = false;
         int rerolls = 0;
         int levelRerolls = 0, banishes = 0;    // a run's rerolls and banishes of the level ups left
@@ -701,6 +702,8 @@ namespace arena
         // ---- Elites' affixes (affixes.json) and what dies with a blast or splits ----
         /** An elite's affixes, picked by the run's dice: `count` of them, each once. */
         std::vector<std::string> rollAffixes(int count);
+        /** A run's first spells offered to a player: chooseCount of the chooseSpell pool, at random, of different elements while it can. */
+        std::vector<std::string> rollFirstSpells();
         /** What a fighter's affixes add up to (health, damage, speed, regen...). */
         float affixSum(const Fighter& f, float AffixDef::*field) const;
         /** A blast where something died: its warning ring now, its hit as the ring runs out. owner: whom its hits count for. */
