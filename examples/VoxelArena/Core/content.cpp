@@ -2564,6 +2564,60 @@ namespace arena
             }
         }
 
+        /**
+         * The techniques with a "slot" join the game by themselves: on that ability key (the tuning's
+         * player.abilities, after what is there: the first the weapon allows is the one) and, unless "levelUp" is
+         * false, among the level ups' techniques. A mod adds a weapon and its techniques without patching lists.
+         */
+        void joinTechniques(Content& content)
+        {
+            for (const auto& [key, a] : content.abilities)
+            {
+                if (a.slot <= 0)
+                    continue;
+                const std::string id = key;
+
+                if (content.tuning.isNull())
+                    content.tuning = Json::makeObject();
+                Json* player = content.tuning.find("player");
+                if (not player)
+                {
+                    content.tuning.set("player", Json::makeObject());
+                    player = content.tuning.find("player");
+                }
+                Json* slots = player->find("abilities");
+                if (not slots)
+                {
+                    Json list;
+                    list.type = Json::Type::Array;
+                    player->set("abilities", list);
+                    slots = player->find("abilities");
+                }
+
+                while (static_cast<int>(slots->array.size()) < a.slot)
+                    slots->array.push_back(Json::makeString(""));
+
+                // The slot as a list (an id or "" become one), then the technique at its end
+                Json& slot = slots->array[static_cast<size_t>(a.slot - 1)];
+                if (not slot.isArray())
+                {
+                    Json list;
+                    list.type = Json::Type::Array;
+                    if (slot.isString() and not slot.string.empty())
+                        list.array.push_back(slot);
+                    slot = list;
+                }
+                if (std::none_of(slot.array.begin(), slot.array.end(), [&](const Json& e) { return e.isString() and e.string == id; }))
+                    slot.array.push_back(Json::makeString(id));
+
+                auto& skills = content.run.levelSkills;
+                if (a.levelUp and a.kind == "attack" and std::find(skills.begin(), skills.end(), id) == skills.end())
+                    skills.push_back(id);
+
+                content.report.info.push_back("technique " + id + " joins ability key " + std::to_string(a.slot));
+            }
+        }
+
         void typeAbilities(Content& content)
         {
             auto& report = content.report;
@@ -2573,7 +2627,7 @@ namespace arena
                 const Json& j = raw.data;
 
                 checkKeys(j, {"id", "name", "kind", "block", "staminaCost", "cooldown", "range", "distance", "lifetime", "damage", "rate", "width", "height", "depth",
-                              "weapons", "attack", "tags", "levels", "branches", "text"},
+                              "weapons", "attack", "tags", "levels", "branches", "text", "slot", "levelUp"},
                           raw.file, report, "ability " + id);
 
                 AbilityDef a;
@@ -2596,6 +2650,13 @@ namespace arena
                 readInt(j, "depth", a.depth, raw.file, report);
                 readStringList(j, "weapons", a.weapons, raw.file, report);
                 readStringList(j, "tags", a.tags, raw.file, report);
+                readInt(j, "slot", a.slot, raw.file, report);
+                readBool(j, "levelUp", a.levelUp, raw.file, report);
+                if (a.slot < 0 or a.slot > 8)
+                {
+                    report.error(raw.file, j.find("slot")->line, "ability \"" + id + "\": \"slot\" is an ability key, 1 to 8");
+                    a.slot = 0;
+                }
 
                 // A technique's levels in a run: [{ "damage": 0.2 }, { "cooldown": 0.15 }], what levels 2, 3... add
                 if (const Json* levels = j.find("levels"))
@@ -3043,6 +3104,7 @@ namespace arena
         typeUpgrades(content);
         typeArenas(content);
         typeRun(content);
+        joinTechniques(content);
         checkTiers(content);
         typeArena(content);
 

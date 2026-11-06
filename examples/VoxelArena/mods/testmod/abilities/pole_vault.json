@@ -1,0 +1,30 @@
+// Spear skill (4): the pole vault. Plant the spear and vault forward over the enemies in front (you cannot be hit
+// for most of it), then come down point first, hitting everything around where you land. "slot": 8 puts it on the
+// ability key 4 and among a run's level ups.
+{
+    "name": "Pole vault",
+    "text": "Vault over enemies, then strike down where you land.",
+    "kind": "attack",
+    "weapons": ["spear"],
+    "slot": 8,
+    "staminaCost": 16,
+    "cooldown": 6,
+    "attack": {
+        "startup": 6, "active": 6, "recovery": 18,
+        "damage": 18, "poiseDamage": 26, "armor": 20,
+        "knockback": 5, "knockup": 3, "hitstop": 5, "shake": 0.5,
+        "hitboxes": [ { "offset": [0, 0.5, 0.4], "size": [3.2, 1.4, 3.2] } ],
+        "leap": [11, 10], "leapAt": 2,
+        "iframes": [2, 18],
+        "plungeSpeed": 20,
+        "terrainDamage": 15,
+        "swing": { "yaw": 0, "pitchFrom": 70, "pitchTo": -60, "reach": 0.4 }
+    },
+    "tags": ["melee", "area", "dash"],
+    "levels": [{ "damage": 0.15 }, { "cooldown": 0.15 }, { "damage": 0.15, "area": 0.1 }],
+    "branches": [
+        { "name": "Skewer", "text": "A bigger, harder landing.", "boost": { "area": 0.3, "damage": 0.3 } },
+        { "name": "Frost landing", "text": "The landing slows enemies, and hits a little harder.", "element": "ice", "status": "base:chill",
+          "boost": { "damage": 0.1 }, "tags": ["ice"] }
+    ]
+}

@@ -3,6 +3,6 @@
     "name": "Test mod: the spear",
     "version": "0.1.0",
     "api": 1,
-    "description": "Adds a spear with its own moveset. No C++: one weapon file and one model.",
+    "description": "Adds a spear with its own moveset, levels, branches and two techniques. No C++: one weapon file, two ability files and one model.",
     "dependencies": ["base"]
 }

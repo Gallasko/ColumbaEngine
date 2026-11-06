@@ -4,7 +4,7 @@ A small voxel arena game, the combat demo of the voxel RPG: twenty timed waves o
 coming (each arena brings its own, and elites come with affixes that change how they fight), the
 shards they drop to spend in a shop between waves, bosses midway and at the end, a score to beat. Three weapons with their combos and skills, spells you make
 yourself, movement tech, an arena you can break, and co-op. A second mod, `testmod`, adds a spear
-without any C++.
+with its levels, branches and techniques without any C++.
 
 All the game content lives in `mods/`. The game's own content is the `base` mod, written exactly like
 any other mod. Every gameplay number is in a data file and reloads with F5.
@@ -144,6 +144,10 @@ and enemies that come back), **O** for the options.
   negative `knockback` pulls). It gives less mana back per point of damage (`"mana": 0.2`), as it hits
   many at once. Harvest (a spin that also heals you a little) and Grim vault (a flip forward over
   enemies, out of reach, landing with a sweep) by level ups.
+- **The spear** (testmod, melee): quick thrusts with the longest reach, a wide sweep as the heavy. Its
+  levels make it hit harder and reach further; its branches are Impaler (much longer thrusts) and Storm
+  spear (hits stun). Javelin (a spear thrown far and hard) and Pole vault (a vault over enemies, coming
+  down point first) by level ups. All of it is data in the mod.
 - **The healer's staff** (support): orbs that burst a little on light, a mending pulse on heavy (health
   back to you and every ally within 5 m); Sanctuary (a circle on the ground healing everyone in it for
   5 s) and Radiance (enemies close by thrown back, allies further out healed) by level ups. In the
@@ -607,7 +611,7 @@ examples/VoxelArena/
   tools/lab/     the lab's scenes (lab.pg); Game/lab is its panel and script runner
   shader/        the voxel shader
   mods/base/     the game's content
-  mods/testmod/  the spear
+  mods/testmod/  the spear, its levels, branches and techniques (javelin, pole vault): a weapon from a mod, no C++
 test/voxelarena/ the tests
 ```
 
@@ -646,7 +650,7 @@ content API version the mod was written for. The API is unstable: a mismatch is 
 | `blocks.json` | blocks: `color`, `solid`, `colorNoise`, `hardness`, `breakable`, `flammable`, `weakness`, `texture` (one name, or `{ "top", "side", "bottom" }`), `shape` (`cube`, `cross` for grass and flowers, `model` with a `model` for a small voxel model) | `mymod:<key>` |
 | `statuses.json` | statuses: `duration`, `damagePerSecond`, `slow`, `maxStacks`, `atMax`, `stagger`, `heavy`, `imbue`, `damageTaken` (one with it takes this much more damage: -0.5 halves it) | `mymod:<key>` |
 | `affixes.json` | what elites come with: `name`, `text`, `colour`, `weight`, `health`, `damage`, `speed`, `onHit` (a status its hits leave), `trail` (ground behind it), `regen`, `aura` (`status`, `radius`: on its allies), `blast` and `split` (as an enemy's) | `mymod:<key>` |
-| `abilities/<name>.json` | an ability: terrain (`kind`: wall, pit, mine) or a weapon skill (attack); a run's technique also has `tags`, `levels` (a boost each: `[{ "damage": 0.15 }]`) and `branches` (`name`, `text`, `element`, `status`, `tags`, `boost`) | `mymod:<name>` |
+| `abilities/<name>.json` | an ability: terrain (`kind`: wall, pit, mine) or a weapon skill (attack); a run's technique also has `tags`, `levels` (a boost each: `[{ "damage": 0.15 }]`) and `branches` (`name`, `text`, `element`, `status`, `tags`, `boost`). `"slot"` (an ability key, 1-8: 4 is R, 8 is 4) puts it on that key and among a run's level ups by itself, no list to patch (`"levelUp": false` keeps it out of the level ups) | `mymod:<name>` |
 | `elements.json` | the elements of spells: `name`, `status`, `mana` (fire, ice, volt) | `mymod:<key>` |
 | `keywords.json` | the keywords of spells: forms (`shape`: bolt, zone, nova, beam) and modifiers | `mymod:<key>` |
 | `spells/<name>.json` | a ready-made spell: `name`, `text`, `recipe` (`["fire", "bolt", "zone"]`), `levels` (what each level after the first adds: `[["enlarge"], ["extend"]]`), `branches` (`name`, `text`, `keywords` added to the recipe, `tags`, `boost`) | `mymod:<name>` |

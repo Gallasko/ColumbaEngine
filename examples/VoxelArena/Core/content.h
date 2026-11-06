@@ -635,6 +635,11 @@ namespace arena
         std::vector<SpellTweak> levels;
         std::vector<BranchDef> branches;
 
+        // A mod's technique joins the game by itself: the ability key it is used from (1-8, the tuning's
+        // player.abilities; 0: none, the tuning lists it), and whether a run's level ups offer it (run.json levelSkills)
+        int slot = 0;
+        bool levelUp = true;
+
         std::string file;
     };
 

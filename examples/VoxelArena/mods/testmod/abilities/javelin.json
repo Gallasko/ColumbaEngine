@@ -1,0 +1,29 @@
+// Spear skill (R): the javelin. Throw a spear that flies far and hits hard (the spear comes back to the hand).
+// "slot": 4 puts it on the ability key R (the tuning's player.abilities, after the base game's) and among a run's
+// level ups, with no patch.
+{
+    "name": "Javelin",
+    "text": "Throw a spear that flies far and hits hard.",
+    "kind": "attack",
+    "weapons": ["spear"],
+    "slot": 4,
+    "staminaCost": 18,
+    "cooldown": 6,
+    "attack": {
+        "moveSpeed": 0.3,
+        "startup": 14, "active": 1, "recovery": 18,
+        "damage": 0, "poiseDamage": 0,
+        "hitboxes": [],
+        "projectile": { "speed": 30, "gravity": 5, "radius": 0.15, "lifetime": 2,
+                        "damage": 22, "poiseDamage": 26, "knockback": 6, "terrainDamage": 15,
+                        "hitstop": 4, "shake": 0.3, "spawn": [0.3, 1.5, 0.6], "model": "spear", "modelScale": 0.0625 },
+        "swing": { "yaw": 0, "pitchFrom": 40, "pitchTo": -20 }
+    },
+    "tags": ["projectile"],
+    "levels": [{ "damage": 0.15 }, { "cooldown": 0.15 }, { "damage": 0.15, "speed": 0.15 }],
+    "branches": [
+        { "name": "Twin javelins", "text": "Throws two at once.", "boost": { "count": 1 } },
+        { "name": "Thunder javelin", "text": "It stuns what it hits, and everyone close to where it lands.", "element": "volt", "status": "base:shock",
+          "boost": { "damage": 0.1 }, "tags": ["volt"] }
+    ]
+}

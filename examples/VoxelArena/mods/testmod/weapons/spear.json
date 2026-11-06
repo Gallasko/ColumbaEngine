@@ -1,11 +1,19 @@
 // A spear: long reach, narrow thrusts, a wide sweep as the heavy. Slower to start than the sword.
-// Press 2 in game to wield it (1 goes back to the sword).
+// In a run it grows as the base weapons do: its levels (area makes the thrusts reach further), a branch at the
+// branch level, and its techniques (abilities/javelin.json, abilities/pole_vault.json: they join the R and 4 keys
+// and the level ups by themselves, with their "slot").
 {
     "name": "Ash Spear",
     "type": "spear",
     "role": "melee",
     "regen": 0.5,
     "text": "Long reach.",
+    "levels": [{ "damage": 0.25 }, { "area": 0.15 }, { "damage": 0.2, "attackSpeed": 0.1 }],
+    "branches": [
+        { "name": "Impaler", "text": "Much longer thrusts that hit harder.", "boost": { "area": 0.3, "damage": 0.2 } },
+        { "name": "Storm spear", "text": "Your hits stun enemies for a moment, and hit a little harder.", "element": "volt", "status": "base:shock",
+          "boost": { "damage": 0.15 }, "tags": ["volt"] }
+    ],
     "lightText": "Quick thrusts with long reach.",
     "heavyText": "A wide sweep around you.",
     "model": "spear",

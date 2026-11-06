@@ -877,8 +877,14 @@ TEST(arena_skills, the_weapon_in_hand_decides_the_skills)
     EXPECT_EQ(a.world.ability(r, &a.player())->id, "base:whirlwind");
     EXPECT_EQ(a.world.ability(four, &a.player())->id, "base:leap_slam");
 
-    a.player().weapon = "testmod:spear";   // no skill for a spear in those slots
-    EXPECT_EQ(a.world.ability(r, &a.player()), nullptr);
+    // The test mod's spear: its techniques joined those keys by themselves ("slot"), no list patched
+    a.player().weapon = "testmod:spear";
+    ASSERT_NE(a.world.ability(r, &a.player()), nullptr);
+    EXPECT_EQ(a.world.ability(r, &a.player())->id, "testmod:javelin");
+    ASSERT_NE(a.world.ability(four, &a.player()), nullptr);
+    EXPECT_EQ(a.world.ability(four, &a.player())->id, "testmod:pole_vault");
+    const auto& skills = a.content.run.levelSkills;
+    EXPECT_NE(std::find(skills.begin(), skills.end(), "testmod:javelin"), skills.end());   // and the level ups offer them
     EXPECT_EQ(a.world.spellSlotAt(a.slot("spell:1")), 0);   // the spell keys are there with any weapon
 }
 
