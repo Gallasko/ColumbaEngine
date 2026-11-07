@@ -10,6 +10,7 @@
 #include <sstream>
 
 #include "Core/json.h"
+#include "Core/paths.h"
 
 namespace arena
 {
@@ -103,16 +104,7 @@ namespace arena
 
     std::string optionsPath()
     {
-        std::string base;
-
-        if (const char* xdg = std::getenv("XDG_DATA_HOME"); xdg and *xdg)
-            base = xdg;
-        else if (const char* home = std::getenv("HOME"); home and *home)
-            base = std::string(home) + "/.local/share";
-        else
-            base = ".";
-
-        return base + "/voxelarena/options.json";
+        return userDataDir() + "/options.json";
     }
 
     bool loadOptions(const std::string& path, GameOptions& out)

@@ -4,6 +4,7 @@
 #include <string>
 
 #include "application.h"
+#include "Core/paths.h"
 
 int main(int argc, char* argv[])
 {
@@ -11,18 +12,30 @@ int main(int argc, char* argv[])
     std::ios_base::sync_with_stdio(false);
 
     // The engine reads res/ and shader/ from the working directory, like every game here run from the
-    // repository root (./release/VoxelArena). Started from anywhere else, move there.
-#ifdef ENGINE_SOURCE_DIR
+    // repository root (./release/VoxelArena). Started from anywhere else, move there; a game installed
+    // elsewhere (started from a shortcut, or a terminal in another folder) moves next to its program.
     {
         std::error_code ec;
 
-        if (not std::filesystem::exists("res/setupRenderer.pg", ec) and std::filesystem::exists(std::string(ENGINE_SOURCE_DIR) + "/res/setupRenderer.pg", ec))
+        if (not std::filesystem::exists("res/setupRenderer.pg", ec))
         {
-            std::filesystem::current_path(ENGINE_SOURCE_DIR, ec);
-            std::cout << "Voxel Arena: running from " << ENGINE_SOURCE_DIR << " (for res/ and shader/)" << std::endl;
+            std::string home;
+
+#ifdef ENGINE_SOURCE_DIR
+            if (std::filesystem::exists(std::string(ENGINE_SOURCE_DIR) + "/res/setupRenderer.pg", ec))
+                home = ENGINE_SOURCE_DIR;
+#endif
+
+            if (const auto exe = arena::executableDir(); home.empty() and not exe.empty() and std::filesystem::exists(exe + "/res/setupRenderer.pg", ec))
+                home = exe;
+
+            if (not home.empty())
+            {
+                std::filesystem::current_path(home, ec);
+                std::cout << "Voxel Arena: running from " << home << " (for res/ and shader/)" << std::endl;
+            }
         }
     }
-#endif
 
     LaunchOptions options;
 

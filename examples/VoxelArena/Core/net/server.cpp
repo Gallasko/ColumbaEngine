@@ -74,11 +74,15 @@ namespace arena::net
         }
     }
 
-    void NetServer::offerMods(const std::string& modsDir)
+    void NetServer::offerMods()
     {
         ModBundle bundle;
         bundle.fingerprint = content.fingerprint;
-        bundle.files = readModFiles(modsDir);
+
+        // Under its id, not its folder's name: ids are unique among the loaded mods, folders across two places are not
+        for (const auto& mod : content.mods)
+            for (auto& f : readModFiles(mod.dir))
+                bundle.files.push_back({mod.id + "/" + f.path, std::move(f.data)});
 
         size_t total = 0;
         for (const auto& f : bundle.files)

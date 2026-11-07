@@ -172,6 +172,64 @@ TEST(arena_content, a_cycle_is_reported_not_hung_on)
     EXPECT_EQ(c.report.errors.size(), 2u);
 }
 
+TEST(arena_content, the_player_s_mods_folder_loads_after_the_game_s)
+{
+    TempMods mods;
+    mods.minimalBase();
+    mods.write("game/.keep", "");
+    fs::rename(mods.root / "base", mods.root / "game" / "base");
+    mods.write("player/addon/mod.json", R"({ "id": "addon", "api": 1, "dependencies": ["base"] })");
+    mods.write("player/addon/weapons/club.json", R"({ "moveset": { "light": "bonk", "attacks": { "bonk": { "damage": 9 } } } })");
+    // The same id as the game's: the game's wins, the copy is skipped
+    mods.write("player/base/mod.json", R"({ "id": "base", "api": 1 })");
+
+    const Content c = loadContent(ModSources{{(mods.root / "game").string(), (mods.root / "player").string()}, ""});
+
+    ASSERT_EQ(c.mods.size(), 2u);
+    EXPECT_EQ(c.mods[0].id, "base");
+    EXPECT_EQ(fs::path(c.mods[0].dir).parent_path(), mods.root / "game");
+    EXPECT_EQ(c.mods[1].id, "addon");
+    EXPECT_TRUE(c.weapons.count("addon:club"));
+    ASSERT_EQ(c.report.errors.size(), 1u) << allMessages(c.report);
+    EXPECT_NE(c.report.errors[0].text.find("already loaded"), std::string::npos);
+}
+
+TEST(arena_content, a_mod_turned_off_is_not_loaded_nor_what_needs_it)
+{
+    TempMods mods;
+    mods.minimalBase();
+    mods.write("addon/mod.json", R"({ "id": "addon", "api": 1, "dependencies": ["base"] })");
+    mods.write("addon/weapons/club.json", R"({ "moveset": { "light": "bonk", "attacks": { "bonk": { "damage": 9 } } } })");
+    mods.write("extra/mod.json", R"({ "id": "extra", "api": 1, "dependencies": ["addon"] })");
+    mods.write("mods.json", R"({ "off": ["addon"] })");
+
+    const Content c = loadContent(ModSources{{mods.str()}, (mods.root / "mods.json").string()});
+
+    ASSERT_EQ(c.mods.size(), 1u);
+    EXPECT_EQ(c.mods[0].id, "base");
+    ASSERT_EQ(c.modsOff.size(), 1u);
+    EXPECT_EQ(c.modsOff[0].id, "addon");
+    EXPECT_FALSE(c.weapons.count("addon:club"));
+    ASSERT_EQ(c.report.errors.size(), 1u) << allMessages(c.report);
+    EXPECT_NE(c.report.errors[0].text.find("\"addon\", which is turned off"), std::string::npos);
+
+    // No settings file: every mod is on
+    EXPECT_EQ(loadContent(ModSources{{mods.str()}, (mods.root / "none.json").string()}).mods.size(), 3u);
+}
+
+TEST(arena_content, a_broken_mod_settings_file_names_its_line)
+{
+    TempMods mods;
+    mods.minimalBase();
+    mods.write("mods.json", "{\n  \"of\": [\"base\"]\n}");
+
+    const Content c = loadContent(ModSources{{mods.str()}, (mods.root / "mods.json").string()});
+
+    EXPECT_EQ(c.mods.size(), 1u);
+    ASSERT_EQ(c.report.warnings.size(), 1u) << allMessages(c.report);
+    EXPECT_EQ(c.report.warnings[0].line, 2);
+}
+
 TEST(arena_content, a_later_mod_replaces_or_patches_a_definition)
 {
     TempMods mods;

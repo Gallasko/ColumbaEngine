@@ -58,7 +58,7 @@ namespace arena
 {
     struct ArenaOptions
     {
-        std::string modsDir;
+        ModSources mods;   // the game's mods folder, the player's, and which are turned off
         std::vector<std::string> startupCommands;
 
         /** Networking: single player, hosting (a listen server) or joining a server. */
@@ -350,7 +350,7 @@ namespace arena
         // On a server's mods: where this game's own are. Their scripts stay unloaded: only a server
         // runs scripts, and what a server sends is not run here
         bool serverMods = false;
-        std::string ownModsDir;
+        ModSources ownMods;
         void openJoin();
         void joinAction(int action);
         void resetLocalState();

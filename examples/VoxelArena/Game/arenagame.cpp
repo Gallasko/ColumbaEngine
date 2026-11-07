@@ -313,7 +313,7 @@ namespace arena
 
         const std::string oldArena = first ? "" : toJsonString(content.arena.shapes) + toJsonString(Json::makeNumber(content.arena.size.x * 10000 + content.arena.size.y * 100 + content.arena.size.z));
 
-        content = loadContent(options.modsDir);
+        content = loadContent(options.mods);
         tuning = readTuning(content.tuning, content.tuningFile, content.report);
         if (not serverMods)
             brain.load(content, content.report);
@@ -339,7 +339,7 @@ namespace arena
                     transport = std::make_unique<net::EngineTransport>(options.network);
                     server = std::make_unique<net::NetServer>(world, content, *transport, false);
                     server->hostName = options.playerName;
-                    server->offerMods(options.modsDir);
+                    server->offerMods();
 
                     // Friends join over the internet when the router opens the ports (UPnP)
                     lanAddress = net::PortMapper::localAddress();
@@ -390,7 +390,7 @@ namespace arena
             bestFile >> bestScore;
 
             // The difficulty levels opened so far, and the one picked last
-            std::ifstream levelsFile(std::filesystem::path(spellbookPath()).parent_path() / "levels.txt");
+            std::ifstream levelsFile(std::filesystem::path(userDataDir()) / "levels.txt");
             levelsFile >> levelOpen >> levelPicked;
             pickLevel(levelPicked);
 
@@ -1664,7 +1664,7 @@ namespace arena
     {
         std::error_code ec;
         std::filesystem::create_directories(std::filesystem::path(spellbookPath()).parent_path(), ec);
-        std::ofstream(std::filesystem::path(spellbookPath()).parent_path() / "levels.txt") << levelOpen << " " << levelPicked;
+        std::ofstream(std::filesystem::path(userDataDir()) / "levels.txt") << levelOpen << " " << levelPicked;
     }
 
     std::vector<std::string> ArenaGame::levelLines(int level) const
@@ -3531,7 +3531,7 @@ namespace arena
         transport = std::make_unique<net::EngineTransport>(options.network);
         server = std::make_unique<net::NetServer>(world, content, *transport, false);
         server->hostName = options.playerName;
-        server->offerMods(options.modsDir);
+        server->offerMods();
 
         // A chosen port is the only one asked for: it may be forwarded by hand, and then the router refuses
         lanAddress = net::PortMapper::localAddress();
@@ -3722,8 +3722,8 @@ namespace arena
 
         print("loading the server's mods (" + std::to_string(bundle.files.size()) + " files)");
 
-        ownModsDir = options.modsDir;
-        options.modsDir = dir;
+        ownMods = options.mods;
+        options.mods = ModSources{{dir}, ""};   // exactly the server's, none turned off
         serverMods = true;
         world.setBrain(nullptr);    // the scripts of this game's own mods no longer fit its content
 
@@ -3750,7 +3750,7 @@ namespace arena
             return;
 
         serverMods = false;
-        options.modsDir = ownModsDir;
+        options.mods = ownMods;
         loadAll(false);
     }
 
@@ -6113,6 +6113,10 @@ namespace arena
             std::string out;
             for (const auto& m : content.mods)
                 out += m.id + " " + m.version + " (" + m.name + ")  " + m.dir + "\n";
+            for (const auto& m : content.modsOff)
+                out += m.id + " (turned off)  " + m.dir + "\n";
+            if (not serverMods)
+                out += "your mods go in " + userModsDir() + "\n";
             for (const auto& i : content.report.info)
                 if (i.find("replaces") != std::string::npos or i.find("patches") != std::string::npos)
                     out += "  " + i + "\n";

@@ -617,26 +617,53 @@ namespace arena
         // Mod discovery and order
         // ----------------------------------------------------------------------------------------
 
-        std::vector<ModInfo> discoverMods(const std::string& modsDir, ContentReport& report)
+        /** The mods turned off in a settings file ({ "off": ["mymod"] }); none when there is no such file. */
+        std::set<std::string> readModsOff(const std::string& path, ContentReport& report)
+        {
+            std::set<std::string> off;
+            std::error_code ec;
+
+            if (path.empty() or not fs::exists(path, ec))
+                return off;
+
+            Json json;
+            if (not readJsonFile(path, json, report))
+                return off;
+
+            checkKeys(json, {"off"}, path, report, "the mod settings");
+
+            std::vector<std::string> list;
+            readStringList(json, "off", list, path, report);
+            off.insert(list.begin(), list.end());
+            return off;
+        }
+
+        /** The mods in each folder, the first folders first; a mod whose id is taken already is skipped. */
+        std::vector<ModInfo> discoverMods(const std::vector<std::string>& modsDirs, ContentReport& report)
         {
             std::vector<ModInfo> found;
             std::error_code ec;
-
-            if (not fs::is_directory(modsDir, ec))
-            {
-                report.error(modsDir, 0, "the mods folder does not exist");
-                return found;
-            }
-
             std::vector<fs::path> dirs;
 
-            for (const auto& entry : fs::directory_iterator(modsDir, ec))
+            for (const auto& modsDir : modsDirs)
             {
-                if (entry.is_directory())
-                    dirs.push_back(entry.path());
-            }
+                if (not fs::is_directory(modsDir, ec))
+                {
+                    report.error(modsDir, 0, "the mods folder does not exist");
+                    continue;
+                }
 
-            std::sort(dirs.begin(), dirs.end());
+                std::vector<fs::path> inside;
+
+                for (const auto& entry : fs::directory_iterator(modsDir, ec))
+                {
+                    if (entry.is_directory())
+                        inside.push_back(entry.path());
+                }
+
+                std::sort(inside.begin(), inside.end());
+                dirs.insert(dirs.end(), inside.begin(), inside.end());
+            }
 
             std::set<std::string> ids;
 
@@ -690,7 +717,7 @@ namespace arena
         }
 
         /** Dependencies first; among mods free to load, alphabetical. Mods with a missing dependency or in a cycle are dropped. */
-        std::vector<ModInfo> orderMods(std::vector<ModInfo> mods, ContentReport& report)
+        std::vector<ModInfo> orderMods(std::vector<ModInfo> mods, const std::set<std::string>& off, ContentReport& report)
         {
             // Drop mods whose dependencies are missing, until nothing changes (a drop can orphan another mod)
             bool changed = true;
@@ -709,7 +736,7 @@ namespace arena
                     {
                         if (not present.count(dep))
                         {
-                            report.error((fs::path(it->dir) / "mod.json").string(), 0, "needs the mod \"" + dep + "\", which is not loaded: \"" + it->id + "\" is skipped");
+                            report.error((fs::path(it->dir) / "mod.json").string(), 0, "needs the mod \"" + dep + "\", which is " + (off.count(dep) ? "turned off" : "not loaded") + ": \"" + it->id + "\" is skipped");
                             mods.erase(it);
                             changed = true;
                             break;
@@ -3095,10 +3122,36 @@ namespace arena
 
     Content loadContent(const std::string& modsDir)
     {
+        return loadContent(ModSources{{modsDir}, ""});
+    }
+
+    Content loadContent(const ModSources& sources)
+    {
         Content content;
         auto& report = content.report;
+        const std::string modsDir = sources.dirs.empty() ? "" : sources.dirs.front();
 
-        content.mods = orderMods(discoverMods(modsDir, report), report);
+        if (sources.dirs.empty())
+            report.error("", 0, "no mods folder was given");
+
+        content.modDirs = sources.dirs;
+
+        // A mod turned off is left out before ordering: one that needs it is skipped and says why
+        const std::set<std::string> off = readModsOff(sources.settings, report);
+        std::vector<ModInfo> found;
+
+        for (auto& mod : discoverMods(sources.dirs, report))
+        {
+            if (off.count(mod.id))
+            {
+                report.info.push_back("mod " + mod.id + " is turned off");
+                content.modsOff.push_back(std::move(mod));
+            }
+            else
+                found.push_back(std::move(mod));
+        }
+
+        content.mods = orderMods(std::move(found), off, report);
 
         std::vector<PendingPatch> patches;
 

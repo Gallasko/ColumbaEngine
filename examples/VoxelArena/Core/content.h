@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "json.h"
+#include "paths.h"
 #include "voxelgrid.h"
 
 namespace arena
@@ -992,7 +993,9 @@ namespace arena
 
     struct Content
     {
-        std::vector<ModInfo> mods;   // in load order
+        std::vector<ModInfo> mods;      // in load order
+        std::vector<ModInfo> modsOff;   // found, but turned off by the player
+        std::vector<std::string> modDirs;   // the folders they were read from
 
         // Raw, patched definitions per kind ("block", "weapon", "enemy"), by full id
         std::map<std::string, std::map<std::string, RawDef>> raw;
@@ -1069,10 +1072,14 @@ namespace arena
     };
 
     /**
-     * Loads every mod found in modsDir: reads mod.json files, orders mods by their
-     * dependencies, reads each mod's definitions, applies patches, then types and checks
-     * everything. Problems end up in content.report; loading itself never fails.
+     * Loads every mod found in the folders of sources, but the ones its settings turn off: reads
+     * mod.json files, orders mods by their dependencies, reads each mod's definitions, applies
+     * patches, then types and checks everything. Problems end up in content.report; loading itself
+     * never fails.
      */
+    Content loadContent(const ModSources& sources);
+
+    /** Every mod found in one folder, all of them on. */
     Content loadContent(const std::string& modsDir);
 
     /** Parses an attack (or a whole moveset) from JSON. Exposed for tests. */

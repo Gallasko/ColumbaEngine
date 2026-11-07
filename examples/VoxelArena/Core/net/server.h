@@ -46,10 +46,11 @@ namespace arena::net
         int maxClients = 7;
 
         /**
-         * The mods this server offers to a client whose content differs, read from modsDir, instead of
-         * refusing it. Not called (or too much to send): such a client is refused.
+         * The mods this server offers to a client whose content differs, instead of refusing it: the
+         * files of every mod its content loaded, each under its id (whichever folder it came from;
+         * the ones turned off are not sent). Not called (or too much to send): such a client is refused.
          */
-        void offerMods(const std::string& modsDir);
+        void offerMods();
 
         /** The host's own name, for the lobby (a listen server). */
         std::string hostName = "host";

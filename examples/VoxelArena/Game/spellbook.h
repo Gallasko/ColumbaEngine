@@ -16,7 +16,7 @@ namespace arena
         std::vector<std::pair<std::string, SpellRecipe>> saved;
     };
 
-    /** Where the book is kept between runs: $XDG_DATA_HOME/voxelarena/spellbook.json (or ~/.local/share). */
+    /** Where the book is kept between runs: <userDataDir>/spellbook.json (see Core/paths.h). */
     std::string spellbookPath();
     bool loadSpellbook(const std::string& path, SpellbookData& out);
     bool saveSpellbook(const std::string& path, const SpellbookData& book);

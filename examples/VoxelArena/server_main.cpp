@@ -18,6 +18,7 @@
 #include "Networking/network_system.h"
 
 #include "Core/content.h"
+#include "Core/paths.h"
 #include "Core/scriptbrain.h"
 #include "Core/tuning.h"
 #include "Core/world.h"
@@ -66,13 +67,8 @@ int main(int argc, char* argv[])
             upnpPorts = argv[++i];
     }
 
-    if (modsDir.empty())
-    {
-        std::error_code ec;
-        modsDir = VOXELARENA_MODS_DIR and std::filesystem::is_directory(VOXELARENA_MODS_DIR, ec) ? VOXELARENA_MODS_DIR : "mods";
-    }
-
-    arena::Content content = arena::loadContent(modsDir);
+    const arena::ModSources mods = arena::playerModSources(modsDir, VOXELARENA_MODS_DIR);
+    arena::Content content = arena::loadContent(mods);
     arena::Tuning tuning = arena::readTuning(content.tuning, content.tuningFile, content.report);
     arena::ScriptBrain brain;
     brain.load(content, content.report);
@@ -94,12 +90,12 @@ int main(int argc, char* argv[])
     arena::net::EngineTransport transport(&network);
     arena::net::NetServer server(world, content, transport, true);
     server.maxClients = 8;
-    server.offerMods(modsDir);
+    server.offerMods();
 
     std::signal(SIGINT, stop);
     std::signal(SIGTERM, stop);
 
-    std::cout << "Voxel Arena server on port " << port << " (TCP) and " << port + 1 << " (UDP), mods from " << modsDir
+    std::cout << "Voxel Arena server on port " << port << " (TCP) and " << port + 1 << " (UDP), mods from " << mods.dirs.front() << (mods.dirs.size() > 1 ? " and " + mods.dirs.back() : std::string())
               << ", content " << std::hex << content.fingerprint << std::dec << std::endl;
 
     const std::string lan = arena::net::PortMapper::localAddress();

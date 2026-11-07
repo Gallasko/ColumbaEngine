@@ -429,7 +429,7 @@ TEST(arena_net, a_client_with_different_content_is_refused)
 TEST(arena_net, a_client_with_different_content_gets_the_servers_mods_and_joins)
 {
     Session s(20.0);
-    s.server->offerMods(VOXELARENA_MODS_DIR);
+    s.server->offerMods();
 
     Content other = s.content;
     other.fingerprint ^= 0xdeadbeef;
@@ -472,7 +472,7 @@ TEST(arena_net, a_client_with_different_content_gets_the_servers_mods_and_joins)
 TEST(arena_net, a_client_still_different_after_the_mods_is_refused)
 {
     Session s(20.0);
-    s.server->offerMods(VOXELARENA_MODS_DIR);
+    s.server->offerMods();
 
     Content other = s.content;
     other.fingerprint ^= 0xdeadbeef;
@@ -498,6 +498,58 @@ TEST(arena_net, a_client_still_different_after_the_mods_is_refused)
     run(c);
     EXPECT_EQ(c.state, NetClient::State::Refused);
     EXPECT_EQ(s.server->clientCount(), 0u);
+}
+
+TEST(arena_net, a_host_sends_the_player_s_mods_but_not_the_ones_turned_off)
+{
+    namespace fs = std::filesystem;
+    const fs::path root = fs::temp_directory_path() / "voxelarena-test-host-mods";
+    fs::remove_all(root);
+    fs::create_directories(root / "player" / "glowmod");
+    std::ofstream(root / "player" / "glowmod" / "mod.json") << R"({ "id": "glowmod", "api": 1, "dependencies": ["base"] })";
+    std::ofstream(root / "player" / "glowmod" / "blocks.json") << R"({ "glow": { "color": [250, 240, 120] } })";
+    std::ofstream(root / "mods.json") << R"({ "off": ["wildfire"] })";
+
+    // A host as the game makes one: its mods, the player's, and its settings
+    Content content = loadContent(ModSources{{VOXELARENA_MODS_DIR, (root / "player").string()}, (root / "mods.json").string()});
+    ASSERT_TRUE(content.report.errors.empty()) << content.report.errors[0].str();
+    ASSERT_TRUE(content.blockIds.count("glowmod:glow"));
+    ContentReport r;
+    const Tuning tuning = readTuning(content.tuning, content.tuningFile, r);
+
+    LoopbackHub hub;
+    ArenaWorld serverWorld;
+    serverWorld.start(content, tuning, false);
+    NetServer server(serverWorld, content, hub.server(), true);
+    server.offerMods();
+
+    Content other = content;
+    other.fingerprint ^= 0xdeadbeef;
+    ArenaWorld w;
+    NetClient c(w, other, tuning, hub.addClient(), "bob");
+
+    for (int i = 0; i < 20; ++i)
+    {
+        c.poll(hub.time());
+        server.poll();
+        server.step(nullptr);
+        hub.advance(stepMs());
+    }
+
+    ASSERT_EQ(c.state, NetClient::State::ModsArrived);
+
+    std::set<std::string> sent;
+    for (const auto& f : c.mods.files)
+        sent.insert(f.path.substr(0, f.path.find('/')));
+    EXPECT_EQ(sent, (std::set<std::string>{"base", "glowmod", "testmod"}));
+
+    // Saved in one folder, all of them on, they give the host's content
+    const std::string dir = (root / "received").string();
+    std::string error;
+    ASSERT_TRUE(writeModFiles(c.mods.files, dir, error)) << error;
+    EXPECT_EQ(loadContent(dir).fingerprint, content.fingerprint);
+
+    fs::remove_all(root);
 }
 
 TEST(arena_net, mods_read_back_and_a_cut_bundle_does_not)

@@ -7,7 +7,7 @@
 
 struct LaunchOptions
 {
-    /** Where the mods live. Empty: the source tree's mods folder, else ./mods */
+    /** Where the game's mods live. Empty: the source tree's mods folder, else mods/ here or next to the program. The player's own are read too */
     std::string modsDir;
 
     /** Console commands run once the arena is up (--exec "spawn base:brute") */

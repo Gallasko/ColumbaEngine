@@ -24,13 +24,18 @@ cd ..
 The game reads its mods and its shader straight from the source tree (`examples/VoxelArena/mods`,
 `examples/VoxelArena/shader`), so editing a file and pressing F5 needs no rebuild. It looks for the
 engine's `res/` and `shader/` in the working directory, and moves to the repository root by itself
-when they are not there.
+when they are not there. A copy of the game away from the source tree (a player's) reads `mods/`
+and `arena-shader/` next to the program, and moves there when started from another folder.
+
+What the game saves goes in `~/.local/share/voxelarena` (`$XDG_DATA_HOME/voxelarena` when it is
+set; `%APPDATA%\VoxelArena` on Windows): the options, the spellbook, the levels won, the best
+score, and the player's own mods (see Making a mod).
 
 Options:
 
 | Option | What it does |
 |---|---|
-| `--mods <dir>` | Load mods from another folder |
+| `--mods <dir>` | Load the game's mods from another folder (the player's own still load) |
 | `--exec "<commands>"` | Run console commands at start, joined with `;` (see Console) |
 | `--host [port]` | Host a game others can join (port 7777 by default) |
 | `--join <address>[:port]` | Join a game |
@@ -539,8 +544,8 @@ you may have forwarded the two ports by hand. The port is kept for next time.
 
 **Everyone must have the same gameplay content**, and players get it from the server. The server
 compares a fingerprint of it (the tuning, the arena, the scripts, and blocks, weapons, enemies and
-abilities). A player whose content differs is sent the server's mods (`.json` and `.pg` files, 8 MB at
-most) and plays on them until leaving, when their own come back. They are checked before anything is
+abilities). A player whose content differs is sent the server's mods (every mod it loaded, from the game's
+folder and its player's, none it turned off: `.json`, `.pg` and `.png` files, 8 MB at most) and plays on them until leaving, when their own come back. They are checked before anything is
 written, kept in a folder of their own, and their scripts are not run: only a server runs scripts. A
 different version of the game cannot be fixed that way: it is refused, and needs the same build.
 What only looks is left out of the fingerprint, so each player may have their own: models,
@@ -628,7 +633,11 @@ fighter.
 
 ## Making a mod
 
-A mod is a folder in `mods/` with a `mod.json`:
+A mod is a folder with a `mod.json`. The game's own mods are in `mods/` next to the program; a
+player's go in their own **mods folder**, `~/.local/share/voxelarena/mods` (`%APPDATA%\VoxelArena\mods`
+on Windows), which the game makes on its first start. Both load, the game's first: a mod in the
+player's folder with the id of one of the game's is skipped (to change the game's content, replace or
+patch it, see below). The console's `mods` says where the folder is.
 
 ```json
 {
@@ -640,8 +649,12 @@ A mod is a folder in `mods/` with a `mod.json`:
 }
 ```
 
-Mods load after their dependencies (`loadAfter` orders a mod after another one without needing it).
-A mod with a missing dependency, or in a dependency cycle, is skipped and reported. `api` is the
+Mods load after their dependencies (`loadAfter` orders a mod after another one without needing it),
+and in the order of their ids otherwise, whatever folder they are in.
+A mod with a missing dependency, or in a dependency cycle, is skipped and reported.
+
+**Turning a mod off**: `mods.json` in the save folder (next to the mods folder) lists the mods not to
+load, `{ "off": ["wildfire"] }`; F5 reads it again. A mod that needs one turned off is skipped too. `api` is the
 content API version the mod was written for. The API is unstable: a mismatch is only a warning.
 
 ### What a mod can hold
@@ -776,7 +789,7 @@ Open with `` ` ``. `help` lists the commands.
 | `stamina [on\|off]`, `mana [on\|off]` | Infinite stamina (and dash charges), infinite mana for the players (for testing moves and spells) |
 | `pause`, `step [n]`, `slowmo <x>` | Freeze, advance n frames, change the speed (frame data checks) |
 | `place x y z <block>`, `fill x0 y0 z0 x1 y1 z1 <block>` | Edit the arena (`air` digs) |
-| `mods`, `errors`, `warnings` | What is loaded, what went wrong |
+| `mods`, `errors`, `warnings` | What is loaded (and turned off), where the player's mods folder is; what went wrong |
 | `players` | Who is in the game, and the round trip to the server |
 | `spell <1-3> <recipe>` | Put a spell on a key: `spell 1 fire bolt multiply zone extend`, or a ready-made id: `spell 2 frost_nova`, or one grown: `spell 1 firebolt 5 0` (level 5, its first branch; not kept in the spellbook) |
 | `spells`, `spellbook` | The spells on the keys, the ready-made ones and the keywords; open the spellbook |

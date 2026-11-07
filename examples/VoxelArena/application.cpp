@@ -30,20 +30,6 @@ namespace
         c.ecsPassesPerFrame = 2;
         return c;
     }
-
-    std::string pick(const std::string& asked, const char* sourceTree, const std::string& local)
-    {
-        if (not asked.empty())
-            return asked;
-
-        std::error_code ec;
-
-        // Reading straight from the source tree lets an edited file be reloaded with F5, no rebuild
-        if (sourceTree and std::filesystem::is_directory(sourceTree, ec))
-            return sourceTree;
-
-        return local;
-    }
 }
 
 #ifndef VOXELARENA_MODS_DIR
@@ -60,7 +46,7 @@ GameApp::GameApp(const std::string& appName, const LaunchOptions& opts) : engine
     {
         auto* masterRenderer = window.masterRenderer;
 
-        const std::string shaderDir = pick("", VOXELARENA_SHADER_DIR, "arena-shader");
+        const std::string shaderDir = arena::findGameDir("", VOXELARENA_SHADER_DIR, "arena-shader");
         masterRenderer->registerShader("arena", shaderDir + "/arena.vs", shaderDir + "/arena.fs");
 
         // The engine starts with 6 sound channels: a fight plays many sounds at once
@@ -72,12 +58,12 @@ GameApp::GameApp(const std::string& appName, const LaunchOptions& opts) : engine
         arena::Ui::registerFonts(ttf);
 
         arena::ArenaOptions arenaOptions;
-        arenaOptions.modsDir = pick(options.modsDir, VOXELARENA_MODS_DIR, "mods");
+        arenaOptions.mods = arena::playerModSources(options.modsDir, VOXELARENA_MODS_DIR);
         arenaOptions.startupCommands = options.startupCommands;
         arenaOptions.lab = options.lab;
         arenaOptions.labScript = options.labScript;
 
-        LOG_INFO(DOM, "Mods from " << arenaOptions.modsDir << ", shaders from " << shaderDir);
+        LOG_INFO(DOM, "Mods from " << arenaOptions.mods.dirs.front() << (arenaOptions.mods.dirs.size() > 1 ? " and " + arenaOptions.mods.dirs.back() : std::string()) << ", shaders from " << shaderDir);
 
         // Multiplayer: the engine's network system carries the messages, the game reads them each step
         if (options.net != LaunchOptions::Net::None)
