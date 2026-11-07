@@ -810,13 +810,10 @@ namespace arena
 
     void ArenaGame::rumble(float strength, int ms)
     {
-        if (not padActive or padId < 0 or prefs.shake <= 0.0f)
+        if (not padActive or padId < 0 or prefs.shake <= 0.0f or not window)
             return;
-        if (SDL_GameController* pad = SDL_GameControllerFromInstanceID(padId))
-        {
-            const auto amount = static_cast<Uint16>(std::clamp(strength * prefs.shake, 0.0f, 1.0f) * 0xFFFF);
-            SDL_GameControllerRumble(pad, amount, amount, static_cast<Uint32>(ms));
-        }
+        const float amount = std::clamp(strength * prefs.shake, 0.0f, 1.0f);
+        window->rumbleGamepad(padId, amount, amount, ms);
     }
 
     void ArenaGame::padFrame(float frameSeconds)

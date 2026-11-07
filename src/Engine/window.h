@@ -49,6 +49,7 @@ namespace pg
     class EntitySystem;
     class Input;
     class WslCursor;
+    class WslGamepad;
     // class UiComponent;
     struct VM;
     class MasterRenderer;
@@ -109,6 +110,10 @@ namespace pg
         // resolution). Bound to F10 in processEvents.
         void toggleFullscreen();
 
+        // Rumble on the controller of this id (an OnSDLGamepad* event's): its two motors 0..1, for ms milliseconds.
+        // SDL's own, or on WSL the Windows helper's (see WslGamepad)
+        void rumbleGamepad(int id, float low, float high, int ms);
+
     public:
         EntitySystem* ecs;
 
@@ -134,6 +139,11 @@ namespace pg
         std::atomic<bool> cursorLockLost {false};
         std::unique_ptr<WslCursor> wslCursor;
         bool wslCursorTried = false;
+
+        // On WSL, where SDL sees no controller: a Windows helper reads them (XInput) and sends their events
+        void updateWslGamepads();
+        std::unique_ptr<WslGamepad> wslGamepad;
+        bool wslGamepadTried = false;
 
         SDL_Window* window = nullptr;
         SDL_GLContext context;

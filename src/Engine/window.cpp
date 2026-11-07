@@ -16,6 +16,7 @@
 #include "Input/input.h"
 #include "Input/inputcomponent.h"
 #include "Input/wslcursor.h"
+#include "Input/wslgamepad.h"
 
 #include "UI/focusable.h"
 
@@ -679,6 +680,49 @@ namespace pg
 #endif
     }
 
+    void Window::updateWslGamepads()
+    {
+#ifndef __EMSCRIPTEN__
+        if (not runningOnWsl())
+            return;
+
+        if (not wslGamepadTried)
+        {
+            wslGamepadTried = true;
+            wslGamepad = WslGamepad::start();
+        }
+
+        if (not wslGamepad)
+            return;
+
+        // As SDL's own controller events: the game listens the same way
+        for (const auto& e : wslGamepad->take())
+        {
+            switch (e.kind)
+            {
+                case WslGamepad::Event::Kind::Pressed: ecs->sendEvent(OnSDLGamepadPressed{e.id, static_cast<unsigned int>(e.which)}); break;
+                case WslGamepad::Event::Kind::Released: ecs->sendEvent(OnSDLGamepadReleased{e.id, static_cast<unsigned int>(e.which)}); break;
+                case WslGamepad::Event::Kind::Axis: ecs->sendEvent(OnSDLGamepadAxisChanged{e.id, static_cast<unsigned int>(e.which), e.value}); break;
+            }
+        }
+#endif
+    }
+
+    void Window::rumbleGamepad(int id, float low, float high, int ms)
+    {
+        auto motor = [](float v) { return static_cast<Uint16>(std::min(1.0f, std::max(0.0f, v)) * 65535.0f); };
+
+        if (id >= WslGamepad::ID_BASE)
+        {
+            if (wslGamepad)
+                wslGamepad->rumble(id, low, high, ms);
+            return;
+        }
+
+        if (SDL_GameController* pad = SDL_GameControllerFromInstanceID(id))
+            SDL_GameControllerRumble(pad, motor(low), motor(high), static_cast<Uint32>(std::max(0, ms)));
+    }
+
     void Window::toggleFullscreen()
     {
         if (not window)
@@ -705,6 +749,7 @@ namespace pg
         ecs->ecsPassPacer.frameStarted();
 
         updateCursorCapture();
+        updateWslGamepads();
 
         currentTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         static auto lastTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();

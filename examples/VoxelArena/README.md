@@ -295,7 +295,9 @@ in `options.json` (`"keys"`) over the tuning's, and are named as the keyboard pr
 Z Q S D where a QWERTY shows W A S D: the same keys, by position).
 
 **A controller** (any SDL knows: Xbox, PlayStation, Switch Pro...; plugged in at any time) plays the same game, and
-the HUD shows its buttons while it is the one used last:
+the HUD shows its buttons while it is the one used last. Under WSL, where Windows keeps the controllers from Linux,
+a helper on the Windows side reads them through XInput (Xbox controllers and the pads that act as one: a
+PlayStation pad through Steam Input or DS4Windows), as the mouse capture does:
 
 | Button | Action |
 |---|---|
