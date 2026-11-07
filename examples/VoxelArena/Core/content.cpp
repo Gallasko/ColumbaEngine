@@ -1,4 +1,5 @@
 #include "content.h"
+#include "schema.h"
 #include "spells.h"
 
 #include <algorithm>
@@ -299,33 +300,24 @@ namespace arena
             return true;
         }
 
-        /** Warns about keys that are not in the known list: a typo would otherwise be silently ignored. */
-        void checkKeys(const Json& json, std::initializer_list<const char*> known, const std::string& file, ContentReport& report, const std::string& where)
+        /** Warns about keys that are not in the schema's object: a typo would otherwise be silently ignored. */
+        void checkKeys(const Json& json, const char* object, const std::string& file, ContentReport& report, const std::string& where)
         {
             if (not json.isObject())
                 return;
 
+            const schema::Object& known = schema::get(object);
+
             for (const auto& kv : json.object)
             {
-                bool found = false;
+                if (known.field(kv.first))
+                    continue;
 
-                for (const char* k : known)
-                {
-                    if (kv.first == k)
-                    {
-                        found = true;
-                        break;
-                    }
-                }
+                std::string known_list;
+                for (const auto& f : known.fields)
+                    known_list += std::string(known_list.empty() ? "" : ", ") + f.name;
 
-                if (not found)
-                {
-                    std::string known_list;
-                    for (const char* k : known)
-                        known_list += std::string(known_list.empty() ? "" : ", ") + k;
-
-                    report.warn(file, kv.second.line, "unknown key \"" + kv.first + "\" in " + where + " (known: " + known_list + ")");
-                }
+                report.warn(file, kv.second.line, "unknown key \"" + kv.first + "\" in " + where + " (known: " + known_list + ")");
             }
         }
 
@@ -487,7 +479,7 @@ namespace arena
             }
             else if (s->isObject())
             {
-                checkKeys(*s, {"id", "stacks"}, file, report, "a status");
+                checkKeys(*s, "statusRef", file, report, "a status");
                 readStr(*s, "id", out.status, file, report);
                 readInt(*s, "stacks", out.stacks, file, report);
                 out.stacks = std::clamp(out.stacks, 1, 99);
@@ -501,7 +493,7 @@ namespace arena
         /** "ground": { "radius", "duration", "perSecond", "element", "status", "every" }: a zone left on the floor */
         void readGround(const Json& j, GroundDef& g, const std::string& file, ContentReport& report, const std::string& what)
         {
-            checkKeys(j, {"radius", "duration", "perSecond", "element", "status", "every"}, file, report, what);
+            checkKeys(j, "ground", file, report, what);
             readNum(j, "radius", g.radius, file, report);
             readNum(j, "duration", g.duration, file, report);
             readNum(j, "perSecond", g.perSecond, file, report);
@@ -515,7 +507,7 @@ namespace arena
         /** "blast": { "delay", "radius", "damage", "poiseDamage", "knockback", "terrainDamage", "element", "status", "everyone", "fuse", "whenPlayerKills" } */
         void readBlast(const Json& j, BlastDef& b, const std::string& file, ContentReport& report, const std::string& what)
         {
-            checkKeys(j, {"delay", "radius", "damage", "poiseDamage", "knockback", "terrainDamage", "element", "status", "everyone", "fuse", "whenPlayerKills"}, file, report,
+            checkKeys(j, "blast", file, report,
                       what);
             readBool(j, "whenPlayerKills", b.whenPlayerKills, file, report);
             if (j.find("fuse"))
@@ -539,7 +531,7 @@ namespace arena
         /** "split": { "enemy", "count", "health" } */
         void readSplit(const Json& j, SplitDef& s, const std::string& file, ContentReport& report, const std::string& what, const std::string& mod)
         {
-            checkKeys(j, {"enemy", "count", "health"}, file, report, what);
+            checkKeys(j, "split", file, report, what);
             readStr(j, "enemy", s.enemy, file, report);
             readInt(j, "count", s.count, file, report);
             readNum(j, "health", s.health, file, report);
@@ -550,9 +542,7 @@ namespace arena
 
         void readProjectile(const Json& pj, ProjectileDef& p, const std::string& file, ContentReport& report, const std::string& where)
         {
-            checkKeys(pj, {"speed", "gravity", "radius", "lifetime", "lead", "damage", "poiseDamage", "knockback", "terrainDamage", "hitstop", "shake", "spawn", "model", "modelScale",
-                           "element", "status", "burst", "terrainRadius", "count", "spread", "ground"},
-                      file, report, where);
+            checkKeys(pj, "projectile", file, report, where);
             if (const Json* ground = pj.find("ground"))
                 readGround(*ground, p.ground, file, report, where + "'s ground");
 
@@ -583,7 +573,7 @@ namespace arena
 
         void readSwing(const Json& json, SwingPose& out, const std::string& file, ContentReport& report)
         {
-            checkKeys(json, {"yawFrom", "yawTo", "pitchFrom", "pitchTo", "yaw", "pitch", "reach", "roll", "rollFrom", "rollTo"}, file, report, "a swing");
+            checkKeys(json, "swing", file, report, "a swing");
 
             // "yaw"/"pitch" set both ends (a still pose)
             if (json.has("yaw"))
@@ -630,7 +620,7 @@ namespace arena
             if (not readJsonFile(path, json, report))
                 return off;
 
-            checkKeys(json, {"off"}, path, report, "the mod settings");
+            checkKeys(json, "modSettings", path, report, "the mod settings");
 
             std::vector<std::string> list;
             readStringList(json, "off", list, path, report);
@@ -685,7 +675,7 @@ namespace arena
                 mod.dir = dir.string();
                 mod.id = dir.filename().string();
 
-                checkKeys(json, {"id", "name", "version", "api", "dependencies", "loadAfter", "description"}, manifest, report, "mod.json");
+                checkKeys(json, "mod", manifest, report, "mod.json");
 
                 readStr(json, "id", mod.id, manifest, report);
                 readStr(json, "name", mod.name, manifest, report);
@@ -1022,7 +1012,7 @@ namespace arena
                         continue;
                     }
 
-                    checkKeys(*e, {"kind", "target", "set"}, path.string(), report, "a patch");
+                    checkKeys(*e, "patch", path.string(), report, "a patch");
 
                     PendingPatch p;
                     p.file = path.string();
@@ -1109,7 +1099,7 @@ namespace arena
                     continue;
                 }
 
-                checkKeys(j, {"color", "solid", "colorNoise", "name", "hardness", "breakable", "flammable", "weakness", "shape", "texture", "model"}, raw.file, report, "block " + id);
+                checkKeys(j, "block", raw.file, report, "block " + id);
 
                 BlockDef def;
                 def.id = id;
@@ -1141,7 +1131,7 @@ namespace arena
                     }
                     else if (tex->isObject())
                     {
-                        checkKeys(*tex, {"top", "side", "bottom"}, raw.file, report, "the texture of block " + id);
+                        checkKeys(*tex, "blockTexture", raw.file, report, "the texture of block " + id);
 
                         const char* faces[3] = {"top", "side", "bottom"};
                         for (int f = 0; f < 3; ++f)
@@ -1193,7 +1183,7 @@ namespace arena
                 // "weakness": { "volt": 4 }: terrain damage of that element, scaled
                 if (const Json* weak = j.find("weakness"))
                 {
-                    checkKeys(*weak, {"fire", "ice", "volt"}, raw.file, report, "the weakness of block " + id);
+                    checkKeys(*weak, "weakness", raw.file, report, "the weakness of block " + id);
 
                     for (const char* name : {"fire", "ice", "volt"})
                     {
@@ -1252,7 +1242,7 @@ namespace arena
                     continue;
                 }
 
-                checkKeys(j, {"duration", "damagePerSecond", "slow", "maxStacks", "atMax", "stagger", "heavy", "imbue", "name", "damageTaken"}, raw.file, report, "status " + id);
+                checkKeys(j, "status", raw.file, report, "status " + id);
 
                 StatusDef s;
                 s.id = id;
@@ -1359,8 +1349,7 @@ namespace arena
                     continue;
                 }
 
-                checkKeys(j, {"name", "text", "one", "other", "damage", "base", "radius", "poiseDamage", "knockback", "element", "status", "consume", "cooldown"},
-                          raw.file, report, "combo " + id);
+                checkKeys(j, "combo", raw.file, report, "combo " + id);
 
                 ComboDef c;
                 c.id = id;
@@ -1393,7 +1382,7 @@ namespace arena
         /** A boost: { "damage": 0.2, "area": 0.2, "cooldown": 0.15, "cost": 0.2, "duration": 0.3, "speed": 0.25, "attackSpeed": 0.1, "count": 1 } */
         void readBoost(const Json& j, SpellTweak& out, const std::string& file, ContentReport& report, const std::string& what)
         {
-            checkKeys(j, {"damage", "area", "cooldown", "cost", "duration", "speed", "attackSpeed", "count"}, file, report, what);
+            checkKeys(j, "boost", file, report, what);
             readNum(j, "damage", out.damage, file, report);
             readNum(j, "area", out.area, file, report);
             readNum(j, "cooldown", out.cooldown, file, report);
@@ -1415,7 +1404,7 @@ namespace arena
 
             for (const auto& b : branches->array)
             {
-                checkKeys(b, {"name", "text", "keywords", "tags", "boost", "element", "status", "against", "detonate", "onCast"}, raw.file, report, what + "'s branch");
+                checkKeys(b, "branch", raw.file, report, what + "'s branch");
                 BranchDef d;
                 readStr(b, "name", d.name, raw.file, report);
                 readStr(b, "text", d.text, raw.file, report);
@@ -1454,7 +1443,7 @@ namespace arena
                     continue;
                 }
 
-                checkKeys(j, {"name", "status", "mana"}, raw.file, report, "element " + id);
+                checkKeys(j, "element", raw.file, report, "element " + id);
 
                 ElementDef d;
                 d.element = e;
@@ -1475,9 +1464,7 @@ namespace arena
             {
                 const Json& j = raw.data;
 
-                checkKeys(j, {"kind", "shape", "name", "mana", "manaScale", "cooldown", "speed", "gravity", "radius", "range", "duration", "damage", "poiseDamage",
-                              "knockback", "terrainDamage", "bounces", "bounciness", "count", "durationScale", "rangeScale", "radiusScale", "damageScale", "chains", "forms", "model", "modelScale"},
-                          raw.file, report, "keyword " + id);
+                checkKeys(j, "keyword", raw.file, report, "keyword " + id);
 
                 KeywordDef k;
                 k.id = id;
@@ -1550,7 +1537,7 @@ namespace arena
             for (const auto& [id, raw] : content.raw["spell"])
             {
                 const Json& j = raw.data;
-                checkKeys(j, {"id", "name", "text", "recipe", "levels", "branches"}, raw.file, report, "spell " + id);
+                checkKeys(j, "spell", raw.file, report, "spell " + id);
 
                 SpellDef s;
                 s.id = id;
@@ -1644,7 +1631,7 @@ namespace arena
             a.file = raw.file;
             a.mod = raw.mod;
 
-            checkKeys(j, {"id", "name", "size", "playerSpawn", "centre", "spawnRadius", "shapes", "spawns", "scatter"}, raw.file, report, what);
+            checkKeys(j, "arena", raw.file, report, what);
 
             readStr(j, "name", a.name, raw.file, report);
             readIVec3(j, "size", a.size, raw.file, report);
@@ -1671,7 +1658,7 @@ namespace arena
             // Shapes refer to blocks by id: check them now so the error points at the right line
             for (const auto& s : a.shapes.array)
             {
-                checkKeys(s, {"block", "from", "to", "hollow"}, raw.file, report, "an arena shape");
+                checkKeys(s, "arenaShape", raw.file, report, "an arena shape");
 
                 const std::string blockRef = s.str("block", "");
                 const std::string id = resolveId(blockRef, raw.mod);
@@ -1685,7 +1672,7 @@ namespace arena
             {
                 for (const auto& s : scatter->array)
                 {
-                    checkKeys(s, {"block", "on", "chance"}, raw.file, report, "an arena scatter");
+                    checkKeys(s, "arenaScatter", raw.file, report, "an arena scatter");
 
                     ArenaScatter sc;
                     sc.block = resolveId(s.str("block", ""), raw.mod);
@@ -1704,7 +1691,7 @@ namespace arena
             {
                 for (const auto& s : spawns->array)
                 {
-                    checkKeys(s, {"enemy", "position", "yaw"}, raw.file, report, "an arena spawn");
+                    checkKeys(s, "arenaSpawn", raw.file, report, "an arena spawn");
 
                     ArenaSpawn spawn;
                     readStr(s, "enemy", spawn.enemy, raw.file, report);
@@ -1727,12 +1714,7 @@ namespace arena
             for (const auto& [id, raw] : content.raw["upgrade"])
             {
                 const Json& j = raw.data;
-                checkKeys(j, {"name", "text", "maxHealth", "damage", "dashCharges", "manaCost", "staminaCost", "manaRegen", "staminaRegen", "speed", "cooldown", "lifeOnHit",
-                              "statusStacks", "most", "armor", "crit", "pickupRange", "regen", "attackSpeed", "horde", "xpGain", "shardChance",
-                              "comboDamage", "statusDuration", "against", "burst", "needs", "needsElements", "price", "tag", "boost", "look", "tiers",
-                              "healthScale", "damageTaken", "hurtDamage", "airDamage", "executeDamage", "revengeDamage", "thorns", "killHeal", "dodgeGround",
-                              "proc", "landing"},
-                          raw.file, report, "boon " + id);
+                checkKeys(j, "upgrade", raw.file, report, "boon " + id);
 
                 UpgradeDef u;
                 u.id = id;
@@ -1778,7 +1760,7 @@ namespace arena
                 // "proc": { "every": 5, "chains": 2, "damage": 10, "element": "volt", "status": "shock" }: every n-th weapon hit
                 if (const Json* proc = j.find("proc"))
                 {
-                    checkKeys(*proc, {"every", "chains", "damage", "element", "status"}, raw.file, report, "boon " + id + "'s proc");
+                    checkKeys(*proc, "proc", raw.file, report, "boon " + id + "'s proc");
                     readInt(*proc, "every", u.proc.every, raw.file, report);
                     readInt(*proc, "chains", u.proc.chains, raw.file, report);
                     readNum(*proc, "damage", u.proc.damage, raw.file, report);
@@ -1790,7 +1772,7 @@ namespace arena
                 }
                 if (const Json* landing = j.find("landing"))
                 {
-                    checkKeys(*landing, {"radius", "damage"}, raw.file, report, "boon " + id + "'s landing");
+                    checkKeys(*landing, "landing", raw.file, report, "boon " + id + "'s landing");
                     readNum(*landing, "radius", u.landing.radius, raw.file, report);
                     readNum(*landing, "damage", u.landing.damage, raw.file, report);
                 }
@@ -1802,7 +1784,7 @@ namespace arena
                 // "burst": { "if": "burn", "radius": 3, "damage": 12, "status": "burn" }: where an enemy dies with that status
                 if (const Json* burst = j.find("burst"))
                 {
-                    checkKeys(*burst, {"if", "radius", "damage", "status"}, raw.file, report, "boon " + id + "'s burst");
+                    checkKeys(*burst, "upgradeBurst", raw.file, report, "boon " + id + "'s burst");
                     readStr(*burst, "if", u.burst.when, raw.file, report);
                     readNum(*burst, "radius", u.burst.radius, raw.file, report);
                     readNum(*burst, "damage", u.burst.damage, raw.file, report);
@@ -1843,7 +1825,7 @@ namespace arena
 
                     for (const Json* p : pieces)
                     {
-                        checkKeys(*p, {"model", "part", "at", "yaw", "scale", "orbit", "icon"}, raw.file, report, "boon " + id + "'s look");
+                        checkKeys(*p, "look", raw.file, report, "boon " + id + "'s look");
 
                         if (const Json* orbit = p->find("orbit"))
                         {
@@ -1911,11 +1893,7 @@ namespace arena
             RunDef& r = content.run;
             r.file = raw.file;
 
-            checkKeys(j, {"waves", "duration", "spawnRate", "maxAlive", "eliteFrom", "eliteChance", "healthGrowth", "pools", "bosses", "warn", "centre", "spawnRadius", "coopScale",
-                          "waveScore", "victoryScore", "pickupRange", "xp", "start", "shop", "arena", "arenas", "resetEachWave", "duel", "chooseWeapon",
-                          "levelSkills", "intermission", "spawnScale", "branchLevel", "mastery", "weaponMastery", "presents", "difficulties", "shardFalloff", "damageFalloff", "bossCoopHealth",
-                          "eliteAffixes", "levelRerolls", "levelBanishes"},
-                      raw.file, report, "the run");
+            checkKeys(j, "run", raw.file, report, "the run");
 
             readInt(j, "waves", r.waves, raw.file, report);
             r.waves = std::clamp(r.waves, 1, 200);
@@ -1940,7 +1918,7 @@ namespace arena
             {
                 for (const auto& e : affixes->array)
                 {
-                    checkKeys(e, {"from", "count"}, raw.file, report, "the run's eliteAffixes");
+                    checkKeys(e, "eliteAffix", raw.file, report, "the run's eliteAffixes");
                     RunDef::EliteAffixes a;
                     readInt(e, "from", a.from, raw.file, report);
                     readInt(e, "count", a.count, raw.file, report);
@@ -1963,7 +1941,7 @@ namespace arena
             r.shardFalloff = std::max(0.0f, r.shardFalloff);
             if (const Json* falloff = j.find("damageFalloff"))
             {
-                checkKeys(*falloff, {"from", "rate"}, raw.file, report, "the run's damageFalloff");
+                checkKeys(*falloff, "damageFalloff", raw.file, report, "the run's damageFalloff");
                 readNum(*falloff, "from", r.damageFalloff.from, raw.file, report);
                 readNum(*falloff, "rate", r.damageFalloff.rate, raw.file, report);
                 r.damageFalloff.from = std::max(0.0f, r.damageFalloff.from);
@@ -1983,7 +1961,7 @@ namespace arena
             }
             if (const Json* presents = j.find("presents"))
             {
-                checkKeys(*presents, {"chance", "perWave", "choices"}, raw.file, report, "the run's presents");
+                checkKeys(*presents, "presents", raw.file, report, "the run's presents");
                 readNum(*presents, "chance", r.presentChance, raw.file, report);
                 readInt(*presents, "perWave", r.presentsPerWave, raw.file, report);
                 readInt(*presents, "choices", r.presentChoices, raw.file, report);
@@ -1994,7 +1972,7 @@ namespace arena
             {
                 for (const auto& l : levels->array)
                 {
-                    checkKeys(l, {"name", "waves", "health", "damage", "healthGrowth", "damageGrowth", "spawn", "eliteChance"}, raw.file, report, "a difficulty");
+                    checkKeys(l, "difficulty", raw.file, report, "a difficulty");
 
                     DifficultyDef d;
                     readStr(l, "name", d.name, raw.file, report);
@@ -2027,7 +2005,7 @@ namespace arena
 
             if (const Json* duel = j.find("duel"))
             {
-                checkKeys(*duel, {"enabled", "duration", "countdown", "radius", "arena"}, raw.file, report, "the run's duel");
+                checkKeys(*duel, "duel", raw.file, report, "the run's duel");
                 readBool(*duel, "enabled", r.duel.enabled, raw.file, report);
                 readNum(*duel, "duration", r.duel.duration, raw.file, report);
                 readNum(*duel, "countdown", r.duel.countdown, raw.file, report);
@@ -2067,7 +2045,7 @@ namespace arena
 
                 for (const auto& a : arenas->array)
                 {
-                    checkKeys(a, {"arena", "from"}, raw.file, report, "a run's arena");
+                    checkKeys(a, "runArena", raw.file, report, "a run's arena");
                     RunDef::ArenaPick pick;
                     readStr(a, "arena", pick.arena, raw.file, report);
                     readInt(a, "from", pick.from, raw.file, report);
@@ -2086,7 +2064,7 @@ namespace arena
             {
                 for (const auto& p : pools->array)
                 {
-                    checkKeys(p, {"enemy", "from", "to", "weight"}, raw.file, report, "a spawn pool");
+                    checkKeys(p, "spawnPool", raw.file, report, "a spawn pool");
                     SpawnPool pool;
                     readStr(p, "enemy", pool.enemy, raw.file, report);
                     pool.enemy = resolveId(pool.enemy, raw.mod);
@@ -2116,14 +2094,14 @@ namespace arena
 
             if (const Json* xp = j.find("xp"))
             {
-                checkKeys(*xp, {"base", "step"}, raw.file, report, "the run's xp");
+                checkKeys(*xp, "xp", raw.file, report, "the run's xp");
                 readInt(*xp, "base", r.xpBase, raw.file, report);
                 readInt(*xp, "step", r.xpStep, raw.file, report);
             }
 
             if (const Json* start = j.find("start"))
             {
-                checkKeys(*start, {"weapon", "owned", "spells", "chooseSpell", "chooseCount"}, raw.file, report, "the run's start");
+                checkKeys(*start, "start", raw.file, report, "the run's start");
                 readInt(*start, "chooseCount", r.startChoiceCount, raw.file, report);
                 r.startChoiceCount = std::clamp(r.startChoiceCount, 0, 8);
                 readStr(*start, "weapon", r.startWeapon, raw.file, report);
@@ -2170,14 +2148,14 @@ namespace arena
 
             if (const Json* shop = j.find("shop"))
             {
-                checkKeys(*shop, {"slots", "reroll", "rerollStep", "priceScale", "coopPrice", "interest", "levelChoices", "weaponPrice", "unlocks", "rarities"}, raw.file, report, "the run's shop");
+                checkKeys(*shop, "shop", raw.file, report, "the run's shop");
 
                 // Rarities, commonest first: [{ "name": "Rare", "power": 1.5, "price": 1.5, "weight": [25, 35] }]
                 if (const Json* rarities = shop->find("rarities"))
                 {
                     for (const auto& e : rarities->array)
                     {
-                        checkKeys(e, {"name", "power", "price", "weight"}, raw.file, report, "a rarity");
+                        checkKeys(e, "rarity", raw.file, report, "a rarity");
                         RarityDef rd;
                         readStr(e, "name", rd.name, raw.file, report);
                         readNum(e, "power", rd.power, raw.file, report);
@@ -2289,9 +2267,7 @@ namespace arena
             {
                 const Json& j = raw.data;
 
-                checkKeys(j, {"id", "name", "type", "role", "text", "lightText", "heavyText", "regen", "mana", "levels", "branches", "model", "modelScale", "grip", "rest",
-                              "followSwing", "followArm", "view", "viewTilt", "moveset"},
-                          raw.file, report, "weapon " + id);
+                checkKeys(j, "weapon", raw.file, report, "weapon " + id);
 
                 WeaponDef w;
                 w.id = id;
@@ -2374,10 +2350,7 @@ namespace arena
             {
                 const Json& j = raw.data;
 
-                checkKeys(j, {"id", "name", "model", "modelScale", "size", "health", "poise", "poiseRegenDelay", "staggerFrames",
-                              "knockbackScale", "walkSpeed", "turnSpeed", "respawnSeconds", "regenerates", "anchored", "script", "params", "moveset",
-                              "weakness", "score", "boss", "drops", "phases", "blast", "split"},
-                          raw.file, report, "enemy " + id);
+                checkKeys(j, "enemy", raw.file, report, "enemy " + id);
 
                 EnemyDef e;
                 e.id = id;
@@ -2414,7 +2387,7 @@ namespace arena
 
                 if (const Json* phases = j.find("phases"))
                 {
-                    checkKeys(*phases, {"at", "crystal", "crystals", "radius", "stagger"}, raw.file, report, "the phases of enemy " + id);
+                    checkKeys(*phases, "phases", raw.file, report, "the phases of enemy " + id);
 
                     if (const Json* at = phases->find("at"); at and at->isArray())
                     {
@@ -2450,7 +2423,7 @@ namespace arena
 
                 if (const Json* weak = j.find("weakness"))
                 {
-                    checkKeys(*weak, {"fire", "ice", "volt"}, raw.file, report, "the weakness of enemy " + id);
+                    checkKeys(*weak, "weakness", raw.file, report, "the weakness of enemy " + id);
 
                     for (const char* name : {"fire", "ice", "volt"})
                     {
@@ -2531,7 +2504,7 @@ namespace arena
                     continue;
                 }
 
-                checkKeys(j, {"name", "text", "colour", "weight", "health", "damage", "speed", "onHit", "trail", "regen", "aura", "blast", "split"}, raw.file, report,
+                checkKeys(j, "affix", raw.file, report,
                           "affix " + id);
 
                 AffixDef a;
@@ -2571,7 +2544,7 @@ namespace arena
                 }
                 if (const Json* aura = j.find("aura"))
                 {
-                    checkKeys(*aura, {"status", "radius"}, raw.file, report, "the aura of affix " + id);
+                    checkKeys(*aura, "aura", raw.file, report, "the aura of affix " + id);
                     readStr(*aura, "status", a.aura.status, raw.file, report);
                     readNum(*aura, "radius", a.aura.radius, raw.file, report);
                     a.aura.status = a.aura.status.empty() ? "" : resolveId(a.aura.status, raw.mod);
@@ -2662,9 +2635,7 @@ namespace arena
             {
                 const Json& j = raw.data;
 
-                checkKeys(j, {"id", "name", "kind", "block", "staminaCost", "cooldown", "range", "distance", "lifetime", "damage", "rate", "width", "height", "depth",
-                              "weapons", "attack", "tags", "levels", "branches", "text", "slot", "levelUp"},
-                          raw.file, report, "ability " + id);
+                checkKeys(j, "ability", raw.file, report, "ability " + id);
 
                 AbilityDef a;
                 a.id = id;
@@ -2788,11 +2759,7 @@ namespace arena
             return false;
         }
 
-        checkKeys(j, {"startup", "active", "recovery", "damage", "poiseDamage", "staminaCost", "knockback", "knockup", "hitstop", "shake",
-                      "hitboxes", "lunge", "lungeFrom", "lungeTo", "turnRate", "moveSpeed", "moveUntil", "armor", "terrainDamage", "dodgeCancelFrom", "chainFrom", "bufferFrom",
-                      "next", "swing", "projectile", "element", "status", "gravityScale", "plungeSpeed", "iframes", "leap", "leapAt", "turn",
-                      "charge", "tell", "dash", "heal", "healZone", "dies"},
-                  file, report, "attack " + name);
+        checkKeys(j, "attack", file, report, "attack " + name);
 
         const size_t errorsBefore = report.errors.size();
 
@@ -2827,14 +2794,14 @@ namespace arena
 
         if (const Json* heal = j.find("heal"))
         {
-            checkKeys(*heal, {"amount", "radius"}, file, report, "the heal of " + name);
+            checkKeys(*heal, "heal", file, report, "the heal of " + name);
             readNum(*heal, "amount", a.heal.amount, file, report);
             readNum(*heal, "radius", a.heal.radius, file, report);
         }
 
         if (const Json* zone = j.find("healZone"))
         {
-            checkKeys(*zone, {"radius", "duration", "perSecond"}, file, report, "the healing zone of " + name);
+            checkKeys(*zone, "healZone", file, report, "the healing zone of " + name);
             readNum(*zone, "radius", a.healZone.radius, file, report);
             readNum(*zone, "duration", a.healZone.duration, file, report);
             readNum(*zone, "perSecond", a.healZone.perSecond, file, report);
@@ -2867,7 +2834,7 @@ namespace arena
 
         if (const Json* charge = j.find("charge"))
         {
-            checkKeys(*charge, {"at", "frames", "lunge", "damage", "speed", "hold"}, file, report, "the charge of " + name);
+            checkKeys(*charge, "charge", file, report, "the charge of " + name);
             readBool(*charge, "hold", a.charge.hold, file, report);
             readNum(*charge, "speed", a.charge.speed, file, report);
             readInt(*charge, "at", a.charge.at, file, report);
@@ -2886,7 +2853,7 @@ namespace arena
 
         if (const Json* turn = j.find("turn"))
         {
-            checkKeys(*turn, {"pitch", "yaw", "from", "to"}, file, report, "the turn of " + name);
+            checkKeys(*turn, "turn", file, report, "the turn of " + name);
             readNum(*turn, "pitch", a.turn.pitch, file, report);
             readNum(*turn, "yaw", a.turn.yaw, file, report);
             readInt(*turn, "from", a.turn.from, file, report);
@@ -2895,7 +2862,7 @@ namespace arena
 
         if (const Json* next = j.find("next"))
         {
-            checkKeys(*next, {"light", "heavy"}, file, report, "\"next\" of " + name);
+            checkKeys(*next, "next", file, report, "\"next\" of " + name);
             readStr(*next, "light", a.nextLight, file, report);
             readStr(*next, "heavy", a.nextHeavy, file, report);
         }
@@ -2916,7 +2883,7 @@ namespace arena
             {
                 for (const auto& b : boxes->array)
                 {
-                    checkKeys(b, {"offset", "size"}, file, report, "a hitbox");
+                    checkKeys(b, "hitbox", file, report, "a hitbox");
 
                     HitBox box;
                     readVec3(b, "offset", box.offset, file, report);
@@ -2943,7 +2910,7 @@ namespace arena
             return false;
         }
 
-        checkKeys(j, {"light", "heavy", "dodgeAttack", "dashAttack", "airLight", "airHeavy", "attacks"}, file, report, "a moveset");
+        checkKeys(j, "moveset", file, report, "a moveset");
 
         const size_t errorsBefore = report.errors.size();
 

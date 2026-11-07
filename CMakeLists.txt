@@ -1735,6 +1735,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelArena/Core/spells.cpp
             examples/VoxelArena/Core/run.cpp
             examples/VoxelArena/Core/paths.cpp
+            examples/VoxelArena/Core/schema.cpp
+            examples/VoxelArena/Core/schematable.cpp
             examples/VoxelArena/Core/net/protocol.cpp
             examples/VoxelArena/Core/net/modfiles.cpp
             examples/VoxelArena/Core/net/loopback.cpp
@@ -1799,6 +1801,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/voxelarena/synergy.cc
             test/voxelarena/variety.cc
             test/voxelarena/portmapper.cc
+            test/voxelarena/schema.cc
             examples/VoxelArena/Net/portmapper.cpp   # its port lists (the router itself is not reached without VOXELARENA_UPNP)
             examples/VoxelTest/voxelserializer.cpp   # the editor's .vxl.json loader, to check the models stay editable
             ${VOXELARENA_CORE}

@@ -603,6 +603,9 @@ examples/VoxelArena/
     mesher       one mesh for a grid, with face culling and corner darkening
     physics      a box against the grid, moved one axis at a time, auto step-up
     content      mods, load order, registries, overrides, patches, typed definitions
+    schema       every key a mod's files may use, its type and what it does (schematable): the loader
+                 warns about any other key, and the modding tools are written from it
+    paths        where the game's files are, and the player's (saves, their mods folder)
     tuning       every gameplay number, read from tuning.json
     world        the simulation: player, enemies, attacks, dodges, hits (60 steps per second)
     terrain      block damage, blocks that last a while, collapse and falling pieces
@@ -697,8 +700,9 @@ by key, anything else is replaced:
 ]
 ```
 
-`kind` is `block`, `weapon`, `enemy`, `tuning` or `arena`. Patches apply after every mod is read,
-in load order.
+`kind` is `block`, `status`, `element`, `keyword`, `upgrade`, `combo`, `affix`, `weapon`, `enemy`,
+`ability`, `spell`, `arenas` (an arena of `arenas/`), `arena` (the training ground) or `tuning`.
+Patches apply after every mod is read, in load order.
 
 ### Attacks
 
