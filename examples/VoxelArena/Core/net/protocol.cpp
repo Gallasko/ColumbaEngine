@@ -145,6 +145,8 @@ namespace arena::net
             all.insert(id);
             for (const auto& [name, a] : w.moveset.attacks)
                 all.insert(name);
+            for (size_t b = 0; b < w.branches.size(); ++b)
+                all.insert(id + "#" + std::to_string(b));   // a level up's branch of the weapon in hand (it came empty to a client)
         }
 
         for (const auto& [id, s] : content.statuses)

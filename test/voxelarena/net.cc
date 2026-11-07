@@ -1593,3 +1593,35 @@ TEST(arena_net, a_server_cannot_ship_bytecode)
 
     EXPECT_TRUE(safeModPath("base/pgcore.json"));
 }
+
+TEST(arena_net, every_level_up_offer_has_a_name_a_client_can_read)
+{
+    // A level up's picks go to a client as names: each spell, technique and weapon, and each of their branches
+    // ("base:bow#0" came empty: a weapon's branches were not in the table, the cards showed blank)
+    const Content content = loadContent(VOXELARENA_MODS_DIR);
+    net::Names names;
+    names.build(content);
+
+    std::vector<std::string> offers;
+    for (const auto& [id, s] : content.spells)
+    {
+        offers.push_back(id);
+        for (size_t b = 0; b < s.branches.size(); ++b)
+            offers.push_back(id + "#" + std::to_string(b));
+    }
+    for (const auto& [id, a] : content.abilities)
+    {
+        offers.push_back(id);
+        for (size_t b = 0; b < a.branches.size(); ++b)
+            offers.push_back(id + "#" + std::to_string(b));
+    }
+    for (const auto& [id, w] : content.weapons)
+    {
+        offers.push_back(id);
+        for (size_t b = 0; b < w.branches.size(); ++b)
+            offers.push_back(id + "#" + std::to_string(b));
+    }
+
+    for (const auto& o : offers)
+        EXPECT_EQ(names.name(names.id(o)), o);
+}
