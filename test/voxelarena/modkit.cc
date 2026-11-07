@@ -4,10 +4,13 @@
 
 #include <filesystem>
 #include <fstream>
+#include <map>
+#include <set>
 #include <sstream>
 
 #include "Core/content.h"
 #include "Core/modkit.h"
+#include "Core/schema.h"
 
 using namespace arena;
 namespace fs = std::filesystem;
@@ -195,4 +198,109 @@ TEST(arena_modkit, pretty_json_reads_back_the_same)
         ASSERT_TRUE(after.ok) << entry.path() << ": " << after.error;
         EXPECT_EQ(toJsonString(after.value), toJsonString(before.value)) << entry.path();
     }
+}
+
+namespace
+{
+    uint32_t le32(const std::string& s, size_t at)
+    {
+        return static_cast<uint32_t>(static_cast<unsigned char>(s[at])) | static_cast<uint32_t>(static_cast<unsigned char>(s[at + 1])) << 8 |
+               static_cast<uint32_t>(static_cast<unsigned char>(s[at + 2])) << 16 | static_cast<uint32_t>(static_cast<unsigned char>(s[at + 3])) << 24;
+    }
+
+    uint32_t le16(const std::string& s, size_t at)
+    {
+        return static_cast<uint32_t>(static_cast<unsigned char>(s[at])) | static_cast<uint32_t>(static_cast<unsigned char>(s[at + 1])) << 8;
+    }
+}
+
+TEST(arena_modkit, a_packed_mod_unzips_into_a_mod_that_loads)
+{
+    PlayerMods p;
+    ASSERT_TRUE(modkit::newMod((p.root / "mods").string(), "packed", "Packed").ok);
+    Content c = p.load();
+    ASSERT_TRUE(modkit::addDefinition(c, modOf(c, "packed"), *modkit::findKind("weapon"), "halberd", "base:sword").ok);
+    ASSERT_TRUE(modkit::addDefinition(c, modOf(c, "packed"), *modkit::findKind("block"), "glow", "base:stone").ok);
+    std::ofstream(p.root / "mods" / "packed" / ".hidden") << "not shared";
+
+    c = p.load();
+    const std::string zip = (p.root / "packed.zip").string();
+    const auto done = modkit::pack(c, modOf(c, "packed"), zip);
+    ASSERT_TRUE(done.ok) << done.message;
+
+    // Read it back: each stored file, then the table of contents at the end
+    const std::string data = readAll(zip);
+    std::map<std::string, std::string> files;
+    size_t at = 0;
+
+    while (at + 30 <= data.size() and le32(data, at) == 0x04034b50)
+    {
+        EXPECT_EQ(le16(data, at + 8), 0u);   // stored
+        const uint32_t size = le32(data, at + 18);
+        const uint32_t nameLength = le16(data, at + 26);
+        const std::string name = data.substr(at + 30, nameLength);
+        files[name] = data.substr(at + 30 + nameLength + le16(data, at + 28), size);
+        at += 30 + nameLength + le16(data, at + 28) + size;
+    }
+
+    const size_t end = data.size() - 22;
+    ASSERT_EQ(le32(data, end), 0x06054b50u);
+    EXPECT_EQ(le16(data, end + 10), files.size());
+    EXPECT_EQ(le32(data, end + 16), at);   // the table of contents follows the files
+
+    EXPECT_EQ((std::set<std::string>{"packed/blocks.json", "packed/mod.json", "packed/weapons/halberd.json"}), [&] {
+        std::set<std::string> names;
+        for (const auto& [name, contents] : files)
+            names.insert(name);
+        return names;
+    }());
+
+    // Unzipped in someone else's mods folder, it loads as it did here
+    PlayerMods other;
+    for (const auto& [name, contents] : files)
+    {
+        fs::create_directories((other.root / "mods" / name).parent_path());
+        std::ofstream(other.root / "mods" / name, std::ios::binary) << contents;
+    }
+
+    const Content theirs = other.load();
+    EXPECT_TRUE(theirs.report.errors.empty()) << messages(theirs.report.errors);
+    EXPECT_TRUE(theirs.weapons.count("packed:halberd"));
+    EXPECT_TRUE(theirs.blockIds.count("packed:glow"));
+}
+
+TEST(arena_modkit, a_mod_with_a_mistake_is_not_packed)
+{
+    PlayerMods p;
+    ASSERT_TRUE(modkit::newMod((p.root / "mods").string(), "broken", "").ok);
+    std::ofstream(p.root / "mods" / "broken" / "blocks.json") << "{ \"glow\": { \"color\": [1, 2, 3] ";
+
+    const Content c = p.load();
+    const auto done = modkit::pack(c, modOf(c, "broken"), (p.root / "broken.zip").string());
+    EXPECT_FALSE(done.ok);
+    EXPECT_NE(done.message.find("mistake"), std::string::npos) << done.message;
+    EXPECT_FALSE(fs::exists(p.root / "broken.zip"));
+}
+
+TEST(arena_modkit, the_guide_has_every_object_and_its_links_lead_somewhere)
+{
+    const Content c = loadContent(VOXELARENA_MODS_DIR);
+    const std::string page = modkit::guide(c);
+
+    std::set<std::string> anchors;
+    for (size_t at = page.find(" id=\""); at != std::string::npos; at = page.find(" id=\"", at + 1))
+        anchors.insert(page.substr(at + 5, page.find('"', at + 5) - at - 5));
+
+    for (const auto& o : schema::objects())
+        EXPECT_TRUE(anchors.count("o-" + std::string(o.name))) << o.name;
+
+    for (size_t at = page.find("href=\"#"); at != std::string::npos; at = page.find("href=\"#", at + 1))
+    {
+        const std::string target = page.substr(at + 7, page.find('"', at + 7) - at - 7);
+        EXPECT_TRUE(anchors.count(target)) << "a link to #" << target;
+    }
+
+    EXPECT_NE(page.find("<code>base:sword</code>"), std::string::npos);
+    EXPECT_NE(page.find("<code>player.walkSpeed</code>"), std::string::npos);
+    EXPECT_EQ(page.find("<script"), std::string::npos);
 }

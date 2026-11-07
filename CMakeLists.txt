@@ -1738,6 +1738,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelArena/Core/schema.cpp
             examples/VoxelArena/Core/schematable.cpp
             examples/VoxelArena/Core/modkit.cpp
+            examples/VoxelArena/Core/modguide.cpp
             examples/VoxelArena/Core/net/protocol.cpp
             examples/VoxelArena/Core/net/modfiles.cpp
             examples/VoxelArena/Core/net/loopback.cpp

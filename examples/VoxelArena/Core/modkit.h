@@ -82,4 +82,16 @@ namespace arena::modkit
 
     /** Turns a mod on or off in the settings file ({ "off": [...] }). */
     Done setModOn(const std::string& settings, const std::string& id, bool on);
+
+    /**
+     * The mod as a .zip to share: every file of its folder, inside a folder named by its id, stored as
+     * they are (unzipped into a mods folder, it is ready). Refused while check finds mistakes in it.
+     */
+    Done pack(const Content& content, const ModInfo& mod, const std::string& zipPath);
+
+    /**
+     * The modding guide, a web page: how mods work, every file a mod may hold, every object and key of
+     * the schema, and the ids and tuning numbers of the content given (modguide.cpp).
+     */
+    std::string guide(const Content& content);
 }

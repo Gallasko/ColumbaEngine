@@ -603,7 +603,7 @@ examples/VoxelArena/
     mesher       one mesh for a grid, with face culling and corner darkening
     physics      a box against the grid, moved one axis at a time, auto step-up
     content      mods, load order, registries, overrides, patches, typed definitions
-    modkit       what the modding tool does: new mods, copies, patches, checks
+    modkit       what the modding tool does: new mods, copies, patches, checks, packing (modguide: the guide)
     schema       every key a mod's files may use, its type and what it does (schematable): the loader
                  warns about any other key, and the modding tools are written from it
     paths        where the game's files are, and the player's (saves, their mods folder)
@@ -677,8 +677,12 @@ every mod.
 | `show <id>` | A definition as the game reads it, after every mod's replacements and patches |
 | `list [kind]` | How many of each kind there are, or every one of a kind |
 | `mods`, `on <mod>`, `off <mod>` | The mods, and turning one on or off (`mods.json`) |
+| `docs [file]` | The modding guide, one web page (`voxelarena-modding-guide.html` by default): how mods work, every file, object and key of the table with what it does, the ids of what is loaded, and the tuning numbers. Written from the table and the loaded mods, so it matches the game that wrote it |
+| `pack <mod> [file]` | Checks the mod and, when it has no mistakes, makes a .zip of it (`<mod>.zip` by default) with its folder inside, ready to unzip into a mods folder (no hidden files, no compiled scripts) |
 
-`--mods <dir>` reads the game's mods from another folder, as the game's option does. It knows every
+`new`, `add` and `patch` write in the player's mods folder; `docs` and `pack` in the folder the tool
+was started from, unless given a file. `--mods <dir>` reads the game's mods from another folder, as
+the game's option does. It knows every
 key from one table, `Core/schematable.cpp`, the one the game checks mods with.
 
 ### What a mod can hold

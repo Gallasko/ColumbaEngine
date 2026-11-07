@@ -9,11 +9,17 @@
 //   VoxelArenaMod show <id>                     a definition as the game reads it, after every mod
 //   VoxelArenaMod list [kind]                   what there is
 //   VoxelArenaMod mods | on <mod> | off <mod>   the mods, and turning them on or off
+//   VoxelArenaMod docs [file]                   the modding guide, a web page
+//   VoxelArenaMod pack <mod> [file]             the mod as a .zip to share
+//
+// What it writes goes in the player's mods folder (new, add, patch), or in the folder it was started
+// from (docs, pack) when no file is named.
 //
 // --mods <dir> reads the game's mods from another folder, as the game's option does.
 
 #include <cctype>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <map>
 #include <string>
@@ -50,6 +56,8 @@ namespace
                      "  VoxelArenaMod list [kind]                     what there is\n"
                      "  VoxelArenaMod mods                            the mods, on and off\n"
                      "  VoxelArenaMod on <mod>, off <mod>             turn a mod on or off\n"
+                     "  VoxelArenaMod docs [file]                     write the modding guide (a web page)\n"
+                     "  VoxelArenaMod pack <mod> [file]               check a mod and make a .zip of it to share\n"
                      "\n"
                      "Kinds: ";
 
@@ -321,6 +329,42 @@ int main(int argc, char* argv[])
 
     if (command == "mods")
         return mods();
+
+    if (command == "docs")
+    {
+        const fs::path path = fs::absolute(args.size() > 1 ? args[1] : "voxelarena-modding-guide.html");
+        const std::string page = modkit::guide(load());
+
+        std::error_code ec;
+        fs::create_directories(path.parent_path(), ec);
+        std::ofstream out(path, std::ios::binary | std::ios::trunc);
+        out << page;
+
+        if (not out)
+        {
+            std::cout << "Could not write " << path.string() << ".\n";
+            return 1;
+        }
+
+        std::cout << "Wrote the modding guide in " << path.string() << ". Open it in a web browser.\n";
+        return 0;
+    }
+
+    if (command == "pack")
+    {
+        if (not need(2, "pack <mod> [file]"))
+            return 2;
+
+        const Content content = load();
+        const ModInfo* mod = modNamed(content, args[1]);
+
+        if (not mod)
+            return 1;
+
+        const std::string path = fs::absolute(args.size() > 2 ? args[2] : mod->id + ".zip").string();
+        return report(modkit::pack(content, *mod, path),
+                      "To install it, unzip it into a mods folder: the folder " + mod->id + " must be right inside mods.");
+    }
 
     if (command == "on" or command == "off")
     {

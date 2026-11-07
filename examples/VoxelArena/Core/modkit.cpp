@@ -1,6 +1,9 @@
 #include "modkit.h"
 
 #include <algorithm>
+#include <array>
+#include <cstdint>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -687,6 +690,172 @@ namespace arena::modkit
 
         done.ok = true;
         done.message = "the mod " + id + (wasOn == on ? " was already " : " is now ") + (on ? "on" : "off");
+        return done;
+    }
+
+    // ---- Packing ------------------------------------------------------------------------------------
+
+    namespace
+    {
+        uint32_t crc32(const std::string& data)
+        {
+            static const std::array<uint32_t, 256> table = [] {
+                std::array<uint32_t, 256> t{};
+                for (uint32_t i = 0; i < 256; ++i)
+                {
+                    uint32_t c = i;
+                    for (int k = 0; k < 8; ++k)
+                        c = (c & 1) ? 0xEDB88320u ^ (c >> 1) : c >> 1;
+                    t[i] = c;
+                }
+                return t;
+            }();
+
+            uint32_t c = 0xFFFFFFFFu;
+            for (unsigned char b : data)
+                c = table[(c ^ b) & 0xFF] ^ (c >> 8);
+            return c ^ 0xFFFFFFFFu;
+        }
+
+        void put16(std::string& out, uint32_t v)
+        {
+            out += static_cast<char>(v & 0xFF);
+            out += static_cast<char>((v >> 8) & 0xFF);
+        }
+
+        void put32(std::string& out, uint32_t v)
+        {
+            put16(out, v & 0xFFFF);
+            put16(out, v >> 16);
+        }
+    }
+
+    Done pack(const Content& content, const ModInfo& mod, const std::string& zipPath)
+    {
+        Done done;
+        done.path = zipPath;
+
+        const Problems problems = check(content, &mod);
+
+        if (not problems.errors.empty())
+        {
+            done.message = "the mod " + mod.id + " has " + std::to_string(problems.errors.size()) + (problems.errors.size() == 1 ? " mistake" : " mistakes") +
+                           " to fix first (VoxelArenaMod check " + mod.id + " shows them)";
+            return done;
+        }
+
+        // Every file but hidden ones and compiled scripts (the game makes those again), in a stable order
+        std::vector<std::pair<std::string, fs::path>> files;
+        std::error_code ec;
+        const fs::path zip = fs::absolute(zipPath, ec).lexically_normal();
+
+        for (auto it = fs::recursive_directory_iterator(mod.dir, ec); not ec and it != fs::recursive_directory_iterator(); it.increment(ec))
+        {
+            const std::string name = it->path().filename().string();
+
+            if (name.empty() or name[0] == '.')
+            {
+                if (it->is_directory(ec))
+                    it.disable_recursion_pending();
+                continue;
+            }
+
+            if (not it->is_regular_file(ec) or it->path().extension() == ".pgc" or fs::absolute(it->path(), ec).lexically_normal() == zip)
+                continue;
+
+            files.push_back({mod.id + "/" + relativeTo(it->path().string(), mod.dir), it->path()});
+        }
+
+        std::sort(files.begin(), files.end());
+
+        // The time of the packing, as zip files keep it (MS-DOS)
+        const std::time_t now = std::time(nullptr);
+        std::tm local{};
+#ifdef _WIN32
+        localtime_s(&local, &now);
+#else
+        localtime_r(&now, &local);
+#endif
+        const uint32_t dosTime = static_cast<uint32_t>((local.tm_hour << 11) | (local.tm_min << 5) | (local.tm_sec / 2));
+        const uint32_t dosDate = static_cast<uint32_t>(((std::max(local.tm_year, 80) - 80) << 9) | ((local.tm_mon + 1) << 5) | local.tm_mday);
+
+        std::string out, directory;
+
+        for (const auto& [name, path] : files)
+        {
+            std::string data;
+
+            if (not readText(path, data))
+            {
+                done.message = "could not read " + path.string();
+                return done;
+            }
+
+            const uint32_t crc = crc32(data);
+            const uint32_t offset = static_cast<uint32_t>(out.size());
+
+            // The file itself, stored (no compression: a mod is small, and every zip tool reads it)
+            put32(out, 0x04034b50);
+            put16(out, 20);
+            put16(out, 0x0800);   // names in UTF-8
+            put16(out, 0);
+            put16(out, dosTime);
+            put16(out, dosDate);
+            put32(out, crc);
+            put32(out, static_cast<uint32_t>(data.size()));
+            put32(out, static_cast<uint32_t>(data.size()));
+            put16(out, static_cast<uint32_t>(name.size()));
+            put16(out, 0);
+            out += name;
+            out += data;
+
+            // Its entry in the zip's table of contents
+            put32(directory, 0x02014b50);
+            put16(directory, 20);
+            put16(directory, 20);
+            put16(directory, 0x0800);
+            put16(directory, 0);
+            put16(directory, dosTime);
+            put16(directory, dosDate);
+            put32(directory, crc);
+            put32(directory, static_cast<uint32_t>(data.size()));
+            put32(directory, static_cast<uint32_t>(data.size()));
+            put16(directory, static_cast<uint32_t>(name.size()));
+            put16(directory, 0);
+            put16(directory, 0);
+            put16(directory, 0);
+            put16(directory, 0);
+            put32(directory, 0);
+            put32(directory, offset);
+            directory += name;
+        }
+
+        const uint32_t directoryAt = static_cast<uint32_t>(out.size());
+        out += directory;
+        put32(out, 0x06054b50);
+        put16(out, 0);
+        put16(out, 0);
+        put16(out, static_cast<uint32_t>(files.size()));
+        put16(out, static_cast<uint32_t>(files.size()));
+        put32(out, static_cast<uint32_t>(directory.size()));
+        put32(out, directoryAt);
+        put16(out, 0);
+
+        if (not writeText(zipPath, out))
+        {
+            done.message = "could not write " + zipPath;
+            return done;
+        }
+
+        std::string needs;
+        for (const auto& d : mod.dependencies)
+            if (d != "base")
+                needs += (needs.empty() ? "" : ", ") + d;
+
+        done.ok = true;
+        done.message = "packed " + mod.id + " (" + std::to_string(files.size()) + " files" +
+                       (problems.warnings.empty() ? "" : ", " + std::to_string(problems.warnings.size()) + " warnings") + ") in " + zipPath +
+                       (needs.empty() ? "" : ". It needs these mods too: " + needs);
         return done;
     }
 }
