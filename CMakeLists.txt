@@ -1737,6 +1737,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelArena/Core/paths.cpp
             examples/VoxelArena/Core/schema.cpp
             examples/VoxelArena/Core/schematable.cpp
+            examples/VoxelArena/Core/modkit.cpp
             examples/VoxelArena/Core/net/protocol.cpp
             examples/VoxelArena/Core/net/modfiles.cpp
             examples/VoxelArena/Core/net/loopback.cpp
@@ -1778,6 +1779,12 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_compile_definitions(VoxelArenaServer PRIVATE VOXELARENA_UPNP)
         target_compile_definitions(VoxelArenaServer PRIVATE VOXELARENA_MODS_DIR="${CMAKE_SOURCE_DIR}/examples/VoxelArena/mods")
 
+        # The modding tool: makes, checks and changes mods, from the command line. No window, no network
+        add_executable(VoxelArenaMod examples/VoxelArena/modtool_main.cpp ${VOXELARENA_CORE})
+        target_include_directories(VoxelArenaMod PUBLIC examples/VoxelArena examples/VoxelArena/Core)
+        target_link_libraries(VoxelArenaMod PRIVATE ColumbaEngine)
+        target_compile_definitions(VoxelArenaMod PRIVATE VOXELARENA_MODS_DIR="${CMAKE_SOURCE_DIR}/examples/VoxelArena/mods")
+
         # Publisher and version, for Properties > Details and for antivirus reputation checks
         if(WIN32)
             target_sources(VoxelArena PRIVATE examples/VoxelArena/version_game.rc)
@@ -1802,6 +1809,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/voxelarena/variety.cc
             test/voxelarena/portmapper.cc
             test/voxelarena/schema.cc
+            test/voxelarena/modkit.cc
             examples/VoxelArena/Net/portmapper.cpp   # its port lists (the router itself is not reached without VOXELARENA_UPNP)
             examples/VoxelTest/voxelserializer.cpp   # the editor's .vxl.json loader, to check the models stay editable
             ${VOXELARENA_CORE}

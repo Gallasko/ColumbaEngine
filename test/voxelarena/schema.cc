@@ -32,7 +32,7 @@ namespace
         return out;
     }
 
-    /** "weapons/*.json" against "weapons/sword.json"; a pattern without * names one file. */
+    // "weapons/*.json" against "weapons/sword.json"; a pattern without * names one file
     bool matches(const std::string& pattern, const std::string& path)
     {
         const auto star = pattern.find('*');

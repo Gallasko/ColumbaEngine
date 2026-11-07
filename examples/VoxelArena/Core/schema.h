@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -20,6 +21,7 @@
  *   <object>              an object of the table ("hitbox")
  *   list:<type>           a list of them
  *   map:<type>            an object of name -> them
+ *   map(<key>):<type>     the same, its names of that type: map(enum:any|id:status):number
  *   a|b                   either; parentheses group: list:(id:status|statusRef)
  */
 namespace arena::schema
@@ -66,7 +68,7 @@ namespace arena::schema
         Kind kind = Kind::Any;
         std::string name;                 // Id: the kind of id; Object: the object's name
         std::vector<std::string> words;   // Enum
-        std::vector<Type> of;             // List and Map: what they hold; Either: the choices
+        std::vector<Type> of;             // List and Map: what they hold (a Map's second: its names); Either: the choices
     };
 
     /** Reads the notation; false, and why in error, when it is wrong (an unknown word or object, a stray bracket). */
@@ -87,4 +89,19 @@ namespace arena::schema
      * the value in the messages ("weapon base:sword").
      */
     void validate(const Json& json, std::string_view type, const std::string& where, std::vector<Problem>& out);
+
+    /**
+     * Calls f with every id where the type says one goes, and the kind of id ("model", "status"...):
+     * text values, and the names of a map(id:...). Where a choice is open (an id or an object), the
+     * choice that fits the value is followed. A value that does not fit its type is skipped.
+     */
+    struct IdAt
+    {
+        std::string& id;   // changing it changes the value, or the name
+        int line;
+        bool name;         // a map's name, not a value
+        const std::string& kind;
+    };
+
+    void forEachId(Json& json, std::string_view type, const std::function<void(IdAt& at)>& f);
 }

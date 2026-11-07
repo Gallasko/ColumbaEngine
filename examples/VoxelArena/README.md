@@ -13,7 +13,7 @@ any other mod. Every gameplay number is in a data file and reloads with F5.
 
 ```sh
 cd release
-make -j18 VoxelArena VoxelArenaServer test_voxelarena
+make -j18 VoxelArena VoxelArenaServer VoxelArenaMod test_voxelarena
 cd ..
 ./release/VoxelArena            # or ./make_and_play.sh VoxelArena
 ./release/test_voxelarena       # 277 tests, about eight seconds
@@ -603,6 +603,7 @@ examples/VoxelArena/
     mesher       one mesh for a grid, with face culling and corner darkening
     physics      a box against the grid, moved one axis at a time, auto step-up
     content      mods, load order, registries, overrides, patches, typed definitions
+    modkit       what the modding tool does: new mods, copies, patches, checks
     schema       every key a mod's files may use, its type and what it does (schematable): the loader
                  warns about any other key, and the modding tools are written from it
     paths        where the game's files are, and the player's (saves, their mods folder)
@@ -617,6 +618,7 @@ examples/VoxelArena/
                  of rects, text and pixel icons over the engine's 2D entities, UI_SPEC.md's look)
   Net/           the engine's NetworkSystem as the game's transport
   server_main    the dedicated server
+  modtool_main   the modding tool (VoxelArenaMod)
   tools/lab/     the lab's scenes (lab.pg); Game/lab is its panel and script runner
   shader/        the voxel shader
   mods/base/     the game's content
@@ -659,6 +661,25 @@ A mod with a missing dependency, or in a dependency cycle, is skipped and report
 **Turning a mod off**: `mods.json` in the save folder (next to the mods folder) lists the mods not to
 load, `{ "off": ["wildfire"] }`; F5 reads it again. A mod that needs one turned off is skipped too. `api` is the
 content API version the mod was written for. The API is unstable: a mismatch is only a warning.
+
+### The modding tool
+
+`VoxelArenaMod`, next to the game, makes and checks mods from the command line (it never opens a
+window nor the network). Opened with no command (a double click), it says how to use it and checks
+every mod.
+
+| Command | What it does |
+|---|---|
+| `new <mod> ["Name"]` | A new mod in the player's mods folder, needing the base game |
+| `add <mod> <kind> <name> [id]` | A copy of a definition in the mod, to start from (the base game's own example when no id is given): `add mymod weapon halberd base:sword`. Kinds: weapon, enemy, ability, spell, arena, block, status, keyword, item, combo, affix. The copy keeps the original's comments, takes the new name, and still points at the original's models, statuses and scripts (`"model": "sword"` becomes `"base:sword"`) |
+| `patch <mod> <id>` | `patches/<name>.json` in the mod, with every value of the definition in comments: remove the `//` in front of the ones to change |
+| `check [mod]` | Everything the game says loading the mods (scripts compiled too), values of the wrong kind it lets by, and files it never reads (`weapon/axe.json`) |
+| `show <id>` | A definition as the game reads it, after every mod's replacements and patches |
+| `list [kind]` | How many of each kind there are, or every one of a kind |
+| `mods`, `on <mod>`, `off <mod>` | The mods, and turning one on or off (`mods.json`) |
+
+`--mods <dir>` reads the game's mods from another folder, as the game's option does. It knows every
+key from one table, `Core/schematable.cpp`, the one the game checks mods with.
 
 ### What a mod can hold
 

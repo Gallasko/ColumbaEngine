@@ -129,6 +129,23 @@ namespace arena::schema
                     return single(out.of.back());
                 }
 
+                if (eat("map("))
+                {
+                    out.kind = Type::Kind::Map;
+                    out.of.resize(2);
+
+                    if (not either(out.of[1]))
+                        return false;
+
+                    if (not eat("):"))
+                    {
+                        error = "a map's names should be followed by \"):\"";
+                        return false;
+                    }
+
+                    return single(out.of[0]);
+                }
+
                 if (eat("id:"))
                 {
                     out.kind = Type::Kind::Id;
@@ -185,6 +202,11 @@ namespace arena::schema
         // ---- Checking values ----------------------------------------------------------------------
 
         bool isWhole(double v) { return std::floor(v) == v; }
+
+        std::string join(const std::string& where, const std::string& key)
+        {
+            return where.empty() ? key : where + "." + key;
+        }
 
         bool numbers(const Json& j, size_t from, size_t to)
         {
@@ -260,7 +282,18 @@ namespace arena::schema
                     if (not j.isObject())
                         return wrong();
                     for (const auto& [key, value] : j.object)
-                        check(value, t.of[0], where + "." + key, out);
+                    {
+                        if (t.of.size() > 1)
+                        {
+                            Json name = Json::makeString(key);
+                            name.line = value.line;
+                            std::vector<Problem> named;
+                            check(name, t.of[1], "", named);
+                            if (not named.empty())
+                                out.push_back({value.line, join(where, key) + ": the name should be " + describe(t.of[1])});
+                        }
+                        check(value, t.of[0], join(where, key), out);
+                    }
                     return;
 
                 case Type::Kind::Object:
@@ -276,7 +309,7 @@ namespace arena::schema
 
                         if (not f)
                         {
-                            out.push_back({value.line, where + ": unknown key \"" + key + "\" in " + o.title});
+                            out.push_back({value.line, (where.empty() ? "" : where + ": ") + "unknown key \"" + key + "\" in " + o.title});
                             continue;
                         }
 
@@ -284,7 +317,7 @@ namespace arena::schema
                         std::string error;
 
                         if (parseType(f->type, ft, error))
-                            check(value, ft, where + "." + key, out);
+                            check(value, ft, join(where, key), out);
                     }
 
                     return;
@@ -318,6 +351,82 @@ namespace arena::schema
 
                     return;
                 }
+            }
+        }
+
+        void walkIds(Json& j, const Type& t, const std::function<void(IdAt&)>& f, bool name = false)
+        {
+            switch (t.kind)
+            {
+                case Type::Kind::Id:
+                    if (j.isString())
+                    {
+                        IdAt at{j.string, j.line, name, t.name};
+                        f(at);
+                    }
+                    return;
+
+                case Type::Kind::List:
+                    if (j.isArray())
+                        for (auto& e : j.array)
+                            walkIds(e, t.of[0], f);
+                    return;
+
+                case Type::Kind::Map:
+                    if (j.isObject())
+                        for (auto& [key, value] : j.object)
+                        {
+                            if (t.of.size() > 1)
+                            {
+                                Json named = Json::makeString(key);
+                                named.line = value.line;
+                                walkIds(named, t.of[1], f, true);
+                                key = named.string;
+                            }
+                            walkIds(value, t.of[0], f);
+                        }
+                    return;
+
+                case Type::Kind::Object:
+                {
+                    if (not j.isObject())
+                        return;
+
+                    const Object& o = get(t.name);
+
+                    for (auto& [key, value] : j.object)
+                    {
+                        Type ft;
+                        std::string error;
+
+                        if (const Field* fd = o.field(key); fd and parseType(fd->type, ft, error))
+                            walkIds(value, ft, f);
+                    }
+
+                    return;
+                }
+
+                case Type::Kind::Either:
+                {
+                    // As check() chooses: the first choice it fits all the way, else the first of its shape
+                    for (const auto& c : t.of)
+                    {
+                        std::vector<Problem> tried;
+                        check(j, c, "", tried);
+
+                        if (tried.empty())
+                            return walkIds(j, c, f, name);
+                    }
+
+                    for (const auto& c : t.of)
+                        if (shapeFits(j, c))
+                            return walkIds(j, c, f, name);
+
+                    return;
+                }
+
+                default:
+                    return;
             }
         }
 
@@ -361,7 +470,7 @@ namespace arena::schema
             case Type::Kind::Id: return "the id of " + article(t.name);
             case Type::Kind::Object: return get(t.name).title;
             case Type::Kind::List: return "a list of: " + describe(t.of[0]);
-            case Type::Kind::Map: return "names, each with " + describe(t.of[0]);
+            case Type::Kind::Map: return (t.of.size() > 1 ? "names (" + describe(t.of[1]) + ")" : std::string("names")) + ", each with " + describe(t.of[0]);
 
             case Type::Kind::Enum:
             {
@@ -395,5 +504,14 @@ namespace arena::schema
         }
 
         check(json, t, where, out);
+    }
+
+    void forEachId(Json& json, std::string_view type, const std::function<void(IdAt& at)>& f)
+    {
+        Type t;
+        std::string error;
+
+        if (parseType(type, t, error))
+            walkIds(json, t, f);
     }
 }
