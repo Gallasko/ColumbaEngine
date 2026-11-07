@@ -40,3 +40,6 @@ examples/Chronicle/rules/*.pgc
 
 # The graph depgraph.pg writes when no file is named, and its drawing
 chronicle-graph.*
+
+# VoxelArena player data (scores, options) written when the game runs from the repo root
+/voxelarena/

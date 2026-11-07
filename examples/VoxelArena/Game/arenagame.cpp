@@ -5097,9 +5097,9 @@ namespace arena
                 for (size_t k = 0; k + 1 < points.size(); ++k)
                 {
                     // From the hand: thin by the eye, full width a couple of metres on
-                    const float near = st.fromHand ? glm::clamp(glm::length((points[k] + points[k + 1]) * 0.5f - from) / 2.5f, 0.2f, 1.0f) : 1.0f;
-                    segment(points[k], points[k + 1], width * near, glm::vec4(core, fade), glm::vec4(core, 1.0f));
-                    segment(points[k], points[k + 1], width * near * 3.0f, glm::vec4(st.look.color, 0.3f * fade), glm::vec4(st.look.color, 1.0f));
+                    const float taper = st.fromHand ? glm::clamp(glm::length((points[k] + points[k + 1]) * 0.5f - from) / 2.5f, 0.2f, 1.0f) : 1.0f;
+                    segment(points[k], points[k + 1], width * taper, glm::vec4(core, fade), glm::vec4(core, 1.0f));
+                    segment(points[k], points[k + 1], width * taper * 3.0f, glm::vec4(st.look.color, 0.3f * fade), glm::vec4(st.look.color, 1.0f));
                 }
             }
 
