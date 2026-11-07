@@ -21,7 +21,7 @@
 // next levels. levelRerolls, levelBanishes: each player's free rerolls of a level up's picks for the whole run,
 // and banishes (a pick taken out of the level ups for the rest of the run, another one in its place). Levels never run out: after a spell's or technique's written "levels", at
 // `branchLevel` it takes one of its "branches" (the player picks), and every level past those adds
-// `mastery`. Then the presents, then the shop.
+// `mastery` (a weapon `weaponMastery`: attack speed, as it has no cooldown). Then the presents, then the shop.
 // presents: an elite may leave one (chance), at most perWave a wave; each is a free pick among
 // `choices` shop items, made after the level ups.
 // shop: offers a time (stat and tag items of upgrades.json, each of a rarity: its numbers times
@@ -104,6 +104,7 @@
     "intermission": 2.5,
     "branchLevel": 5,
     "mastery": { "damage": 0.1, "cooldown": 0.03 },
+    "weaponMastery": { "damage": 0.1, "attackSpeed": 0.03 },
     "presents": { "chance": 0.35, "perWave": 3, "choices": 3 },
     "shop": {
         "slots": 4,

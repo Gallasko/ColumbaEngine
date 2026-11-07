@@ -1,11 +1,12 @@
-// A beam that jumps on to more enemies. Levels: one more jump, harder, further.
+// A beam that jumps on to more enemies. Levels: two more jumps, harder, two more jumps (not Extend: a beam reaches
+// the whole arena already, and longer was only dearer).
 // In a run, level ups give spells and their next levels: each entry of "levels" is what that level
 // adds to the recipe (keywords, as in keywords.json).
 {
     "name": "Chain lightning",
     "text": "A lightning beam that jumps to nearby enemies.",
     "recipe": ["volt", "beam", "chain"],
-    "levels": [["chain"], ["empower"], ["extend"]],
+    "levels": [["chain"], ["empower"], ["chain"]],
     "branches": [
         { "name": "Storm", "text": "Each hit also explodes.", "keywords": ["nova"], "tags": ["area"] },
         { "name": "Conductor", "text": "+60% damage to enemies that are burning, slowed or frozen.", "against": { "burn": 0.6, "chill": 0.6, "frozen": 0.6 } }

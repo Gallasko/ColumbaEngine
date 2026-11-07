@@ -1029,9 +1029,17 @@ namespace arena
                     break;
                 }
 
+                // In the air, a dodge out of an attack is an air dash: from its dodge cancel, or once it has struck (a
+                // plunge is committed to its landing)
+                const int airCancel = attack->dodgeCancelFrom >= 0 ? attack->dodgeCancelFrom : attack->startup + attack->active;
+
                 if (f.dodgeQueuedAge >= 0.0f and attack->dodgeCancelFrom >= 0 and f.frame >= attack->dodgeCancelFrom and canDash and canDodgeHere)
                 {
                     startDodge(f, hasWish ? wish : yawForward(f.yaw));
+                }
+                else if (f.dodgeQueuedAge >= 0.0f and canAirDash and attack->plungeSpeed <= 0.0f and f.frame >= airCancel)
+                {
+                    startAirDash(f, hasWish ? wish : yawForward(f.yaw));
                 }
                 else if (f.queued and f.frame >= attack->chainFrom)
                 {
@@ -2078,9 +2086,9 @@ namespace arena
         const Moveset* m = movesetOf(f);
         const AttackDef* base = m ? m->find(name) : nullptr;
 
-        // A run's player: the weapon's attacks take its levels, its branch and the tag items that reach them (damage,
-        // area, projectile speed, attack speed; more projectiles only from the weapon's own levels)
-        if (not base or not grows() or f.team != Team::Player)
+        // A player: the weapon's attacks take its levels, its branch and the tag items that reach them in a run (damage,
+        // area, projectile speed, attack speed, more projectiles: Split shot), and its attack speed items anywhere
+        if (not base or f.team != Team::Player)
             return base;
 
         SpellTweak boost = weaponBoost(f, *base);
@@ -3288,10 +3296,12 @@ namespace arena
                 dir = f.aimDir;
             }
 
-            // Several at once (a volley): fanned out across the aim, the middle one along it
+            // Several at once (a volley, Split shot): one along the aim, the others either side in turn (+1, -1, +2...),
+            // so an even count still has one going where the player aims
             for (int k = 0; k < def.count; ++k)
             {
-                const float offset = (static_cast<float>(k) - 0.5f * static_cast<float>(def.count - 1)) * def.spread;
+                const int step = (k + 1) / 2;
+                const float offset = static_cast<float>(k % 2 == 1 ? step : -step) * def.spread;
                 const float c = std::cos(glm::radians(offset)), sn = std::sin(glm::radians(offset));
                 const glm::vec3 turned(dir.x * c + dir.z * sn, dir.y, -dir.x * sn + dir.z * c);
 

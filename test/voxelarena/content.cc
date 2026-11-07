@@ -363,3 +363,14 @@ TEST(arena_content, the_fingerprint_covers_gameplay_not_looks)
     EXPECT_NE(fingerprintWith({{"base/blocks.json", "\"hardness\": 120", "\"hardness\": 121"}}), shipped);
     EXPECT_NE(fingerprintWith({{"base/tuning.json", "\"walkSpeed\": 5.6", "\"walkSpeed\": 5.7"}}), shipped);
 }
+
+TEST(arena_content, a_technique_s_projectile_model_is_found_as_a_weapon_s)
+{
+    // "model": "arrow" in an ability is its mod's arrow, as in a weapon (a volley's arrows were not drawn)
+    const Content c = loadContent(VOXELARENA_MODS_DIR);
+    EXPECT_EQ(c.abilities.at("base:volley").attack.projectile.model, "base:arrow");
+    EXPECT_EQ(c.abilities.at("testmod:javelin").attack.projectile.model, "testmod:spear");
+    for (const auto& [id, a] : c.abilities)
+        if (not a.attack.projectile.model.empty())
+            EXPECT_TRUE(c.models.count(a.attack.projectile.model)) << id << ": " << a.attack.projectile.model;
+}

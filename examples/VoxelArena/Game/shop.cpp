@@ -1045,7 +1045,7 @@ namespace arena
                 else
                 {
                     card.kind = "MASTERY \xC2\xB7 LEVEL " + std::to_string(next.level);
-                    card.text = upperFirst(boostText(content.run.mastery));
+                    card.text = upperFirst(boostText(content.run.weaponMastery));
                 }
             }
 

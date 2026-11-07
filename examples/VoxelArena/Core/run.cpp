@@ -474,7 +474,12 @@ namespace arena
         out.healZone.duration *= 1.0f + t.duration;
         out.projectile.speed *= 1.0f + t.speed;
         if (out.projectile.enabled)
+        {
+            // More of a single shot (a bow's arrow, Split shot): fanned out, not flying as one
+            if (out.projectile.count == 1 and t.count > 0 and out.projectile.spread <= 0.0f)
+                out.projectile.spread = 7.0f;
             out.projectile.count = std::clamp(out.projectile.count + t.count, 1, 16);
+        }
     }
 
     void hasten(AttackDef& a, float speed)
@@ -575,9 +580,8 @@ namespace arena
 
         // Mastery and the tag items: their damage together, with diminishing returns
         SpellTweak extra;
-        extra.add(content->run.mastery, static_cast<float>(beyond));
+        extra.add(content->run.weaponMastery, static_cast<float>(beyond));
         extra.add(tagBoost(f, attackTags(f, attack)));
-        extra.count = 0;   // more projectiles only from the weapon's own levels, not from items
         extra.damage = damageFalloff(extra.damage);
         t.add(extra);
 

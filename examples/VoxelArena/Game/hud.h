@@ -88,6 +88,7 @@ namespace arena
             // The body
             float health = 100.0f, maxHealth = 100.0f;
             float stamina = 1.0f, mana = 1.0f;       // 0..1
+            float manaPoints = 100.0f;               // the mana itself, written under the health
             bool exhausted = false, manaLow = false;
             float dashes = 2.0f;
             int maxDashes = 2;

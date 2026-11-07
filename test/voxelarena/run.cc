@@ -2143,3 +2143,38 @@ TEST(arena_run, the_first_spells_offered_are_drawn_at_random_of_different_elemen
     }
     EXPECT_GT(seen.size(), 3u);
 }
+
+TEST(arena_run, split_shot_shoots_one_more_arrow_from_the_bow_fanned_out)
+{
+    RunArena r;
+    r.world.startRun(5);
+    Fighter& p = r.player();
+    r.world.chooseWeapon(p, "base:bow");
+    ASSERT_EQ(r.world.attackDef(p, "shot1")->projectile.count, 1);
+
+    r.world.takeBoon(p, {"base:split_shot", 1});
+    const AttackDef* shot = r.world.attackDef(p, "shot1");
+    EXPECT_EQ(shot->projectile.count, 2);
+    EXPECT_GT(shot->projectile.spread, 0.0f);   // not one on top of the other
+
+    // Shot: one of the two flies where the player aims, the other beside it
+    InputFrame tap;
+    tap.lightPressed = true;
+    tap.cameraYaw = 0.0f;
+    tap.aimOrigin = p.body.position + glm::vec3(0, 1.6f, 0);
+    tap.aimDir = glm::vec3(0, 0, 1);
+    r.world.step(tap);
+    InputFrame aim = tap;
+    aim.lightPressed = false;
+    for (int i = 0; i < 40 and r.world.projectiles.size() < 2; ++i)
+        r.world.step(aim);
+
+    ASSERT_EQ(r.world.projectiles.size(), 2u);
+    float straightest = 180.0f;
+    for (const auto& pr : r.world.projectiles)
+    {
+        const glm::vec2 flat(pr.velocity.x, pr.velocity.z);
+        straightest = std::min(straightest, std::fabs(glm::degrees(std::atan2(flat.x, flat.y))));
+    }
+    EXPECT_LT(straightest, 0.5f);
+}

@@ -364,6 +364,10 @@ namespace arena
         row(662, 9, v.stamina, v.exhausted ? EXHAUSTED : STAMINA);
         row(675, 9, v.mana, v.manaLow ? MANA_LOW : MANA);
 
+        // The mana, written under the health as the health is over its pips
+        ui.textOn(86, 688.0f, std::to_string(static_cast<int>(std::floor(std::max(0.0f, v.manaPoints)))), Font::Display, 20, v.manaLow ? MANA_LOW : MANA_TEXT, Align::Right,
+                  0.0f, 2.0f);
+
         // Dash charges: full, refilling (rising from the bottom), empty
         for (int k = 0; k < v.maxDashes; ++k)
         {

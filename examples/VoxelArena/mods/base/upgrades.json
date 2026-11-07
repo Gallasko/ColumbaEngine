@@ -112,7 +112,7 @@
     // techniques have "technique", their own ("melee", "area", "dash", "heal"...) and "projectile" when
     // they shoot; the weapon's light and heavy attacks have "attack", its role ("melee", "ranged",
     // "support"), its type ("sword") and "projectile" when they shoot (they take damage, area and
-    // projectile speed, not more projectiles). A boost: damage, area, cooldown, cost (mana or stamina), duration, speed (projectile
+    // projectile speed, and more projectiles: a bow's arrows, a staff's orbs, fanned out). A boost: damage, area, cooldown, cost (mana or stamina), duration, speed (projectile
     // speed), count (more projectiles: not scaled by rarity). Offered only when something of yours has the tag.
     "searing":    { "name": "Searing",      "tag": "fire",       "boost": { "damage": 0.2 },   "price": 12, "look": { "orbit": [255, 106, 61] , "icon": "fire" } },
     "frostbite":  { "name": "Frostbite",    "tag": "ice",        "boost": { "damage": 0.2 },   "price": 12, "look": { "orbit": [158, 232, 255] , "icon": "ice" } },

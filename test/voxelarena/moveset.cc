@@ -243,6 +243,29 @@ TEST(arena_moves, an_air_dash_bursts_straight_once_per_time_in_the_air)
     EXPECT_NE(a.player().action, Action::AirDash);
 }
 
+TEST(arena_moves, an_air_attack_goes_on_into_an_air_dash)
+{
+    // An air slash, then a dodge as it has struck: an air dash out of it, still in the air
+    Arena a;
+    a.lift(12.0f);
+
+    InputFrame slash;
+    slash.lightPressed = true;
+    a.world.step(slash);
+    ASSERT_EQ(a.player().action, Action::Attack);
+    const AttackDef* air = a.world.currentAttack(a.player());
+    ASSERT_NE(air, nullptr);
+    a.run(air->startup + air->active + 1);
+    ASSERT_EQ(a.player().action, Action::Attack);   // in its recovery
+
+    InputFrame dash;
+    dash.dodgePressed = true;
+    dash.move = glm::vec2(0, 1);
+    a.world.step(dash);
+    a.run(1);
+    EXPECT_EQ(a.player().action, Action::AirDash);
+}
+
 TEST(arena_moves, crouch_held_in_the_air_falls_faster)
 {
     auto heightAfter = [](bool crouch) {

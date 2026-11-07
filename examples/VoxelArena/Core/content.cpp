@@ -1886,7 +1886,7 @@ namespace arena
 
             checkKeys(j, {"waves", "duration", "spawnRate", "maxAlive", "eliteFrom", "eliteChance", "healthGrowth", "pools", "bosses", "warn", "centre", "spawnRadius", "coopScale",
                           "waveScore", "victoryScore", "pickupRange", "xp", "start", "shop", "arena", "arenas", "resetEachWave", "duel", "chooseWeapon",
-                          "levelSkills", "intermission", "spawnScale", "branchLevel", "mastery", "presents", "difficulties", "shardFalloff", "damageFalloff", "bossCoopHealth",
+                          "levelSkills", "intermission", "spawnScale", "branchLevel", "mastery", "weaponMastery", "presents", "difficulties", "shardFalloff", "damageFalloff", "bossCoopHealth",
                           "eliteAffixes", "levelRerolls", "levelBanishes"},
                       raw.file, report, "the run");
 
@@ -1948,6 +1948,12 @@ namespace arena
             r.branchLevel = std::max(2, r.branchLevel);
             if (const Json* mastery = j.find("mastery"))
                 readBoost(*mastery, r.mastery, raw.file, report, "the run's mastery");
+            r.weaponMastery = r.mastery;
+            if (const Json* mastery = j.find("weaponMastery"))
+            {
+                r.weaponMastery = SpellTweak{};
+                readBoost(*mastery, r.weaponMastery, raw.file, report, "the run's weaponMastery");
+            }
             if (const Json* presents = j.find("presents"))
             {
                 checkKeys(*presents, {"chance", "perWave", "choices"}, raw.file, report, "the run's presents");
@@ -2676,7 +2682,18 @@ namespace arena
                 if (const Json* aj = j.find("attack"))
                 {
                     if (readAttack(*aj, "@" + id, raw.file, a.attack, report))
+                    {
                         resolveStatus(content, a.attack.status, raw);
+                        resolveStatus(content, a.attack.projectile.status, raw);
+                        resolveStatus(content, a.attack.projectile.ground.status, raw);
+
+                        // Its projectile's model, as a moveset's: "arrow" is this mod's (a volley's arrows were not drawn)
+                        if (not a.attack.projectile.model.empty())
+                        {
+                            a.attack.projectile.model = resolveId(a.attack.projectile.model, raw.mod);
+                            requireModel(content, a.attack.projectile.model, raw.file, raw.data.line);
+                        }
+                    }
                 }
 
                 const int kindLine = j.find("kind") ? j.find("kind")->line : j.line;

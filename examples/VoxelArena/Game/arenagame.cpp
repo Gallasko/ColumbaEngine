@@ -2176,7 +2176,12 @@ namespace arena
             return;
         }
 
-        playEffect(e.kind, e.position, e.color);
+        // What only its player hears (a shard picked up, a level up, a pick, a buy): the others see it, silent
+        static const std::set<std::string> personal = {"pickup", "present", "level_up", "weapon_pick", "level_reroll", "banish", "buy"};
+        const Fighter* me = world.player();
+        const bool someoneElses = me and e.fighter != 0 and e.fighter != me->id and personal.count(e.kind);
+
+        playEffect(e.kind, e.position, e.color, someoneElses);
     }
 
     glm::vec3 ArenaGame::handPoint() const
@@ -2320,7 +2325,7 @@ namespace arena
             auto [timer, fresh] = lookTimers.emplace(key, 0.0f);
             if (fresh)
                 timer->second = unit(lookRng) * it->second.every;
-            timer->second += frameSeconds;
+            timer->second += frameSeconds * lp.rate;
 
             while (timer->second >= it->second.every)
             {
@@ -2430,7 +2435,7 @@ namespace arena
         sounds.play(ecsRef, sound, distance, pan, behind);
     }
 
-    void ArenaGame::playEffect(const std::string& kind, const glm::vec3& at, const glm::vec3& color)
+    void ArenaGame::playEffect(const std::string& kind, const glm::vec3& at, const glm::vec3& color, bool silent)
     {
         auto it = effects.find(kind);
 
@@ -2441,7 +2446,8 @@ namespace arena
         const Fighter* p = world.player();
         const float distance = p ? glm::length(at - p->body.position) : 0.0f;
 
-        playSound(e.sound, at, distance);
+        if (not silent)
+            playSound(e.sound, at, distance);
 
         if (e.particles.count > 0)
             particles.burst(e.particles, at, color);
@@ -3092,6 +3098,7 @@ namespace arena
         v.stamina = p.stamina / std::max(1.0f, tuning.stamina.max);
         v.exhausted = p.exhausted;
         v.mana = p.mana / std::max(1.0f, tuning.mana.max);
+        v.manaPoints = p.mana;
         v.dashes = world.infiniteStamina ? static_cast<float>(world.maxDashes(p)) : p.dashCharges;
         v.maxDashes = world.maxDashes(p);
         v.nextWeaponKey = upper(keyName("nextWeapon"));
@@ -4509,6 +4516,10 @@ namespace arena
             const bool charging = attack and attack->charge.at >= 0 and f.chargeFrames > 0 and frame <= static_cast<float>(attack->charge.at + 1);
             const float charge = f.chargeRatio(attack);
 
+            // A technique held to charge (a shadow dash) glows the body; a weapon's own draw (a bow's) glows the weapon only
+            const bool weaponCharge = charging and (f.chargeSlot == Fighter::CHARGE_LIGHT or f.chargeSlot == Fighter::CHARGE_HEAVY);
+            const glm::vec4 chargeGlow(0.65f, 0.85f, 1.0f, charge >= 1.0f ? 0.55f + 0.2f * std::sin(simTime * 20.0f) : 0.15f + 0.4f * charge);
+
             if (countdown >= 0.0f)
             {
                 // A blast coming: it blinks red and white-hot, faster and faster
@@ -4516,8 +4527,8 @@ namespace arena
                 const bool hot = std::fmod(simTime * rate + static_cast<float>(f.id) * 0.3f, 1.0f) < 0.5f;
                 flash = hot ? glm::vec4(1.0f, 0.95f, 0.75f, 0.55f + 0.3f * u) : glm::vec4(1.0f, 0.2f, 0.08f, 0.4f + 0.25f * u);
             }
-            else if (charging)
-                flash = glm::vec4(0.65f, 0.85f, 1.0f, charge >= 1.0f ? 0.55f + 0.2f * std::sin(simTime * 20.0f) : 0.15f + 0.4f * charge);
+            else if (charging and not weaponCharge)
+                flash = chargeGlow;
             else if (f.flash > 0)
                 flash = glm::vec4(1.0f, 1.0f, 1.0f, 0.85f * static_cast<float>(f.flash) / static_cast<float>(std::max(1, tuning.feel.hitFlashFrames)));
             else if (f.shielded)
@@ -4742,22 +4753,27 @@ namespace arena
                     const std::string elementLook = branch and branch->element != Element::None ? std::string("weapon:") + elementName(branch->element) : std::string();
                     const glm::vec3* elementTint = elementLook.empty() ? nullptr : effectTint(elementLook);
 
-                    glm::vec4 weaponGlow = f.flash > 0 or charging ? flash * 0.5f : glm::vec4(0.0f);
+                    glm::vec4 weaponGlow = weaponCharge ? chargeGlow : (f.flash > 0 or charging ? flash * 0.5f : glm::vec4(0.0f));
                     if (weaponGlow.a <= 0.0f and elementTint)
                         weaponGlow = glm::vec4(*elementTint, 0.32f + 0.12f * std::sin(simTime * 5.0f));
                     pushInstance(instances[weapon.model], view, held, WHITE, weaponGlow);
 
+                    // A blade sheds along its length; a bow (ranged: no blade) from one point, and much less
+                    const bool ranged = weapon.role == "ranged";
                     if (not elementLook.empty())
                         for (const float along : {0.5f, 1.0f})
-                            lookPoints.push_back({f.id, elementLook, static_cast<int>(lookPoints.size()),
-                                                  glm::vec3(held * glm::vec4(weapon.grip.x, weapon.grip.y, bladeFrom + bladeLength * along, 1.0f))});
+                            if (not ranged or along > 0.75f)
+                                lookPoints.push_back({f.id, elementLook, static_cast<int>(lookPoints.size()),
+                                                      glm::vec3(held * glm::vec4(weapon.grip.x, weapon.grip.y, bladeFrom + bladeLength * along, 1.0f)), ranged ? 0.4f : 1.0f});
 
                     // The slash: ghosts of the blade along the last frames of the swing, fading, while it
                     // can hit (and a moment after), so the reach and the arc of the attack read at a glance.
                     // In the attack's element (a branch's: Firestorm's flames), and as long as its area makes its reach
                     constexpr float TRAIL = 5.0f;
 
-                    if (prefs.trails and attack and frame >= static_cast<float>(attack->startup) and frame < static_cast<float>(attack->startup + attack->active + 2))
+                    // (an attack that only shoots, a bow's arrow, has no slash: a ghost of the bow flashed white on release)
+                    if (prefs.trails and attack and not attack->hitboxes.empty() and frame >= static_cast<float>(attack->startup) and
+                        frame < static_cast<float>(attack->startup + attack->active + 2))
                     {
                         const float oldest = std::max(static_cast<float>(attack->startup) - 1.0f, frame - TRAIL);
 

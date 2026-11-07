@@ -914,6 +914,7 @@ namespace arena
         float intermission = 2.5f;    // s between a wave's end and its level ups and shop (no misclicks)
         int branchLevel = 5;          // the level a spell or technique with branches takes one of them
         SpellTweak mastery;           // what each level past the written ones (and the branch) adds
+        SpellTweak weaponMastery;     // ... to a weapon (it has no cooldown: attack speed); none written: mastery
 
         // Presents: an elite may drop one (presentChance), at most presentsPerWave a wave; each is a free
         // pick of presentChoices shop items

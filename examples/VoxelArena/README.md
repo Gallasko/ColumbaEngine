@@ -126,7 +126,8 @@ and enemies that come back), **O** for the options.
     A branch adds keywords (a spell), an element and a status (a technique, a weapon), tags and a boost.
     It shows: a weapon whose branch gives it an element glows it and sheds it from the blade
     (`effects.json` `weapon:fire`...), and a slash's trail takes the attack's element and grows with its area;
-  - every level past those is **mastery**: +10% damage and a 3% faster recharge each (`mastery`).
+  - every level past those is **mastery**: +10% damage and a 3% faster recharge each (`mastery`); a weapon,
+    +10% damage and 3% more attack speed (`weaponMastery`).
 
   Each card shows what changes, before -> after (green better, red worse). The XP to the next level
   grows slowly (10, then 3 more each level). Then the presents, then the shop.
@@ -165,7 +166,7 @@ and enemies that come back), **O** for the options.
     "zone", "beam"); techniques with "technique", their own ("melee", "area", "dash", "heal") and
     "projectile" when they shoot; your weapon's light and heavy attacks with "attack", its role
     ("melee", "ranged", "support"), its type and "projectile" when they shoot (they take damage, area
-    and projectile speed, not more projectiles). Searing: +20% fire damage; Honed: +20% melee damage (your
+    and projectile speed, and Split shot shoots one more arrow or orb). Searing: +20% fire damage; Honed: +20% melee damage (your
     sword's swings too); Whetstone: +15% weapon attack damage; Split shot: +1 projectile; Fleet: +25%
     projectile speed; Widening: +20% area size; Lingering: +30% zone duration; Hastened: -15% spell
     cooldown... One is offered only when something of yours has
@@ -314,8 +315,9 @@ Z Q S D where a QWERTY shows W A S D: the same keys, by position).
     where you steer.
   - *Wall jump*: jump while touching a wall to be pushed away from it and up. The double jump comes
     back, so you can climb between two walls (a raised earth wall counts).
-  - *Air dash*: Shift in the air, a straight burst with no fall, `dashes` per time in the air. About
-    to land (within `landingRollWindow`, or under `dashMinHeight`), Shift is the landing roll instead.
+  - *Air dash*: Shift in the air, a straight burst with no fall, `dashes` per time in the air; out of an air
+    attack too, once it has struck (not a plunge). About to land (within `landingRollWindow`, or under
+    `dashMinHeight`), Shift is the landing roll instead.
   - *Fast fall*: crouch held in the air. A fast landing can be a hard one: roll it.
 - **The camera under a roof** comes down rather than in: when a ceiling blocks it, it lowers until it
   sees the player from its full distance, then eases back up. A wall behind you still pulls it in.

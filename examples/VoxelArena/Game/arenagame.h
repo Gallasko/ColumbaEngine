@@ -363,7 +363,7 @@ namespace arena
         std::map<std::string, EffectDef> effects;
         SoundBank sounds;
         Particles particles;
-        void playEffect(const std::string& kind, const glm::vec3& at, const glm::vec3& color);
+        void playEffect(const std::string& kind, const glm::vec3& at, const glm::vec3& color, bool silent = false);
         void playSound(const std::string& sound, const glm::vec3& at, float distance);   // panned from where the camera looks
         void playEvent(const WorldEvent& e);   // playEffect, and what an event starts (flames) or draws along (arcs)
 
@@ -381,6 +381,7 @@ namespace arena
             std::string effect;          // effects.json ("weapon:fire", "rarity:legendary")
             int slot = 0;                // which point of that fighter's (a timer each)
             glm::vec3 at = glm::vec3(0.0f);
+            float rate = 1.0f;           // times the effect's own rate (a bow sheds less)
         };
         std::vector<LookPoint> lookPoints;
 
