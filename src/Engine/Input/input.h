@@ -90,8 +90,11 @@ namespace pg
 		const Point2D& getMousePos() const;
 		const Point2D& getMouseDelta() const;
 
+		/** Opens a controller (one already open is not opened twice: SDL tells of those at start too). */
 		void addGamepad(SDL_GameController *controller);
 		void removeGamepad();
+		/** Closes the controller of this joystick instance id (it was unplugged). */
+		void removeGamepad(SDL_JoystickID instance);
 
 		void clearGamepads();
 

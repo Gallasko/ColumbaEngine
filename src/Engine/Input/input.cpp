@@ -243,7 +243,30 @@ namespace pg
 
 	void Input::addGamepad(SDL_GameController *controller)
 	{
+		if (not controller)
+			return;
+
+		const SDL_JoystickID instance = SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(controller));
+		// Opened again: SDL counted one more reference to the same controller, given back
+		for (const auto& gamepad : gamepadContainer)
+			if (SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(gamepad)) == instance)
+			{
+				SDL_GameControllerClose(controller);
+				return;
+			}
+
 		gamepadContainer.push_back(controller);
+	}
+
+	void Input::removeGamepad(SDL_JoystickID instance)
+	{
+		for (auto it = gamepadContainer.begin(); it != gamepadContainer.end(); ++it)
+			if (SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(*it)) == instance)
+			{
+				SDL_GameControllerClose(*it);
+				gamepadContainer.erase(it);
+				return;
+			}
 	}
 
 

@@ -477,17 +477,21 @@ namespace pg
             }
 
             case SDL_CONTROLLERDEVICEADDED:
-                // Todo
-                LOG_INFO(DOM, "Gamepad added !");
+                // Plugged in (or there at start): opened, so its buttons send events (which: its device index)
+                if (inputHandler)
+                    inputHandler->addGamepad(SDL_GameControllerOpen(event.cdevice.which));
+                LOG_INFO(DOM, "Gamepad added");
                 break;
 
             case SDL_CONTROLLERDEVICEREMOVED:
-                // Todo
-                LOG_INFO(DOM, "Gamepad removed !");
+                // Unplugged (which: its instance id)
+                if (inputHandler)
+                    inputHandler->removeGamepad(event.cdevice.which);
+                LOG_INFO(DOM, "Gamepad removed");
                 break;
 
             case SDL_CONTROLLERBUTTONDOWN:
-                LOG_INFO(DOM, "Gamepad Button pressed : " << event.cbutton.button);
+                LOG_MILE(DOM, "Gamepad Button pressed : " << event.cbutton.button);
                 ecs->sendEvent(OnSDLGamepadPressed{event.cbutton.which, event.cbutton.button});
                 break;
 

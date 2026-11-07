@@ -152,6 +152,30 @@
         "options": ["O"]
     },
 
+    // A controller's buttons, by action, as the keys above: SDL's names (a, b, x, y, back, start, leftstick,
+    // rightstick, leftshoulder, rightshoulder, dpup, dpdown, dpleft, dpright) and lefttrigger / righttrigger.
+    // The left stick moves, the right one looks (the options' sensitivity and invert Y). Start is Esc (the options).
+    // On a screen (the title, the shop, the level ups, the options) the left stick moves a cursor, A clicks, B is Esc
+    // and the d-pad is the arrows
+    "gamepad": {
+        "jump": "a",
+        "dodge": "b",
+        "sprint": "b",
+        "light": "x",
+        "heavy": "y",
+        "ability4": "leftshoulder",
+        "ability8": "rightshoulder",
+        "ability5": "lefttrigger",
+        "ability6": "righttrigger",
+        "ability7": "dpup",
+        "ability1": "dpleft",
+        "ability2": "dpdown",
+        "ability3": "dpright",
+        "crouch": "leftstick",
+        "toggleView": "rightstick",
+        "nextWeapon": "back"
+    },
+
     // In the air: a double jump, a jump off a wall you touch, an air dash (Shift; about to land, within
     // the player's landingRollWindow or under dashMinHeight, Shift is the landing roll), and a fast fall (crouch held)
     "air": {

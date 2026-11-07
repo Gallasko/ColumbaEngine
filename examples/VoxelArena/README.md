@@ -294,6 +294,26 @@ action had moves to it the other way round (they swap); Reset to defaults clears
 in `options.json` (`"keys"`) over the tuning's, and are named as the keyboard prints them (an AZERTY shows
 Z Q S D where a QWERTY shows W A S D: the same keys, by position).
 
+**A controller** (any SDL knows: Xbox, PlayStation, Switch Pro...; plugged in at any time) plays the same game, and
+the HUD shows its buttons while it is the one used last:
+
+| Button | Action |
+|---|---|
+| Left stick / right stick | Move / look (the options' sensitivity and invert Y) |
+| A | Jump |
+| B | Dodge roll (hold: sprint) |
+| X / Y | Light / heavy attack |
+| LB / RB | The weapon's skills (R and 4) |
+| LT / RT / d-pad up | Spells 1, 2 and 3 |
+| D-pad left / down / right | Raise wall, dig pit, mine |
+| L3 / R3 | Fast fall (crouch) / first or third person |
+| Back / Start | Next weapon / the options |
+
+On a screen (the title, the weapon choice, the level ups, the shop, the options) the left stick moves a cursor, A
+clicks, B goes back (Esc) and the d-pad is the arrow keys. Getting hit rumbles (as much as the camera shake option).
+The buttons are data, the `gamepad` section of `mods/base/tuning.json`. Console: `pad press <button>`,
+`pad release <button>`, `pad axis <axis> <value>` play a controller from a script.
+
 ## How a fight works
 
 - **Stamina** pays for attacks, skills and sprinting. It refills after a short delay. Hitting zero

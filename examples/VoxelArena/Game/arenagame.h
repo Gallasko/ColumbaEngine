@@ -95,7 +95,8 @@ namespace arena
                                         pg::Listener<pg::OnSDLScanCode>, pg::Listener<pg::OnSDLScanCodeReleased>,
                                         pg::Listener<pg::OnSDLTextInput>, pg::Listener<pg::OnSDLMouseMotion>,
                                         pg::Listener<pg::OnSDLMouseWheel>, pg::Listener<pg::OnMouseClick>,
-                                        pg::Listener<pg::ResizeEvent>>
+                                        pg::Listener<pg::ResizeEvent>, pg::Listener<pg::OnSDLGamepadPressed>,
+                                        pg::Listener<pg::OnSDLGamepadReleased>, pg::Listener<pg::OnSDLGamepadAxisChanged>>
     {
     public:
         ArenaGame(pg::MasterRenderer* masterRenderer, pg::Window* window, const ArenaOptions& options);
@@ -113,6 +114,9 @@ namespace arena
         void onEvent(const pg::OnSDLMouseWheel& event) override;
         void onEvent(const pg::OnMouseClick& event) override;
         void onEvent(const pg::ResizeEvent& event) override;
+        void onEvent(const pg::OnSDLGamepadPressed& event) override;
+        void onEvent(const pg::OnSDLGamepadReleased& event) override;
+        void onEvent(const pg::OnSDLGamepadAxisChanged& event) override;
 
         /** Runs one console command and returns what it prints. */
         std::string runCommand(const std::string& line);
@@ -214,6 +218,26 @@ namespace arena
         std::string typed;
 
         std::map<std::string, std::vector<Binding>> controls;
+
+        // A controller (the tuning's "gamepad" section): its buttons by action, as the keys are. The triggers count as
+        // buttons, pressed past half way. Under inputMutex, like the keys
+        static constexpr int PAD_LEFT_TRIGGER = 100, PAD_RIGHT_TRIGGER = 101;
+        std::map<std::string, std::vector<int>> padControls;   // action -> SDL_GameControllerButton (or a trigger)
+        std::set<int> padDown;                  // held
+        std::set<int> padStepPresses;           // first presses not yet handed to a simulation step
+        std::vector<int> padFramePresses;       // first presses since the last frame (the screens' keys)
+        float padAxis[6] = {};                  // SDL_GameControllerAxis, -1..1 (triggers 0..1)
+        int padId = -1;                         // the controller last used (for its rumble)
+        bool padActive = false;                 // the controller was used last (not the keyboard or the mouse): its
+                                                // buttons on the HUD, a cursor on the screens
+        float padCursorX = -1.0f, padCursorY = -1.0f;   // the screens' cursor, window pixels (the left stick moves it)
+        bool padOnScreen = false;               // a screen took the controller last frame (a new one centres the cursor)
+        bool padHeld(const std::string& action) const;
+        bool padPressed(const std::string& action) const;
+        /** A stick, its dead zone taken out (0 inside, then rising to 1): x right, y down as SDL has it. */
+        glm::vec2 stick(int axisX, int axisY) const;
+        void padFrame(float frameSeconds);      // the cursor on the screens, and the presses that are keys there
+        void rumble(float strength, int ms);
 
         bool cursorLocked = false;
         bool cursorFree = false;        // Escape toggles it

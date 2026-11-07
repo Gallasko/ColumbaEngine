@@ -197,6 +197,42 @@ namespace arena
             {"spellForm1", {"A"}}, {"spellForm2", {"S"}}, {"spellForm3", {"D"}}, {"spellForm4", {"F"}},
             {"spellModifier1", {"Q"}}, {"spellModifier2", {"W"}}, {"spellModifier3", {"E"}}, {"spellModifier4", {"R"}}, {"spellModifier5", {"T"}},
         };
+
+        // A controller's buttons (SDL's names, and "lefttrigger" / "righttrigger"); the tuning's "gamepad" section
+        // replaces them. The left stick moves, the right one looks; Start is Esc (the options), and on the screens the
+        // left stick moves a cursor, A clicks, B is Esc and the d-pad is the arrows
+        const std::vector<std::pair<std::string, std::vector<std::string>>> DEFAULT_GAMEPAD = {
+            {"jump", {"a"}}, {"dodge", {"b"}}, {"sprint", {"b"}}, {"light", {"x"}}, {"heavy", {"y"}},
+            {"ability4", {"leftshoulder"}}, {"ability8", {"rightshoulder"}},
+            {"ability5", {"lefttrigger"}}, {"ability6", {"righttrigger"}}, {"ability7", {"dpup"}},
+            {"ability1", {"dpleft"}}, {"ability2", {"dpdown"}}, {"ability3", {"dpright"}},
+            {"crouch", {"leftstick"}}, {"toggleView", {"rightstick"}}, {"nextWeapon", {"back"}},
+        };
+
+        /** A pad button as the HUD names it ("A", "LB", "RT", "UP"). */
+        std::string padLabel(int button)
+        {
+            switch (button)
+            {
+                case SDL_CONTROLLER_BUTTON_A: return "A";
+                case SDL_CONTROLLER_BUTTON_B: return "B";
+                case SDL_CONTROLLER_BUTTON_X: return "X";
+                case SDL_CONTROLLER_BUTTON_Y: return "Y";
+                case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: return "LB";
+                case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: return "RB";
+                case SDL_CONTROLLER_BUTTON_LEFTSTICK: return "L3";
+                case SDL_CONTROLLER_BUTTON_RIGHTSTICK: return "R3";
+                case SDL_CONTROLLER_BUTTON_DPAD_UP: return "UP";
+                case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return "DOWN";
+                case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return "LEFT";
+                case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return "RIGHT";
+                case SDL_CONTROLLER_BUTTON_START: return "START";
+                case SDL_CONTROLLER_BUTTON_BACK: return "BACK";
+                case 100: return "LT";
+                case 101: return "RT";
+                default: return "?";
+            }
+        }
     }
 
     ArenaGame::ArenaGame(MasterRenderer* masterRenderer, Window* window, const ArenaOptions& options)
@@ -607,6 +643,34 @@ namespace arena
             }
         }
 
+        // The controller's buttons
+        padControls.clear();
+        const Json* pad = content.tuning.find("gamepad");
+        for (const auto& [action, defaults] : DEFAULT_GAMEPAD)
+        {
+            std::vector<std::string> names = defaults;
+            if (pad)
+                if (const Json* v = pad->find(action))
+                {
+                    names.clear();
+                    if (v->isString())
+                        names.push_back(v->string);
+                    else
+                        for (const auto& e : v->array)
+                            if (e.isString())
+                                names.push_back(e.string);
+                }
+
+            for (const auto& n : names)
+            {
+                int button = n == "lefttrigger" ? PAD_LEFT_TRIGGER : n == "righttrigger" ? PAD_RIGHT_TRIGGER : SDL_GameControllerGetButtonFromString(n.c_str());
+                if (button == SDL_CONTROLLER_BUTTON_INVALID)
+                    content.report.warn(content.tuningFile, 0, "gamepad: unknown button \"" + n + "\" (a, b, x, y, leftshoulder, lefttrigger, dpup, start...)");
+                else
+                    padControls[action].push_back(button);
+            }
+        }
+
         // The player's own keys (the controls screen): each replaces its action's first key
         for (const auto& [chosen, key] : prefs.keys)
         {
@@ -653,10 +717,188 @@ namespace arena
 
         const bool repeat = keysDown.count(event.key) > 0;
         keysDown.insert(event.key);
+        padActive = false;
         keyPresses.push_back({event.key, repeat, event.mod});
 
         if (not repeat)
             stepPresses.insert(event.key);
+    }
+
+    void ArenaGame::onEvent(const OnSDLGamepadPressed& event)
+    {
+        std::lock_guard<std::mutex> lock(inputMutex);
+        const int button = static_cast<int>(event.button);
+        if (not padDown.count(button))
+        {
+            padStepPresses.insert(button);
+            padFramePresses.push_back(button);
+        }
+        padDown.insert(button);
+        padId = event.id;
+        padActive = true;
+    }
+
+    void ArenaGame::onEvent(const OnSDLGamepadReleased& event)
+    {
+        std::lock_guard<std::mutex> lock(inputMutex);
+        padDown.erase(static_cast<int>(event.button));
+    }
+
+    void ArenaGame::onEvent(const OnSDLGamepadAxisChanged& event)
+    {
+        if (event.axis >= 6)
+            return;
+
+        std::lock_guard<std::mutex> lock(inputMutex);
+        const float v = std::clamp(static_cast<float>(event.value) / 32767.0f, -1.0f, 1.0f);
+        padAxis[event.axis] = v;
+
+        // A trigger is a button past half way
+        if (event.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT or event.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT)
+        {
+            const int button = event.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT ? PAD_LEFT_TRIGGER : PAD_RIGHT_TRIGGER;
+            if (v > 0.5f and not padDown.count(button))
+            {
+                padDown.insert(button);
+                padStepPresses.insert(button);
+                padFramePresses.push_back(button);
+            }
+            else if (v < 0.3f)
+                padDown.erase(button);
+        }
+
+        // A stick moved well off its rest: the controller is in use
+        if (std::fabs(v) > 0.5f)
+        {
+            padActive = true;
+            padId = event.id;
+        }
+    }
+
+    bool ArenaGame::padHeld(const std::string& action) const
+    {
+        auto it = padControls.find(action);
+        if (it == padControls.end())
+            return false;
+        for (const int b : it->second)
+            if (padDown.count(b))
+                return true;
+        return false;
+    }
+
+    bool ArenaGame::padPressed(const std::string& action) const
+    {
+        auto it = padControls.find(action);
+        if (it == padControls.end())
+            return false;
+        for (const int b : it->second)
+            if (padStepPresses.count(b))
+                return true;
+        return false;
+    }
+
+    glm::vec2 ArenaGame::stick(int axisX, int axisY) const
+    {
+        const glm::vec2 raw(padAxis[axisX], padAxis[axisY]);
+        const float length = glm::length(raw);
+        constexpr float DEAD = 0.2f;
+        if (length <= DEAD)
+            return glm::vec2(0.0f);
+        // Out of the dead zone, rising from 0 to 1, never past
+        return raw / length * std::min(1.0f, (length - DEAD) / (1.0f - DEAD));
+    }
+
+    void ArenaGame::rumble(float strength, int ms)
+    {
+        if (not padActive or padId < 0 or prefs.shake <= 0.0f)
+            return;
+        if (SDL_GameController* pad = SDL_GameControllerFromInstanceID(padId))
+        {
+            const auto amount = static_cast<Uint16>(std::clamp(strength * prefs.shake, 0.0f, 1.0f) * 0xFFFF);
+            SDL_GameControllerRumble(pad, amount, amount, static_cast<Uint32>(ms));
+        }
+    }
+
+    void ArenaGame::padFrame(float frameSeconds)
+    {
+        std::vector<int> presses;
+        glm::vec2 move(0.0f);
+        {
+            std::lock_guard<std::mutex> lock(inputMutex);
+            presses.swap(padFramePresses);
+            move = stick(SDL_CONTROLLER_AXIS_LEFTX, SDL_CONTROLLER_AXIS_LEFTY);
+        }
+
+        if (not padActive)
+            return;
+
+        auto key = [&](int scancode) {
+            std::lock_guard<std::mutex> lock(inputMutex);
+            keyPresses.push_back({scancode, false, 0});
+        };
+
+        // On the screens: the left stick moves a cursor (the mouse's place: what is under it lights up), A clicks there,
+        // B and Start are Esc, the d-pad is the arrows
+        const bool screen = uiTakesClicks() and not consoleOpen;
+        const bool opened = screen and not padOnScreen;
+        padOnScreen = screen;
+
+        if (screen)
+        {
+            // A screen just came up: the cursor starts in its middle
+            if (padCursorX < 0.0f or opened)
+            {
+                padCursorX = screenW * 0.5f;
+                padCursorY = screenH * 0.5f;
+            }
+            // Across the window's height in a little over a second at full tilt, slower when only nudged
+            const float speed = screenH * 0.8f * frameSeconds;
+            padCursorX = std::clamp(padCursorX + (move.x * std::fabs(move.x) * 0.75f + move.x * 0.25f) * speed, 0.0f, screenW - 1.0f);
+            padCursorY = std::clamp(padCursorY + (move.y * std::fabs(move.y) * 0.75f + move.y * 0.25f) * speed, 0.0f, screenH - 1.0f);
+
+            {
+                std::lock_guard<std::mutex> lock(inputMutex);
+                if (glm::length(move) > 0.0f or not presses.empty())
+                {
+                    mouseX = padCursorX;
+                    mouseY = padCursorY;
+                }
+            }
+
+            for (const int b : presses)
+            {
+                if (b == SDL_CONTROLLER_BUTTON_A)
+                {
+                    std::lock_guard<std::mutex> lock(inputMutex);
+                    uiClicks.emplace_back(padCursorX, padCursorY);
+                }
+                else if (b == SDL_CONTROLLER_BUTTON_B or b == SDL_CONTROLLER_BUTTON_START)
+                    key(SDL_SCANCODE_ESCAPE);
+                else if (b == SDL_CONTROLLER_BUTTON_DPAD_UP)
+                    key(SDL_SCANCODE_UP);
+                else if (b == SDL_CONTROLLER_BUTTON_DPAD_DOWN)
+                    key(SDL_SCANCODE_DOWN);
+                else if (b == SDL_CONTROLLER_BUTTON_DPAD_LEFT)
+                    key(SDL_SCANCODE_LEFT);
+                else if (b == SDL_CONTROLLER_BUTTON_DPAD_RIGHT)
+                    key(SDL_SCANCODE_RIGHT);
+            }
+            return;
+        }
+
+        // Playing: Start is Esc (the options); the actions the keys handle as keys (the view, the next weapon) go as their key
+        for (const int b : presses)
+        {
+            if (b == SDL_CONTROLLER_BUTTON_START)
+            {
+                key(SDL_SCANCODE_ESCAPE);
+                continue;
+            }
+            for (const char* action : {"toggleView", "nextWeapon"})
+                if (auto p = padControls.find(action); p != padControls.end() and std::find(p->second.begin(), p->second.end(), b) != p->second.end())
+                    if (auto k = controls.find(action); k != controls.end() and not k->second.empty() and k->second.front().scancode >= 0)
+                        key(k->second.front().scancode);
+        }
     }
 
     void ArenaGame::onEvent(const OnSDLScanCodeReleased& event)
@@ -684,6 +926,11 @@ namespace arena
 
         mouseX = static_cast<float>(event.x);
         mouseY = static_cast<float>(event.y);
+        if (std::abs(event.xrel) + std::abs(event.yrel) > 2)
+        {
+            padActive = false;
+            padCursorX = padCursorY = -1.0f;
+        }
 
         // A lock the browser has not granted yet (or WSL before its helper holds the cursor): the cursor is free
         if (not cursorLocked or (window and not window->isCursorCaptured()))
@@ -774,6 +1021,10 @@ namespace arena
 
     bool ArenaGame::held(const std::string& action) const
     {
+        // The controller's (not while a screen takes it: there it is the cursor)
+        if (padHeld(action) and not uiTakesClicks())
+            return true;
+
         auto it = controls.find(action);
 
         if (it == controls.end())
@@ -793,6 +1044,9 @@ namespace arena
 
     bool ArenaGame::pressed(const std::string& action) const
     {
+        if (padPressed(action) and not uiTakesClicks())
+            return true;
+
         auto it = controls.find(action);
 
         if (it == controls.end())
@@ -903,6 +1157,9 @@ namespace arena
                     mousePresses.insert(button);
             }
         }
+
+        // The controller: the screens' cursor, and its presses that are keys there
+        padFrame(frameSeconds);
 
         // Debug keys and the console
         std::vector<KeyPress> presses;
@@ -1498,6 +1755,13 @@ namespace arena
                     move.x += held("right") ? 1.0f : 0.0f;
                     move.x -= held("left") ? 1.0f : 0.0f;
 
+                    // The left stick: as far as it is pushed (keys and stick together, never past 1)
+                    if (not uiTakesClicks())
+                    {
+                        const glm::vec2 s = stick(SDL_CONTROLLER_AXIS_LEFTX, SDL_CONTROLLER_AXIS_LEFTY);
+                        move += glm::vec2(s.x, -s.y);
+                    }
+
                     in.move = glm::length(move) > 1.0f ? glm::normalize(move) : move;
                     in.jumpHeld = held("jump");
                     in.sprintHeld = held("sprint");
@@ -1520,6 +1784,7 @@ namespace arena
                 // A press is handed to one step only
                 stepPresses.clear();
                 mousePresses.clear();
+                padStepPresses.clear();
             }
 
             auto injected = [&](const std::string& a) { return injectedHolds.count(a) and injectedHolds[a] > 0; };
@@ -1639,6 +1904,7 @@ namespace arena
                 {
                     camera.addTrauma(e.kind == "hit" ? 0.2f : 0.45f);
                     hurtFlash = std::max(hurtFlash, e.kind == "hit" ? 0.6f : 1.0f);
+                    rumble(e.kind == "hit" ? 0.4f : 0.8f, e.kind == "hit" ? 140 : 260);
                 }
             }
         }
@@ -2484,7 +2750,10 @@ namespace arena
 
             // Hit: the screen flashes red, more for a stagger or worse
             if (p and h.target == p->id)
+            {
                 hurtFlash = std::max(hurtFlash, h.killed or h.staggered ? 1.0f : 0.6f);
+                rumble(h.killed or h.staggered ? 0.8f : 0.4f, h.killed or h.staggered ? 260 : 140);
+            }
 
             if (h.killed)
             {
@@ -2515,6 +2784,25 @@ namespace arena
 
         dx *= prefs.sensitivity;
         dy *= prefs.sensitivity * (prefs.invertY ? -1.0f : 1.0f);
+
+        // The right stick looks: up to 240 degrees a second across, 170 up and down, finer near its middle (the mouse's
+        // sensitivity and invert Y apply)
+        glm::vec2 look(0.0f);
+        {
+            std::lock_guard<std::mutex> lock(inputMutex);
+            look = stick(SDL_CONTROLLER_AXIS_RIGHTX, SDL_CONTROLLER_AXIS_RIGHTY);
+        }
+        if (glm::length(look) > 0.0f and not uiTakesClicks() and not consoleOpen)
+        {
+            const float perPixel = std::max(1e-3f, tuning.camera.sensitivity);
+            const float k = prefs.sensitivity * frameSeconds / perPixel;
+            const float px = look.x * std::fabs(look.x) * 240.0f * k;
+            const float py = look.y * std::fabs(look.y) * 170.0f * k * (prefs.invertY ? -1.0f : 1.0f);
+            if (firstPerson)
+                camera.look(px, py, tuning.camera.sensitivity, tuning.firstPerson.minPitch, tuning.firstPerson.maxPitch);
+            else
+                camera.look(px, py, tuning.camera);
+        }
 
         // The lab: the mouse is free. A left drag over the arena turns the camera, the wheel over the panel scrolls
         // its list, and the camera may turn round the player by itself (orbit)
@@ -2853,6 +3141,11 @@ namespace arena
 
     std::string ArenaGame::keyName(const std::string& action) const
     {
+        // Playing with a controller: its button
+        if (padActive)
+            if (auto p = padControls.find(action); p != padControls.end() and not p->second.empty())
+                return padLabel(p->second.front());
+
         auto it = controls.find(action);
 
         if (it == controls.end() or it->second.empty())
@@ -4255,6 +4548,26 @@ namespace arena
         if (not content.report.errors.empty())
             banner = std::to_string(content.report.errors.size()) + " content error(s), first: " + content.report.errors[0].str() + "   (console: errors)";
 
+        // The controller's cursor on a screen: an arrow at the point the left stick moved to
+        if (padActive and uiTakesClicks() and padCursorX >= 0.0f)
+        {
+            ui.section("pad-cursor");
+            ui.anchor(ui::Anchor::TopLeft);
+            const float x = ui.baseX(padCursorX), y = ui.baseY(padCursorY);
+            for (int r = 0; r < 9; ++r)
+            {
+                const auto s = ui.scope(static_cast<uint64_t>(r));
+                const float w = static_cast<float>(r < 6 ? r + 1 : 9 - r) * 2.0f;
+                ui.rect(x - 1, y + static_cast<float>(r) * 2.0f - 1, w + 2, 4, ui::INK);
+            }
+            for (int r = 0; r < 9; ++r)
+            {
+                const auto s = ui.scope(static_cast<uint64_t>(100 + r));
+                const float w = static_cast<float>(r < 6 ? r + 1 : 9 - r) * 2.0f;
+                ui.rect(x, y + static_cast<float>(r) * 2.0f, w, 2, ui::GOLD);
+            }
+        }
+
         std::vector<std::string> lines(consoleLog.begin(), consoleLog.end());
         hud.devLayers(ui, overlayText, consoleOpen, lines, consoleLine, banner);
 
@@ -5419,6 +5732,32 @@ namespace arena
             std::lock_guard<std::mutex> lock(inputMutex);
             mouseX = static_cast<float>(std::atof(args[1].c_str()));
             mouseY = static_cast<float>(std::atof(args[2].c_str()));
+            return "";
+        }
+
+        if (cmd == "pad")
+        {
+            // A controller's events, as SDL sends them (scripts, tests): pad press a | pad release a | pad axis leftx 0.8
+            if (args.size() < 3)
+                return "pad press|release <button> (a, b, x, y, leftshoulder, lefttrigger, dpup, start...) | pad axis <leftx|lefty|rightx|righty|lefttrigger|righttrigger> <-1..1>";
+
+            if (args[1] == "axis")
+            {
+                const SDL_GameControllerAxis axis = SDL_GameControllerGetAxisFromString(args[2].c_str());
+                if (axis == SDL_CONTROLLER_AXIS_INVALID or args.size() < 4)
+                    return "pad axis: no axis " + args[2];
+                const float v = std::clamp(static_cast<float>(std::atof(args[3].c_str())), -1.0f, 1.0f);
+                onEvent(OnSDLGamepadAxisChanged{0, static_cast<unsigned int>(axis), static_cast<int>(v * 32767.0f)});
+                return "";
+            }
+
+            const SDL_GameControllerButton button = SDL_GameControllerGetButtonFromString(args[2].c_str());
+            if (button == SDL_CONTROLLER_BUTTON_INVALID)
+                return "pad: no button " + args[2];
+            if (args[1] == "press")
+                onEvent(OnSDLGamepadPressed{0, static_cast<unsigned int>(button)});
+            else
+                onEvent(OnSDLGamepadReleased{0, static_cast<unsigned int>(button)});
             return "";
         }
 
