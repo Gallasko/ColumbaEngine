@@ -91,6 +91,7 @@ namespace arena::net
             uint32_t lastClientTimeMs = 0;
             uint16_t rttMs = 0;
             bool ready = false;      // in the lobby: ready to start the run
+            std::set<std::string> locked;   // what its player has not unlocked (Msg::Locks): put back on its fighter each step
             uint64_t joinOrder = 0;
             bool modsSent = false;   // once only: a client still different after them is refused
             uint64_t since = 0;      // the step it connected (or got the mods) at

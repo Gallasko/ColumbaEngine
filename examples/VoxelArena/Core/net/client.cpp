@@ -121,6 +121,8 @@ namespace arena::net
                     // The player's own spells, which the server does not know yet, and whether it is ready
                     if (not spells.empty())
                         transport.send(0, encode(SpellsMsg{spells}, names), true);
+                    if (lockedSet)
+                        transport.send(0, encode(LocksMsg{locked}, names), true);
                     if (ready)
                         transport.send(0, encode(ReadyMsg{ready}), true);
                     break;
@@ -579,6 +581,16 @@ namespace arena::net
         std::vector<WorldEvent> out;
         out.swap(events);
         return out;
+    }
+
+    void NetClient::setLocked(const std::set<std::string>& l)
+    {
+        if (lockedSet and locked == l)
+            return;
+        locked = l;
+        lockedSet = true;
+        if (state == State::Playing)
+            transport.send(0, encode(LocksMsg{locked}, names), true);
     }
 
     void NetClient::setSpells(const std::vector<SpellRecipe>& recipes)

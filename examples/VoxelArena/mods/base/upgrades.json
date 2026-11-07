@@ -107,6 +107,21 @@
                       "proc": { "every": 5, "chains": 2, "damage": 14, "element": "volt", "status": "shock" },
                       "look": { "orbit": [255, 250, 140] , "icon": "bolt" } },
 
+    // Unlocked by goals (achievements.json): new for the players who reach them
+    "flint":        { "name": "Flint",        "price": 14,
+                      "proc": { "every": 4, "chains": 1, "damage": 10, "element": "fire", "status": "burn" },
+                      "look": { "orbit": [255, 120, 40] , "icon": "fire" } },
+    "frost_trail":  { "name": "Frost trail",  "price": 14,
+                      "dodgeGround": { "radius": 1.8, "duration": 3, "perSecond": 6, "element": "ice", "status": "chill" },
+                      "look": { "orbit": [150, 220, 255] , "icon": "dash" } },
+    "storm_trail":  { "name": "Storm trail",  "price": 14,
+                      "dodgeGround": { "radius": 1.6, "duration": 3, "perSecond": 8, "element": "volt", "status": "shock" },
+                      "look": { "orbit": [255, 235, 110] , "icon": "dash" } },
+    "shatterburst": { "name": "Shatterburst", "burst": { "if": "frozen", "radius": 3.5, "damage": 18, "status": "chill" }, "needs": ["ice"], "price": 16,
+                      "look": { "orbit": [190, 240, 255] , "icon": "nova" } },
+    "thunderburst": { "name": "Thunderburst", "burst": { "if": "shock", "radius": 3, "damage": 14, "status": "shock" }, "needs": ["volt"], "price": 16,
+                      "look": { "orbit": [255, 240, 120] , "icon": "nova" } },
+
     // Tag items: a boost for every spell and technique of yours with the tag. Spells have "spell", their
     // element and their shapes' ("projectile" for a bolt, "area" for a nova or a zone, "zone", "beam");
     // techniques have "technique", their own ("melee", "area", "dash", "heal"...) and "projectile" when

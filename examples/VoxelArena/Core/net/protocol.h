@@ -12,7 +12,7 @@
 namespace arena::net
 {
     /** Bumped when messages change shape: a client and server of different versions refuse each other. */
-    constexpr uint16_t PROTOCOL_VERSION = 30;
+    constexpr uint16_t PROTOCOL_VERSION = 31;
 
     /** The server sends a snapshot every this many steps (60 / 2 = 30 per second). */
     constexpr int SNAPSHOT_EVERY = 2;
@@ -32,6 +32,7 @@ namespace arena::net
         Ready,           // client -> server, reliable: ready (or not) to start the run
         ModBundle,       // server -> client, reliable: the server's mods, for a client whose content differs
         Name,            // client -> server, reliable: the name the others see, changed
+        Locks,           // client -> server, reliable: what its player has not unlocked yet (never offered to it in a run)
     };
 
     /**
@@ -123,6 +124,12 @@ namespace arena::net
     struct SpellsMsg
     {
         std::vector<SpellRecipe> spells;
+    };
+
+    /** A player's locked content (see Fighter::locked): ids of the name table. */
+    struct LocksMsg
+    {
+        std::set<std::string> locked;
     };
 
     struct PieceState
@@ -261,6 +268,8 @@ namespace arena::net
     std::vector<uint8_t> encode(const ReadyMsg& m);
     bool decode(const std::vector<uint8_t>& data, ReadyMsg& m);
     std::vector<uint8_t> encode(const NameMsg& m);
+    std::vector<uint8_t> encode(const LocksMsg& m, const Names& names);
+    bool decode(const std::vector<uint8_t>& data, LocksMsg& m, const Names& names);
     bool decode(const std::vector<uint8_t>& data, NameMsg& m);
 
     // Decoders return false for a message that does not read cleanly (it is then ignored)

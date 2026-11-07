@@ -192,6 +192,18 @@ namespace arena::net
                 break;
             }
 
+            case Msg::Locks:
+            {
+                // What the player has not unlocked: never offered to it (its own machine's progress)
+                LocksMsg msg;
+                if (not c.joined or not decode(data, msg, names))
+                    return;
+                c.locked = msg.locked;
+                if (Fighter* f = world.find(c.playerId))
+                    f->locked = c.locked;
+                break;
+            }
+
             case Msg::Spells:
             {
                 // The recipes on the player's spell keys: a recipe that makes no spell just does nothing
@@ -359,6 +371,10 @@ namespace arena::net
                 continue;
 
             inputs[c.playerId] = nextInput(c);
+
+            // Its player's locked content, again on a fighter made anew (an arena reset)
+            if (Fighter* f = world.find(c.playerId); f and f->locked != c.locked)
+                f->locked = c.locked;
 
             // How long a hit on this player waits for a dodge already on its way: half the round trip
             world.defenderGrace[peer] = dodgeGrace ? std::clamp(static_cast<int>(std::lround(rttOf(c) * 0.5 / stepRealMs(world.tuning))), 0, 8) : 0;

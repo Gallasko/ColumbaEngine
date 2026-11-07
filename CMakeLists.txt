@@ -1740,6 +1740,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelArena/Core/schematable.cpp
             examples/VoxelArena/Core/modkit.cpp
             examples/VoxelArena/Core/modguide.cpp
+            examples/VoxelArena/Core/progress.cpp
             examples/VoxelArena/Core/net/protocol.cpp
             examples/VoxelArena/Core/net/modfiles.cpp
             examples/VoxelArena/Core/net/loopback.cpp
@@ -1812,6 +1813,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/voxelarena/portmapper.cc
             test/voxelarena/schema.cc
             test/voxelarena/modkit.cc
+            test/voxelarena/progress.cc
             examples/VoxelArena/Net/portmapper.cpp   # its port lists (the router itself is not reached without VOXELARENA_UPNP)
             examples/VoxelTest/voxelserializer.cpp   # the editor's .vxl.json loader, to check the models stay editable
             ${VOXELARENA_CORE}

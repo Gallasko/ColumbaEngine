@@ -1,0 +1,13 @@
+// A long beam of cold. Levels: harder, two more jumps, harder. Unlocked by the "Winter" goal (achievements.json).
+// In a run, level ups give spells and their next levels: each entry of "levels" is what that level
+// adds to the recipe (keywords, as in keywords.json).
+{
+    "name": "Frost ray",
+    "text": "A beam of cold that slows enemies.",
+    "recipe": ["ice", "beam", "empower"],
+    "levels": [["empower"], ["chain"], ["empower"]],
+    "branches": [
+        { "name": "Frozen path", "text": "Leaves an icy area where it hits.", "keywords": ["zone"] },
+        { "name": "Shatter ray", "text": "Double damage to frozen enemies.", "against": { "frozen": 1.0 } }
+    ]
+}

@@ -3,6 +3,7 @@
 #include <cmath>
 #include <functional>
 #include <map>
+#include <set>
 #include <memory>
 #include <string>
 #include <vector>
@@ -91,6 +92,9 @@ namespace arena
         int source = 0;           // who left it (the server's: what it kills is theirs)
         float age = 0.0f;         // s since it first landed (the server's)
     };
+
+    /** The kinds of RunStats::counts' keys, in their order on the network. */
+    inline constexpr const char* COUNT_KINDS[] = {"kills", "elites", "status", "combos", "damage"};
 
     struct Fighter
     {
@@ -186,6 +190,11 @@ namespace arena
         int interest = 0;             // shards the last interest gave
         std::vector<std::string> levelOffer;   // a level up's picks: a spell (new, or its next level) or a weapon skill
         std::vector<std::string> firstSpellOffer;   // a run's first spell: the ones this player may pick among (run.json chooseSpell)
+        /**
+         * What this player has not unlocked yet (achievements.json: the rewards of the goals not reached): a run never
+         * offers them (weapons, spells, techniques, items, branches "id#n"). Its machine's to say (a client sends it).
+         */
+        std::set<std::string> locked;
         bool ready = false;
         int rerolls = 0;
         int levelRerolls = 0, banishes = 0;    // a run's rerolls and banishes of the level ups left
@@ -204,6 +213,11 @@ namespace arena
             float healing = 0.0f;     // given (to itself and the others)
             /** The damage it dealt by what dealt it: a weapon, a spell, a technique, a combo, a status ("base:burn"), an item ("thorns"). */
             std::map<std::string, float> bySource;
+            /**
+             * What else it did, for the achievements: "<kind>:<id>", the kinds COUNT_KINDS. kills:<enemy>, elites:<affix>
+             * and elites: (all of them), status:<status> (left on an enemy), combos:<combo> and combos:, damage:<element>.
+             */
+            std::map<std::string, float> counts;
         } stats;
 
         bool elite = false;           // an enemy of a run: tougher, harder hitting, worth more
@@ -704,8 +718,12 @@ namespace arena
         // ---- Elites' affixes (affixes.json) and what dies with a blast or splits ----
         /** An elite's affixes, picked by the run's dice: `count` of them, each once. */
         std::vector<std::string> rollAffixes(int count);
-        /** A run's first spells offered to a player: chooseCount of the chooseSpell pool, at random, of different elements while it can. */
-        std::vector<std::string> rollFirstSpells();
+        /** A run's first spells offered to a player: chooseCount of the chooseSpell pool (not locked), at random, of different elements while it can. */
+        std::vector<std::string> rollFirstSpells(const Fighter& f);
+        /** Not unlocked yet by this player (see Fighter::locked). */
+        static bool locked(const Fighter& f, const std::string& id) { return f.locked.count(id) > 0; }
+        /** A count for the achievements, on the player who did it (RunStats::counts), in a run only. */
+        void count(int playerId, const std::string& key, float amount = 1.0f);
         /** What a fighter's affixes add up to (health, damage, speed, regen...). */
         float affixSum(const Fighter& f, float AffixDef::*field) const;
         /** A blast where something died: its warning ring now, its hit as the ring runs out. owner: whom its hits count for. */

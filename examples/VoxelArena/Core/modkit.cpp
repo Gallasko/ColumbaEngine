@@ -171,6 +171,7 @@ namespace arena::modkit
             {"upgrade", "upgrade", "upgrade", "upgrades.json", false, "base:tough"},
             {"combo", "combo", "combo", "combos.json", false, "base:melt"},
             {"affix", "affix", "affix", "affixes.json", false, "base:blazing"},
+            {"achievement", "achievement", "achievement", "achievements.json", false, "base:firestarter"},
         };
 
         return list;

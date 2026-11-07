@@ -875,6 +875,33 @@ TEST(arena_net, a_clients_own_spells_reach_the_server_and_its_zones_come_back)
     EXPECT_LT(glm::length(a.world.zones[0].position - s.serverWorld.zones[0].position), 0.01f);
 }
 
+TEST(arena_net, each_clients_own_locks_reach_the_server_and_its_run_counts_come_back)
+{
+    Session s(30.0);
+    auto& a = s.join("a");
+    auto& b = s.join("b");
+    a.client->setLocked({"base:dagger", "base:fireball"});   // set before joining finishes: sent once in
+    s.run(40);
+
+    ASSERT_TRUE(s.serverPlayer(a));
+    ASSERT_TRUE(s.serverPlayer(b));
+    EXPECT_EQ(s.serverPlayer(a)->locked, (std::set<std::string>{"base:dagger", "base:fireball"}));
+    EXPECT_TRUE(s.serverPlayer(b)->locked.empty());   // each player's own
+
+    // Changed: sent again
+    a.client->setLocked({"base:dagger"});
+    s.run(10);
+    EXPECT_EQ(s.serverPlayer(a)->locked, std::set<std::string>{"base:dagger"});
+
+    // What a player did for the achievements comes back with its fighter
+    s.serverPlayer(a)->stats.counts["status:base:burn"] = 7.0f;
+    s.serverPlayer(a)->stats.counts["elites:"] = 2.0f;
+    s.run(10);
+    ASSERT_TRUE(s.clientPlayer(a));
+    EXPECT_EQ(s.clientPlayer(a)->stats.counts["status:base:burn"], 7.0f);
+    EXPECT_EQ(s.clientPlayer(a)->stats.counts["elites:"], 2.0f);
+}
+
 TEST(arena_net, the_run_plays_for_every_client_and_each_has_their_own_shop)
 {
     Session s(30.0);

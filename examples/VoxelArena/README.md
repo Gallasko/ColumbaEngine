@@ -249,6 +249,17 @@ and enemies that come back), **O** for the options.
   items bought and falls. Console: `bot` adds an idle player, to try the duel and the recap alone.
 - **Falling**: alone, the run is over. In co-op you are back up at the next wave; the run is lost
   only when everyone is down.
+- **Achievements**: goals counted over all your runs (**A** on the title, or Achievements). A new player
+  starts with the core of the game: the sword and the bow, a first spell of each element (Firebolt,
+  Frostbolt, Spark), each weapon's first technique and the plain items. Everything else is locked
+  until a goal unlocks it: the dagger after 10 waves cleared, the staff after a win, Fireball and
+  Kindling after 5 000 fire damage, Frost nova and Shatterburst after 100 enemies frozen... Some
+  goals unlock content that only goals give (Flame burst, Frost ray, Storm field, Flint, Frost trail,
+  Storm trail, Shatterburst, Thunderburst). Locked content never comes up in a run: not as a first
+  spell, a weapon, a level up or a shop item; the armory shows a locked weapon with its goal. A run
+  counts when it ends (won or lost) and when you leave it; the end screen lists the goals it reached
+  and what is new. In co-op each player counts their own runs and keeps their own locks (a client
+  tells the server what is locked for it). Kept in `~/.local/share/voxelarena/progress.json`.
 - In multiplayer the host starts the run from its title; on a dedicated server, it starts when
   everyone is ready.
 
@@ -294,8 +305,9 @@ action had moves to it the other way round (they swap); Reset to defaults clears
 in `options.json` (`"keys"`) over the tuning's, and are named as the keyboard prints them (an AZERTY shows
 Z Q S D where a QWERTY shows W A S D: the same keys, by position).
 
-**A controller** (any SDL knows: Xbox, PlayStation, Switch Pro...; plugged in at any time) plays the same game, and
-the HUD shows its buttons while it is the one used last. Under WSL, where Windows keeps the controllers from Linux,
+**A controller** (any SDL knows: Xbox, PlayStation, Switch Pro...; plugged in at any time) plays the same game once
+it is turned on (off by default: Options, Controls, Controller, then "Controller: off" to turn it on), and the HUD
+shows its buttons while it is the one used last. Under WSL, where Windows keeps the controllers from Linux,
 a helper on the Windows side reads them through XInput (Xbox controllers and the pads that act as one: a
 PlayStation pad through Steam Input or DS4Windows), as the mouse capture does:
 
@@ -311,10 +323,15 @@ PlayStation pad through Steam Input or DS4Windows), as the mouse capture does:
 | L3 / R3 | Fast fall (crouch) / first or third person |
 | Back / Start | Next weapon / the options |
 
-On a screen (the title, the weapon choice, the level ups, the shop, the options) the left stick moves a cursor, A
-clicks, B goes back (Esc) and the d-pad is the arrow keys. Getting hit rumbles (as much as the camera shake option).
-The buttons are data, the `gamepad` section of `mods/base/tuning.json`. Console: `pad press <button>`,
-`pad release <button>`, `pad axis <axis> <value>` play a controller from a script.
+On a screen (the title, the weapon choice, the level ups, the shop, the options, the lab) the d-pad or the left stick
+goes from one button to the next in that direction (held, it goes on), a frame shows the one picked, A presses it and
+B goes back (Esc): every screen, as it is clickable. Getting hit rumbles (as much as the camera shake option).
+
+Options, then Controls, then **Controller**: each action's button, rebound by picking it and pressing the new one
+(a button another action had moves to it the other way round; Start cancels), Reset to defaults, and the controller
+on or off (off by default; off, it is ignored). Kept in `options.json` (`"padKeys"`, `"gamepad"`) over the tuning's: the `gamepad`
+section of `mods/base/tuning.json`. Console: `pad press <button>`, `pad release <button>`, `pad axis <axis> <value>`
+play a controller from a script, `pad state` tells what it is doing.
 
 ## How a fight works
 
@@ -713,6 +730,7 @@ key from one table, `Core/schematable.cpp`, the one the game checks mods with.
 |---|---|---|
 | `blocks.json` | blocks: `color`, `solid`, `colorNoise`, `hardness`, `breakable`, `flammable`, `weakness`, `texture` (one name, or `{ "top", "side", "bottom" }`), `shape` (`cube`, `cross` for grass and flowers, `model` with a `model` for a small voxel model) | `mymod:<key>` |
 | `statuses.json` | statuses: `duration`, `damagePerSecond`, `slow`, `maxStacks`, `atMax`, `stagger`, `heavy`, `imbue`, `damageTaken` (one with it takes this much more damage: -0.5 halves it) | `mymod:<key>` |
+| `achievements.json` | the goals: `name`, `text` (what to do, in a line), `stat` (what it counts over all of a player's runs: `damage`, `damage:<source id>` (a weapon, spell, technique, status, combo...), `damage:fire`/`ice`/`volt`, `kills`, `kills:<enemy id>`, `elites`, `elites:<affix id>`, `status:<status id>` (left on an enemy), `combos`, `combos:<combo id>`, `runs`, `wins`, `wins:<weapon id>`, `wins:level:<n>` (a level or a harder one, 1 is the first), `waves` (cleared), `bestWave`, `bestWave:<weapon id>`, `bestLevel`, `items`, `presents`, `shards`), `goal`, `unlocks` (weapons, spells, techniques, items, or a branch: `"sword#0"`). Anything a goal unlocks is locked until one of the goals naming it is reached; everything else is open. Shown in the file's order, the mods' after the base game's | `mymod:<key>` |
 | `affixes.json` | what elites come with: `name`, `text`, `colour`, `weight`, `health`, `damage`, `speed`, `onHit` (a status its hits leave), `trail` (ground behind it), `regen`, `aura` (`status`, `radius`: on its allies), `blast` and `split` (as an enemy's) | `mymod:<key>` |
 | `abilities/<name>.json` | an ability: terrain (`kind`: wall, pit, mine) or a weapon skill (attack); a run's technique also has `tags`, `levels` (a boost each: `[{ "damage": 0.15 }]`) and `branches` (`name`, `text`, `element`, `status`, `tags`, `boost`). `"slot"` (an ability key, 1-8: 4 is R, 8 is 4) puts it on that key and among a run's level ups by itself, no list to patch (`"levelUp": false` keeps it out of the level ups) | `mymod:<name>` |
 | `elements.json` | the elements of spells: `name`, `status`, `mana` (fire, ice, volt) | `mymod:<key>` |
@@ -848,6 +866,9 @@ Open with `` ` ``. `help` lists the commands.
 | `map [arena]` | Outside a run: the training ground becomes that arena (`map gorge`, `map training`); alone, the list |
 | `timeup`, `kill`, `shards <n>` | End the wave now (a boss wave: its boss falls), kill every enemy (they drop their shards), get shards (and their XP) |
 | `hurt <damage>` | Hit every enemy for that much, as a real hit lands (a boss stops at its phases, a shield takes nothing) |
+| `goals`, `goals locked` | The achievements: each goal, its stat and what it unlocks; what is still locked |
+| `goals unlock [on\|off]` | Everything open for this session (the progress is left as it is) |
+| `goals reach <id\|all>`, `goals add <stat> <n>`, `goals reset` | Reach a goal, add to a stat (`goals add damage:fire 500`), start the progress over (saved) |
 | `pacer [n\|off [fps]]` | The engine's update pacing: n updates per drawn frame (2 by default), or off (as fast as it can, or capped at fps) |
 
 Scripted input, for tests and for checking frame data: `mouse off` (ignore the real mouse and let go of the cursor), `click <x> <y>` (a click on the

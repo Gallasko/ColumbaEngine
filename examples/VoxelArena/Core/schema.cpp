@@ -47,7 +47,7 @@ namespace arena::schema
         };
 
         const char* const ID_KINDS[] = {"block", "status", "element", "keyword", "model", "script", "enemy", "weapon",
-                                        "ability", "spell", "arena", "affix", "upgrade", "combo", "texture"};
+                                        "ability", "spell", "arena", "affix", "upgrade", "combo", "texture", "unlock"};
 
         struct Parser
         {

@@ -410,6 +410,33 @@ namespace arena::net
         return not r.failed;
     }
 
+    std::vector<uint8_t> encode(const LocksMsg& m, const Names& names)
+    {
+        Writer w;
+        w.u8(static_cast<uint8_t>(Msg::Locks));
+        std::vector<uint16_t> ids;
+        for (const auto& id : m.locked)
+            if (const uint16_t n = names.id(id); n != 0 and ids.size() < 1000)
+                ids.push_back(n);
+        w.u16(static_cast<uint16_t>(ids.size()));
+        for (const uint16_t n : ids)
+            w.u16(n);
+        return w.data;
+    }
+
+    bool decode(const std::vector<uint8_t>& data, LocksMsg& m, const Names& names)
+    {
+        Reader r(data);
+        if (r.u8() != static_cast<uint8_t>(Msg::Locks))
+            return false;
+        m.locked.clear();
+        const uint16_t n = r.u16();
+        for (uint16_t k = 0; k < n and k < 1000 and not r.failed; ++k)
+            if (const std::string& id = names.name(r.u16()); not id.empty())
+                m.locked.insert(id);
+        return not r.failed;
+    }
+
     std::vector<uint8_t> encode(const NameMsg& m)
     {
         Writer w;
@@ -762,6 +789,24 @@ namespace arena::net
             w.u16(names.id(id));
             w.u32(static_cast<uint32_t>(std::lround(std::clamp(damage, 0.0f, 4e9f))));
         }
+
+        // The achievements' counts: a kind (COUNT_KINDS) and a name each
+        std::vector<std::tuple<uint8_t, uint16_t, uint32_t>> counts;
+        for (const auto& [key, value] : f.stats.counts)
+        {
+            const size_t colon = key.find(':');
+            const std::string kind = key.substr(0, colon), id = colon == std::string::npos ? "" : key.substr(colon + 1);
+            for (uint8_t k = 0; k < std::size(COUNT_KINDS); ++k)
+                if (kind == COUNT_KINDS[k] and (id.empty() or names.id(id) != 0) and counts.size() < 128)
+                    counts.emplace_back(k, names.id(id), static_cast<uint32_t>(std::lround(std::clamp(value, 0.0f, 4e9f))));
+        }
+        w.u8(static_cast<uint8_t>(counts.size()));
+        for (const auto& [kind, id, value] : counts)
+        {
+            w.u8(kind);
+            w.u16(id);
+            w.u32(value);
+        }
     }
 
     bool readFighter(Reader& r, Fighter& f, const Names& names)
@@ -962,6 +1007,17 @@ namespace arena::net
             const float damage = static_cast<float>(r.u32());
             if (not id.empty())
                 f.stats.bySource[id] += damage;
+        }
+
+        f.stats.counts.clear();
+        const uint8_t counts = r.u8();
+        for (uint8_t k = 0; k < counts and not r.failed; ++k)
+        {
+            const uint8_t kind = r.u8();
+            const std::string id = names.name(r.u16());
+            const float value = static_cast<float>(r.u32());
+            if (kind < std::size(COUNT_KINDS))
+                f.stats.counts[std::string(COUNT_KINDS[kind]) + ":" + id] = value;
         }
         return withExtras;
     }

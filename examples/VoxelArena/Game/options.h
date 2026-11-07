@@ -31,6 +31,11 @@ namespace arena
         // The keys the player chose (the controls screen): action -> its first key, SDL scancode names
         // ("W", "Space") or Mouse1-Mouse5; what is not here keeps the tuning's
         std::map<std::string, std::string> keys;
+
+        // The controller: on or off (off until the player turns it on: Options, Controls, Controller), and the buttons
+        // the player chose there: action -> SDL button name ("a", "leftshoulder") or "lefttrigger" / "righttrigger"
+        bool gamepad = false;
+        std::map<std::string, std::string> padKeys;
     };
 
     std::string optionsPath();

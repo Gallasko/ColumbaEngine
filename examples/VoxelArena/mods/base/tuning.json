@@ -155,8 +155,8 @@
     // A controller's buttons, by action, as the keys above: SDL's names (a, b, x, y, back, start, leftstick,
     // rightstick, leftshoulder, rightshoulder, dpup, dpdown, dpleft, dpright) and lefttrigger / righttrigger.
     // The left stick moves, the right one looks (the options' sensitivity and invert Y). Start is Esc (the options).
-    // On a screen (the title, the shop, the level ups, the options) the left stick moves a cursor, A clicks, B is Esc
-    // and the d-pad is the arrows
+    // On a screen the d-pad or the left stick goes from button to button, A presses, B is Esc. The player rebinds them
+    // in the game (Options, Controls, Controller), kept over these
     "gamepad": {
         "jump": "a",
         "dodge": "b",

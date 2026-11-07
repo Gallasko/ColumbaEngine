@@ -1,0 +1,13 @@
+// A ring of fire all around you. Levels: harder, wider, a second ring. Unlocked by the "Inferno" goal (achievements.json).
+// In a run, level ups give spells and their next levels: each entry of "levels" is what that level
+// adds to the recipe (keywords, as in keywords.json).
+{
+    "name": "Flame burst",
+    "text": "A fiery explosion around you that sets enemies on fire.",
+    "recipe": ["fire", "nova", "enlarge"],
+    "levels": [["empower"], ["enlarge"], ["multiply"]],
+    "branches": [
+        { "name": "Ring of fire", "text": "Leaves burning ground behind.", "keywords": ["zone"] },
+        { "name": "Fan the flames", "text": "+60% damage to burning enemies.", "against": { "burn": 0.6 } }
+    ]
+}

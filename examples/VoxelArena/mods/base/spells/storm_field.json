@@ -1,0 +1,14 @@
+// An area of lightning that stuns whoever stands in it. Levels: harder, wider, longer. Unlocked by the "Storm caller"
+// goal (achievements.json).
+// In a run, level ups give spells and their next levels: each entry of "levels" is what that level
+// adds to the recipe (keywords, as in keywords.json).
+{
+    "name": "Storm field",
+    "text": "An electric area that stuns enemies in it.",
+    "recipe": ["volt", "zone", "enlarge", "extend"],
+    "levels": [["empower"], ["enlarge"], ["extend"]],
+    "branches": [
+        { "name": "Thunderhead", "text": "The area explodes when it ends.", "keywords": ["nova"] },
+        { "name": "Conduit", "text": "+50% damage to enemies that are burning, slowed or frozen.", "against": { "burn": 0.5, "chill": 0.5, "frozen": 0.5 } }
+    ]
+}

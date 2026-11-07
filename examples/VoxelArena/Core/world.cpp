@@ -342,7 +342,7 @@ namespace arena
         p.spells.resize(SPELL_SLOTS);
         // Joining a run as its first spells are picked: an offer of its own
         if (inRun())
-            p.firstSpellOffer = rollFirstSpells();
+            p.firstSpellOffer = rollFirstSpells(p);
 
         fighters.push_back(p);
         respawn(fighters.back());
@@ -3670,7 +3670,11 @@ namespace arena
                     const float dealt = std::clamp(damage, 0.0f, std::max(0.0f, target.health));
                     by->stats.damage += dealt;
                     if (dealt > 0.0f)
+                    {
                         by->stats.bySource[sourceOf(attacker, a)] += dealt;
+                        if (a.element != Element::None)
+                            by->stats.counts[std::string("damage:") + elementName(a.element)] += dealt;
+                    }
                 }
 
             takeDamage(target, damage);
@@ -3852,6 +3856,8 @@ namespace arena
 
             AttackDef hit = hitOf(id, comboDamageOf(c, attacker, hitDamage), c.poiseDamage, c.knockback, 4, 0.35f, c.element, c.status);
             hit.combo = true;
+            count(attacker.id, "combos:");
+            count(attacker.id, "combos:" + id);
             event(id, chest(target), c.radius, target.id, AIR, attacker.id);
 
             if (c.radius > 0.0f)
@@ -3919,7 +3925,16 @@ namespace arena
         {
             ++run.kills;
             if (Fighter* by = attackerId ? find(attackerId) : nullptr; by and by->team == Team::Player)
+            {
                 ++by->stats.kills;
+                by->stats.counts["kills:" + target.type] += 1.0f;
+                if (target.elite)
+                {
+                    by->stats.counts["elites:"] += 1.0f;
+                    for (const auto& affix : target.affixes)
+                        by->stats.counts["elites:" + affix] += 1.0f;
+                }
+            }
             if (auto def = content->enemies.find(target.type); def != content->enemies.end())
             {
                 run.score += def->second.score * (target.elite ? 2 : 1);
@@ -3994,6 +4009,14 @@ namespace arena
         return hit;
     }
 
+    void ArenaWorld::count(int playerId, const std::string& key, float amount)
+    {
+        if (not inRun() or playerId == 0)
+            return;
+        if (Fighter* by = find(playerId); by and by->team == Team::Player)
+            by->stats.counts[key] += amount;
+    }
+
     void ArenaWorld::applyStatus(Fighter& target, const std::string& id, int stacks, int source)
     {
         auto defIt = content->statuses.find(id);
@@ -4017,6 +4040,10 @@ namespace arena
         {
             target.statuses.push_back({id, def.duration, 0, source});
             it = target.statuses.end() - 1;
+
+            // A player leaving it on an enemy (frozen solid, set on fire): counted
+            if (target.team == Team::Enemy)
+                count(source, "status:" + id);
         }
 
         // The one who left it may make it last longer (items)
@@ -4069,6 +4096,11 @@ namespace arena
                 {
                     by->stats.damage += dealt;
                     by->stats.bySource[it->id] += dealt;
+
+                    // A status's damage is its element's (the element whose status it is: burning is fire)
+                    for (const auto& [element, def] : content->elements)
+                        if (def.status.status == it->id)
+                            by->stats.counts[std::string("damage:") + elementName(element)] += dealt;
                 }
 
                 if (f.health <= 0.0f)

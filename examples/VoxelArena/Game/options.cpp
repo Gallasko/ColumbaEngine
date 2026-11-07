@@ -144,6 +144,11 @@ namespace arena
             for (const auto& [action, key] : keys->object)
                 if (key.isString() and not key.string.empty())
                     o.keys[action] = key.string;
+        o.gamepad = j.flag("gamepad", o.gamepad);
+        if (const Json* keys = j.find("padKeys"); keys and keys->isObject())
+            for (const auto& [action, key] : keys->object)
+                if (key.isString() and not key.string.empty())
+                    o.padKeys[action] = key.string;
         out = o;
         return true;
     }
@@ -196,7 +201,16 @@ namespace arena
             file << (first ? "" : ",") << "\n        " << quoted(action) << ": " << quoted(key);
             first = false;
         }
-        file << (o.keys.empty() ? "" : "\n    ") << "}\n"
+        file << (o.keys.empty() ? "" : "\n    ") << "},\n"
+             << "    \"gamepad\": " << flag(o.gamepad) << ",\n"
+             << "    \"padKeys\": {";
+        first = true;
+        for (const auto& [action, key] : o.padKeys)
+        {
+            file << (first ? "" : ",") << "\n        " << quoted(action) << ": " << quoted(key);
+            first = false;
+        }
+        file << (o.padKeys.empty() ? "" : "\n    ") << "}\n"
              << "}\n";
         return static_cast<bool>(file);
     }

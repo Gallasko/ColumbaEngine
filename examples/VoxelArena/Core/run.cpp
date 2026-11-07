@@ -26,10 +26,14 @@ namespace arena
         return x;
     }
 
-    std::vector<std::string> ArenaWorld::rollFirstSpells()
+    std::vector<std::string> ArenaWorld::rollFirstSpells(const Fighter& f)
     {
-        // The pool shuffled (the run's seed), then taken in order: first one of each element not offered yet, then any
-        std::vector<std::string> pool = content->run.startChoices;
+        // The pool (what the player has unlocked of it) shuffled (the run's seed), then taken in order: first one of
+        // each element not offered yet, then any
+        std::vector<std::string> pool;
+        for (const auto& id : content->run.startChoices)
+            if (not locked(f, id))
+                pool.push_back(id);
         for (size_t i = pool.size(); i > 1; --i)
             std::swap(pool[i - 1], pool[runRandom() % i]);
 
@@ -774,7 +778,7 @@ namespace arena
             f.level = 1;
             f.shop.clear();
             f.levelOffer.clear();
-            f.firstSpellOffer = rollFirstSpells();
+            f.firstSpellOffer = rollFirstSpells(f);
             f.runSkills.clear();
             f.presents = f.banked = f.interest = 0;
             f.presentOffer.clear();
@@ -801,7 +805,7 @@ namespace arena
 
     void ArenaWorld::chooseWeapon(Fighter& f, const std::string& id)
     {
-        if (not content->weapons.count(id))
+        if (not content->weapons.count(id) or locked(f, id))
             return;
 
         // One weapon for the run: the one in hand before (the start kit's) goes
@@ -1329,7 +1333,7 @@ namespace arena
 
         for (const auto& [id, u] : content->upgrades)
         {
-            if ((u.most > 0 and taken(id) >= u.most) or offered(id) or itemMaxed(f, u))
+            if ((u.most > 0 and taken(id) >= u.most) or offered(id) or itemMaxed(f, u) or locked(f, id))
                 continue;
             if (u.forTag() and std::find(tags.begin(), tags.end(), u.tag) == tags.end())
                 continue;
@@ -1359,7 +1363,7 @@ namespace arena
             };
 
             for (const auto& [id, price] : def.unlocks)
-                if (not owns(f, id) and not offered(id) and forSale(id))
+                if (not owns(f, id) and not offered(id) and forSale(id) and not locked(f, id))
                     open.push_back({id, price, false});
         }
 
@@ -1445,7 +1449,8 @@ namespace arena
         // together, as one choice). Nothing banished
         fresh.clear();
         upgrades.clear();
-        auto banished = [&](const std::string& id) { return std::find(f.banished.begin(), f.banished.end(), id) != f.banished.end(); };
+        // Banished, or not unlocked yet: never offered
+        auto banished = [&](const std::string& id) { return locked(f, id) or std::find(f.banished.begin(), f.banished.end(), id) != f.banished.end(); };
 
         auto grow = [&](const std::string& id, int level, int branch, int written, size_t branches) {
             if (banished(id))
@@ -1453,8 +1458,12 @@ namespace arena
             std::vector<std::string> choice;
             if (level + 1 == branchAt(written) and branches > 0 and branch < 0)
             {
+                // The branches unlocked (all locked: it grows on without one)
                 for (size_t b = 0; b < branches; ++b)
-                    choice.push_back(id + "#" + std::to_string(b));
+                    if (not locked(f, id + "#" + std::to_string(b)))
+                        choice.push_back(id + "#" + std::to_string(b));
+                if (choice.empty())
+                    choice.push_back(id);
             }
             else
             {

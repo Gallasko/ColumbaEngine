@@ -16,6 +16,22 @@ namespace arena
         int players = 1, maxPlayers = 8;
         float time = 0.0f;
         bool quitArmed = false;         // Quit clicked once: the next click quits
+        int goalsDone = 0, goals = 0;   // the achievements reached, of all of them
+    };
+
+    /** The achievements, from the title: every goal, how far it is, and what it unlocks. A page at a time. */
+    struct AchievementsView
+    {
+        struct Goal
+        {
+            std::string name, text, unlocks, icon;   // unlocks: "Inferno, Ember ring"
+            float have = 0.0f, goal = 1.0f;
+            bool done = false;
+        };
+        std::vector<Goal> goals;
+        int page = 0;
+        int done = 0;
+        int unlockedPercent = 100;      // of the content goals unlock
     };
 
     /** The end of a run (section 9). */
@@ -49,6 +65,13 @@ namespace arena
             ui::Colour colour;
         };
         std::vector<Source> sources;
+
+        // The goals this run reached, and what each one unlocked
+        struct Goal
+        {
+            std::string name, unlocks;
+        };
+        std::vector<Goal> goals;
     };
 
     /** The lobby (multiplayer's title): who is in, ready or not, how friends join, start or ready. */
@@ -116,6 +139,7 @@ namespace arena
             float regen = 0.0f;             // health a second while in hand
             std::vector<std::string> skills;
             bool chosen = false;
+            std::string locked;             // not unlocked yet: the goal that unlocks it ("" open)
         };
 
         std::vector<Weapon> weapons;
@@ -164,6 +188,8 @@ namespace arena
         std::vector<Row> rows;
         int split = 0;                      // the rows from this one go in the right column
         std::string message;
+        bool pad = false;                   // the Controller tab (else Keyboard): its buttons, its on / off
+        bool padEnabled = true;
     };
 
     namespace screens
@@ -174,6 +200,10 @@ namespace arena
         constexpr int LOBBY_READY = 5;   // the host's start is TITLE_ARENA
         constexpr int TITLE_MULTIPLAYER = 10;
         constexpr int TITLE_INVITE = 6, TITLE_JOIN = 7, LOBBY_LEAVE = 8, TITLE_QUIT = 9;
+        constexpr int TITLE_ACHIEVEMENTS = 13;
+        constexpr int ACHIEVEMENTS_CLOSE = 1200, ACHIEVEMENTS_PREV = 1201, ACHIEVEMENTS_NEXT = 1202;
+        constexpr int ACHIEVEMENTS_PER_PAGE = 15;
+        void drawAchievements(Ui& ui, const AchievementsView& v);
 
         /** Quit game, at the bottom of the title and the lobby (a second click quits). */
         void drawQuit(Ui& ui, float x, float y, bool armed);
@@ -182,6 +212,7 @@ namespace arena
         constexpr int ARMORY_SPELL = 650;  // + the first spell's index
         constexpr int ARMORY_BACK = 690;   // back to the weapons
         constexpr int CONTROLS_RESET = 698, CONTROLS_BACK = 699, CONTROLS_ROW = 700;   // + the row's index
+        constexpr int CONTROLS_TAB_KEYS = 691, CONTROLS_TAB_PAD = 692, CONTROLS_PAD_TOGGLE = 693;
         constexpr int DIFFICULTY_BACK = 799, DIFFICULTY_PICK = 800;   // + the level
         void drawDifficulty(Ui& ui, const DifficultyView& v);
         void drawControls(Ui& ui, const ControlsView& v);

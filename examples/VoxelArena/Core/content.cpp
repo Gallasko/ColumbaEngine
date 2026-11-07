@@ -865,7 +865,8 @@ namespace arena
             // One file, one entry per definition: statuses (burning, chilled...), the elements of spells,
             // the keywords of spells
             for (const auto& [kind, name] : std::vector<std::pair<std::string, std::string>>{{"status", "statuses.json"}, {"element", "elements.json"}, {"keyword", "keywords.json"},
-                                                                                                 {"upgrade", "upgrades.json"}, {"combo", "combos.json"}, {"affix", "affixes.json"}})
+                                                                                                 {"upgrade", "upgrades.json"}, {"combo", "combos.json"}, {"affix", "affixes.json"},
+                                                                                                 {"achievement", "achievements.json"}})
             {
                 const auto file = (dir / name).string();
 
@@ -2490,6 +2491,82 @@ namespace arena
             }
         }
 
+        void typeAchievements(Content& content)
+        {
+            auto& report = content.report;
+
+            auto modIndex = [&](const std::string& mod) {
+                for (size_t i = 0; i < content.mods.size(); ++i)
+                    if (content.mods[i].id == mod)
+                        return static_cast<int>(i);
+                return 0;
+            };
+
+            for (const auto& [id, raw] : content.raw["achievement"])
+            {
+                const Json& j = raw.data;
+                if (not j.isObject())
+                {
+                    report.error(raw.file, j.line, "achievement \"" + id + "\" must be an object");
+                    continue;
+                }
+                checkKeys(j, "achievement", raw.file, report, "achievement " + id);
+
+                AchievementDef a;
+                a.id = id;
+                a.name = splitId(id).second;
+                readStr(j, "name", a.name, raw.file, report);
+                readStr(j, "text", a.text, raw.file, report);
+                readStr(j, "stat", a.stat, raw.file, report);
+                readNum(j, "goal", a.goal, raw.file, report);
+                a.order = modIndex(raw.mod) * 100000 + j.line;
+
+                if (a.stat.empty() or a.goal <= 0.0f)
+                {
+                    report.error(raw.file, j.line, "achievement \"" + id + "\" needs a \"stat\" and a \"goal\" above 0");
+                    continue;
+                }
+
+                // What it unlocks: a weapon, a spell, a technique, an item, or a branch of one ("sword#0")
+                std::vector<std::string> unlocks;
+                readStringList(j, "unlocks", unlocks, raw.file, report);
+                for (const auto& u : unlocks)
+                {
+                    const size_t hash = u.find('#');
+                    const std::string base = resolveId(hash == std::string::npos ? u : u.substr(0, hash), raw.mod);
+                    const int branch = hash == std::string::npos ? -1 : std::atoi(u.c_str() + hash + 1);
+
+                    size_t branches = 0;
+                    bool known = true;
+                    if (auto s = content.spells.find(base); s != content.spells.end())
+                        branches = s->second.branches.size();
+                    else if (auto ab = content.abilities.find(base); ab != content.abilities.end())
+                        branches = ab->second.branches.size();
+                    else if (auto w = content.weapons.find(base); w != content.weapons.end())
+                        branches = w->second.branches.size();
+                    else
+                        known = content.upgrades.count(base) > 0;
+
+                    if (not known or (branch >= 0 and static_cast<size_t>(branch) >= branches))
+                    {
+                        report.error(raw.file, j.find("unlocks") ? j.find("unlocks")->line : j.line,
+                                     "achievement \"" + id + "\" unlocks \"" + u + "\": no weapon, spell, technique or item (or that branch) of that name");
+                        continue;
+                    }
+                    a.unlocks.push_back(branch >= 0 ? base + "#" + std::to_string(branch) : base);
+                }
+
+                for (const auto& u : a.unlocks)
+                    content.unlockedBy[u].push_back(id);
+                content.achievements[id] = std::move(a);
+            }
+
+            for (const auto& [id, a] : content.achievements)
+                content.achievementOrder.push_back(id);
+            std::stable_sort(content.achievementOrder.begin(), content.achievementOrder.end(),
+                             [&](const std::string& x, const std::string& y) { return content.achievements.at(x).order < content.achievements.at(y).order; });
+        }
+
         void typeAffixes(Content& content)
         {
             auto& report = content.report;
@@ -3145,6 +3222,7 @@ namespace arena
         typeArenas(content);
         typeRun(content);
         joinTechniques(content);
+        typeAchievements(content);
         checkTiers(content);
         typeArena(content);
 

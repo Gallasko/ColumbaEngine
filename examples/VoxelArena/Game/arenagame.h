@@ -26,6 +26,7 @@
 #include "Core/world.h"
 
 #include "Core/effects.h"
+#include "Core/progress.h"
 #include "spellbook.h"
 #include "options.h"
 #include "shop.h"
@@ -230,8 +231,21 @@ namespace arena
         int padId = -1;                         // the controller last used (for its rumble)
         bool padActive = false;                 // the controller was used last (not the keyboard or the mouse): its
                                                 // buttons on the HUD, a cursor on the screens
-        float padCursorX = -1.0f, padCursorY = -1.0f;   // the screens' cursor, window pixels (the left stick moves it)
-        bool padOnScreen = false;               // a screen took the controller last frame (a new one centres the cursor)
+        // The screens with a controller: the button picked (its action, where it is), moved along by the d-pad or the stick
+        int padFocusAction = 0;
+        glm::vec2 padFocusAt = glm::vec2(0.0f);
+        glm::vec4 padFocusRect = glm::vec4(0.0f);   // window pixels: x0, y0, x1, y1
+        glm::vec2 padNavDir = glm::vec2(0.0f);       // the direction held, and when it moves on again
+        float padNavTimer = 0.0f;
+        bool padOnScreen = false;               // a screen took the controller last frame (a new one starts on its first button)
+        // The controls screen's Controller tab: its rows, and an action waiting for its new button (the next one
+        // pressed, under inputMutex; Start cancels)
+        bool controlsPad = false;
+        std::string padRebinding;
+        int padCaptured = -1;
+        static const std::vector<std::pair<std::string, std::string>>& padRows();
+        void bindPad(const std::string& action, int button);
+        static std::string padButtonName(int button);
         bool padHeld(const std::string& action) const;
         bool padPressed(const std::string& action) const;
         /** A stick, its dead zone taken out (0 inside, then rising to 1): x right, y down as SDL has it. */
@@ -497,6 +511,23 @@ namespace arena
         std::vector<std::string> levelLines(int level) const;   // what a level changes, in words, a line each
         std::string arenaLine(int level) const;   // "10 timed waves, a shop between them, a boss at the end"
         void runHud(Hud::View& v);
+
+        // The achievements (achievements.json): this player's progress, what it still locks, their screen
+        Progress progress;
+        std::set<std::string> lockedNow;
+        bool runCounted = true;                   // this run is in the progress already (or there is no run)
+        std::vector<std::string> goalsJustReached;   // by the run that just ended: its end screen says so
+        bool achievementsOpen = false;
+        int achievementsPage = 0;
+        void refreshLocks();
+        /** The run so far goes into the progress (once): at its end, or when leaving it. */
+        void countThisRun(bool won);
+        /** A weapon's, a spell's, a technique's or an item's name, or a branch's ("Sword: Riposte"). */
+        std::string unlockName(const std::string& id) const;
+        std::string unlocksLine(const AchievementDef& a) const;   // "Inferno, Ember ring"
+        /** What unlocks a locked id, in words: the first goal not reached ("Deal 5 000 burn damage"). */
+        std::string lockedBecause(const std::string& id) const;
+        void drawAchievements();
         /** A recap's line for what dealt damage (RunStats::bySource): its name as the player knows it, its colour. */
         EndView::Source damageSource(const std::string& id, int damage) const;
         struct SpawnMark

@@ -812,6 +812,20 @@ namespace arena
         SplitDef split;
     };
 
+    /**
+     * A goal of the game (achievements.json), kept from run to run: reach `goal` of `stat` (what a player did in all
+     * their runs: "damage:base:burn", "kills:base:brute", "wins:base:sword"... see the README) and what `unlocks`
+     * comes into the runs. Anything a goal unlocks is locked until it is reached; anything no goal names is open.
+     */
+    struct AchievementDef
+    {
+        std::string id, name, text;
+        std::string stat;
+        float goal = 1.0f;
+        std::vector<std::string> unlocks;   // weapons, spells, techniques, items, branches ("base:sword#0")
+        int order = 0;                      // its place on the achievements screen: the mods' order, then the file's
+    };
+
     /** How rare a shop item is: its numbers and its price times these, and how often it comes up. */
     struct RarityDef
     {
@@ -1020,6 +1034,10 @@ namespace arena
 
         std::map<std::string, UpgradeDef> upgrades;  // upgrades.json: the boons of a run
         std::map<std::string, AffixDef> affixes;     // affixes.json: what elites come with
+        std::map<std::string, AchievementDef> achievements;   // achievements.json: the goals, and what they unlock
+        std::vector<std::string> achievementOrder;   // their ids in their order
+        /** Every id a goal unlocks, and the goals that unlock it (any one of them is enough). */
+        std::map<std::string, std::vector<std::string>> unlockedBy;
         RunDef run;                                  // run.json (the last mod with one)
 
         std::map<std::string, std::shared_ptr<VoxelModel>> models;

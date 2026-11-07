@@ -425,6 +425,8 @@ namespace arena
             std::ifstream bestFile(std::filesystem::path(spellbookPath()).parent_path() / "best.txt");
             bestFile >> bestScore;
 
+            loadProgress(progressPath(), progress);
+
             // The difficulty levels opened so far, and the one picked last
             std::ifstream levelsFile(std::filesystem::path(userDataDir()) / "levels.txt");
             levelsFile >> levelOpen >> levelPicked;
@@ -465,6 +467,8 @@ namespace arena
         const auto recipes = readSounds(content.sounds, content.report);
         effects = readEffects(content.effects, recipes, content.report);
         sounds.load(recipes, (std::filesystem::temp_directory_path() / "voxelarena-sounds").string(), content.report);
+
+        refreshLocks();
 
         meshDirty = true;
         masterRenderer->getCamera().setFovDegrees(fov());
@@ -661,14 +665,23 @@ namespace arena
                                 names.push_back(e.string);
                 }
 
+            // The player's own (the controls screen) first, the tuning's after it
+            if (auto own = prefs.padKeys.find(action); own != prefs.padKeys.end())
+                names.insert(names.begin(), own->second);
+
             for (const auto& n : names)
             {
                 int button = n == "lefttrigger" ? PAD_LEFT_TRIGGER : n == "righttrigger" ? PAD_RIGHT_TRIGGER : SDL_GameControllerGetButtonFromString(n.c_str());
+                auto& list = padControls[action];
                 if (button == SDL_CONTROLLER_BUTTON_INVALID)
                     content.report.warn(content.tuningFile, 0, "gamepad: unknown button \"" + n + "\" (a, b, x, y, leftshoulder, lefttrigger, dpup, start...)");
-                else
-                    padControls[action].push_back(button);
+                else if (std::find(list.begin(), list.end(), button) == list.end())
+                    list.push_back(button);
             }
+
+            // The player's choice replaces: the tuning's first button is gone when the player chose another
+            if (auto own = prefs.padKeys.find(action); own != prefs.padKeys.end() and padControls[action].size() > 1)
+                padControls[action].resize(1);
         }
 
         // The player's own keys (the controls screen): each replaces its action's first key
@@ -728,6 +741,16 @@ namespace arena
     {
         std::lock_guard<std::mutex> lock(inputMutex);
         const int button = static_cast<int>(event.button);
+
+        // The controls screen waits for a new button: this one, nothing else
+        if (not padRebinding.empty())
+        {
+            padCaptured = button;
+            return;
+        }
+        if (not prefs.gamepad)
+            return;
+
         if (not padDown.count(button))
         {
             padStepPresses.insert(button);
@@ -751,6 +774,17 @@ namespace arena
 
         std::lock_guard<std::mutex> lock(inputMutex);
         const float v = std::clamp(static_cast<float>(event.value) / 32767.0f, -1.0f, 1.0f);
+
+        // A trigger pulled while the controls screen waits for a new button: that trigger
+        if (not padRebinding.empty())
+        {
+            if (v > 0.5f and (event.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT or event.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT))
+                padCaptured = event.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT ? PAD_LEFT_TRIGGER : PAD_RIGHT_TRIGGER;
+            return;
+        }
+        if (not prefs.gamepad)
+            return;
+
         padAxis[event.axis] = v;
 
         // A trigger is a button past half way
@@ -834,51 +868,133 @@ namespace arena
             keyPresses.push_back({scancode, false, 0});
         };
 
-        // On the screens: the left stick moves a cursor (the mouse's place: what is under it lights up), A clicks there,
-        // B and Start are Esc, the d-pad is the arrows
+        // On the screens: the d-pad (or the left stick) moves from one button to the next in that direction, A presses
+        // the one picked, B and Start are Esc. The buttons are the screen's click regions: every screen works so, as
+        // it is drawn for the mouse. The mouse is put on the one picked, so it lights up as under the mouse
         const bool screen = uiTakesClicks() and not consoleOpen;
         const bool opened = screen and not padOnScreen;
         padOnScreen = screen;
 
         if (screen)
         {
-            // A screen just came up: the cursor starts in its middle
-            if (padCursorX < 0.0f or opened)
-            {
-                padCursorX = screenW * 0.5f;
-                padCursorY = screenH * 0.5f;
-            }
-            // Across the window's height in a little over a second at full tilt, slower when only nudged
-            const float speed = screenH * 0.8f * frameSeconds;
-            padCursorX = std::clamp(padCursorX + (move.x * std::fabs(move.x) * 0.75f + move.x * 0.25f) * speed, 0.0f, screenW - 1.0f);
-            padCursorY = std::clamp(padCursorY + (move.y * std::fabs(move.y) * 0.75f + move.y * 0.25f) * speed, 0.0f, screenH - 1.0f);
+            // The buttons a click would reach: on top at their middle (not under a menu drawn over them)
+            std::vector<Ui::Region> targets;
+            for (const auto& r : ui.clickRegions())
+                if (r.action > 0 and r.x1 - r.x0 > 2.0f and r.y1 - r.y0 > 2.0f and ui.hitAt((r.x0 + r.x1) * 0.5f, (r.y0 + r.y1) * 0.5f) == r.action)
+                    targets.push_back(r);
 
+            // The one picked: the same action as before, nearest where it was; else (a new screen) the first drawn
+            const Ui::Region* current = nullptr;
+            float nearest = 1e9f;
+            if (not opened)
+                for (const auto& t : targets)
+                    if (t.action == padFocusAction)
+                    {
+                        const float d = glm::length(glm::vec2((t.x0 + t.x1) * 0.5f, (t.y0 + t.y1) * 0.5f) - padFocusAt);
+                        if (d < nearest)
+                        {
+                            nearest = d;
+                            current = &t;
+                        }
+                    }
+            if (not current and not targets.empty())
+                current = &targets.front();
+
+            // A direction held: the next one at once, then again every so often while it is held
+            glm::vec2 dir(0.0f);
             {
                 std::lock_guard<std::mutex> lock(inputMutex);
-                if (glm::length(move) > 0.0f or not presses.empty())
+                if (padDown.count(SDL_CONTROLLER_BUTTON_DPAD_LEFT)) dir.x = -1.0f;
+                else if (padDown.count(SDL_CONTROLLER_BUTTON_DPAD_RIGHT)) dir.x = 1.0f;
+                else if (padDown.count(SDL_CONTROLLER_BUTTON_DPAD_UP)) dir.y = -1.0f;
+                else if (padDown.count(SDL_CONTROLLER_BUTTON_DPAD_DOWN)) dir.y = 1.0f;
+            }
+            if (dir == glm::vec2(0.0f) and glm::length(move) > 0.55f)
+                dir = std::fabs(move.x) > std::fabs(move.y) ? glm::vec2(move.x > 0.0f ? 1.0f : -1.0f, 0.0f) : glm::vec2(0.0f, move.y > 0.0f ? 1.0f : -1.0f);
+
+            // A press of the d-pad moves at once, even let go before this frame (a quick tap)
+            for (const int b : presses)
+            {
+                glm::vec2 tap(0.0f);
+                if (b == SDL_CONTROLLER_BUTTON_DPAD_LEFT) tap.x = -1.0f;
+                else if (b == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) tap.x = 1.0f;
+                else if (b == SDL_CONTROLLER_BUTTON_DPAD_UP) tap.y = -1.0f;
+                else if (b == SDL_CONTROLLER_BUTTON_DPAD_DOWN) tap.y = 1.0f;
+                if (tap != glm::vec2(0.0f))
                 {
-                    mouseX = padCursorX;
-                    mouseY = padCursorY;
+                    dir = tap;
+                    padNavDir = glm::vec2(0.0f);   // stepped below as a new direction
                 }
             }
+
+            bool step = false;
+            if (dir == glm::vec2(0.0f))
+                padNavDir = dir;
+            else if (dir != padNavDir)
+            {
+                padNavDir = dir;
+                padNavTimer = 0.38f;
+                step = true;
+            }
+            else if ((padNavTimer -= frameSeconds) <= 0.0f)
+            {
+                padNavTimer = 0.13f;
+                step = true;
+            }
+
+            // The next one that way: the nearest ahead, a button in line with this one before one off to the side
+            if (step and current)
+            {
+                const glm::vec2 from((current->x0 + current->x1) * 0.5f, (current->y0 + current->y1) * 0.5f);
+                const Ui::Region* best = nullptr;
+                float bestScore = 1e9f;
+                for (const auto& t : targets)
+                {
+                    if (&t == current)
+                        continue;
+                    const glm::vec2 to((t.x0 + t.x1) * 0.5f, (t.y0 + t.y1) * 0.5f);
+                    const float along = glm::dot(to - from, dir);
+                    if (along <= 4.0f)
+                        continue;
+
+                    // Off to the side: how far its edges are from this one's (0 when they overlap across the move)
+                    const bool horizontal = dir.x != 0.0f;
+                    const float lo = horizontal ? t.y0 : t.x0, hi = horizontal ? t.y1 : t.x1;
+                    const float curLo = horizontal ? current->y0 : current->x0, curHi = horizontal ? current->y1 : current->x1;
+                    const float side = hi < curLo ? curLo - hi : (lo > curHi ? lo - curHi : 0.0f);
+
+                    const float score = along + side * 3.0f;
+                    if (score < bestScore)
+                    {
+                        bestScore = score;
+                        best = &t;
+                    }
+                }
+                if (best)
+                    current = best;
+            }
+
+            if (current)
+            {
+                padFocusAction = current->action;
+                padFocusAt = glm::vec2((current->x0 + current->x1) * 0.5f, (current->y0 + current->y1) * 0.5f);
+                padFocusRect = glm::vec4(current->x0, current->y0, current->x1, current->y1);
+                std::lock_guard<std::mutex> lock(inputMutex);
+                mouseX = padFocusAt.x;
+                mouseY = padFocusAt.y;
+            }
+            else
+                padFocusAction = 0;
 
             for (const int b : presses)
             {
-                if (b == SDL_CONTROLLER_BUTTON_A)
+                if (b == SDL_CONTROLLER_BUTTON_A and current)
                 {
                     std::lock_guard<std::mutex> lock(inputMutex);
-                    uiClicks.emplace_back(padCursorX, padCursorY);
+                    uiClicks.emplace_back(padFocusAt.x, padFocusAt.y);
                 }
                 else if (b == SDL_CONTROLLER_BUTTON_B or b == SDL_CONTROLLER_BUTTON_START)
                     key(SDL_SCANCODE_ESCAPE);
-                else if (b == SDL_CONTROLLER_BUTTON_DPAD_UP)
-                    key(SDL_SCANCODE_UP);
-                else if (b == SDL_CONTROLLER_BUTTON_DPAD_DOWN)
-                    key(SDL_SCANCODE_DOWN);
-                else if (b == SDL_CONTROLLER_BUTTON_DPAD_LEFT)
-                    key(SDL_SCANCODE_LEFT);
-                else if (b == SDL_CONTROLLER_BUTTON_DPAD_RIGHT)
-                    key(SDL_SCANCODE_RIGHT);
             }
             return;
         }
@@ -924,10 +1040,7 @@ namespace arena
         mouseX = static_cast<float>(event.x);
         mouseY = static_cast<float>(event.y);
         if (std::abs(event.xrel) + std::abs(event.yrel) > 2)
-        {
             padActive = false;
-            padCursorX = padCursorY = -1.0f;
-        }
 
         // A lock the browser has not granted yet (or WSL before its helper holds the cursor): the cursor is free
         if (not cursorLocked or (window and not window->isCursorCaptured()))
@@ -1155,7 +1268,26 @@ namespace arena
             }
         }
 
-        // The controller: the screens' cursor, and its presses that are keys there
+        // The controls screen got its new button (Start cancels)
+        {
+            std::string action;
+            int button = -1;
+            {
+                std::lock_guard<std::mutex> lock(inputMutex);
+                if (not padRebinding.empty() and padCaptured >= 0)
+                {
+                    action = padRebinding;
+                    button = padCaptured;
+                    padRebinding.clear();
+                    padCaptured = -1;
+                    padFramePresses.clear();   // the press is the binding, not a click
+                }
+            }
+            if (not action.empty() and button != SDL_CONTROLLER_BUTTON_START)
+                bindPad(action, button);
+        }
+
+        // The controller: the screens' pick, and its presses that are keys there
         padFrame(frameSeconds);
 
         // Debug keys and the console
@@ -1240,6 +1372,15 @@ namespace arena
             // The controls: the key pressed is the new one (Esc cancels); else Esc goes back to the options
             if (controlsOpen)
             {
+                {
+                    std::lock_guard<std::mutex> lock(inputMutex);
+                    if (not padRebinding.empty() and p.scancode == SDL_SCANCODE_ESCAPE)
+                    {
+                        padRebinding.clear();
+                        continue;
+                    }
+                }
+
                 if (not rebinding.empty())
                 {
                     if (p.scancode == SDL_SCANCODE_ESCAPE)
@@ -1354,6 +1495,18 @@ namespace arena
                 continue;
             }
 
+            // The achievements, over the title: Esc closes, the arrows turn the pages
+            if (titleOpen and achievementsOpen)
+            {
+                if (p.scancode == SDL_SCANCODE_ESCAPE or p.scancode == SDL_SCANCODE_A)
+                    achievementsOpen = false;
+                else if (p.scancode == SDL_SCANCODE_LEFT or p.scancode == SDL_SCANCODE_PAGEUP)
+                    --achievementsPage;
+                else if (p.scancode == SDL_SCANCODE_RIGHT or p.scancode == SDL_SCANCODE_PAGEDOWN)
+                    ++achievementsPage;
+                continue;
+            }
+
             if (titleOpen and keyIs(p.scancode, "invite"))
             {
                 inviteOpen = true;
@@ -1379,6 +1532,8 @@ namespace arena
                 }
                 else if (p.scancode == SDL_SCANCODE_T)
                     titleOpen = false;
+                else if (p.scancode == SDL_SCANCODE_A)
+                    achievementsOpen = true;
                 else if (p.scancode == SDL_SCANCODE_ESCAPE)
                     setOptionsOpen(true);
                 continue;
@@ -1725,6 +1880,12 @@ namespace arena
         if (server)
             pollServer();
 
+        // What this player has not unlocked yet stays out of its runs (a client's server is told)
+        if (Fighter* me = world.player(); me and me->locked != lockedNow)
+            me->locked = lockedNow;
+        if (client)
+            client->setLocked(lockedNow);
+
         // Paused while the spellbook is open, playing alone (a shared game goes on)
         if (not paused and not ((bookOpen or titleOpen or optionsOpen) and alone()))
             accumulator += static_cast<double>(frameSeconds) * timeScale * tuning.feel.gameSpeed;
@@ -1916,6 +2077,108 @@ namespace arena
         }
     }
 
+    void ArenaGame::refreshLocks()
+    {
+        lockedNow = lockedContent(progress, content);
+    }
+
+    void ArenaGame::countThisRun(bool won)
+    {
+        const Fighter* me = world.player();
+        if (runCounted or not me)
+            return;
+        runCounted = true;
+
+        countRun(progress, *me, world.run, won);
+        const auto reached = reachGoals(progress, content);
+        goalsJustReached.insert(goalsJustReached.end(), reached.begin(), reached.end());
+        saveProgress(progressPath(), progress);
+
+        if (not reached.empty())
+        {
+            refreshLocks();
+            for (const auto& id : reached)
+            {
+                const AchievementDef& a = content.achievements.at(id);
+                print("goal reached: " + a.name + (a.unlocks.empty() ? "" : " - new: " + unlocksLine(a)));
+            }
+        }
+    }
+
+    std::string ArenaGame::unlockName(const std::string& id) const
+    {
+        const size_t hash = id.find('#');
+        const std::string base = id.substr(0, hash);
+        const int branch = hash == std::string::npos ? -1 : std::atoi(id.c_str() + hash + 1);
+
+        std::string name = splitId(base).second;
+        const std::vector<BranchDef>* branches = nullptr;
+        if (auto s = content.spells.find(base); s != content.spells.end())
+            name = s->second.name, branches = &s->second.branches;
+        else if (auto ab = content.abilities.find(base); ab != content.abilities.end())
+            name = ab->second.name, branches = &ab->second.branches;
+        else if (auto w = content.weapons.find(base); w != content.weapons.end())
+            name = w->second.name, branches = &w->second.branches;
+        else if (auto u = content.upgrades.find(base); u != content.upgrades.end())
+            name = u->second.name;
+
+        if (branches and branch >= 0 and static_cast<size_t>(branch) < branches->size())
+            name += ": " + (*branches)[static_cast<size_t>(branch)].name;
+        return name;
+    }
+
+    std::string ArenaGame::unlocksLine(const AchievementDef& a) const
+    {
+        std::string line;
+        for (const auto& id : a.unlocks)
+            line += (line.empty() ? "" : ", ") + unlockName(id);
+        return line;
+    }
+
+    std::string ArenaGame::lockedBecause(const std::string& id) const
+    {
+        const auto it = content.unlockedBy.find(id);
+        if (it == content.unlockedBy.end() or it->second.empty())
+            return "";
+        const AchievementDef& a = content.achievements.at(it->second.front());
+        return a.text.empty() ? a.name : a.text;
+    }
+
+    void ArenaGame::drawAchievements()
+    {
+        AchievementsView v;
+        v.page = achievementsPage;
+
+        for (const auto& id : content.achievementOrder)
+        {
+            const AchievementDef& a = content.achievements.at(id);
+            AchievementsView::Goal g;
+            g.name = a.name;
+            g.text = a.text;
+            g.unlocks = unlocksLine(a);
+            // Its icon: the first thing it unlocks (an item's own icon when it has one)
+            const std::string first = a.unlocks.empty() ? "" : a.unlocks.front().substr(0, a.unlocks.front().find('#'));
+            g.icon = first.empty() ? "star" : offerIcon(content, first);
+            if (auto u = content.upgrades.find(first); u != content.upgrades.end() and not u->second.look.icon.empty())
+                g.icon = u->second.look.icon;
+            g.goal = a.goal;
+            g.have = goalProgress(progress, a);
+            g.done = progress.done.count(id) > 0;
+            v.done += g.done ? 1 : 0;
+            v.goals.push_back(g);
+        }
+
+        // Of everything a run can offer (weapons, spells, techniques, items): what is open now
+        const size_t all = content.weapons.size() + content.spells.size() + content.abilities.size() + content.upgrades.size();
+        const size_t shut = static_cast<size_t>(std::count_if(lockedNow.begin(), lockedNow.end(), [](const std::string& id) { return id.find('#') == std::string::npos; }));
+        v.unlockedPercent = all == 0 ? 100 : static_cast<int>(100.0 * static_cast<double>(all - std::min(all, shut)) / static_cast<double>(all));
+
+        const int pages = std::max(1, (static_cast<int>(v.goals.size()) + screens::ACHIEVEMENTS_PER_PAGE - 1) / screens::ACHIEVEMENTS_PER_PAGE);
+        achievementsPage = std::clamp(achievementsPage, 0, pages - 1);
+        v.page = achievementsPage;
+        screens::drawAchievements(ui, v);
+    }
+
     void ArenaGame::pickLevel(int level)
     {
         levelOpen = std::clamp(levelOpen, 0, content.run.levels() - 1);
@@ -2052,7 +2315,19 @@ namespace arena
             }
         }
 
-        // A run just ended: the best score
+        // A run starts: counted when it ends
+        if (r.phase != lastPhase and (r.phase == RunPhase::Armory or r.phase == RunPhase::Fighting)
+            and (lastPhase == RunPhase::Off or lastPhase == RunPhase::Difficulty or lastPhase == RunPhase::Victory or lastPhase == RunPhase::Defeat))
+        {
+            runCounted = false;
+            goalsJustReached.clear();
+        }
+
+        // A run just ended: into the progress
+        if (r.phase != lastPhase and (r.phase == RunPhase::Victory or r.phase == RunPhase::Defeat))
+            countThisRun(r.phase == RunPhase::Victory);
+
+        // ... and the best score
         if (r.phase != lastPhase and (r.phase == RunPhase::Victory or r.phase == RunPhase::Defeat) and r.score > bestScore)
         {
             bestScore = r.score;
@@ -3193,6 +3468,63 @@ namespace arena
         return rows;
     }
 
+    const std::vector<std::pair<std::string, std::string>>& ArenaGame::padRows()
+    {
+        // The controller's rebindable ones (the sticks move and look; Start is the options)
+        static const std::vector<std::pair<std::string, std::string>> rows = {
+            {"jump", "Jump"}, {"dodge", "Dodge / sprint"}, {"light", "Light attack"}, {"heavy", "Heavy attack"},
+            {"crouch", "Fast fall"}, {"toggleView", "Change view"}, {"nextWeapon", "Next weapon"},
+            {"ability5", "Spell 1"}, {"ability6", "Spell 2"}, {"ability7", "Spell 3"},
+            {"ability4", "Weapon skill 1"}, {"ability8", "Weapon skill 2"},
+            {"ability1", "Raise wall"}, {"ability2", "Dig pit"}, {"ability3", "Mine"},
+        };
+        return rows;
+    }
+
+    std::string ArenaGame::padButtonName(int button)
+    {
+        if (button == PAD_LEFT_TRIGGER)
+            return "lefttrigger";
+        if (button == PAD_RIGHT_TRIGGER)
+            return "righttrigger";
+        const char* name = SDL_GameControllerGetStringForButton(static_cast<SDL_GameControllerButton>(button));
+        return name ? name : "";
+    }
+
+    void ArenaGame::bindPad(const std::string& action, int button)
+    {
+        const std::string name = padButtonName(button);
+        if (name.empty())
+            return;
+
+        auto first = [&](const std::string& a) {
+            auto it = padControls.find(a);
+            return it != padControls.end() and not it->second.empty() ? it->second.front() : -1;
+        };
+        const int old = first(action);
+
+        // Another action of the list on that button gets this one's old button: they swap
+        for (const auto& [other, label] : padRows())
+        {
+            if (other == action or first(other) != button)
+                continue;
+            if (old >= 0)
+            {
+                prefs.padKeys[other] = padButtonName(old);
+                if (other == "dodge")
+                    prefs.padKeys["sprint"] = padButtonName(old);
+                controlsMessage = label + " moved to " + padLabel(old);
+            }
+        }
+
+        prefs.padKeys[action] = name;
+        if (action == "dodge")
+            prefs.padKeys["sprint"] = name;   // the roll and the sprint share their button
+
+        saveOptions(optionsPath(), prefs);
+        readControls();
+    }
+
     void ArenaGame::bindKey(const std::string& action, const std::string& key)
     {
         auto nameOf = [](const Binding& b) {
@@ -3235,6 +3567,30 @@ namespace arena
         ControlsView v;
         v.split = 9;
         v.message = controlsMessage;
+        v.pad = controlsPad;
+        v.padEnabled = prefs.gamepad;
+
+        if (controlsPad)
+        {
+            v.split = 8;
+            for (const auto& [action, label] : padRows())
+            {
+                ControlsView::Row row;
+                row.label = label;
+                row.waiting = padRebinding == action;
+                if (auto it = padControls.find(action); it != padControls.end() and not it->second.empty())
+                {
+                    row.key = padLabel(it->second.front());
+                    if (it->second.size() > 1)
+                        row.also = padLabel(it->second[1]);
+                }
+                else
+                    row.key = "-";
+                v.rows.push_back(row);
+            }
+            screens::drawControls(ui, v);
+            return;
+        }
 
         for (const auto& [action, label] : controlRows())
         {
@@ -3308,6 +3664,10 @@ namespace arena
 
         setOptionsOpen(false);
 
+        // A run left before its end still counts for the achievements
+        if (world.inRun())
+            countThisRun(false);
+
         // A player who joined leaves: back to its own title
         if (client)
         {
@@ -3329,6 +3689,9 @@ namespace arena
             quitArmedUntil = uiTime + 3.0f;
             return;
         }
+
+        if (world.inRun())
+            countThisRun(false);
 
         // A client says goodbye first; the router's ports close as the game goes (PortMapper)
         if (client)
@@ -3596,6 +3959,63 @@ namespace arena
                 continue;
             }
 
+            if (controlsOpen and (action == screens::CONTROLS_TAB_KEYS or action == screens::CONTROLS_TAB_PAD))
+            {
+                controlsPad = action == screens::CONTROLS_TAB_PAD;
+                rebinding.clear();
+                capturing = false;
+                std::lock_guard<std::mutex> lock(inputMutex);
+                padRebinding.clear();
+                controlsMessage.clear();
+                continue;
+            }
+
+            if (controlsOpen and action == screens::CONTROLS_PAD_TOGGLE)
+            {
+                prefs.gamepad = not prefs.gamepad;
+                saveOptions(optionsPath(), prefs);
+                {
+                    std::lock_guard<std::mutex> lock(inputMutex);
+                    padDown.clear();
+                    padStepPresses.clear();
+                    std::fill(std::begin(padAxis), std::end(padAxis), 0.0f);
+                    if (not prefs.gamepad)
+                        padActive = false;
+                }
+                controlsMessage = prefs.gamepad ? "Controller on" : "Controller off: only the keyboard and the mouse";
+                continue;
+            }
+
+            if (controlsOpen and controlsPad)
+            {
+                if (action >= screens::CONTROLS_ROW and action < screens::CONTROLS_ROW + static_cast<int>(padRows().size()))
+                {
+                    if (not prefs.gamepad)
+                        controlsMessage = "Turn the controller on first";
+                    else
+                    {
+                        std::lock_guard<std::mutex> lock(inputMutex);
+                        padRebinding = padRows()[static_cast<size_t>(action - screens::CONTROLS_ROW)].first;
+                        padCaptured = -1;
+                        controlsMessage.clear();
+                    }
+                }
+                else if (action == screens::CONTROLS_RESET)
+                {
+                    prefs.padKeys.clear();
+                    saveOptions(optionsPath(), prefs);
+                    readControls();
+                    controlsMessage = "Back to the default buttons";
+                }
+                else if (action == screens::CONTROLS_BACK)
+                {
+                    controlsOpen = false;
+                    std::lock_guard<std::mutex> lock(inputMutex);
+                    padRebinding.clear();
+                }
+                continue;
+            }
+
             if (controlsOpen)
             {
                 if (action >= screens::CONTROLS_ROW and action < screens::CONTROLS_ROW + static_cast<int>(controlRows().size()))
@@ -3719,10 +4139,24 @@ namespace arena
                 continue;
             }
 
+            if (titleOpen and achievementsOpen)
+            {
+                if (action == screens::ACHIEVEMENTS_CLOSE)
+                    achievementsOpen = false;
+                else if (action == screens::ACHIEVEMENTS_PREV)
+                    --achievementsPage;
+                else if (action == screens::ACHIEVEMENTS_NEXT)
+                    ++achievementsPage;
+                continue;
+            }
+
             if (titleOpen)
             {
                 switch (action)
                 {
+                    case screens::TITLE_ACHIEVEMENTS:
+                        achievementsOpen = true;
+                        break;
                     case screens::TITLE_INVITE:
                     case screens::TITLE_MULTIPLAYER:
                         inviteOpen = true;
@@ -4173,10 +4607,12 @@ namespace arena
             card.heavy = w.heavyText;
             card.icon = offerIcon(content, id);
             card.chosen = me and me->armed and me->weapon == id;
+            if (lockedNow.count(id))
+                card.locked = lockedBecause(id);
 
-            // Its skills: the weapon skills made for its type
+            // Its skills: the weapon skills made for its type (the ones unlocked)
             for (const auto& [aid, a] : content.abilities)
-                if (std::find(a.weapons.begin(), a.weapons.end(), w.type) != a.weapons.end())
+                if (std::find(a.weapons.begin(), a.weapons.end(), w.type) != a.weapons.end() and not lockedNow.count(aid))
                     card.skills.push_back(a.name);
 
             v.weapons.push_back(card);
@@ -4361,7 +4797,7 @@ namespace arena
         ui.begin();
 
         // Under an open modal (options, spellbook, invite, join), nothing lights up under the mouse
-        const bool modal = optionsOpen or bookOpen or (titleOpen and (inviteOpen or joinOpen));
+        const bool modal = optionsOpen or bookOpen or (titleOpen and (inviteOpen or joinOpen or achievementsOpen));
         if (modal)
             ui.mouse(-1.0f, -1.0f);
 
@@ -4388,6 +4824,9 @@ namespace arena
             t.waitingForHost = client != nullptr;
             t.time = uiTime;
             t.quitArmed = quitArmed();
+            t.goals = static_cast<int>(content.achievementOrder.size());
+            t.goalsDone = static_cast<int>(std::count_if(content.achievementOrder.begin(), content.achievementOrder.end(),
+                                                         [&](const std::string& id) { return progress.done.count(id) > 0; }));
             screens::drawTitle(ui, t);
         }
         // The modal on top gets the mouse back
@@ -4396,7 +4835,7 @@ namespace arena
             ui.mouse(mouseX, mouseY);
         };
 
-        if (titleOpen and (joinOpen or inviteOpen) and not optionsOpen and not bookOpen)
+        if (titleOpen and (joinOpen or inviteOpen or achievementsOpen) and not optionsOpen and not bookOpen)
             mouseBack();
 
         if (titleOpen and joinOpen)
@@ -4411,8 +4850,10 @@ namespace arena
         }
         else if (titleOpen and inviteOpen)
             drawInvite();
+        else if (titleOpen and achievementsOpen)
+            drawAchievements();
         else if (not titleOpen)
-            inviteOpen = joinOpen = false;
+            inviteOpen = joinOpen = achievementsOpen = false;
 
         if (endOpen and not titleOpen)
         {
@@ -4429,6 +4870,9 @@ namespace arena
             e.solo = not networked();
             e.difficulty = content.run.levels() > 1 ? content.run.difficulty(r.difficulty).name : "";
             e.opened = levelJustOpened;
+            for (const auto& id : goalsJustReached)
+                if (auto a = content.achievements.find(id); a != content.achievements.end())
+                    e.goals.push_back({a->second.name, a->second.unlocks.empty() ? "nothing" : unlocksLine(a->second)});
             // The players in the order they joined; one without a name is P and its place
             std::vector<const Fighter*> players;
             for (const auto& f : world.fighters)
@@ -4545,24 +4989,21 @@ namespace arena
         if (not content.report.errors.empty())
             banner = std::to_string(content.report.errors.size()) + " content error(s), first: " + content.report.errors[0].str() + "   (console: errors)";
 
-        // The controller's cursor on a screen: an arrow at the point the left stick moved to
-        if (padActive and uiTakesClicks() and padCursorX >= 0.0f)
+        // The controller's pick on a screen: a gold frame round it
+        if (padActive and uiTakesClicks() and padFocusAction > 0)
         {
-            ui.section("pad-cursor");
-            ui.anchor(ui::Anchor::TopLeft);
-            const float x = ui.baseX(padCursorX), y = ui.baseY(padCursorY);
-            for (int r = 0; r < 9; ++r)
-            {
-                const auto s = ui.scope(static_cast<uint64_t>(r));
-                const float w = static_cast<float>(r < 6 ? r + 1 : 9 - r) * 2.0f;
-                ui.rect(x - 1, y + static_cast<float>(r) * 2.0f - 1, w + 2, 4, ui::INK);
-            }
-            for (int r = 0; r < 9; ++r)
-            {
-                const auto s = ui.scope(static_cast<uint64_t>(100 + r));
-                const float w = static_cast<float>(r < 6 ? r + 1 : 9 - r) * 2.0f;
-                ui.rect(x, y + static_cast<float>(r) * 2.0f, w, 2, ui::GOLD);
-            }
+            // Ink round a bright frame: it shows on a gold button as on a dark one
+            ui.section("pad-focus");
+            auto frame = [&](float out, float t, const ui::Colour& c) {
+                const float x0 = padFocusRect.x - out, y0 = padFocusRect.y - out, x1 = padFocusRect.z + out, y1 = padFocusRect.w + out;
+                ui.rectPx(x0, y0, x1, y0 + t, c);
+                ui.rectPx(x0, y1 - t, x1, y1, c);
+                ui.rectPx(x0, y0 + t, x0 + t, y1 - t, c);
+                ui.rectPx(x1 - t, y0 + t, x1, y1 - t, c);
+            };
+            const float s = ui.scale();
+            frame(std::round(7.0f * s), std::round(6.0f * s), ui::INK);
+            frame(std::round(5.0f * s), std::round(2.0f * s), ui::withAlpha(ui::TEXT, 0.8f + 0.2f * std::sin(uiTime * 6.0f)));
         }
 
         std::vector<std::string> lines(consoleLog.begin(), consoleLog.end());
@@ -5633,8 +6074,71 @@ namespace arena
             return "reload | tune <key> [value] | tunes [prefix] | spawn <enemy> [count] | elite <enemy> [affix ...] | clear | reset\n"
                    "place x y z <block|air> | fill x0 y0 z0 x1 y1 z1 <block|air>\n"
                    "view [first|third] | reach [on|off] | weapon <id> | item <id|all> [rarity] | unitems | grow <weapon|technique> <level> [branch] | bot | weapons | god | stamina | mana | ai | hitboxes | overlay | pause | step [n] | slowmo <x> | pacer [n|off [fps]] | players | spell <1-3> <recipe> | spells | spellbook | arena | map [arena] | training | difficulty <n> | wave <n> | duel | timeup | join <address> | leave | shards <n> | kill | hurt <damage> | options | mods | errors | warnings\n"
+                   "achievements: goals | goals locked | goals unlock [on|off] | goals reach <id|all> | goals add <stat> <n> | goals reset\n"
                    "the lab: lab [on|off] (F3) | lab show <id> [level] [branch] | cam <yaw> <pitch> [distance] | orbit [deg/s] | face <yaw> [pitch] | put <enemy> x y z [yaw] | caption <text>\n"
                    "scripted input: mouse [on|off] | click <x> <y> | hover <x> <y> | press <action> | hold <action> <steps> | wait <steps> | sleep <seconds> | look <yaw> <pitch> | teleport x y z  (join with ;)";
+        }
+
+        // The achievements: the goals and their stats; "unlock" opens everything for this session only
+        if (cmd == "goals")
+        {
+            const std::string sub = args.size() > 1 ? args[1] : "";
+            auto changed = [&]() {
+                const auto reached = reachGoals(progress, content);
+                saveProgress(progressPath(), progress);
+                refreshLocks();
+                std::string out;
+                for (const auto& id : reached)
+                    out += "\ngoal reached: " + content.achievements.at(id).name;
+                return out;
+            };
+
+            if (sub.empty())
+            {
+                std::string out;
+                for (const auto& id : content.achievementOrder)
+                {
+                    const AchievementDef& a = content.achievements.at(id);
+                    out += (progress.done.count(id) ? "[x] " : "[ ] ") + id + "  " + a.stat + " " + fmt(goalProgress(progress, a), 0) + "/" + fmt(a.goal, 0) + "  -> " + unlocksLine(a) + "\n";
+                }
+                return out + std::to_string(lockedNow.size()) + " of " + std::to_string(content.unlockedBy.size()) + " locked";
+            }
+            if (sub == "locked")
+            {
+                std::string out;
+                for (const auto& id : lockedNow)
+                    out += (out.empty() ? "" : ", ") + id;
+                return out.empty() ? "nothing locked" : out;
+            }
+            if (sub == "unlock")
+            {
+                progress.unlockAll = args.size() < 3 or args[2] != "off";
+                refreshLocks();
+                return progress.unlockAll ? "everything unlocked (this session only)" : "locks back on";
+            }
+            if (sub == "reach" and args.size() > 2)
+            {
+                for (const auto& id : content.achievementOrder)
+                    if (args[2] == "all" or id == args[2] or splitId(id).second == args[2])
+                    {
+                        const AchievementDef& a = content.achievements.at(id);
+                        progress.stats[a.stat] = std::max(progress.stats[a.stat], a.goal);
+                    }
+                return "ok" + changed();
+            }
+            if (sub == "add" and args.size() > 3)
+            {
+                progress.stats[args[2]] += std::strtof(args[3].c_str(), nullptr);
+                return args[2] + " = " + fmt(progress.stats[args[2]], 0) + changed();
+            }
+            if (sub == "reset")
+            {
+                progress = Progress{};
+                saveProgress(progressPath(), progress);
+                refreshLocks();
+                return "progress reset";
+            }
+            return "goals | goals locked | goals unlock [on|off] | goals reach <id|all> | goals add <stat> <n> | goals reset";
         }
 
         if (cmd == "where" and p)
@@ -5735,6 +6239,12 @@ namespace arena
         if (cmd == "pad")
         {
             // A controller's events, as SDL sends them (scripts, tests): pad press a | pad release a | pad axis leftx 0.8
+            if (args.size() == 2 and args[1] == "state")
+            {
+                std::lock_guard<std::mutex> lock(inputMutex);
+                return std::string("pad ") + (prefs.gamepad ? "on" : "off") + (padActive ? ", in use" : ", not in use") + ", focus " + std::to_string(padFocusAction) +
+                       " at " + fmt(padFocusAt.x, 0) + " " + fmt(padFocusAt.y, 0) + ", " + std::to_string(ui.clickRegions().size()) + " regions";
+            }
             if (args.size() < 3)
                 return "pad press|release <button> (a, b, x, y, leftshoulder, lefttrigger, dpup, start...) | pad axis <leftx|lefty|rightx|righty|lefttrigger|righttrigger> <-1..1>";
 

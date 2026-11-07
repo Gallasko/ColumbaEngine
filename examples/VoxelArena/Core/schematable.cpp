@@ -229,6 +229,14 @@ namespace arena::schema
                  {"blast", "blast", "An explosion where it dies."},
                  {"split", "split", "What it splits into as it dies, in a run only."},
              }},
+            {"achievement", "an achievement", "A goal of the game, kept from run to run (achievements.json): reach it and what it unlocks comes into the runs. Anything a goal unlocks is locked until then.",
+             {
+                 {"name", "text", "Its name on the achievements screen. The id by default."},
+                 {"text", "text", "What to do, in a line (\"Deal 5000 burn damage\")."},
+                 {"stat", "text", "What it counts, over all of a player's runs: damage, damage:<source id>, damage:fire, kills, kills:<enemy id>, elites, elites:<affix id>, status:<status id>, combos, combos:<combo id>, runs, wins, wins:<weapon id>, wins:level:<n>, waves, bestWave, bestWave:<weapon id>, bestLevel, items, presents."},
+                 {"goal", "number", "How much of it to reach."},
+                 {"unlocks", "list:id:unlock", "What it unlocks: weapons, spells, techniques, items, or a branch of one (\"base:sword#0\")."},
+             }},
             {"aura", "an aura", "An affix's aura: the elite's allies close by get a status, kept on while they stay near.",
              {
                  {"status", "id:status", "The status they get."},
@@ -660,6 +668,7 @@ namespace arena::schema
             {"elements.json", "map:element", "The elements of spells, by name (fire, ice, volt)."},
             {"keywords.json", "map:keyword", "The keywords spells are made of, by name: forms (bolt, zone...) and modifiers."},
             {"affixes.json", "map:affix", "What elites can come with, by name."},
+            {"achievements.json", "map:achievement", "The goals of the game, by name, and what each unlocks."},
             {"upgrades.json", "map:upgrade", "The items of the run's shop, by name."},
             {"weapons/*.json", "weapon", "A weapon and its moveset, one a file. Its id is the file's name."},
             {"enemies/*.json", "enemy", "An enemy, one a file. Its id is the file's name."},

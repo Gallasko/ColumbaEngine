@@ -212,6 +212,14 @@ namespace arena
         /** The mouse over a base rect (current anchor). */
         bool hover(float x, float y, float w, float h) const;
 
+        /** A place a click does something, in window pixels (the last frame drawn's; action <= 0: a screen's blank space). */
+        struct Region
+        {
+            float x0, y0, x1, y1;
+            int action;
+        };
+        const std::vector<Region>& clickRegions() const { return lastRegions; }
+
         /** For the overlay: pieces drawn and changes sent to the engine last frame, and the most changes in a frame lately. */
         int piecesDrawn() const { return lastPieces; }
         int changesSent() const { return lastChanges; }
@@ -243,12 +251,6 @@ namespace arena
             std::vector<TextSlot> texts;
             std::unordered_map<Key, size_t> quadKeys, textKeys;   // where a piece is drawn from -> its entity
             std::unordered_map<Key, int> drawn;                   // how many times a place drew this frame
-        };
-
-        struct Region
-        {
-            float x0, y0, x1, y1;
-            int action;
         };
 
         static Key mix(Key k, uint64_t v);

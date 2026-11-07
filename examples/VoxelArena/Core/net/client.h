@@ -48,6 +48,8 @@ namespace arena::net
 
         /** The recipes on this player's spell keys: sent to the server (now, or once joined). */
         void setSpells(const std::vector<SpellRecipe>& recipes);
+        /** What this player has not unlocked yet: told to the server (now, and on joining), which never offers it. */
+        void setLocked(const std::set<std::string>& locked);
 
         /** Ready (or not) to start the run, in the lobby: sent to the server (now, or once joined). */
         void setReady(bool ready);
@@ -142,5 +144,7 @@ namespace arena::net
         std::map<int, Extras> extras;
 
         std::vector<SpellRecipe> spells;
+        std::set<std::string> locked;
+        bool lockedSet = false;
     };
 }

@@ -1,0 +1,81 @@
+// The goals of the game: each one counts something over all of a player's runs ("stat", see the README), and when it
+// reaches "goal" what it "unlocks" comes into that player's runs: weapons, spells, techniques, items, or a branch of
+// one ("sword#0"). Anything a goal unlocks is locked until then; everything else is open from the first run.
+// The achievements screen shows them in this order.
+{
+    // ---- The weapons
+    "swift_blade":   { "name": "Swift blade", "text": "Clear 10 waves", "stat": "waves", "goal": 10,
+                       "unlocks": ["dagger"] },
+    "victor":        { "name": "Victor", "text": "Win a run", "stat": "wins", "goal": 1,
+                       "unlocks": ["staff", "glass_cannon", "cursed_coin"] },
+    "hard_won":      { "name": "Hard won", "text": "Win a run on Hard", "stat": "wins:level:2", "goal": 1,
+                       "unlocks": ["scythe", "juggernaut"] },
+    "veteran":       { "name": "Veteran", "text": "Win a run on Very hard", "stat": "wins:level:3", "goal": 1,
+                       "unlocks": ["overclock", "last_stand"] },
+
+    // ---- Each weapon's second technique: go far with it
+    "sword_master":  { "name": "Sword master", "text": "Clear 7 waves in one run with the sword", "stat": "bestWave:base:sword", "goal": 7,
+                       "unlocks": ["whirlwind"] },
+    "bow_master":    { "name": "Bow master", "text": "Clear 7 waves in one run with the bow", "stat": "bestWave:base:bow", "goal": 7,
+                       "unlocks": ["disengage"] },
+    "dagger_master": { "name": "Dagger master", "text": "Clear 7 waves in one run with the dagger", "stat": "bestWave:base:dagger", "goal": 7,
+                       "unlocks": ["backflip"] },
+    "staff_master":  { "name": "Staff master", "text": "Clear 7 waves in one run with the staff", "stat": "bestWave:base:staff", "goal": 7,
+                       "unlocks": ["radiance"] },
+    "scythe_master": { "name": "Scythe master", "text": "Clear 7 waves in one run with the scythe", "stat": "bestWave:base:scythe", "goal": 7,
+                       "unlocks": ["grim_vault"] },
+    "sharpshooter":  { "name": "Sharpshooter", "text": "Deal 30 000 damage with the bow", "stat": "damage:base:bow", "goal": 30000,
+                       "unlocks": ["split_shot"] },
+
+    // ---- Fire
+    "firestarter":   { "name": "Firestarter", "text": "Deal 5 000 fire damage", "stat": "damage:fire", "goal": 5000,
+                       "unlocks": ["fireball", "kindling"] },
+    "pyromaniac":    { "name": "Pyromaniac", "text": "Deal 4 000 burn damage", "stat": "damage:base:burn", "goal": 4000,
+                       "unlocks": ["twin_embers", "pyre", "ember_trail"] },
+    "inferno":       { "name": "Inferno", "text": "Set 600 enemies on fire", "stat": "status:base:burn", "goal": 600,
+                       "unlocks": ["flame_burst", "flint"] },
+
+    // ---- Ice
+    "cold_snap":     { "name": "Cold snap", "text": "Deal 5 000 ice damage", "stat": "damage:ice", "goal": 5000,
+                       "unlocks": ["ice_shards", "brittle"] },
+    "deep_freeze":   { "name": "Deep freeze", "text": "Freeze 100 enemies", "stat": "status:base:frozen", "goal": 100,
+                       "unlocks": ["frost_nova", "shatterburst"] },
+    "winter":        { "name": "Winter", "text": "Slow 800 enemies", "stat": "status:base:chill", "goal": 800,
+                       "unlocks": ["glacier", "frost_ray", "frost_trail"] },
+
+    // ---- Lightning
+    "spark_plug":    { "name": "Spark plug", "text": "Deal 5 000 lightning damage", "stat": "damage:volt", "goal": 5000,
+                       "unlocks": ["chain_lightning", "static_charge"] },
+    "thunderstruck": { "name": "Thunderstruck", "text": "Stun 400 enemies", "stat": "status:base:shock", "goal": 400,
+                       "unlocks": ["thunderclap", "thunderburst"] },
+    "storm_caller":  { "name": "Storm caller", "text": "Deal 25 000 lightning damage", "stat": "damage:volt", "goal": 25000,
+                       "unlocks": ["storm_field", "storm_trail"] },
+
+    // ---- Element combos
+    "alchemist":     { "name": "Alchemist", "text": "Set off 50 element combos", "stat": "combos", "goal": 50,
+                       "unlocks": ["catalyst", "long_fuse"] },
+    "meltdown":      { "name": "Meltdown", "text": "Set off 30 Melts", "stat": "combos:base:melt", "goal": 30,
+                       "unlocks": ["potent"] },
+    "shattered":     { "name": "Shattered", "text": "Set off 30 Shatters", "stat": "combos:base:shatter", "goal": 30,
+                       "unlocks": ["executioner"] },
+    "overloaded":    { "name": "Overloaded", "text": "Set off 30 Overloads", "stat": "combos:base:overload", "goal": 30,
+                       "unlocks": ["drilled"] },
+
+    // ---- Elites and bosses
+    "elite_hunter":  { "name": "Elite hunter", "text": "Defeat 25 elites", "stat": "elites", "goal": 25,
+                       "unlocks": ["grudge", "thorns"] },
+    "trophy_hunter": { "name": "Trophy hunter", "text": "Defeat 100 elites", "stat": "elites", "goal": 100,
+                       "unlocks": ["soul_siphon"] },
+    "chieftain":     { "name": "Chieftain's fall", "text": "Defeat the Chieftain", "stat": "kills:base:chieftain", "goal": 1,
+                       "unlocks": ["sky_striker"] },
+    "warden":        { "name": "Warden's fall", "text": "Defeat the Stone Warden", "stat": "kills:base:warden", "goal": 1,
+                       "unlocks": ["lingering"] },
+
+    // ---- The rest
+    "slayer":        { "name": "Slayer", "text": "Defeat 2 000 enemies", "stat": "kills", "goal": 2000,
+                       "unlocks": ["horde"] },
+    "collector":     { "name": "Collector", "text": "Open 20 presents", "stat": "presents", "goal": 20,
+                       "unlocks": ["blessed"] },
+    "prodigy":       { "name": "Prodigy", "text": "Reach level 20 in one run", "stat": "bestLevel", "goal": 20,
+                       "unlocks": ["frugal"] }
+}
