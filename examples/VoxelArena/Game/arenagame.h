@@ -420,6 +420,7 @@ namespace arena
             int slot = 0;                // which point of that fighter's (a timer each)
             glm::vec3 at = glm::vec3(0.0f);
             float rate = 1.0f;           // times the effect's own rate (a bow sheds less)
+            float scale = 1.0f;          // its particles' size and speed (the first person's weapon: drawn small)
         };
         std::vector<LookPoint> lookPoints;
 
@@ -519,6 +520,13 @@ namespace arena
         std::vector<std::string> goalsJustReached;   // by the run that just ended: its end screen says so
         bool achievementsOpen = false;
         int achievementsPage = 0;
+        // Goals just reached: a badge each (a macaron), one after the other
+        std::deque<MacaronView> macarons;
+        float goalCheckTimer = 0.0f;
+        /** In a run, every so often: the goals its stats so far reach are reached now (what they unlock comes at once). */
+        void checkGoalsLive(float frameSeconds);
+        /** Goals just reached: the badges, the log, the locks and the end screen's list. */
+        void goalsReached(const std::vector<std::string>& ids);
         void refreshLocks();
         /** The run so far goes into the progress (once): at its end, or when leaving it. */
         void countThisRun(bool won);

@@ -181,6 +181,8 @@ namespace arena::schema
                  {"health", "number", "Its health. 100 by default, and it must be above 0. In a run it grows with the waves."},
                  {"poise", "number", "Poise damage it takes before it is staggered. 30 by default."},
                  {"poiseRegenDelay", "number", "Seconds without being hit before its poise fills back up. 2 by default."},
+                 {"tenacity", "integer", "Tenacity stacks it always has: each takes the poise damage it takes and its staggers down (tuning.json \"tenacity\"). 0 by default."},
+                 {"tenacityGain", "integer", "Tenacity stacks each stagger gives it, falling off one at a time after a while (an elite gets more). 1 by default."},
                  {"staggerFrames", "integer", "How long a stagger lasts, in frames (60 a second). 45 by default."},
                  {"knockbackScale", "number", "Knockback it takes, times this (0 = never pushed back). 1 by default."},
                  {"walkSpeed", "number", "Walking speed, in metres a second. 3 by default; 0 = never moves."},

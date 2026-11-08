@@ -175,6 +175,21 @@ namespace arena
         } combat;
 
         /**
+         * Enemies' tenacity: each stagger gives one stacks (EnemyDef::tenacityGain, an elite `elite` more), each stack
+         * takes `poise` of the poise damage it takes and `stagger` of its staggers' length off, up to `most` stacks.
+         * One falls off every `fallOff` seconds (the next stagger starts the wait again). Bosses and elites get harder
+         * to keep staggered; some enemies have stacks from the start (EnemyDef::tenacity).
+         */
+        struct Tenacity
+        {
+            float poise = 0.12f;
+            float stagger = 0.08f;
+            float most = 6.0f;
+            float fallOff = 3.0f;
+            float elite = 1.0f;
+        } tenacity;
+
+        /**
          * Enemies climbing a wall they walk into (out of a pit, up a ledge): from the step height up to maxHeight blocks.
          * They rise at speed m/s for an enemy sizeRef m tall, faster the taller (from 0.35 to 2.5 times), and slower the
          * higher the ledge: speed / (1 + deepSlow x (blocks - 1)).

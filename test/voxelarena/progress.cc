@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include <set>
 
 #include "Core/content.h"
@@ -130,7 +131,7 @@ TEST(arena_progress, a_run_counts_what_the_player_did)
 
 TEST(arena_progress, progress_is_saved_and_read_back)
 {
-    const auto path = (std::filesystem::temp_directory_path() / "voxelarena-progress-test.json").string();
+    const auto path = (std::filesystem::temp_directory_path() / "voxelarena-progress-test.sz").string();
     Progress p;
     p.stats["damage:base:burn"] = 1234.5f;
     p.stats["wins"] = 2.0f;
@@ -205,4 +206,20 @@ TEST(arena_progress, locked_content_never_comes_up_in_a_run)
         for (const auto& o : p.shop)
             EXPECT_FALSE(lockedId(locked, o.id)) << o.id;
     }
+}
+
+TEST(arena_progress, an_older_builds_json_progress_is_read)
+{
+    const auto path = (std::filesystem::temp_directory_path() / "voxelarena-progress-old.json").string();
+    {
+        std::ofstream file(path);
+        file << R"({ "done": ["base:swift_blade"], "stats": { "waves": 12, "damage:fire": 300.5 } })";
+    }
+
+    Progress p;
+    ASSERT_TRUE(importJsonProgress(path, p));
+    EXPECT_EQ(p.done, std::set<std::string>{"base:swift_blade"});
+    EXPECT_EQ(p.stats["waves"], 12.0f);
+    EXPECT_EQ(p.stats["damage:fire"], 300.5f);
+    std::filesystem::remove(path);
 }

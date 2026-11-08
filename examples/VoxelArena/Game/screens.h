@@ -19,6 +19,14 @@ namespace arena
         int goalsDone = 0, goals = 0;   // the achievements reached, of all of them
     };
 
+    /** A goal just reached: a round badge (a macaron) pops in at the top right with what it unlocked, then goes. */
+    struct MacaronView
+    {
+        std::string name, unlocks, icon;
+        float age = 0.0f;               // s since it came
+        static constexpr float LIFE = 4.5f;
+    };
+
     /** The achievements, from the title: every goal, how far it is, and what it unlocks. A page at a time. */
     struct AchievementsView
     {
@@ -204,6 +212,7 @@ namespace arena
         constexpr int ACHIEVEMENTS_CLOSE = 1200, ACHIEVEMENTS_PREV = 1201, ACHIEVEMENTS_NEXT = 1202;
         constexpr int ACHIEVEMENTS_PER_PAGE = 15;
         void drawAchievements(Ui& ui, const AchievementsView& v);
+        void drawMacaron(Ui& ui, const MacaronView& v);
 
         /** Quit game, at the bottom of the title and the lobby (a second click quits). */
         void drawQuit(Ui& ui, float x, float y, bool armed);

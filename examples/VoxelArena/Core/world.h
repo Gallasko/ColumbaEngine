@@ -109,6 +109,10 @@ namespace arena
         float health = 100.0f, maxHealth = 100.0f;
         float poise = 10.0f, maxPoise = 10.0f;
         float sinceHit = 100.0f;   // seconds
+        // An enemy's tenacity gained by being staggered (ArenaWorld::tenacityOf adds what it always has): one falls
+        // off each tuning.tenacity.fallOff seconds
+        int tenacity = 0;
+        float tenacityTimer = 0.0f;
 
         float stamina = 100.0f;
         float staminaDelay = 0.0f;
@@ -724,6 +728,11 @@ namespace arena
         static bool locked(const Fighter& f, const std::string& id) { return f.locked.count(id) > 0; }
         /** A count for the achievements, on the player who did it (RunStats::counts), in a run only. */
         void count(int playerId, const std::string& key, float amount = 1.0f);
+
+        /** An enemy's tenacity stacks now: what it always has and what its staggers gave it (a player: 0). */
+        int tenacityOf(const Fighter& f) const;
+        /** A stagger's length for that fighter, its tenacity taken off. */
+        int staggerLength(const Fighter& f, int frames) const;
         /** What a fighter's affixes add up to (health, damage, speed, regen...). */
         float affixSum(const Fighter& f, float AffixDef::*field) const;
         /** A blast where something died: its warning ring now, its hit as the ring runs out. owner: whom its hits count for. */
@@ -850,6 +859,9 @@ namespace arena
          * What a level up may offer now: new things (a spell while a key is free, a technique of the weapon in
          * hand) and growing ones (each a list: a branch choice is all its branches), none banished, shuffled.
          */
+        /** An enemy staggered: its tenacity grows (tuning.tenacity, EnemyDef::tenacityGain). */
+        void gainTenacity(Fighter& f);
+
         void levelCandidates(Fighter& f, std::vector<std::string>& fresh, std::vector<std::vector<std::string>>& upgrades);
         /** A level up's pick i out of the run: another one in its place (of the same kind when there is one). */
         void banishPick(Fighter& f, size_t index);

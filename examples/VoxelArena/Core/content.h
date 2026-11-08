@@ -560,6 +560,9 @@ namespace arena
         float poise = 30.0f;
         float poiseRegenDelay = 2.0f;   // seconds without being hit before poise refills
         int staggerFrames = 45;
+        // Tenacity (tuning.json "tenacity"): stacks it always has (a sapper: many), and the stacks each stagger adds
+        int tenacity = 0;
+        int tenacityGain = 1;
         float knockbackScale = 1.0f;     // heavier enemies fly less far
 
         float walkSpeed = 3.0f;

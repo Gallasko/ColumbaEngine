@@ -5,7 +5,7 @@
 
 namespace arena
 {
-    void Particles::burst(const ParticlePreset& p, const glm::vec3& at, const glm::vec3& eventColor)
+    void Particles::burst(const ParticlePreset& p, const glm::vec3& at, const glm::vec3& eventColor, float scale)
     {
         std::uniform_real_distribution<float> u(-1.0f, 1.0f);
         std::uniform_real_distribution<float> unit(0.0f, 1.0f);
@@ -20,13 +20,13 @@ namespace arena
             const glm::vec3 base = p.eventColor ? eventColor : p.color;
 
             Particle q;
-            q.position = at + glm::vec3(u(rng), u(rng), u(rng)) * 0.15f;
-            q.velocity = dir * p.speed * (0.5f + 0.5f * unit(rng));
+            q.position = at + glm::vec3(u(rng), u(rng), u(rng)) * 0.15f * scale;
+            q.velocity = dir * p.speed * scale * (0.5f + 0.5f * unit(rng));
             q.color = base * (0.8f + 0.35f * unit(rng));
-            q.size = p.size * (0.7f + 0.6f * unit(rng));
+            q.size = p.size * scale * (0.7f + 0.6f * unit(rng));
             q.maxLife = q.life = p.life * (0.7f + 0.6f * unit(rng));
-            q.gravity = p.gravity;
-            q.glow = p.glow;
+            q.gravity = p.gravity * scale;
+            q.glow = p.glow * (scale < 1.0f ? 0.5f : 1.0f);   // small by the eye: dimmer too
             particles.push_back(q);
         }
     }

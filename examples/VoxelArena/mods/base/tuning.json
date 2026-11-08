@@ -244,5 +244,14 @@
         "maxAttackPitch": 60,
         // A light press this soon after a sprint ends is still the dash attack
         "dashAttackWindow": 0.15
+    },
+    // Enemies' tenacity: each stagger gives a stack (an elite one more, see an enemy's "tenacityGain"), each stack
+    // takes 12% of the poise damage it takes and 8% of its staggers' length off, 6 at most; one falls off every 3 s
+    "tenacity": {
+        "poise": 0.12,
+        "stagger": 0.08,
+        "most": 6,
+        "fallOff": 3,
+        "elite": 1
     }
 }

@@ -22,10 +22,12 @@ namespace arena
         bool unlockAll = false;           // the console's "unlock all": nothing locked, the goals left as they are
     };
 
-    /** Where it is kept: <userDataDir>/progress.json */
+    /** Where it is kept: <userDataDir>/progress.sz (the engine's serializer) */
     std::string progressPath();
 
     bool loadProgress(const std::string& path, Progress& out);
+    /** The first builds' progress.json ({ "done": [...], "stats": {...} }), read once into the serializer's file. */
+    bool importJsonProgress(const std::string& path, Progress& out);
     bool saveProgress(const std::string& path, const Progress& p);
 
     /**

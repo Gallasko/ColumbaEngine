@@ -14,6 +14,8 @@
     "poise": 8,
     "poiseRegenDelay": 1.5,
     "staggerFrames": 30,
+    // A small poise, but hard to keep down: it shrugs off most of the poise damage it takes (tuning.json "tenacity")
+    "tenacity": 5,
     "knockbackScale": 1.3,
 
     "walkSpeed": 4.4,

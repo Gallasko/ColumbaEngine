@@ -425,7 +425,16 @@ namespace arena
             std::ifstream bestFile(std::filesystem::path(spellbookPath()).parent_path() / "best.txt");
             bestFile >> bestScore;
 
-            loadProgress(progressPath(), progress);
+            // The progress (an older build's progress.json is read once, and kept as it was)
+            if (not loadProgress(progressPath(), progress))
+            {
+                const auto old = std::filesystem::path(progressPath()).replace_extension(".json").string();
+                if (importJsonProgress(old, progress))
+                {
+                    saveProgress(progressPath(), progress);
+                    print("progress read from " + old);
+                }
+            }
 
             // The difficulty levels opened so far, and the one picked last
             std::ifstream levelsFile(std::filesystem::path(userDataDir()) / "levels.txt");
@@ -2091,18 +2100,69 @@ namespace arena
 
         countRun(progress, *me, world.run, won);
         const auto reached = reachGoals(progress, content);
-        goalsJustReached.insert(goalsJustReached.end(), reached.begin(), reached.end());
         saveProgress(progressPath(), progress);
+        goalsReached(reached);
+    }
 
-        if (not reached.empty())
+    void ArenaGame::checkGoalsLive(float frameSeconds)
+    {
+        const Fighter* me = world.player();
+        const RunPhase phase = world.run.phase;
+        if (runCounted or not me or not (phase == RunPhase::Fighting or phase == RunPhase::Shop or phase == RunPhase::Duel))
+            return;
+
+        goalCheckTimer -= frameSeconds;
+        if (goalCheckTimer > 0.0f)
+            return;
+        goalCheckTimer = 0.5f;
+
+        // The stats as they would be if the run ended now (not won): kept apart, the run is counted once at its end
+        Progress now = progress;
+        countRun(now, *me, world.run, false);
+
+        std::vector<std::string> reached;
+        for (const auto& id : content.achievementOrder)
         {
-            refreshLocks();
-            for (const auto& id : reached)
+            const AchievementDef& a = content.achievements.at(id);
+            if (progress.done.count(id) == 0 and goalProgress(now, a) >= a.goal)
             {
-                const AchievementDef& a = content.achievements.at(id);
-                print("goal reached: " + a.name + (a.unlocks.empty() ? "" : " - new: " + unlocksLine(a)));
+                progress.done.insert(id);
+                reached.push_back(id);
             }
         }
+
+        if (reached.empty())
+            return;
+
+        saveProgress(progressPath(), progress);
+        goalsReached(reached);
+    }
+
+    void ArenaGame::goalsReached(const std::vector<std::string>& ids)
+    {
+        if (ids.empty())
+            return;
+
+        refreshLocks();
+        goalsJustReached.insert(goalsJustReached.end(), ids.begin(), ids.end());
+
+        for (const auto& id : ids)
+        {
+            const AchievementDef& a = content.achievements.at(id);
+            print("goal reached: " + a.name + (a.unlocks.empty() ? "" : " - new: " + unlocksLine(a)));
+
+            MacaronView m;
+            m.name = a.name;
+            m.unlocks = unlocksLine(a);
+            const std::string first = a.unlocks.empty() ? "" : a.unlocks.front().substr(0, a.unlocks.front().find('#'));
+            m.icon = first.empty() ? "star" : offerIcon(content, first);
+            if (auto u = content.upgrades.find(first); u != content.upgrades.end() and not u->second.look.icon.empty())
+                m.icon = u->second.look.icon;
+            macarons.push_back(m);
+        }
+
+        if (const Fighter* me = world.player())
+            playSound("level_up", me->body.position, 0.0f);
     }
 
     std::string ArenaGame::unlockName(const std::string& id) const
@@ -2827,9 +2887,12 @@ namespace arena
 
         std::uniform_real_distribution<float> unit(0.0f, 1.0f);
 
-        // Statuses: particles every so often, from the body
+        // Statuses: particles every so often, from the body. One's own in first person: from below the eye, smaller
+        // (a burn or a weapon's imbue would rise through the view)
         for (const auto& f : world.fighters)
         {
+            const bool ownView = firstPerson and f.team == Team::Player and f.id == world.localPlayerId;
+
             for (const auto& s : f.statuses)
             {
                 auto it = effects.find(s.id);
@@ -2843,8 +2906,9 @@ namespace arena
                 while (timer >= it->second.every)
                 {
                     timer -= it->second.every;
-                    const glm::vec3 at = f.body.position + glm::vec3((unit(lookRng) - 0.5f) * f.body.width, unit(lookRng) * f.body.height, (unit(lookRng) - 0.5f) * f.body.width);
-                    particles.burst(it->second.particles, at, it->second.particles.color);
+                    const float height = f.body.height * (ownView ? 0.45f : 1.0f);
+                    const glm::vec3 at = f.body.position + glm::vec3((unit(lookRng) - 0.5f) * f.body.width, unit(lookRng) * height, (unit(lookRng) - 0.5f) * f.body.width);
+                    particles.burst(it->second.particles, at, it->second.particles.color, ownView ? 0.5f : 1.0f);
                 }
             }
         }
@@ -2868,7 +2932,7 @@ namespace arena
             while (timer->second >= it->second.every)
             {
                 timer->second -= it->second.every;
-                particles.burst(it->second.particles, lp.at, it->second.particles.color);
+                particles.burst(it->second.particles, lp.at, it->second.particles.color, lp.scale);
             }
         }
         for (auto it = lookTimers.begin(); it != lookTimers.end();)
@@ -3738,6 +3802,10 @@ namespace arena
             const std::string& look = def != content.statuses.end() and not def->second.imbue.empty() ? def->second.imbue : st.id;
             out.push_back({localId(look), statusName(st.id), st.stacks});
         }
+
+        // An enemy's tenacity: harder to stagger, a square a stack
+        if (const int tenacity = world.tenacityOf(f); tenacity > 0)
+            out.push_back({"tenacity", "Tenacity", tenacity});
         return out;
     }
 
@@ -4940,6 +5008,17 @@ namespace arena
         if (difficultyOpen and p)
             drawDifficulty();
 
+        // A goal just reached: its badge, one at a time
+        checkGoalsLive(frameSeconds);
+        if (not macarons.empty())
+        {
+            macarons.front().age += frameSeconds;
+            if (macarons.front().age >= MacaronView::LIFE)
+                macarons.pop_front();
+            else
+                screens::drawMacaron(ui, macarons.front());
+        }
+
         if (labOpen)
         {
             Lab::View lv;
@@ -5509,13 +5588,16 @@ namespace arena
                         weaponGlow = glm::vec4(*elementTint, 0.32f + 0.12f * std::sin(simTime * 5.0f));
                     pushInstance(instances[weapon.model], view, held, WHITE, weaponGlow);
 
-                    // A blade sheds along its length; a bow (ranged: no blade) from one point, and much less
+                    // A blade sheds along its length; a bow (ranged: no blade) from one point, and much less. In first
+                    // person the weapon is drawn small by the eye: its particles too, and fewer, not to cover the view
                     const bool ranged = weapon.role == "ranged";
+                    const float shedRate = (ranged ? 0.4f : 1.0f) * (viewModel ? 0.3f : 1.0f);
+                    const float shedScale = viewModel ? 0.45f * tuning.firstPerson.viewModelScale : 1.0f;
                     if (not elementLook.empty())
                         for (const float along : {0.5f, 1.0f})
                             if (not ranged or along > 0.75f)
                                 lookPoints.push_back({f.id, elementLook, static_cast<int>(lookPoints.size()),
-                                                      glm::vec3(held * glm::vec4(weapon.grip.x, weapon.grip.y, bladeFrom + bladeLength * along, 1.0f)), ranged ? 0.4f : 1.0f});
+                                                      glm::vec3(held * glm::vec4(weapon.grip.x, weapon.grip.y, bladeFrom + bladeLength * along, 1.0f)), shedRate, shedScale});
 
                     // The slash: ghosts of the blade along the last frames of the swing, fading, while it
                     // can hit (and a moment after), so the reach and the arc of the attack read at a glance.
@@ -5555,7 +5637,7 @@ namespace arena
                             const glm::mat4 ghost = weaponAt(fr, bodyAt(fr)) * glm::translate(glm::mat4(1.0f), glm::vec3(weapon.grip.x - thick * 0.5f, weapon.grip.y - thick * 0.5f, bladeFrom)) *
                                                     glm::scale(glm::mat4(1.0f), glm::vec3(thick, thick, bladeLength * wider));
                             // Softer in first person: right in front of the eye
-                            pushInstance(trail, view, ghost, glm::vec4(colour, (viewModel ? 0.28f : 0.5f) * (1.0f - age)), glm::vec4(0.0f));
+                            pushInstance(trail, view, ghost, glm::vec4(colour, (viewModel ? 0.16f : 0.5f) * (1.0f - age)), glm::vec4(0.0f));
                         }
                     }
                 }
@@ -6087,6 +6169,7 @@ namespace arena
                 const auto reached = reachGoals(progress, content);
                 saveProgress(progressPath(), progress);
                 refreshLocks();
+                goalsReached(reached);   // their badges, as in a run
                 std::string out;
                 for (const auto& id : reached)
                     out += "\ngoal reached: " + content.achievements.at(id).name;

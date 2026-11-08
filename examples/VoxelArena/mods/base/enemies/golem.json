@@ -11,6 +11,7 @@
     "poise": 70,
     "poiseRegenDelay": 3.0,
     "staggerFrames": 50,
+    "tenacity": 1,
     "knockbackScale": 0.3,
 
     "walkSpeed": 2.3,

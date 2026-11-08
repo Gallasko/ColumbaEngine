@@ -258,8 +258,10 @@ and enemies that come back), **O** for the options.
   Storm trail, Shatterburst, Thunderburst). Locked content never comes up in a run: not as a first
   spell, a weapon, a level up or a shop item; the armory shows a locked weapon with its goal. A run
   counts when it ends (won or lost) and when you leave it; the end screen lists the goals it reached
-  and what is new. In co-op each player counts their own runs and keeps their own locks (a client
-  tells the server what is locked for it). Kept in `~/.local/share/voxelarena/progress.json`.
+  and what is new. A goal reached during a run unlocks its content at once, and a badge pops up at
+  the top right with what is new (the run's end checks the goals once more, for the wins). In co-op
+  each player counts their own runs and keeps their own locks (a client tells the server what is
+  locked for it). Kept in `~/.local/share/voxelarena/progress.sz`, written by the engine's serializer.
 - In multiplayer the host starts the run from its title; on a dedicated server, it starts when
   everyone is ready.
 
@@ -446,6 +448,11 @@ play a controller from a script, `pad state` tells what it is doing.
 - **Poise**: every hit lowers the target's poise. At zero the target is staggered (it cannot act),
   then its poise refills. An attack in progress can add armor, so the brute's slam is not
   interrupted by a jab.
+- **Tenacity**: each time an enemy is staggered it gets a tenacity stack (an elite two, a boss more).
+  Each stack takes 12% off the poise damage it takes and 8% off its staggers (shocks too), up to 6
+  stacks; one falls off every 3 s. They show as yellow squares above its health bar. Some enemies
+  have stacks from the start: the sapper has 5, so its small poise does not keep it down
+  (`tuning.json` `tenacity`, an enemy's `tenacity` and `tenacityGain`).
 - **Hit feedback**: hitstop (both fighters freeze for a few frames), knockback, a white flash on the
   target, camera shake; hit yourself, the screen flashes red for a moment.
 - **The brute** tracks you while it winds up its slam (it glows orange), then commits. Roll late,
@@ -740,7 +747,7 @@ key from one table, `Core/schematable.cpp`, the one the game checks mods with.
 | `run.json` | the arena run: waves, spawn pools and `spawnScale`, elites, bosses, XP, the start kit and spells, `levelSkills`, `levelRerolls`, `levelBanishes`, `branchLevel`, `mastery`, `presents`, `eliteAffixes` ([{ `from`, `count` }]), `intermission`, the shop (`priceScale`, `coopPrice`, `interest`, `rarities`), score, `damageFalloff`, `bossCoopHealth`, the `arenas` by wave and the duel's, the `difficulties` (each a `name`, `waves`, enemy `health`, `damage`, `healthGrowth`, `damageGrowth`, `spawn`, `eliteChance`; winning one opens the next) (the last mod with one wins) | |
 | `arenas/<name>.json` | an arena for the run: `name`, `size`, `shapes`, `scatter` (decorations sown by chance: `[{ "block", "on", "chance" }]`), `playerSpawn`, `centre`, `spawnRadius` | `mymod:<name>` |
 | `weapons/<name>.json` | a weapon and its moveset; in a run, its `levels` (a boost each: `[{ "damage": 0.2 }, { "attackSpeed": 0.1 }]`), `branches` (as a technique's) and `mana` (mana back per point of damage) | `mymod:<name>` |
-| `enemies/<name>.json` | an enemy: stats, moveset, script, params; a boss's `phases` (`at`, `crystal`, `crystals`, `radius`, `stagger`); `anchored`: nothing pushes it (nor mends it); `blast` as it dies (`delay`, `radius`, `damage`, `poiseDamage`, `knockback`, `terrainDamage`, `element`, `status`, `everyone`: both sides); `split` as it dies in a run (`enemy`, `count`, `health`) | `mymod:<name>` |
+| `enemies/<name>.json` | an enemy: stats, moveset, script, params; `tenacity` (stacks it always has) and `tenacityGain` (stacks each stagger gives it); a boss's `phases` (`at`, `crystal`, `crystals`, `radius`, `stagger`); `anchored`: nothing pushes it (nor mends it); `blast` as it dies (`delay`, `radius`, `damage`, `poiseDamage`, `knockback`, `terrainDamage`, `element`, `status`, `everyone`: both sides); `split` as it dies in a run (`enemy`, `count`, `health`) | `mymod:<name>` |
 | `models/<name>.vxl.json` | a voxel model (saved by the VoxelTest editor) | `mymod:<name>` |
 | `textures/<name>.png` | a block texture (16 x 16 pixel art, any square size works); see-through pixels are not drawn | `mymod:<name>` |
 | `scripts/<name>.pg` | an enemy brain | `mymod:<name>` |

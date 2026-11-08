@@ -1693,3 +1693,64 @@ TEST(arena_balance, DISABLED_weapon_dps)
         }
     }
 }
+
+TEST(arena_world, each_stagger_makes_an_enemy_more_tenacious_until_it_falls_off)
+{
+    Arena a;
+    a.world.aiEnabled = false;
+    const glm::vec3 p = a.player().body.position;
+    const int brute = a.world.spawnEnemy("base:brute", p + glm::vec3(0, 0, 3.0f), 180.0f);
+    a.settle(5);
+
+    AttackDef blow;
+    blow.name = "blow";
+    blow.damage = 1.0f;
+    blow.poiseDamage = 500.0f;
+
+    const auto& T = a.tuning.tenacity;
+    const int written = a.content.enemies.at("base:brute").staggerFrames;
+    Fighter& b = *a.world.find(brute);
+    EXPECT_EQ(a.world.tenacityOf(b), 0);
+
+    // A first stagger at its full length, then a stack: the next one is shorter, and so on
+    a.world.applyHit(a.player(), b, blow);
+    ASSERT_EQ(b.action, Action::Stagger);
+    EXPECT_EQ(b.actionLength, written);
+    EXPECT_EQ(a.world.tenacityOf(b), 1);
+
+    a.world.applyHit(a.player(), b, blow);
+    EXPECT_EQ(b.actionLength, static_cast<int>(std::lround(static_cast<float>(written) * (1.0f - T.stagger))));
+    EXPECT_EQ(a.world.tenacityOf(b), 2);
+
+    // Never past the most
+    for (int k = 0; k < 20; ++k)
+        a.world.applyHit(a.player(), b, blow);
+    EXPECT_EQ(a.world.tenacityOf(b), static_cast<int>(T.most));
+
+    // Poise damage taken goes down with it: a hit just above its poise no longer staggers it
+    b.action = Action::Free;
+    b.poise = b.maxPoise;
+    AttackDef jab = blow;
+    jab.poiseDamage = b.maxPoise * 1.1f;
+    a.world.applyHit(a.player(), b, jab);
+    EXPECT_NE(b.action, Action::Stagger);
+    EXPECT_GT(b.poise, 0.0f);
+
+    // A stack falls off every fallOff seconds
+    a.run(static_cast<int>(std::ceil(T.fallOff * 60.0f)) + 20);   // and its hitstop
+    EXPECT_EQ(a.world.tenacityOf(b), static_cast<int>(T.most) - 1);
+    a.run(static_cast<int>(std::ceil(T.fallOff * 60.0f * T.most)) + 10);
+    EXPECT_EQ(a.world.tenacityOf(b), 0);
+
+    // An elite gains more at each stagger; a sapper has its stacks from the start
+    b.elite = true;
+    a.world.applyHit(a.player(), b, blow);
+    EXPECT_EQ(a.world.tenacityOf(b), 1 + static_cast<int>(T.elite));
+
+    const int sapper = a.world.spawnEnemy("base:sapper", p + glm::vec3(3.0f, 0, 3.0f), 180.0f);
+    EXPECT_EQ(a.world.tenacityOf(*a.world.find(sapper)), a.content.enemies.at("base:sapper").tenacity);
+    EXPECT_GE(a.world.tenacityOf(*a.world.find(sapper)), 4);
+
+    // Players have none
+    EXPECT_EQ(a.world.tenacityOf(a.player()), 0);
+}

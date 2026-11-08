@@ -474,6 +474,8 @@ namespace arena
 
         f.health = f.maxHealth;
         f.poise = f.maxPoise;
+        f.tenacity = 0;
+        f.tenacityTimer = 0.0f;
         f.stamina = tuning.stamina.max;
         f.exhausted = false;
         f.staminaDelay = 0.0f;
@@ -1408,6 +1410,17 @@ namespace arena
 
         if (f.sinceHit > def.poiseRegenDelay)
             f.poise = f.maxPoise;
+
+        // Tenacity falls off a stack at a time
+        if (f.tenacity > 0)
+        {
+            f.tenacityTimer -= dt;
+            if (f.tenacityTimer <= 0.0f)
+            {
+                --f.tenacity;
+                f.tenacityTimer = tuning.tenacity.fallOff;
+            }
+        }
 
         if (def.regenerates and f.sinceHit > 2.0f)
             f.health = f.maxHealth;
@@ -3699,8 +3712,9 @@ namespace arena
         // Poise: an attack in progress may add armor, so a big swing is not interrupted by a jab
         const AttackDef* targetAttack = currentAttack(target);
         const float armor = targetAttack ? targetAttack->armor : 0.0f;
+        // An enemy's tenacity takes some of it off
         if (not shielded)
-            target.poise -= a.poiseDamage;
+            target.poise -= a.poiseDamage * std::max(0.1f, 1.0f - tuning.tenacity.poise * static_cast<float>(tenacityOf(target)));
 
         if (target.poise + armor <= 0.0f)
         {
@@ -3709,7 +3723,8 @@ namespace arena
             if (target.team == Team::Enemy)
             {
                 auto it = content->enemies.find(target.type);
-                length = it != content->enemies.end() ? it->second.staggerFrames : 30;
+                length = staggerLength(target, it != content->enemies.end() ? it->second.staggerFrames : 30);
+                gainTenacity(target);
             }
 
             target.action = Action::Stagger;
@@ -4009,6 +4024,32 @@ namespace arena
         return hit;
     }
 
+    int ArenaWorld::tenacityOf(const Fighter& f) const
+    {
+        if (f.team != Team::Enemy)
+            return 0;
+        auto def = content->enemies.find(f.type);
+        const int always = def != content->enemies.end() ? def->second.tenacity : 0;
+        return std::min(static_cast<int>(tuning.tenacity.most), always + f.tenacity);
+    }
+
+    int ArenaWorld::staggerLength(const Fighter& f, int frames) const
+    {
+        const float kept = std::max(0.4f, 1.0f - tuning.tenacity.stagger * static_cast<float>(tenacityOf(f)));
+        return std::max(1, static_cast<int>(std::lround(static_cast<float>(frames) * kept)));
+    }
+
+    void ArenaWorld::gainTenacity(Fighter& f)
+    {
+        if (f.team != Team::Enemy)
+            return;
+        auto def = content->enemies.find(f.type);
+        const int always = def != content->enemies.end() ? def->second.tenacity : 0;
+        const int gain = (def != content->enemies.end() ? def->second.tenacityGain : 1) + (f.elite ? static_cast<int>(std::lround(tuning.tenacity.elite)) : 0);
+        f.tenacity = std::clamp(f.tenacity + gain, 0, std::max(0, static_cast<int>(tuning.tenacity.most) - always));
+        f.tenacityTimer = tuning.tenacity.fallOff;
+    }
+
     void ArenaWorld::count(int playerId, const std::string& key, float amount)
     {
         if (not inRun() or playerId == 0)
@@ -4069,7 +4110,8 @@ namespace arena
         {
             target.action = Action::Stagger;
             target.frame = 0;
-            target.actionLength = def.stagger;
+            target.actionLength = staggerLength(target, def.stagger);
+            gainTenacity(target);
             target.heavyStagger = def.heavy;
             target.queued = 0;
             target.queuedAge = -1.0f;

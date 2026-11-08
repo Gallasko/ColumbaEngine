@@ -13,6 +13,9 @@
     "poise": 110,
     "poiseRegenDelay": 3.0,
     "staggerFrames": 40,
+    // Each stagger makes the next one harder (tuning.json "tenacity")
+    "tenacity": 1,
+    "tenacityGain": 2,
     "knockbackScale": 0.2,
 
     "walkSpeed": 3.1,

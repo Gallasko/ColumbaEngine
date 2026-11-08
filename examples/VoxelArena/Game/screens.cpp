@@ -684,6 +684,84 @@ namespace arena::screens
         ui.text(248, 682, "F1 overlay \xC2\xB7 ` console \xC2\xB7 Esc options", Font::Text500, 11, FAINT);
     }
 
+    namespace
+    {
+        /** A disc in pixel steps (the UI draws rectangles): a row of 2 px each. */
+        void pixelDisc(Ui& ui, float cx, float cy, float r, const Colour& c)
+        {
+            for (float dy = -r; dy < r; dy += 2.0f)
+            {
+                const float mid = dy + 1.0f;
+                const float half = std::floor(std::sqrt(std::max(0.0f, r * r - mid * mid)) / 2.0f) * 2.0f;
+                if (half > 0.0f)
+                    ui.rect(cx - half, cy + dy, half * 2.0f, 2.0f, c);
+            }
+        }
+    }
+
+    void drawMacaron(Ui& ui, const MacaronView& v)
+    {
+        const auto scope = ui.scope(Ui::idOf("macaron"));
+        ui.anchor(Anchor::TopRight);
+
+        // In: the badge pops (a little past its size, then back), the panel slides down; out: everything fades
+        const float t = v.age;
+        const float in = std::clamp(t / 0.25f, 0.0f, 1.0f);
+        const float out = std::clamp((MacaronView::LIFE - t) / 0.5f, 0.0f, 1.0f);
+        const float alpha = in * out;
+        if (alpha <= 0.0f)
+            return;
+        const float pop = t < 0.18f ? 1.25f * (t / 0.18f) : (t < 0.32f ? 1.25f - 0.25f * ((t - 0.18f) / 0.14f) : 1.0f);
+        auto faded = [&](const Colour& c) { return withAlpha(c, alpha * c.a / 255.0f); };
+
+        const float w = 380.0f, h = 66.0f;
+        const float x = 1256.0f - w, y = 86.0f - 16.0f * (1.0f - in);
+        const float cx = x + 4.0f, cy = y + h * 0.5f;
+
+        // The panel, the badge's tail under it
+        ui.rect(x + 3, y + 3, w, h, faded(INK));
+        ui.box(x, y, w, h, faded(PANEL), 2.0f, faded(GOLD));
+        const float tx = x + 52.0f, tw = w - 64.0f;
+        ui.text(tx, y + 9, "GOAL REACHED", Font::Text700, 11, faded(GOLD), Align::Left, 1.5f);
+        ui.text(tx, y + 23, ui.fit(v.name, Font::Display, 24, tw), Font::Display, 24, faded(TEXT));
+        if (not v.unlocks.empty())
+            ui.text(tx, y + 47, ui.fit("New: " + v.unlocks, Font::Text600, 12, tw), Font::Text600, 12, faded(GOOD));
+
+        // The ribbons hanging from the badge
+        for (int k = 0; k < 2; ++k)
+        {
+            const float rx = cx - 13.0f + static_cast<float>(k) * 14.0f;
+            ui.rect(rx - 1, cy + 14, 12, 26, faded(INK));
+            ui.rect(rx, cy + 14, 10, 24, faded(HEALTH));
+            ui.rect(rx + 3, cy + 32, 4, 6, faded(INK));
+        }
+
+        // The macaron: an ink edge, a gold ring with notches, a darker heart and the goal's icon
+        const float r = 30.0f * pop;
+        pixelDisc(ui, cx, cy, r + 3.0f, faded(INK));
+        pixelDisc(ui, cx, cy, r, faded(GOLD));
+        for (int k = 0; k < 12; ++k)
+        {
+            const float a = static_cast<float>(k) * 3.14159265f / 6.0f;
+            ui.rect(std::round(cx + std::cos(a) * (r - 1.0f)) - 2.0f, std::round(cy + std::sin(a) * (r - 1.0f)) - 2.0f, 4, 4, faded(hex(0xC9A24A)));
+        }
+        pixelDisc(ui, cx, cy, r - 7.0f, faded(GOLD_INK));
+        if (not v.icon.empty())
+            ui.icon(v.icon, cx - 13.0f * pop, cy - 13.0f * pop, 3.7f * pop, faded(GOLD));
+
+        // Sparks flying off it as it comes
+        if (t < 0.7f)
+        {
+            const float s = t / 0.7f;
+            for (int k = 0; k < 10; ++k)
+            {
+                const float a = static_cast<float>(k) * 0.628f + 0.3f;
+                const float d = r + 6.0f + 34.0f * s;
+                ui.rect(std::round(cx + std::cos(a) * d) - 2.0f, std::round(cy + std::sin(a) * d) - 2.0f, 4, 4, withAlpha(GOLD, (1.0f - s) * out));
+            }
+        }
+    }
+
     void drawAchievements(Ui& ui, const AchievementsView& v)
     {
         ui.section("achievements");

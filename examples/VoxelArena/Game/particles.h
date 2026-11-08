@@ -14,7 +14,8 @@ namespace arena
     class Particles
     {
     public:
-        void burst(const ParticlePreset& preset, const glm::vec3& at, const glm::vec3& eventColor);
+        /** scale: the whole burst smaller and slower (the first person's weapon, drawn small right by the eye) */
+        void burst(const ParticlePreset& preset, const glm::vec3& at, const glm::vec3& eventColor, float scale = 1.0f);
         void step(float dt, const VoxelGrid& grid, const BlockTable& table);
 
         struct Particle

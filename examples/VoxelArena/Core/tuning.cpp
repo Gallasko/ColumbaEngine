@@ -123,6 +123,11 @@ namespace arena
         f("combat.aimAssistRange", combat.aimAssistRange);
         f("combat.maxAttackPitch", combat.maxAttackPitch);
         f("combat.dashAttackWindow", combat.dashAttackWindow);
+        f("tenacity.poise", tenacity.poise);
+        f("tenacity.stagger", tenacity.stagger);
+        f("tenacity.most", tenacity.most);
+        f("tenacity.fallOff", tenacity.fallOff);
+        f("tenacity.elite", tenacity.elite);
     }
 
     void Tuning::forEachInt(const std::function<void(const std::string&, int&)>& f)

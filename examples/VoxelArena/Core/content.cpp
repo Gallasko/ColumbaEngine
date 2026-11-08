@@ -2381,6 +2381,10 @@ namespace arena
                 readNum(j, "poise", e.poise, raw.file, report);
                 readNum(j, "poiseRegenDelay", e.poiseRegenDelay, raw.file, report);
                 readInt(j, "staggerFrames", e.staggerFrames, raw.file, report);
+                readInt(j, "tenacity", e.tenacity, raw.file, report);
+                readInt(j, "tenacityGain", e.tenacityGain, raw.file, report);
+                e.tenacity = std::max(0, e.tenacity);
+                e.tenacityGain = std::max(0, e.tenacityGain);
                 readNum(j, "knockbackScale", e.knockbackScale, raw.file, report);
                 readInt(j, "score", e.score, raw.file, report);
                 readBool(j, "boss", e.boss, raw.file, report);

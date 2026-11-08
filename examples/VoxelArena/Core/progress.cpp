@@ -3,19 +3,91 @@
 #include "json.h"
 #include "paths.h"
 
+#include "serialization.h"
+
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <unordered_map>
 
 namespace arena
 {
     std::string progressPath()
     {
-        return (std::filesystem::path(userDataDir()) / "progress.json").string();
+        return (std::filesystem::path(userDataDir()) / "progress.sz").string();
     }
 
+    namespace
+    {
+        constexpr const char* OBJECT = "Progress";
+        constexpr int VERSION = 1;
+
+        /** As the serializer writes it: the goals reached as a list, the stats as a map (unordered: no order to keep). */
+        struct Stored
+        {
+            int version = 0;
+            std::vector<std::string> done;
+            std::unordered_map<std::string, float> stats;
+        };
+    }
+}
+
+namespace pg
+{
+    template <>
+    void serialize(Archive& archive, const arena::Stored& value)
+    {
+        archive.startSerialization(arena::OBJECT);
+
+        serialize(archive, "version", value.version);
+        serialize(archive, "done", value.done);
+        serialize(archive, "stats", value.stats);
+
+        archive.endSerialization();
+    }
+
+    template <>
+    arena::Stored deserialize(const UnserializedObject& serialized)
+    {
+        arena::Stored data;
+
+        if (serialized.isNull())
+            return data;
+
+        defaultDeserialize(serialized, "version", data.version);
+        defaultDeserialize(serialized, "done", data.done);
+        defaultDeserialize(serialized, "stats", data.stats);
+
+        return data;
+    }
+}
+
+namespace arena
+{
     bool loadProgress(const std::string& path, Progress& out)
+    {
+        if (not std::filesystem::exists(path))
+            return false;
+
+        pg::Serializer serializer(false);
+        serializer.setFile(path);
+
+        if (serializer.getSerializedMap().count(OBJECT) == 0)
+            return false;
+
+        const Stored stored = serializer.deserializeObject<Stored>(OBJECT);
+        if (stored.version <= 0)
+            return false;
+
+        Progress p;
+        p.stats.insert(stored.stats.begin(), stored.stats.end());
+        p.done.insert(stored.done.begin(), stored.done.end());
+        out = std::move(p);
+        return true;
+    }
+
+    bool importJsonProgress(const std::string& path, Progress& out)
     {
         std::ifstream file(path);
         if (not file)
@@ -32,7 +104,6 @@ namespace arena
             for (const auto& [key, value] : stats->object)
                 if (value.isNumber())
                     p.stats[key] = static_cast<float>(value.number);
-
         if (const Json* done = parsed.value.find("done"); done and done->isArray())
             for (const auto& id : done->array)
                 if (id.isString())
@@ -42,55 +113,24 @@ namespace arena
         return true;
     }
 
-    namespace
-    {
-        std::string quoted(const std::string& s)
-        {
-            std::string out = "\"";
-            for (char c : s)
-            {
-                if (c == '"' or c == '\\')
-                    out += '\\';
-                if (static_cast<unsigned char>(c) >= 32)
-                    out += c;
-            }
-            return out + "\"";
-        }
-    }
-
     bool saveProgress(const std::string& path, const Progress& p)
     {
         std::error_code ec;
         std::filesystem::create_directories(std::filesystem::path(path).parent_path(), ec);
 
-        // Written next to it, then moved over it: a crash mid-write never loses the progress
-        const std::string temp = path + ".tmp";
-        {
-            std::ofstream file(temp, std::ios::trunc);
-            if (not file)
-                return false;
+        Stored stored;
+        stored.version = VERSION;
+        stored.done.assign(p.done.begin(), p.done.end());
+        stored.stats.insert(p.stats.begin(), p.stats.end());
 
-            file << "{\n    \"done\": [";
-            bool first = true;
-            for (const auto& id : p.done)
-            {
-                file << (first ? "" : ",") << "\n        " << quoted(id);
-                first = false;
-            }
-            file << (first ? "" : "\n    ") << "],\n    \"stats\": {";
-            first = true;
-            for (const auto& [key, value] : p.stats)
-            {
-                file << (first ? "" : ",") << "\n        " << quoted(key) << ": " << value;
-                first = false;
-            }
-            file << (first ? "" : "\n    ") << "}\n}\n";
-            if (not file)
-                return false;
-        }
+        // What the file held is not read back into it: the serializer would write the object a second time
+        pg::Serializer serializer(false);
+        serializer.setFile(path);
+        serializer.clear();
+        serializer.serializeObject(OBJECT, stored);
+        serializer.save();
 
-        std::filesystem::rename(temp, path, ec);
-        return not ec;
+        return std::filesystem::exists(path);
     }
 
     void countRun(Progress& p, const Fighter& player, const RunState& run, bool won)
