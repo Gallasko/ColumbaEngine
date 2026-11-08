@@ -3802,10 +3802,6 @@ namespace arena
             const std::string& look = def != content.statuses.end() and not def->second.imbue.empty() ? def->second.imbue : st.id;
             out.push_back({localId(look), statusName(st.id), st.stacks});
         }
-
-        // An enemy's tenacity: harder to stagger, a square a stack
-        if (const int tenacity = world.tenacityOf(f); tenacity > 0)
-            out.push_back({"tenacity", "Tenacity", tenacity});
         return out;
     }
 

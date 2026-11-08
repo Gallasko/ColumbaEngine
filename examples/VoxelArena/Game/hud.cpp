@@ -43,8 +43,6 @@ namespace arena
         {
             if (st.id == "frozen")
                 return {TEXT, ICE, TEXT};
-            if (st.id == "tenacity")
-                return std::vector<Colour>(static_cast<size_t>(std::clamp(st.stacks, 1, 6)), POISE);
 
             Colour c = TEXT_DIM;
             if (st.id == "burn") c = FIRE;
@@ -58,7 +56,6 @@ namespace arena
             if (st.id == "burn") return FIRE_TEXT;
             if (st.id == "chill" or st.id == "frozen") return ICE;
             if (st.id == "shock") return VOLT;
-            if (st.id == "tenacity") return POISE;
             return TEXT_DIM;
         }
 

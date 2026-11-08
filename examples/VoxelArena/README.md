@@ -450,7 +450,7 @@ play a controller from a script, `pad state` tells what it is doing.
   interrupted by a jab.
 - **Tenacity**: each time an enemy is staggered it gets a tenacity stack (an elite two, a boss more).
   Each stack takes 12% off the poise damage it takes and 8% off its staggers (shocks too), up to 6
-  stacks; one falls off every 3 s. They show as yellow squares above its health bar. Some enemies
+  stacks; one falls off every 3 s (nothing shows them). Some enemies
   have stacks from the start: the sapper has 5, so its small poise does not keep it down
   (`tuning.json` `tenacity`, an enemy's `tenacity` and `tenacityGain`).
 - **Hit feedback**: hitstop (both fighters freeze for a few frames), knockback, a white flash on the
