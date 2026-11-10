@@ -370,6 +370,18 @@ namespace arena
         std::unique_ptr<pg::NetworkSystem> ownNetwork;   // hosting started from the title: stepped here, not by the engine
         pg::SdlNetworkBackend* ownBackend = nullptr;
         bool hostNow();
+        /**
+         * Whether this build can host a game. A browser cannot take connections (a page only connects out), so the
+         * web build joins games only: its Multiplayer opens the join screen, and hosting says why it cannot.
+         * VOXELARENA_JOIN_ONLY makes any build so (to try it natively).
+         */
+#if defined(__EMSCRIPTEN__) or defined(VOXELARENA_JOIN_ONLY)
+        static constexpr bool CAN_HOST = false;
+#else
+        static constexpr bool CAN_HOST = true;
+#endif
+        /** The title's Multiplayer (and the invite key): the invite screen, or in a build that cannot host, joining. */
+        void openMultiplayer();
 
         // Joining a friend's game from the title (J): this game becomes a client of theirs, and Leave
         // (or Stop hosting) makes it a game alone again
@@ -525,8 +537,8 @@ namespace arena
         float goalCheckTimer = 0.0f;
         /** In a run, every so often: the goals its stats so far reach are reached now (what they unlock comes at once). */
         void checkGoalsLive(float frameSeconds);
-        /** Goals just reached: the badges, the log, the locks and the end screen's list. */
-        void goalsReached(const std::vector<std::string>& ids);
+        /** Goals just reached: the log, the locks, the end screen's list and (badges) a badge each. */
+        void goalsReached(const std::vector<std::string>& ids, bool badges = true);
         void refreshLocks();
         /** The run so far goes into the progress (once): at its end, or when leaving it. */
         void countThisRun(bool won);

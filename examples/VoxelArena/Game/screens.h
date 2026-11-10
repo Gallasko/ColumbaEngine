@@ -17,6 +17,7 @@ namespace arena
         float time = 0.0f;
         bool quitArmed = false;         // Quit clicked once: the next click quits
         int goalsDone = 0, goals = 0;   // the achievements reached, of all of them
+        bool canHost = true;            // the web build only joins: its Multiplayer says so
     };
 
     /** A goal just reached: a round badge (a macaron) pops in at the top right with what it unlocked, then goes. */

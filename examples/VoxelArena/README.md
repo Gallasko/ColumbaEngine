@@ -535,6 +535,10 @@ The arena can be broken, and breaking it is part of the fight.
 
 2 to 8 players, together against the arena's enemies.
 
+The web build joins games only: a browser cannot take connections. Its Multiplayer opens the join screen,
+and hosting (the invite screen, the `host` command, `--host`) says so. `VOXELARENA_JOIN_ONLY` makes a native
+build the same, to try it.
+
 ```sh
 ./release/VoxelArena --host                       # play and host (a listen server)
 ./release/VoxelArena --join 192.168.1.20 --name bob

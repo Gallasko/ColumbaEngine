@@ -62,6 +62,11 @@ int main(int argc, char* argv[])
             options.upnpPorts = argv[++i];
         else if (a == "--host")
         {
+#if defined(__EMSCRIPTEN__) or defined(VOXELARENA_JOIN_ONLY)
+            // A browser cannot take connections: the web build joins games only
+            std::cout << "Voxel Arena: --host is not available in the browser version" << std::endl;
+            continue;
+#endif
             options.net = LaunchOptions::Net::Host;
 
             if (i + 1 < argc and std::isdigit(static_cast<unsigned char>(argv[i + 1][0])))

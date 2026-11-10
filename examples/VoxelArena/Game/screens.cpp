@@ -659,7 +659,7 @@ namespace arena::screens
         struct Item { std::string key, name, hint; int action; };
         const Item items[] = {
             {"T", "Training ground", "dummies, enemies that come back", TITLE_TRAINING},
-            {"M", "Multiplayer", "host a game, or join a friend's", TITLE_MULTIPLAYER},
+            {"M", "Multiplayer", v.canHost ? "host a game, or join a friend's" : "join a friend's game", TITLE_MULTIPLAYER},
             {"A", "Achievements", std::to_string(v.goalsDone) + " of " + std::to_string(v.goals) + " reached", TITLE_ACHIEVEMENTS},
             {"O", "Options", "mouse, view, sound", TITLE_OPTIONS},
         };

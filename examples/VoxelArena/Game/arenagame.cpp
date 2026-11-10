@@ -1470,8 +1470,8 @@ namespace arena
 
             if (titleOpen and not networked() and not inviteOpen and keyIs(p.scancode, "multiplayer"))
             {
-                inviteOpen = true;
-                inviteMessage.clear();
+                openMultiplayer();
+                text.clear();   // the key that opened the join screen is not typed into it
                 continue;
             }
 
@@ -1518,8 +1518,8 @@ namespace arena
 
             if (titleOpen and keyIs(p.scancode, "invite"))
             {
-                inviteOpen = true;
-                inviteMessage.clear();
+                openMultiplayer();
+                text.clear();
                 continue;
             }
 
@@ -2101,7 +2101,7 @@ namespace arena
         countRun(progress, *me, world.run, won);
         const auto reached = reachGoals(progress, content);
         saveProgress(progressPath(), progress);
-        goalsReached(reached);
+        goalsReached(reached, false);   // the end screen lists them: no badge over it
     }
 
     void ArenaGame::checkGoalsLive(float frameSeconds)
@@ -2138,7 +2138,7 @@ namespace arena
         goalsReached(reached);
     }
 
-    void ArenaGame::goalsReached(const std::vector<std::string>& ids)
+    void ArenaGame::goalsReached(const std::vector<std::string>& ids, bool badges)
     {
         if (ids.empty())
             return;
@@ -2150,6 +2150,8 @@ namespace arena
         {
             const AchievementDef& a = content.achievements.at(id);
             print("goal reached: " + a.name + (a.unlocks.empty() ? "" : " - new: " + unlocksLine(a)));
+            if (not badges)
+                continue;
 
             MacaronView m;
             m.name = a.name;
@@ -2161,7 +2163,7 @@ namespace arena
             macarons.push_back(m);
         }
 
-        if (const Fighter* me = world.player())
+        if (const Fighter* me = world.player(); me and badges)
             playSound("level_up", me->body.position, 0.0f);
     }
 
@@ -4223,8 +4225,7 @@ namespace arena
                         break;
                     case screens::TITLE_INVITE:
                     case screens::TITLE_MULTIPLAYER:
-                        inviteOpen = true;
-                        inviteMessage.clear();
+                        openMultiplayer();
                         break;
                     case screens::TITLE_JOIN:
                         if (not networked())
@@ -4271,10 +4272,30 @@ namespace arena
         }
     }
 
+    void ArenaGame::openMultiplayer()
+    {
+        // Alone in a build that cannot host, there is nothing to invite to: straight to joining
+        if (not CAN_HOST and not networked())
+        {
+            inviteOpen = false;
+            openJoin();
+            return;
+        }
+
+        inviteOpen = true;
+        inviteMessage.clear();
+    }
+
     bool ArenaGame::hostNow()
     {
         if (networked())
             return true;
+
+        if (not CAN_HOST)
+        {
+            inviteMessage = "The browser version can only join a game. Download the game to host one.";
+            return false;
+        }
 
         // The port the player chose, or the game's own and a look for one on the router
         const bool chosen = not hostPortEdit.empty();
@@ -4888,6 +4909,7 @@ namespace arena
             t.waitingForHost = client != nullptr;
             t.time = uiTime;
             t.quitArmed = quitArmed();
+            t.canHost = CAN_HOST;
             t.goals = static_cast<int>(content.achievementOrder.size());
             t.goalsDone = static_cast<int>(std::count_if(content.achievementOrder.begin(), content.achievementOrder.end(),
                                                          [&](const std::string& id) { return progress.done.count(id) > 0; }));
@@ -6570,6 +6592,8 @@ namespace arena
 
         if (cmd == "host")
         {
+            if (not CAN_HOST)
+                return "host: the browser version can only join a game";
             if (networked())
                 return "host: already in a game (leave first)";
 
