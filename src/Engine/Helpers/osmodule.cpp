@@ -154,8 +154,14 @@ namespace pg
             sigpending(&pending);
             if (sigismember(&pending, SIGPIPE))
             {
+#ifdef __linux__
                 const timespec now = {0, 0};
                 sigtimedwait(&pipeSignal, nullptr, &now);
+#else
+                // macOS has no sigtimedwait; SIGPIPE is pending, so sigwait returns at once
+                int taken = 0;
+                sigwait(&pipeSignal, &taken);
+#endif
             }
 
             pthread_sigmask(SIG_SETMASK, &previous, nullptr);

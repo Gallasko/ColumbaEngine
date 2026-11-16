@@ -258,7 +258,6 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Memory/parallelfor.cpp
     src/Engine/Helpers/demangle.cpp
     src/Engine/Helpers/jsonmodule.cpp
-    src/Engine/Helpers/osmodule.cpp
     src/Engine/Profiler/profiler.cpp
     src/Engine/Profiler/profilerstats.cpp
     # Core systems (provides EntityName component)
@@ -356,7 +355,6 @@ set(ENGINESOURCE
     src/Engine/Init/audiosystems.cpp
     src/Engine/Helpers/demangle.cpp
     src/Engine/Helpers/jsonmodule.cpp
-    src/Engine/Helpers/osmodule.cpp
     src/Engine/Helpers/fsm.cpp
     src/Engine/Helpers/openglobject.cpp
     src/Engine/Helpers/tinyfiledialogs.cpp
@@ -480,6 +478,9 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     add_executable(PgCompilerBootstrap
         examples/PgCompiler/main.cpp
         examples/PgCompiler/application.cpp
+        # The os module is built into the command-line tools only, never into an engine library a
+        # game links: a game cannot run a command by construction
+        src/Engine/Helpers/osmodule.cpp
         examples/PgCompiler/constant_uniformity_pass.cpp
     )
 
@@ -1591,6 +1592,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         target_sources(PgCompiler PRIVATE
             examples/PgCompiler/application.cpp
+            src/Engine/Helpers/osmodule.cpp
             examples/PgCompiler/constant_uniformity_pass.cpp
         )
 
@@ -1872,6 +1874,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         add_executable(test_compiler test/pgcompiler/script_testbench.cc)
 
         target_sources(test_compiler PRIVATE
+            src/Engine/Helpers/osmodule.cpp
             test/pgcompiler/ast_parser_parity.cc
             test/pgcompiler/differential_testbench.cc
             test/pgcompiler/unit/test_ast_passes.cc
