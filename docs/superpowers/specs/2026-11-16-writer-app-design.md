@@ -86,7 +86,12 @@ Built in four plans, in this order; each one works and is tested on its own.
   `kept` (args `["mine", slug, n]`, not needing the author: the text is already theirs); `stitch`
   when every chapter is kept and the article was never stitched or a kept file changed since
   (compared by content: the builder keeps what it needs at stitch); `share` when stitched and no
-  post yet; else `done`. For `pick`, `args` is `["pick", slug, n]`: the app adds the voice. `args` is the command to run
+  post yet; else `done`. For `pick`, `args` is `["pick", slug, n]` with `needsAuthor: true` (the
+  app adds the voice the author keeps), or `["pick", slug, n, voice]` with `needsAuthor: false` when
+  the kept file already holds that draft's text (run as it is): the app adds a voice only when
+  `needsAuthor` is true. An empty kept file is `write`, kept or not. A rename of a chapter or of the
+  article in `plan.md` makes a stitch due (built 2026-11-16 after review). A last line that is not
+  JSON is a failure whatever the exit code (the engine exits 0 on a runtime error). `args` is the command to run
   (`["draft", slug, "2"]`), empty for steps the author does by hand.
 - **`article ideas list --json`** prints the ideas as `ideas.json` holds them.
 - **`article articles --json`** prints `[{slug, title, next}]` for every article folder.

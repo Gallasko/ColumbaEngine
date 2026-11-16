@@ -116,6 +116,24 @@ if (wants("state"))
     checkEq("posts counted", s3.posts, 3)
     check("published path", contains(s3.published.path, slug))
 
+    // A rename in plan.md after a stitch: the site's headings are stale, so stitch is due
+    var planPath = dir + "/plan.md"
+    writeFile(planPath, replace(readFile(planPath), "## 2. Two kinds of key", "## 2. Keys, two kinds"))
+    checkEq("renamed chapter: stitch", nextOf(site, slug).step, "stitch")
+    var restitch = runTool(site, ["stitch", slug], "")
+    checkEq("restitched: done", nextOf(site, slug).step, "done")
+    writeFile(planPath, replace(readFile(planPath), "# Why integer keys made tables 13x faster", "# Integer keys, faster tables"))
+    checkEq("renamed article: stitch", nextOf(site, slug).step, "stitch")
+    var restitch2 = runTool(site, ["stitch", slug], "")
+
+    // A kept chapter emptied to be rewritten: write, never a stitch of an empty section
+    var keptOne = readFile(dir + "/chapters/03.md")
+    writeFile(dir + "/chapters/03.md", "")
+    var ne = nextOf(site, slug)
+    checkEq("emptied kept chapter: write", ne.step, "write")
+    checkEq("emptied kept chapter: 3", ne.n, 3)
+    writeFile(dir + "/chapters/03.md", keptOne)
+
     writeFile(dir + "/chapters/01.md", readFile(dir + "/chapters/01.md") + "\nOne more line.\n")
     checkEq("edited after stitch: stitch", nextOf(site, slug).step, "stitch")
     writeFile(dir + "/plan.md", readFile(dir + "/plan.md") + "\n## 4. Afterwards\nanswers: what is left\ncode: none\n")

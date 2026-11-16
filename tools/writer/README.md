@@ -43,6 +43,15 @@ article state <slug>               # the same as JSON with the next step (the Wr
 article articles --json            # every article and its next step; article ideas list --json for the ideas
 ```
 
+`state`'s `next.args` is the command to run. For `pick` it has two shapes: when the chapter's kept
+file already holds a draft's text, `["pick", slug, n, voice]` with `needsAuthor: false` (run it as
+it is); when the author must choose, `["pick", slug, n]` with `needsAuthor: true` (add the voice of
+the draft they keep). A caller adds a voice only when `needsAuthor` is true. A last line that is not
+JSON is a failure whatever the exit code (the engine exits 0 on a runtime error).
+
+```bash
+```
+
 Then commit and deploy the site yourself. `plan.md` is yours to edit at any time: add, remove or
 rename chapters, change the reader; the next command follows it.
 

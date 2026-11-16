@@ -63,7 +63,7 @@ fun stitchDue(config, record, plan)
         return true
     }
     var texts = record.published.texts
-    if (len(texts) != len(plan.chapters))
+    if (len(texts) != len(plan.chapters) or record.published.title != plan.title)
     {
         return true
     }
@@ -72,7 +72,7 @@ fun stitchDue(config, record, plan)
     {
         var was = texts[i]
         var now = fileText(chapterFile(config, record.slug, chapter.n, ""))
-        if (was.n != chapter.n or typeOf(now) != "string" or trim(now) != was.text)
+        if (was.n != chapter.n or was.title != chapter.title or typeOf(now) != "string" or trim(now) != was.text)
         {
             return true
         }
@@ -91,12 +91,13 @@ fun nextStep(config, record, plan, chapters)
         var keptText = fileText(chapterFile(config, slug, c.n, ""))
         if (typeOf(keptText) == "string")
         {
+            // Empty: just made by "Write my own", or emptied to be rewritten (kept or not)
+            if (trim(keptText) == "")
+            {
+                return step("write", c.n, "write chapters/" + nn(c.n) + ".md", [], true)
+            }
             if (typeOf(c.kept) == "none")
             {
-                if (trim(keptText) == "")
-                {
-                    return step("write", c.n, "write chapters/" + nn(c.n) + ".md", [], true)
-                }
                 for (var voice : c.files.drafts)
                 {
                     if (fileText(chapterFile(config, slug, c.n, voice)) == keptText)

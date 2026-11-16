@@ -153,9 +153,9 @@ fun commandStitch(config, slug)
     var texts = []
     for (var c : chapters)
     {
-        push(texts, {n: c.chapter.n, text: c.text})
+        push(texts, {n: c.chapter.n, title: c.chapter.title, text: c.text})
     }
-    record.published = {path: relative, time: publishedTime, date: pubDate, description: answer.description, excerpt: answer.excerpt, texts: texts}
+    record.published = {path: relative, time: publishedTime, date: pubDate, description: answer.description, excerpt: answer.excerpt, title: plan.title, texts: texts}
     var findings = []
     for (var w : warnings)
     {
