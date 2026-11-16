@@ -15,6 +15,7 @@
 
 #include "Input/input.h"
 #include "Input/inputcomponent.h"
+#include "Input/clipboard.h"
 
 #include "UI/focusable.h"
 
@@ -606,6 +607,9 @@ namespace pg
 
         // Frame-start signal for the ECS pass pacer (N passes per frame)
         ecs->ecsPassPacer.frameStarted();
+
+        // The clipboard is SDL's, used on this (the video) thread only
+        Clipboard::service(ecs);
 
         currentTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         static auto lastTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();

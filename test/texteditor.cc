@@ -11,6 +11,7 @@
 #include "UI/ttftext.h"
 #include "ECS/entitysystem.h"
 #include "mocklogger.h"
+#include "Input/clipboard.h"
 
 namespace pg
 {
@@ -625,6 +626,46 @@ namespace pg
             // Every visible character is drawn: at least as wide as the text without its backslashes
             const TextMetrics plain = sys->measureText("inter", "anb qc{1,2,3,4}z end");
             EXPECT_GT(drawn.penEnd, plain.penEnd);
+        }
+
+        // ---------------------------------------------------------------- Clipboard
+
+        namespace
+        {
+            struct ClipboardCatcher : public System<Listener<ClipboardText>, StoragePolicy>
+            {
+                std::vector<ClipboardText> got;
+                void onEvent(const ClipboardText& event) override { got.push_back(event); }
+            };
+        }
+
+        TEST(Clipboard, ClipboardServiceRelays)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            auto* catcher = ecs.createSystem<ClipboardCatcher>();
+
+            std::string setTo;
+            auto fakeGet = [] { return std::string("from the system"); };
+            auto fakeSet = [&setTo](const std::string& text) { setTo = text; };
+
+            Clipboard::set("a");
+            Clipboard::service(&ecs, fakeGet, fakeSet);
+            EXPECT_EQ(setTo, "a");
+
+            Clipboard::requestGet(7);
+            Clipboard::service(&ecs, fakeGet, fakeSet);
+            ecs.executeOnce();
+            ASSERT_EQ(catcher->got.size(), 1u);
+            EXPECT_EQ(catcher->got[0].requester, 7u);
+            EXPECT_EQ(catcher->got[0].text, "from the system");
+
+            // Nothing queued: nothing done
+            setTo = "";
+            Clipboard::service(&ecs, fakeGet, fakeSet);
+            ecs.executeOnce();
+            EXPECT_EQ(setTo, "");
+            EXPECT_EQ(catcher->got.size(), 1u);
         }
     }
 }
