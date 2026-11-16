@@ -1,0 +1,139 @@
+// run.pg - the writing tool's tests.
+//
+// Usage (from the repo root):
+//     release/PgCompilerBootstrap tools/writer/test/run.pg [group]
+//
+// The pure functions are called directly; each command runs as its own process against a fake
+// `claude` (fake-claude.sh) in a temporary site folder, never the real site.
+
+import "../lib/util"
+import "../lib/config"
+import "string"
+import "algorithm"
+import "file"
+import "os" as os
+
+var passed = 0
+var failed = 0
+var group = ""
+if (getArgCount() > 2)
+{
+    group = getArg(2)
+}
+
+var repo = "/home/corse/Documents/PgEngine"
+var tool = repo + "/tools/writer"
+var fake = tool + "/test/fake-claude.sh"
+
+fun check(name, condition)
+{
+    if (condition)
+    {
+        passed = passed + 1
+    }
+    else
+    {
+        failed = failed + 1
+        print("FAIL " + name)
+    }
+}
+
+fun checkEq(name, got, want)
+{
+    if (got == want)
+    {
+        passed = passed + 1
+    }
+    else
+    {
+        failed = failed + 1
+        print("FAIL " + name + ": got [" + toString(got) + "] want [" + toString(want) + "]")
+    }
+}
+
+fun wants(name)
+{
+    return group == "" or group == name
+}
+
+fun shq(text)
+{
+    return "'" + replace(text, "'", "'\\''") + "'"
+}
+
+// A temporary folder with nothing in it
+fun bareSite()
+{
+    var r = os.call(["mktemp", "-d", "/tmp/claude-1000/writer-test-XXXXXX"])
+    return trim(r.out)
+}
+
+// A temporary site whose config points `claude` at the fake
+fun tempSite()
+{
+    var site = bareSite()
+    var config = {}
+    config.claude = fake
+    config.engine = repo
+    config.notes = site + "/notes"
+    config.site = site
+    config.author = "PigeonCodeur"
+    config.models = {ideas: "opus", plan: "opus", draft: "sonnet", code: "sonnet", stitch: "opus", share: "sonnet"}
+    os.makeDir(site + "/notes")
+    writeJson(site + "/writer/config.json", config)
+    return site
+}
+
+// The tool run as a command: `args` a list of strings, `env` shell assignments ("A=1 B=2")
+fun runTool(site, args, env)
+{
+    var quoted = []
+    for (var a : args)
+    {
+        push(quoted, shq(a))
+    }
+    var line = env + " ARTICLE_SITE=" + shq(site) + " " + repo + "/release/PgCompilerBootstrap " + tool + "/article.pg " + join(quoted, " ")
+    var r = os.call(line)
+    return r
+}
+
+// ---------------------------------------------------------------------------------------------
+if (wants("foundations"))
+{
+    checkEq("slug plain", slugOf("Closing the gap with Lua"), "closing-the-gap-with-lua")
+    checkEq("slug symbols", slugOf("  C++ & WASM: part 2!  "), "c-wasm-part-2")
+    var long = ""
+    var i = 0
+    while (i < 80)
+    {
+        long = long + "a"
+        i++
+    }
+    checkEq("slug long", strlen(slugOf(long + " b")), 60)
+    checkEq("slug empty", slugOf("!!!"), "untitled")
+    checkEq("nn 2", nn(2), "02")
+    checkEq("nn 12", nn(12), "12")
+
+    // First run: no writer/ at all
+    var site = bareSite()
+    var first = runTool(site, [], "")
+    checkEq("no command exits 1", first.code, 1)
+    check("no command prints usage", contains(first.out, "usage"))
+    for (var name : ["config.json", "guide.md", "voices.md", "themes.json", "questions.md"])
+    {
+        check("first run writes " + name, fileExists(site + "/writer/" + name))
+        check("first run lists " + name, contains(first.out, name))
+    }
+
+    // Second run: the author's guide is kept, nothing listed
+    writeFile(site + "/writer/guide.md", "my own guide")
+    var second = runTool(site, [], "")
+    checkEq("guide kept", readFile(site + "/writer/guide.md"), "my own guide")
+    check("nothing written again", not contains(second.out, "guide.md"))
+}
+
+print(toString(passed) + " passed, " + toString(failed) + " failed")
+if (failed > 0)
+{
+    os.exit(1)
+}

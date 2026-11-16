@@ -1,0 +1,64 @@
+// config.pg - where the site is, its writer/ folder, the defaults written on a first run.
+
+import "string"
+import "algorithm"
+import "file"
+import "json" as json
+import "os" as os
+
+var DEFAULT_SITE = "/home/corse/Documents/AstroTest"
+var DEFAULT_FILES = ["config.json", "guide.md", "voices.md", "themes.json", "questions.md"]
+
+// The site folder: $ARTICLE_SITE, else the author's site
+fun siteDir()
+{
+    var site = os.env("ARTICLE_SITE")
+    if (typeOf(site) == "none" or site == "")
+    {
+        return DEFAULT_SITE
+    }
+    return site
+}
+
+// The defaults missing from <site>/writer/ copied there; an existing file is never overwritten.
+// The names written, in order
+fun ensureWriter(site)
+{
+    var written = []
+    var writer = site + "/writer"
+    for (var name : DEFAULT_FILES)
+    {
+        var target = writer + "/" + name
+        if (not fileExists(target))
+        {
+            var source = toolDir() + "/defaults/" + name
+            if (name == "config.json")
+            {
+                var config = readJson(source)
+                config.site = site
+                writeJson(target, config)
+            }
+            else
+            {
+                writeText(target, readFile(source))
+            }
+            push(written, name)
+        }
+    }
+    return written
+}
+
+// writer/config.json, with `site` and `writer` set; the defaults written first when missing
+fun loadConfig()
+{
+    var site = siteDir()
+    var written = ensureWriter(site)
+    for (var name : written)
+    {
+        print("wrote writer/" + name + " (default)")
+    }
+    var config = readJson(site + "/writer/config.json")
+    config.site = site
+    config.writer = site + "/writer"
+    return config
+}

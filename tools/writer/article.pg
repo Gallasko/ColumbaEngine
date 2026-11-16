@@ -1,0 +1,49 @@
+// article.pg - the writing tool for columbaengine.org.
+//
+//     release/PgCompilerBootstrap tools/writer/article.pg <command> ...
+//
+// See tools/writer/README.md. Ideas -> plan -> (code) -> draft/pick -> stitch -> share, every step
+// recorded under <site>/writer/; Claude (claude -p, the author's subscription) reads and answers,
+// this tool writes every file.
+
+import "lib/util"
+import "lib/config"
+import "string"
+import "algorithm"
+import "os" as os
+
+var USAGE = "usage: article <command>\n  ideas                 new ideas from recent work\n  ideas list            the ideas by status\n  idea \"<title>\"        add an idea of your own\n  decline <id>          drop an idea\n  plan <id> [--again]   a teaching plan for an idea\n  code <slug> <n>       the engine code chapter n needs\n  draft <slug> <n> [--again]\n                        chapter n in every voice\n  pick <slug> <n> <voice> [--replace]\n                        keep a draft\n  mine <slug> <n>       keep the chapter you wrote\n  stitch <slug>         the article written into the site\n  share <slug>          Reddit and X posts, printed to paste\n  status <slug>         where an article stands"
+
+// The arguments after the command
+fun commandArgs()
+{
+    var args = []
+    var i = 3
+    while (i < getArgCount())
+    {
+        push(args, getArg(i))
+        i++
+    }
+    return args
+}
+
+fun usage()
+{
+    print(USAGE)
+    os.exit(1)
+}
+
+fun main()
+{
+    var config = loadConfig()
+    if (getArgCount() < 3)
+    {
+        usage()
+    }
+    var command = getArg(2)
+    var args = commandArgs()
+
+    usage()
+}
+
+main()

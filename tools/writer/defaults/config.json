@@ -1,0 +1,8 @@
+{
+  "claude": "/home/corse/.local/bin/claude",
+  "engine": "/home/corse/Documents/PgEngine",
+  "notes": "/home/corse/.claude/projects/-home-corse-Documents-PgEngine/memory",
+  "site": "/home/corse/Documents/AstroTest",
+  "author": "PigeonCodeur",
+  "models": { "ideas": "opus", "plan": "opus", "draft": "sonnet", "code": "sonnet", "stitch": "opus", "share": "sonnet" }
+}

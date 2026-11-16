@@ -1,0 +1,6 @@
+{
+  "vm-performance": [{"platform": "reddit", "where": "r/ProgrammingLanguages"}, {"platform": "reddit", "where": "r/cpp"}, {"platform": "x"}],
+  "engine": [{"platform": "reddit", "where": "r/gamedev"}, {"platform": "x"}],
+  "chronicle": [{"platform": "reddit", "where": "r/incremental_games"}, {"platform": "x"}],
+  "web": [{"platform": "reddit", "where": "r/webdev"}, {"platform": "x"}]
+}

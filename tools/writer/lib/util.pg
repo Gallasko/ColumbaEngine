@@ -1,0 +1,164 @@
+// util.pg - small helpers of the writing tool: slugs, files, JSON, time, failing.
+// The tool's libraries import native modules only, never each other: article.pg and the tests
+// import them all, in order.
+
+import "string"
+import "algorithm"
+import "file"
+import "json" as json
+import "os" as os
+
+var LOWER = "abcdefghijklmnopqrstuvwxyz0123456789"
+var UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+// The title lowercased, runs of anything not [a-z0-9] made "-", trimmed, at most 60 characters
+fun slugOf(title)
+{
+    var lowered = toLowerCase(title)
+    var parts = []
+    var dash = false
+    var i = 0
+    var n = strlen(lowered)
+    while (i < n)
+    {
+        var c = charAt(lowered, i)
+        if (indexOf(LOWER, c) >= 0)
+        {
+            if (dash and len(parts) > 0)
+            {
+                push(parts, "-")
+            }
+            push(parts, c)
+            dash = false
+        }
+        else
+        {
+            dash = true
+        }
+        i++
+    }
+    var slug = join(parts, "")
+    if (strlen(slug) > 60)
+    {
+        slug = substring(slug, 0, 60)
+    }
+    while (strlen(slug) > 0 and endsWith(slug, "-"))
+    {
+        slug = substring(slug, 0, strlen(slug) - 1)
+    }
+    if (slug == "")
+    {
+        return "untitled"
+    }
+    return slug
+}
+
+// A chapter number on two digits
+fun nn(n)
+{
+    if (n < 10)
+    {
+        return "0" + toString(n)
+    }
+    return toString(n)
+}
+
+// The folder of a path ("" for a bare name)
+fun dirOf(path)
+{
+    var i = strlen(path) - 1
+    while (i >= 0)
+    {
+        if (charAt(path, i) == "/")
+        {
+            return substring(path, 0, i)
+        }
+        i--
+    }
+    return ""
+}
+
+// The text of a file, none when it does not exist
+fun fileText(path)
+{
+    if (not fileExists(path))
+    {
+        return none
+    }
+    return readFile(path)
+}
+
+// A JSON file's value, none when it does not exist
+fun readJson(path)
+{
+    var text = fileText(path)
+    if (typeOf(text) == "none")
+    {
+        return none
+    }
+    return json.parse(text)
+}
+
+// A file written, its folders made first
+fun writeText(path, text)
+{
+    var dir = dirOf(path)
+    if (dir != "")
+    {
+        os.makeDir(dir)
+    }
+    writeFile(path, text)
+}
+
+fun writeJson(path, value)
+{
+    writeText(path, json.stringify(value, 2) + "\n")
+}
+
+fun nowMs()
+{
+    return os.time()
+}
+
+fun today()
+{
+    return os.formatTime(os.time(), "%Y-%m-%d")
+}
+
+// Stops the command: prints the reason, exits 1
+fun fail(message)
+{
+    print("article: " + message)
+    os.exit(1)
+}
+
+fun has(list, item)
+{
+    for (var x : list)
+    {
+        if (x == item)
+        {
+            return true
+        }
+    }
+    return false
+}
+
+// The tool's folder (tools/writer), from the script being run: article.pg or test/run.pg
+fun toolDir()
+{
+    var dir = dirOf(getArg(1))
+    if (endsWith(dir, "/test"))
+    {
+        dir = dirOf(dir)
+    }
+    if (dir == "test")
+    {
+        dir = "."
+    }
+    if (dir == "")
+    {
+        dir = "."
+    }
+    return dir
+}
