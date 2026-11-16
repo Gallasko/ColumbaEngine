@@ -1,0 +1,128 @@
+// claude.pg - the one way the tool asks Claude: `claude -p` on the author's subscription (never
+// --bare, which reads only an API key), the prompt on stdin, the answer in a fixed JSON shape,
+// tools read-only or none. Claude never writes a file: the tool does.
+
+import "string"
+import "algorithm"
+import "file"
+import "json" as json
+import "os" as os
+
+// A template with each {{name}} replaced by values[name]
+fun fill(template, values)
+{
+    var out = template
+    for (var name : values)
+    {
+        var value = values[name]
+        if (typeOf(value) != "string")
+        {
+            value = toString(value)
+        }
+        out = replace(out, "{{" + name + "}}", value)
+    }
+    var left = indexOf(out, "{{")
+    if (left >= 0)
+    {
+        var end = indexOf(substring(out, left, strlen(out)), "}}")
+        fail("prompt template: no value for " + substring(out, left, left + end + 2))
+    }
+    return out
+}
+
+// The prompt template of a step (tools/writer/prompts/<step>.md)
+fun prompt(config, step)
+{
+    var path = toolDir() + "/prompts/" + step + ".md"
+    var text = fileText(path)
+    if (typeOf(text) == "none")
+    {
+        fail("no prompt template " + path)
+    }
+    return text
+}
+
+fun modelFor(config, step)
+{
+    var key = step
+    if (step == "theme")
+    {
+        key = "plan"
+    }
+    var model = config.models[key]
+    if (typeOf(model) == "none")
+    {
+        return "sonnet"
+    }
+    return model
+}
+
+// Claude's answer to `promptText`, as the table `schema` describes (its "title" is set to the
+// step). `tools` is "" or "Read,Grep,Glob"; `dirs` the folders it may read besides the engine.
+// Any failure stops the command, with the step named; last-call.json keeps the call either way
+fun askClaude(config, step, promptText, schema, tools, dirs)
+{
+    schema.title = step
+    var guide = fileText(config.writer + "/guide.md")
+    if (typeOf(guide) == "none")
+    {
+        guide = ""
+    }
+    var system = "You are the " + step + " step of a writing tool for the ColumbaEngine blog. Answer only in the given JSON shape.\n\n" + guide
+    var schemaText = json.stringify(schema)
+
+    var args = [config.claude, "-p", "--output-format", "json", "--no-session-persistence", "--model", modelFor(config, step), "--system-prompt", system, "--json-schema", schemaText, "--tools", tools]
+    if (tools != "")
+    {
+        push(args, "--allowedTools")
+        push(args, tools)
+    }
+    for (var dir : dirs)
+    {
+        push(args, "--add-dir")
+        push(args, dir)
+    }
+
+    var r = os.call(args, {input: promptText, cwd: config.engine})
+
+    var record = {step: step, prompt: promptText, args: args, code: r.code, out: r.out, err: r.err, time: os.time()}
+    writeJson(config.writer + "/last-call.json", record)
+
+    if (r.code != 0)
+    {
+        var why = trim(r.err)
+        if (why == "")
+        {
+            why = trim(r.out)
+        }
+        fail(step + ": claude exited with " + toString(r.code) + ": " + why)
+    }
+
+    var out = trim(r.out)
+    if (not startsWith(out, "{") or not endsWith(out, "}"))
+    {
+        fail(step + ": claude's answer is not JSON (see writer/last-call.json)")
+    }
+    var reply = json.parse(out)
+    if (reply.is_error == true or reply.subtype != "success")
+    {
+        fail(step + ": claude says " + toString(reply.subtype) + ": " + toString(reply.result))
+    }
+    var value = reply.structured_output
+    if (typeOf(value) != "table")
+    {
+        fail(step + ": claude gave no answer in the shape asked (see writer/last-call.json)")
+    }
+    var required = schema.required
+    if (typeOf(required) == "array")
+    {
+        for (var key : required)
+        {
+            if (typeOf(value[key]) == "none")
+            {
+                fail(step + ": claude's answer has no " + key + " (see writer/last-call.json)")
+            }
+        }
+    }
+    return value
+}

@@ -8,6 +8,8 @@
 
 import "../lib/util"
 import "../lib/config"
+import "../lib/claude"
+import "../lib/plan"
 import "string"
 import "algorithm"
 import "file"
@@ -130,6 +132,71 @@ if (wants("foundations"))
     var second = runTool(site, [], "")
     checkEq("guide kept", readFile(site + "/writer/guide.md"), "my own guide")
     check("nothing written again", not contains(second.out, "guide.md"))
+}
+
+// ---------------------------------------------------------------------------------------------
+fun samplePlan()
+{
+    var plan = {title: "Integer keys", theme: "vm-performance", reader: "a developer", knows: "C++", learns: "how tables store keys", question: "why was it slow?"}
+    plan.chapters = [{n: 1, title: "The symptom", answers: "what we saw", core: "tables", code: "none", visual: "none"}, {n: 2, title: "Two kinds of key", answers: "why it was slow", core: "int run, string keys", code: "ObjInstance::findInt", visual: "chart"}]
+    return plan
+}
+
+if (wants("core"))
+{
+    var p = samplePlan()
+    var text = planText(p)
+    var back = parsePlan(text)
+    check("plan reads back", back.ok)
+    var bp = back.plan
+    checkEq("plan title", bp.title, "Integer keys")
+    checkEq("plan theme", bp.theme, "vm-performance")
+    checkEq("plan question", bp.question, "why was it slow?")
+    checkEq("plan chapters", len(bp.chapters), 2)
+    var c2 = bp.chapters[1]
+    checkEq("chapter 2 n", c2.n, 2)
+    checkEq("chapter 2 title", c2.title, "Two kinds of key")
+    checkEq("chapter 2 core", c2.core, "int run, string keys")
+    checkEq("chapter 2 code", c2.code, "ObjInstance::findInt")
+
+    var edited = parsePlan("# A title\n\n\ntheme: web\nreader:\nsome stray line\n\n## 1. First\nanswers: x\n\n## 2. Second\ncore: y\n")
+    check("edited plan reads", edited.ok)
+    var ep = edited.plan
+    checkEq("empty key is empty", ep.reader, "")
+    checkEq("edited chapters", len(ep.chapters), 2)
+    var e2 = ep.chapters[1]
+    checkEq("missing key is empty", e2.answers, "")
+
+    var noTitle = parsePlan("theme: web\n## 1. First\n")
+    check("no title fails", not noTitle.ok)
+    check("no title says title", contains(noTitle.error, "title"))
+    var noChapter = parsePlan("# T\ntheme: web\n")
+    check("no chapter fails", not noChapter.ok)
+    check("no chapter says chapter", contains(noChapter.error, "chapter"))
+
+    checkEq("fill", fill("a {{x}} b {{y}}", {x: "1", y: "2"}), "a 1 b 2")
+
+    var site = tempSite()
+    var log = site + "/fake.log"
+    var ok = runTool(site, ["_ask", "theme", "hello"], "FAKE_CLAUDE_LOG=" + shq(log))
+    checkEq("ask exits 0", ok.code, 0)
+    check("ask prints the answer", contains(ok.out, "vm-performance"))
+    var last = readJson(site + "/writer/last-call.json")
+    checkEq("last call step", last.step, "theme")
+    var logged = readFile(log)
+    check("log has json output", contains(logged, "arg: --output-format") and contains(logged, "arg: json"))
+    check("log has tools", contains(logged, "arg: --tools"))
+    check("never --bare", not contains(logged, "--bare"))
+    check("prompt on stdin", contains(logged, "--- prompt\nhello"))
+    check("guide in system prompt", contains(logged, "How these articles teach"))
+
+    var failing = runTool(site, ["_ask", "theme", "hello"], "FAKE_CLAUDE_FAIL=1")
+    checkEq("failed call exits 1", failing.code, 1)
+    check("failed call names the step", contains(failing.out, "theme:"))
+
+    var empty = runTool(site, ["_ask", "theme", "hello"], "FAKE_CLAUDE_VARIANT=empty")
+    checkEq("empty answer exits 1", empty.code, 1)
+    check("empty answer names the key", contains(empty.out, "theme"))
 }
 
 print(toString(passed) + " passed, " + toString(failed) + " failed")

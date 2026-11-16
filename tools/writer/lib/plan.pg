@@ -1,0 +1,150 @@
+// plan.pg - plan.md, the teaching plan the author edits: written from a table, read back.
+//
+//     # <title>
+//     theme: ...   reader: ...   knows: ...   learns: ...   question: ...
+//     ## 1. <chapter title>
+//     answers: ...   core: ...   code: ...   visual: ...
+//
+// The first "# " line is the title; "key: value" lines before the first "## " are the article's;
+// each "## N. title" starts a chapter, the "key: value" lines under it are that chapter's; other
+// lines are ignored; a missing key is "".
+
+import "string"
+import "algorithm"
+
+var PLAN_KEYS = ["theme", "reader", "knows", "learns", "question"]
+var CHAPTER_KEYS = ["answers", "core", "code", "visual"]
+var DIGITS = "0123456789"
+
+// A value on one line: newlines from Claude would break the format
+fun oneLine(value)
+{
+    if (typeOf(value) == "none")
+    {
+        return ""
+    }
+    if (typeOf(value) != "string")
+    {
+        value = toString(value)
+    }
+    return trim(replace(replace(value, "\r", ""), "\n", " "))
+}
+
+fun planText(plan)
+{
+    var lines = ["# " + oneLine(plan.title)]
+    for (var key : PLAN_KEYS)
+    {
+        push(lines, key + ": " + oneLine(plan[key]))
+    }
+    for (var chapter : plan.chapters)
+    {
+        push(lines, "")
+        push(lines, "## " + toString(chapter.n) + ". " + oneLine(chapter.title))
+        for (var key : CHAPTER_KEYS)
+        {
+            push(lines, key + ": " + oneLine(chapter[key]))
+        }
+    }
+    return join(lines, "\n") + "\n"
+}
+
+fun allDigits(text)
+{
+    if (text == "")
+    {
+        return false
+    }
+    var i = 0
+    while (i < strlen(text))
+    {
+        if (indexOf(DIGITS, charAt(text, i)) < 0)
+        {
+            return false
+        }
+        i++
+    }
+    return true
+}
+
+fun newChapter(n, title)
+{
+    var chapter = {n: n, title: title}
+    for (var key : CHAPTER_KEYS)
+    {
+        chapter[key] = ""
+    }
+    return chapter
+}
+
+// {ok, plan, error}
+fun parsePlan(text)
+{
+    var plan = {title: none, chapters: []}
+    for (var key : PLAN_KEYS)
+    {
+        plan[key] = ""
+    }
+    var current = none
+    var lineNo = 0
+    var seen = []
+
+    for (var raw : splitLines(text))
+    {
+        lineNo = lineNo + 1
+        var line = trim(raw)
+        if (startsWith(line, "## "))
+        {
+            var head = trim(substring(line, 3, strlen(line)))
+            var dot = indexOf(head, ". ")
+            var n = len(plan.chapters) + 1
+            var title = head
+            if (dot > 0 and allDigits(substring(head, 0, dot)))
+            {
+                n = toInt(substring(head, 0, dot))
+                title = trim(substring(head, dot + 2, strlen(head)))
+            }
+            if (has(seen, n))
+            {
+                return {ok: false, plan: none, error: "line " + toString(lineNo) + ": chapter " + toString(n) + " appears twice"}
+            }
+            push(seen, n)
+            current = newChapter(n, title)
+            push(plan.chapters, current)
+        }
+        else if (startsWith(line, "# ") and typeOf(plan.title) == "none")
+        {
+            plan.title = trim(substring(line, 2, strlen(line)))
+        }
+        else
+        {
+            var colon = indexOf(line, ":")
+            if (colon > 0)
+            {
+                var key = trim(substring(line, 0, colon))
+                var value = trim(substring(line, colon + 1, strlen(line)))
+                if (typeOf(current) == "none")
+                {
+                    if (has(PLAN_KEYS, key))
+                    {
+                        plan[key] = value
+                    }
+                }
+                else if (has(CHAPTER_KEYS, key))
+                {
+                    current[key] = value
+                }
+            }
+        }
+    }
+
+    if (typeOf(plan.title) == "none" or plan.title == "")
+    {
+        return {ok: false, plan: none, error: "no title line (\"# <title>\")"}
+    }
+    if (len(plan.chapters) == 0)
+    {
+        return {ok: false, plan: none, error: "no chapter (\"## 1. <chapter title>\")"}
+    }
+    return {ok: true, plan: plan, error: ""}
+}
