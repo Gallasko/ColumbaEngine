@@ -22,6 +22,7 @@ import "t_ideas"
 import "t_plan"
 import "t_draft"
 import "t_stitch"
+import "t_share"
 import "string"
 import "os" as os
 

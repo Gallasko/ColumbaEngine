@@ -138,7 +138,7 @@ fun commandStitch(config, slug)
     var relative = blogPath(slug)
     writeText(config.site + "/" + relative, join(header, "\n") + "\n\n" + join(body, "\n\n") + "\n")
 
-    record.published = {path: relative, time: publishedTime, date: pubDate}
+    record.published = {path: relative, time: publishedTime, date: pubDate, description: answer.description, excerpt: answer.excerpt}
     push(record.checks, {time: nowMs(), findings: answer.findings})
     addStep(record, "stitch", modelFor(config, "stitch"))
     saveRecord(config, record)
@@ -162,6 +162,179 @@ fun commandStitch(config, slug)
         for (var finding : answer.findings)
         {
             print("  - " + finding)
+        }
+    }
+}
+
+// Where a post goes, as the first part of its tag: "r-<community>" for Reddit, "x" for X
+fun placeOf(platform, where)
+{
+    if (platform == "reddit")
+    {
+        var name = where
+        if (startsWith(toLowerCase(name), "r/"))
+        {
+            name = substring(name, 2, strlen(name))
+        }
+        return "r-" + slugOf(name)
+    }
+    return slugOf(platform)
+}
+
+fun recordTags(record)
+{
+    var tags = []
+    for (var post : record.posts)
+    {
+        push(tags, post.tag)
+    }
+    return tags
+}
+
+// A tag for a post at `place`: <place>-<the slug, cut>-<k>, at most 40 characters, the first k
+// not taken among the record's posts
+fun tagFor(record, place)
+{
+    var taken = recordTags(record)
+    var k = 1
+    while (true)
+    {
+        var number = toString(k)
+        var room = 40 - strlen(place) - strlen(number) - 2
+        var short = record.slug
+        if (strlen(short) > room)
+        {
+            short = substring(short, 0, room)
+        }
+        while (strlen(short) > 0 and endsWith(short, "-"))
+        {
+            short = substring(short, 0, strlen(short) - 1)
+        }
+        var tag = place + "-" + short + "-" + number
+        if (short == "")
+        {
+            tag = place + "-" + number
+        }
+        if (not has(taken, tag))
+        {
+            return tag
+        }
+        k++
+    }
+}
+
+// article share <slug>
+fun commandShare(config, slug)
+{
+    var record = needRecord(config, slug)
+    if (typeOf(record.published) != "table")
+    {
+        fail("stitch the article first (article stitch " + slug + ")")
+    }
+    var themes = readJson(config.writer + "/themes.json")
+    var places = themes[record.theme]
+    if (typeOf(places) != "array")
+    {
+        fail("no places for the theme '" + toString(record.theme) + "' in writer/themes.json")
+    }
+
+    var schema = {type: "object", properties: {title: {type: "string"}, text: {type: "string"}}, required: ["title", "text"]}
+    var made = []
+    for (var place : places)
+    {
+        var where = place.where
+        if (typeOf(where) != "string")
+        {
+            where = ""
+        }
+        var tag = tagFor(record, placeOf(place.platform, where))
+        var link = "https://columbaengine.org/blog/" + slug + "/?from=" + tag
+        var limit = "a Reddit post: a title and a text of a few short paragraphs"
+        if (place.platform == "x")
+        {
+            limit = "an X post: no title, the text at most 280 characters with the link included"
+        }
+        var values = {title: record.title, description: toString(record.published.description), excerpt: toString(record.published.excerpt), question: toString(record.reader.question), platform: place.platform, where: where, link: link, limit: limit}
+        var answer = askClaude(config, "share", fill(prompt(config, "share"), values), schema, "", [])
+
+        var text = trim(answer.text)
+        if (not contains(text, link))
+        {
+            text = text + "\n\n" + link
+        }
+        if (place.platform == "x" and strlen(text) > 280)
+        {
+            fail("share: the X post is " + toString(strlen(text)) + " characters, over 280 (nothing recorded)")
+        }
+        var post = {platform: place.platform, where: where, tag: tag, title: trim(answer.title), text: text, time: nowMs()}
+        push(record.posts, post)
+        push(made, post)
+    }
+
+    addStep(record, "share", modelFor(config, "share"))
+    saveRecord(config, record)
+
+    for (var post : made)
+    {
+        var name = post.platform
+        if (post.where != "")
+        {
+            name = name + " " + post.where
+        }
+        print("==================== " + name + "   (tag " + post.tag + ")")
+        if (post.title != "")
+        {
+            print(post.title)
+            print("")
+        }
+        print(post.text)
+        print("")
+    }
+}
+
+// article status <slug>
+fun commandStatus(config, slug)
+{
+    var opened = openArticle(config, slug)
+    var record = opened.record
+    print(record.title + "   [" + toString(record.theme) + "]")
+    for (var c : record.chapters)
+    {
+        var kept = "-"
+        if (typeOf(c.kept) == "string")
+        {
+            kept = c.kept
+        }
+        var line = "  " + toString(c.n) + ". " + c.title + "   drafts: " + join(c.drafts, ", ") + "   kept: " + kept
+        if (typeOf(c.edited) == "double" or typeOf(c.edited) == "int")
+        {
+            line = line + "   edited: " + toString(c.edited)
+        }
+        print(line)
+    }
+    if (typeOf(record.published) == "table")
+    {
+        print("published: " + record.published.path + " (" + record.published.date + ")")
+    }
+    if (len(record.checks) > 0)
+    {
+        var last = record.checks[len(record.checks) - 1]
+        print("last checks:")
+        if (len(last.findings) == 0)
+        {
+            print("  nothing found")
+        }
+        for (var finding : last.findings)
+        {
+            print("  - " + finding)
+        }
+    }
+    if (len(record.posts) > 0)
+    {
+        print("posts:")
+        for (var post : record.posts)
+        {
+            print("  " + post.platform + " " + post.where + "   " + post.tag + "   " + os.formatTime(post.time, "%Y-%m-%d"))
         }
     }
 }

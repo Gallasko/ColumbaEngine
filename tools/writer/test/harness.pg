@@ -146,3 +146,30 @@ fun keptSite()
     var m3 = runTool(site, ["mine", slug, "3"], "")
     return site
 }
+
+// The kept article stitched
+fun stitchedSite()
+{
+    var site = keptSite()
+    var s = runTool(site, ["stitch", PLANNED_SLUG], "")
+    return site
+}
+
+// Whether every character of a tag is one the site's analytics accept, and it is 1 to 40 long
+fun validTag(tag)
+{
+    if (strlen(tag) < 1 or strlen(tag) > 40)
+    {
+        return false
+    }
+    var i = 0
+    while (i < strlen(tag))
+    {
+        if (indexOf("abcdefghijklmnopqrstuvwxyz0123456789-", charAt(tag, i)) < 0)
+        {
+            return false
+        }
+        i++
+    }
+    return true
+}

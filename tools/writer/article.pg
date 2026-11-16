@@ -117,6 +117,17 @@ fun main()
         return
     }
 
+    if (command == "share" and len(args) == 1)
+    {
+        commandShare(config, args[0])
+        return
+    }
+    if (command == "status" and len(args) == 1)
+    {
+        commandStatus(config, args[0])
+        return
+    }
+
     usage()
 }
 

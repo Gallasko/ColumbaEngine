@@ -1,0 +1,1 @@
+{"title": "How integer keys made our tables 13x faster", "text": "We found why t[5] was slow in our scripting language, and what fixed it."}

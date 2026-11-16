@@ -1,0 +1,65 @@
+// t_share.pg - the "share" test group (run.pg imports it).
+
+import "string"
+import "algorithm"
+import "file"
+import "os" as os
+
+if (wants("share"))
+{
+    var rec = {slug: "why-integer-keys-made-tables-13x-faster", posts: []}
+    var t1 = tagFor(rec, "r-cpp")
+    check("reddit tag shape", startsWith(t1, "r-cpp-why-integer") and endsWith(t1, "-1"))
+    check("reddit tag valid", validTag(t1))
+    push(rec.posts, {tag: t1})
+    var t2 = tagFor(rec, "r-cpp")
+    check("second tag ends -2", endsWith(t2, "-2"))
+    check("second tag differs", t2 != t1)
+    var tx = tagFor(rec, "x")
+    check("x tag", startsWith(tx, "x-why-") and validTag(tx))
+    var longRec = {slug: slugOf("a very long title that goes on and on well past the sixty characters allowed"), posts: []}
+    check("long slug tag valid", validTag(tagFor(longRec, "r-programminglanguages")))
+    checkEq("place reddit", placeOf("reddit", "r/ProgrammingLanguages"), "r-programminglanguages")
+    checkEq("place x", placeOf("x", ""), "x")
+
+    var site = stitchedSite()
+    var slug = PLANNED_SLUG
+    var dir = site + "/writer/articles/" + slug
+
+    var r = runTool(site, ["share", slug], "")
+    checkEq("share exits 0", r.code, 0)
+    var record = readJson(dir + "/record.json")
+    checkEq("three posts", len(record.posts), 3)
+    var tags = []
+    for (var post : record.posts)
+    {
+        check("tag valid " + post.tag, validTag(post.tag))
+        check("tag unique " + post.tag, not has(tags, post.tag))
+        push(tags, post.tag)
+        check("link with its tag", contains(post.text, "?from=" + post.tag))
+        check("printed " + post.tag, contains(r.out, post.tag))
+    }
+    var p1 = record.posts[0]
+    checkEq("first post where", p1.where, "r/ProgrammingLanguages")
+    var p3 = record.posts[2]
+    checkEq("third post platform", p3.platform, "x")
+
+    var again = runTool(site, ["share", slug], "")
+    checkEq("share again exits 0", again.code, 0)
+    var record2 = readJson(dir + "/record.json")
+    checkEq("six posts", len(record2.posts), 6)
+    var first2 = record2.posts[0]
+    checkEq("first post kept", first2.tag, p1.tag)
+
+    var long = runTool(site, ["share", slug], "FAKE_CLAUDE_VARIANT=long")
+    checkEq("x over 280 fails", long.code, 1)
+    checkEq("posts unchanged", len(readJson(dir + "/record.json").posts), 6)
+
+    var planned = plannedSite()
+    checkEq("share before stitch fails", runTool(planned, ["share", slug], "").code, 1)
+
+    var status = runTool(site, ["status", slug], "")
+    checkEq("status exits 0", status.code, 0)
+    check("status shows kept voices", contains(status.out, "guide") and contains(status.out, "story") and contains(status.out, "mine"))
+    check("status shows a tag", contains(status.out, p1.tag))
+}
