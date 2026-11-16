@@ -92,6 +92,12 @@ namespace pg
             EXPECT_EQ(output, "{\"5\":2,\"b\":1}\n");
         }
 
+        TEST_F(JsonModuleTest, IntAndStringKeyOfTheSameTextIsAnError)
+        {
+            // t[5] and t["5"] are two keys; JSON has one "5": refused rather than one value dropped
+            EXPECT_EQ(run("var t = {}\nt[5] = 1\nt[\"5\"] = 2\njson.stringify(t)\n"), InterpretResult::RUNTIME_ERROR);
+        }
+
         TEST_F(JsonModuleTest, Indent)
         {
             ASSERT_EQ(run("__dprint(json.stringify({a: [1]}, 2))\n"), InterpretResult::OK);

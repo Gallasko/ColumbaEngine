@@ -161,7 +161,13 @@ namespace pg
                     const Value field = table->fieldValue(slot);
                     if (IS_UNDEFINED(field))
                         continue;
-                    object[table->fieldName(slot)] = toJson(vm, field, depth + 1, path);
+
+                    // t[5] and t["5"] are two keys of the table but one in JSON: refused, never one dropped
+                    const std::string& name = table->fieldName(slot);
+                    if (object.contains(name))
+                        throw std::runtime_error("json.stringify: the table has both the key " + name + " and the key \"" + name + "\", which are one key in JSON");
+
+                    object[name] = toJson(vm, field, depth + 1, path);
                 }
 
                 path.erase(table);
