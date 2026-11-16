@@ -151,3 +151,39 @@ fun commandState(config, slug)
     var state = articleState(config, slug)
     print(json.stringify(state))
 }
+
+// article articles --json: every article folder holding a record, with its next step; a plan that
+// cannot be read is listed (its next step is fixing it), never fatal
+fun commandArticles(config)
+{
+    var out = []
+    var root = config.writer + "/articles"
+    if (os.isDir(root))
+    {
+        for (var slug : os.listDir(root))
+        {
+            var dir = articleDir(config, slug)
+            if (fileExists(dir + "/record.json"))
+            {
+                var record = readJson(dir + "/record.json")
+                var planSource = fileText(dir + "/plan.md")
+                var readable = false
+                if (typeOf(planSource) == "string")
+                {
+                    var parsed = parsePlan(planSource)
+                    readable = parsed.ok
+                }
+                if (readable)
+                {
+                    var state = articleState(config, slug)
+                    push(out, {slug: slug, title: state.title, next: state.next})
+                }
+                else
+                {
+                    push(out, {slug: slug, title: record.title, next: step("plan", none, "plan.md cannot be read", [], true)})
+                }
+            }
+        }
+    }
+    print(json.stringify(out))
+}

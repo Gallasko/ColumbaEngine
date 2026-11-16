@@ -40,6 +40,7 @@ article stitch <slug>              # src/content/blog/<slug>.md in the site, and
 article share <slug>               # the posts, with ?from= tags, printed to paste
 article status <slug>              # where the article stands
 article state <slug>               # the same as JSON with the next step (the Writer app reads it)
+article articles --json            # every article and its next step; article ideas list --json for the ideas
 ```
 
 Then commit and deploy the site yourself. `plan.md` is yours to edit at any time: add, remove or

@@ -129,4 +129,40 @@ if (wants("state"))
     checkEq("broken plan fails", b.code, 1)
     check("broken plan: no JSON", typeOf(jsonOut(b)) == "none")
     checkEq("missing slug fails", runTool(site, ["state", "no-such-article"], "").code, 1)
+
+    // articles --json: one article, a stray folder skipped; a broken plan listed, not fatal
+    var lib = plannedSite()
+    os.makeDir(lib + "/writer/articles/stray-folder")
+    var a1 = runTool(lib, ["articles", "--json"], "")
+    checkEq("articles exits 0", a1.code, 0)
+    var list = jsonOut(a1)
+    check("articles parses", typeOf(list) == "array")
+    if (typeOf(list) == "array")
+    {
+        checkEq("one article", len(list), 1)
+        var only = list[0]
+        checkEq("its slug", only.slug, slug)
+        checkEq("its next", only.next.step, "draft")
+    }
+    writeFile(lib + "/writer/articles/" + slug + "/plan.md", "# Only a title\n")
+    var a2 = runTool(lib, ["articles", "--json"], "")
+    checkEq("broken plan still lists", a2.code, 0)
+    var list2 = jsonOut(a2)
+    if (typeOf(list2) == "array")
+    {
+        var b2 = list2[0]
+        checkEq("broken plan: next plan", b2.next.step, "plan")
+        checkEq("broken plan: the author's", b2.next.needsAuthor, true)
+    }
+
+    var ij = runTool(lib, ["ideas", "list", "--json"], "")
+    checkEq("ideas list --json exits 0", ij.code, 0)
+    var ideasOut = jsonOut(ij)
+    check("ideas list --json parses", typeOf(ideasOut) == "table")
+    if (typeOf(ideasOut) == "table")
+    {
+        checkEq("same ideas", len(ideasOut.ideas), len(readJson(lib + "/writer/ideas.json").ideas))
+    }
+    var plainList = runTool(lib, ["ideas", "list"], "")
+    check("plain list unchanged", contains(plainList.out, "new:") or contains(plainList.out, "planned:"))
 }

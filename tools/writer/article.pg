@@ -20,7 +20,7 @@ import "string"
 import "algorithm"
 import "os" as os
 
-var USAGE = "usage: article <command>\n  ideas [--again] [--days N] [\"a direction\"]\n                        new ideas from recent work (--again: the last 60 days again)\n  ideas list            the ideas by status\n  idea \"<title>\"        add an idea of your own\n  decline <id>          drop an idea\n  plan <id> [--again]   a teaching plan for an idea\n  code <slug> <n>       the engine code chapter n needs\n  draft <slug> <n> [--again]\n                        chapter n in every voice\n  pick <slug> <n> <voice> [--replace]\n                        keep a draft\n  mine <slug> <n>       keep the chapter you wrote\n  stitch <slug>         the article written into the site\n  share <slug>          Reddit and X posts, printed to paste\n  status <slug>         where an article stands\n  state <slug>          the same as JSON, with the next step (for the Writer app)"
+var USAGE = "usage: article <command>\n  ideas [--again] [--days N] [\"a direction\"]\n                        new ideas from recent work (--again: the last 60 days again)\n  ideas list            the ideas by status\n  idea \"<title>\"        add an idea of your own\n  decline <id>          drop an idea\n  plan <id> [--again]   a teaching plan for an idea\n  code <slug> <n>       the engine code chapter n needs\n  draft <slug> <n> [--again]\n                        chapter n in every voice\n  pick <slug> <n> <voice> [--replace]\n                        keep a draft\n  mine <slug> <n>       keep the chapter you wrote\n  stitch <slug>         the article written into the site\n  share <slug>          Reddit and X posts, printed to paste\n  status <slug>         where an article stands\n  state <slug>          the same as JSON, with the next step (for the Writer app)\n  articles --json       every article and its next step, as JSON\n  ideas list --json     the ideas as JSON"
 
 // The arguments after the command
 fun commandArgs()
@@ -64,9 +64,14 @@ fun main()
         return
     }
 
-    if (command == "ideas" and len(args) == 1 and args[0] == "list")
+    if (command == "ideas" and len(args) >= 1 and args[0] == "list" and (len(args) == 1 or (len(args) == 2 and args[1] == "--json")))
     {
-        commandIdeasList(config)
+        commandIdeasList(config, len(args) == 2)
+        return
+    }
+    if (command == "articles" and len(args) == 1 and args[0] == "--json")
+    {
+        commandArticles(config)
         return
     }
     if (command == "ideas")

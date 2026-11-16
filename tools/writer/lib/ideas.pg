@@ -3,6 +3,7 @@
 import "string"
 import "algorithm"
 import "file"
+import "json" as json
 import "os" as os
 
 var IDEA_STATUSES = ["new", "planned", "written", "declined"]
@@ -348,10 +349,15 @@ fun commandIdeas(config, options)
     }
 }
 
-// article ideas list
-fun commandIdeasList(config)
+// article ideas list [--json]
+fun commandIdeasList(config, asJson)
 {
     var ideas = loadIdeas(config)
+    if (asJson)
+    {
+        print(json.stringify(ideas))
+        return
+    }
     for (var status : IDEA_STATUSES)
     {
         var lines = []
