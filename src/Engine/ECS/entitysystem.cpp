@@ -78,6 +78,7 @@ namespace
 #include "Helpers/algorithmmodule.h"
 #include "Helpers/stringmodule.h"
 #include "Files/filemodule.h"
+#include "Helpers/jsonmodule.h"
 
 // Full build modules are now in entitysystem_full.cpp or entitysystem_minimal.cpp
 
@@ -901,6 +902,7 @@ namespace pg
         vm.addNativeModule("algorithm", AlgorithmModule{});
         vm.addNativeModule("string", StringModule{});
         vm.addNativeModule("file", FileModule{});
+        vm.addNativeModule("json", JsonModule{});
         vm.addNativeModule("ecs", EcsCompiledModule{this});
 
         // Setup full build modules (implemented in entitysystem_full.cpp or entitysystem_minimal.cpp)
