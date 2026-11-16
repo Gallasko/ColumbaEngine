@@ -39,6 +39,7 @@ article mine <slug> 3              # or write chapters/03.md yourself and record
 article stitch <slug>              # src/content/blog/<slug>.md in the site, and the checks of the thread
 article share <slug>               # the posts, with ?from= tags, printed to paste
 article status <slug>              # where the article stands
+article state <slug>               # the same as JSON with the next step (the Writer app reads it)
 ```
 
 Then commit and deploy the site yourself. `plan.md` is yours to edit at any time: add, remove or

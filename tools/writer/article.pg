@@ -15,11 +15,12 @@ import "lib/record"
 import "lib/steps_plan"
 import "lib/steps_draft"
 import "lib/steps_publish"
+import "lib/state"
 import "string"
 import "algorithm"
 import "os" as os
 
-var USAGE = "usage: article <command>\n  ideas [--again] [--days N] [\"a direction\"]\n                        new ideas from recent work (--again: the last 60 days again)\n  ideas list            the ideas by status\n  idea \"<title>\"        add an idea of your own\n  decline <id>          drop an idea\n  plan <id> [--again]   a teaching plan for an idea\n  code <slug> <n>       the engine code chapter n needs\n  draft <slug> <n> [--again]\n                        chapter n in every voice\n  pick <slug> <n> <voice> [--replace]\n                        keep a draft\n  mine <slug> <n>       keep the chapter you wrote\n  stitch <slug>         the article written into the site\n  share <slug>          Reddit and X posts, printed to paste\n  status <slug>         where an article stands"
+var USAGE = "usage: article <command>\n  ideas [--again] [--days N] [\"a direction\"]\n                        new ideas from recent work (--again: the last 60 days again)\n  ideas list            the ideas by status\n  idea \"<title>\"        add an idea of your own\n  decline <id>          drop an idea\n  plan <id> [--again]   a teaching plan for an idea\n  code <slug> <n>       the engine code chapter n needs\n  draft <slug> <n> [--again]\n                        chapter n in every voice\n  pick <slug> <n> <voice> [--replace]\n                        keep a draft\n  mine <slug> <n>       keep the chapter you wrote\n  stitch <slug>         the article written into the site\n  share <slug>          Reddit and X posts, printed to paste\n  status <slug>         where an article stands\n  state <slug>          the same as JSON, with the next step (for the Writer app)"
 
 // The arguments after the command
 fun commandArgs()
@@ -120,6 +121,11 @@ fun main()
     if (command == "share" and len(args) == 1)
     {
         commandShare(config, args[0])
+        return
+    }
+    if (command == "state" and len(args) == 1)
+    {
+        commandState(config, args[0])
         return
     }
     if (command == "status" and len(args) == 1)

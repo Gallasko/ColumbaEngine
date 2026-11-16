@@ -1,0 +1,132 @@
+// t_state.pg - the "state" test group (run.pg imports it): article state / articles / ideas list --json.
+
+import "string"
+import "algorithm"
+import "file"
+import "json" as json
+import "os" as os
+
+// The last non-empty line of a command's output
+fun lastLine(text)
+{
+    var last = ""
+    for (var line : splitLines(text))
+    {
+        if (trim(line) != "")
+        {
+            last = trim(line)
+        }
+    }
+    return last
+}
+
+// The JSON a command printed last, none when its last line is not JSON
+fun jsonOut(r)
+{
+    var line = lastLine(r.out)
+    if (not startsWith(line, "{") and not startsWith(line, "["))
+    {
+        return none
+    }
+    return json.parse(line)
+}
+
+fun stateOf(site, slug)
+{
+    var r = runTool(site, ["state", slug], "")
+    return jsonOut(r)
+}
+
+fun nextOf(site, slug)
+{
+    var s = stateOf(site, slug)
+    if (typeOf(s) != "table")
+    {
+        return {step: "(no state)", n: none, args: [], needsAuthor: false}
+    }
+    return s.next
+}
+
+if (wants("state"))
+{
+    var site = plannedSite()
+    var slug = PLANNED_SLUG
+    var dir = site + "/writer/articles/" + slug
+
+    var s0 = stateOf(site, slug)
+    check("state parses", typeOf(s0) == "table")
+    var n0 = s0.next
+    checkEq("after plan: draft", n0.step, "draft")
+    checkEq("after plan: chapter 1", n0.n, 1)
+    checkEq("after plan: args", join(n0.args, ","), "draft," + slug + ",1")
+    checkEq("after plan: not the author's", n0.needsAuthor, false)
+    checkEq("three chapters", len(s0.chapters), 3)
+    var c0 = s0.chapters[0]
+    checkEq("no drafts yet", len(c0.files.drafts), 0)
+
+    var d1 = runTool(site, ["draft", slug, "1"], "")
+    var n1 = nextOf(site, slug)
+    checkEq("drafted: pick", n1.step, "pick")
+    checkEq("drafted: the author's", n1.needsAuthor, true)
+    checkEq("drafted: args", join(n1.args, ","), "pick," + slug + ",1")
+    var s1 = stateOf(site, slug)
+    var c1 = s1.chapters[0]
+    checkEq("drafts listed", join(c1.files.drafts, ","), "guide,story,brief")
+    writeFile(dir + "/chapters/01-guide.md", "x <!-- visual: chart --> y <!-- number: n -->\n")
+    var s1m = stateOf(site, slug)
+    var c1m = s1m.chapters[0]
+    checkEq("markers counted", c1m.markers, 2)
+
+    var p1 = runTool(site, ["pick", slug, "1", "guide"], "")
+    var s2 = stateOf(site, slug)
+    var c2 = s2.chapters[0]
+    checkEq("kept guide", c2.kept, "guide")
+    checkEq("kept file seen", c2.files.kept, true)
+    var n2 = s2.next
+    checkEq("then draft 2", n2.step, "draft")
+    checkEq("then chapter 2", n2.n, 2)
+
+    var d2 = runTool(site, ["draft", slug, "2"], "")
+    checkEq("drafted 2: pick", nextOf(site, slug).step, "pick")
+    writeText(dir + "/chapters/02.md", "")
+    var nw = nextOf(site, slug)
+    checkEq("empty file: write", nw.step, "write")
+    checkEq("empty file: the author's", nw.needsAuthor, true)
+    checkEq("empty file: no command", len(nw.args), 0)
+    writeFile(dir + "/chapters/02.md", "my own words")
+    var nm = nextOf(site, slug)
+    checkEq("own text: mine", nm.step, "mine")
+    checkEq("own text: args", join(nm.args, ","), "mine," + slug + ",2")
+    // The fake gives every voice the same text: make the story draft its own
+    writeFile(dir + "/chapters/02-story.md", "The story voice, its own text.\n")
+    writeFile(dir + "/chapters/02.md", readFile(dir + "/chapters/02-story.md"))
+    var np = nextOf(site, slug)
+    checkEq("a draft's text: pick", np.step, "pick")
+    checkEq("a draft's text: with its voice", join(np.args, ","), "pick," + slug + ",2,story")
+
+    var p2 = runTool(site, ["pick", slug, "2", "story"], "")
+    writeText(dir + "/chapters/03.md", "Chapter three, mine.")
+    var m3 = runTool(site, ["mine", slug, "3"], "")
+    checkEq("all kept: stitch", nextOf(site, slug).step, "stitch")
+    var st = runTool(site, ["stitch", slug], "")
+    checkEq("stitched: share", nextOf(site, slug).step, "share")
+    var sh = runTool(site, ["share", slug], "")
+    var s3 = stateOf(site, slug)
+    checkEq("shared: done", s3.next.step, "done")
+    checkEq("posts counted", s3.posts, 3)
+    check("published path", contains(s3.published.path, slug))
+
+    writeFile(dir + "/chapters/01.md", readFile(dir + "/chapters/01.md") + "\nOne more line.\n")
+    checkEq("edited after stitch: stitch", nextOf(site, slug).step, "stitch")
+    writeFile(dir + "/plan.md", readFile(dir + "/plan.md") + "\n## 4. Afterwards\nanswers: what is left\ncode: none\n")
+    var n4 = nextOf(site, slug)
+    checkEq("chapter added: draft", n4.step, "draft")
+    checkEq("chapter added: 4", n4.n, 4)
+
+    var broken = plannedSite()
+    writeFile(broken + "/writer/articles/" + slug + "/plan.md", "# Only a title\n")
+    var b = runTool(broken, ["state", slug], "")
+    checkEq("broken plan fails", b.code, 1)
+    check("broken plan: no JSON", typeOf(jsonOut(b)) == "none")
+    checkEq("missing slug fails", runTool(site, ["state", "no-such-article"], "").code, 1)
+}

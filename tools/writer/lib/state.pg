@@ -1,0 +1,153 @@
+// state.pg - where an article stands, as JSON for the Writer app: its chapters, their files, and
+// the next step with the command that does it. The rules live here, never in the app.
+
+import "string"
+import "algorithm"
+import "file"
+import "json" as json
+import "os" as os
+
+// How many writer markers (<!-- visual: ... -->, <!-- number: ... -->) a text still holds
+fun markerCount(text)
+{
+    if (typeOf(text) != "string")
+    {
+        return 0
+    }
+    return len(split(text, "<!-- visual:")) - 1 + len(split(text, "<!-- number:")) - 1
+}
+
+fun chapterState(config, slug, chapter, entry)
+{
+    var drafts = []
+    var draftMarkers = 0
+    for (var voice : voiceNames(config))
+    {
+        var draft = fileText(chapterFile(config, slug, chapter.n, voice))
+        if (typeOf(draft) == "string")
+        {
+            push(drafts, voice)
+            var m = markerCount(draft)
+            if (m > draftMarkers)
+            {
+                draftMarkers = m
+            }
+        }
+    }
+    var keptText = fileText(chapterFile(config, slug, chapter.n, ""))
+    var markers = draftMarkers
+    if (typeOf(keptText) == "string")
+    {
+        markers = markerCount(keptText)
+    }
+    var kept = none
+    var edited = none
+    if (typeOf(entry) == "table")
+    {
+        kept = entry.kept
+        edited = entry.edited
+    }
+    return {n: chapter.n, title: chapter.title, code: chapter.code, files: {kept: typeOf(keptText) == "string", drafts: drafts, code: fileExists(codeFile(config, slug, chapter.n))}, kept: kept, edited: edited, markers: markers}
+}
+
+fun step(name, n, label, args, needsAuthor)
+{
+    return {step: name, n: n, label: label, args: args, needsAuthor: needsAuthor}
+}
+
+// Whether the kept texts differ from those the last stitch wrote
+fun stitchDue(config, record, plan)
+{
+    if (typeOf(record.published) != "table" or typeOf(record.published.texts) != "array")
+    {
+        return true
+    }
+    var texts = record.published.texts
+    if (len(texts) != len(plan.chapters))
+    {
+        return true
+    }
+    var i = 0
+    for (var chapter : plan.chapters)
+    {
+        var was = texts[i]
+        var now = fileText(chapterFile(config, record.slug, chapter.n, ""))
+        if (was.n != chapter.n or typeOf(now) != "string" or trim(now) != was.text)
+        {
+            return true
+        }
+        i++
+    }
+    return false
+}
+
+// The next step of an article, in the spec's order
+fun nextStep(config, record, plan, chapters)
+{
+    var slug = record.slug
+    for (var c : chapters)
+    {
+        var n = toString(c.n)
+        var keptText = fileText(chapterFile(config, slug, c.n, ""))
+        if (typeOf(keptText) == "string")
+        {
+            if (typeOf(c.kept) == "none")
+            {
+                if (trim(keptText) == "")
+                {
+                    return step("write", c.n, "write chapters/" + nn(c.n) + ".md", [], true)
+                }
+                for (var voice : c.files.drafts)
+                {
+                    if (fileText(chapterFile(config, slug, c.n, voice)) == keptText)
+                    {
+                        return step("pick", c.n, "keep the " + voice + " draft of chapter " + n, ["pick", slug, n, voice], false)
+                    }
+                }
+                return step("mine", c.n, "keep your text of chapter " + n, ["mine", slug, n], false)
+            }
+        }
+        else if (len(c.files.drafts) == 0)
+        {
+            return step("draft", c.n, "draft chapter " + n, ["draft", slug, n], false)
+        }
+        else
+        {
+            return step("pick", c.n, "keep a draft of chapter " + n, ["pick", slug, n], true)
+        }
+    }
+    if (stitchDue(config, record, plan))
+    {
+        return step("stitch", none, "stitch the article into the site", ["stitch", slug], false)
+    }
+    if (len(record.posts) == 0)
+    {
+        return step("share", none, "prepare the posts", ["share", slug], false)
+    }
+    return step("done", none, "done: commit and deploy the site", [], false)
+}
+
+fun articleState(config, slug)
+{
+    var opened = openArticle(config, slug)
+    var record = opened.record
+    var plan = opened.plan
+    var chapters = []
+    for (var chapter : plan.chapters)
+    {
+        push(chapters, chapterState(config, slug, chapter, recordChapter(record, chapter.n)))
+    }
+    var published = none
+    if (typeOf(record.published) == "table")
+    {
+        published = {path: record.published.path, date: record.published.date}
+    }
+    return {slug: slug, title: plan.title, theme: plan.theme, chapters: chapters, published: published, posts: len(record.posts), next: nextStep(config, record, plan, chapters)}
+}
+
+// article state <slug>
+fun commandState(config, slug)
+{
+    var state = articleState(config, slug)
+    print(json.stringify(state))
+}

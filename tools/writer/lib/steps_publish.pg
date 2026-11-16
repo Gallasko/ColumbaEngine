@@ -150,7 +150,12 @@ fun commandStitch(config, slug)
     var relative = blogPath(slug)
     writeText(config.site + "/" + relative, join(header, "\n") + "\n\n" + join(body, "\n\n") + "\n")
 
-    record.published = {path: relative, time: publishedTime, date: pubDate, description: answer.description, excerpt: answer.excerpt}
+    var texts = []
+    for (var c : chapters)
+    {
+        push(texts, {n: c.chapter.n, text: c.text})
+    }
+    record.published = {path: relative, time: publishedTime, date: pubDate, description: answer.description, excerpt: answer.excerpt, texts: texts}
     var findings = []
     for (var w : warnings)
     {
