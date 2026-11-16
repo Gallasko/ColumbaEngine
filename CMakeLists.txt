@@ -411,6 +411,7 @@ set(ENGINESOURCE
     src/Engine/UI/texteditor/markdown.cpp
     src/Engine/UI/texteditor/search.cpp
     src/Engine/UI/texteditor/markup.cpp
+    src/Engine/UI/texteditor/texteditor.cpp
     src/Engine/UI/theme.cpp
     src/Engine/UI/themesystem.cpp
     src/Engine/UI/tooltip.cpp
@@ -1769,6 +1770,12 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             ${CHRONICLE_CORE}
         )
         target_link_libraries(Chronicle PRIVATE ColumbaEngine)
+
+        # A window holding one text editor, to try the widget by hand
+        add_executable(TextEditorDemo examples/TextEditorDemo/main.cpp)
+        target_include_directories(TextEditorDemo PUBLIC examples/TextEditorDemo)
+        target_sources(TextEditorDemo PRIVATE examples/TextEditorDemo/application.cpp)
+        target_link_libraries(TextEditorDemo PRIVATE ColumbaEngine)
 
         add_executable(test_chronicle test/chronicle/maintest.cc)
         target_include_directories(test_chronicle PUBLIC examples/Chronicle examples/Chronicle/Core ${CMAKE_SOURCE_DIR}/test ${CHRONICLE_GENERATED_DIR})
