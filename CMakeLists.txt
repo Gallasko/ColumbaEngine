@@ -405,6 +405,7 @@ set(ENGINESOURCE
     src/Engine/UI/sentencesystem.cpp
     src/Engine/UI/sizer.cpp
     src/Engine/UI/textinput.cpp
+    src/Engine/UI/texteditor/textbuffer.cpp
     src/Engine/UI/theme.cpp
     src/Engine/UI/themesystem.cpp
     src/Engine/UI/tooltip.cpp
@@ -1684,6 +1685,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/ecssystem.cc
             test/filemanager.cc
             test/framelimiter.cc
+            test/texteditor.cc
             test/gamefacts.cc
             test/profilertools.cc
             test/layout.cc
