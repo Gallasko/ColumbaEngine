@@ -258,6 +258,7 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Memory/parallelfor.cpp
     src/Engine/Helpers/demangle.cpp
     src/Engine/Helpers/jsonmodule.cpp
+    src/Engine/Helpers/osmodule.cpp
     src/Engine/Profiler/profiler.cpp
     src/Engine/Profiler/profilerstats.cpp
     # Core systems (provides EntityName component)
@@ -355,6 +356,7 @@ set(ENGINESOURCE
     src/Engine/Init/audiosystems.cpp
     src/Engine/Helpers/demangle.cpp
     src/Engine/Helpers/jsonmodule.cpp
+    src/Engine/Helpers/osmodule.cpp
     src/Engine/Helpers/fsm.cpp
     src/Engine/Helpers/openglobject.cpp
     src/Engine/Helpers/tinyfiledialogs.cpp
@@ -1891,6 +1893,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/pgcompiler/unit/test_shape_budget.cc
             test/pgcompiler/unit/test_import_as.cc
             test/pgcompiler/unit/test_json_module.cc
+            test/pgcompiler/unit/test_os_module.cc
         )
 
         # Include directories for compiler tests

@@ -13,6 +13,7 @@
 
 #include "Compiler/vm.h"
 #include "Compiler/compiler.h"
+#include "Helpers/osmodule.h"
 
 #include "constant_uniformity_pass.h"
 #include "Interpreter/lexer.h"
@@ -173,6 +174,8 @@ void CompilerApp::runREPL()
     }
 
     ecs.setupVm(*vm);
+    // Commands, the environment and folders: for tools run from the command line, never for games
+    vm->addNativeModule("os", OsModule{});
     // vm->addOptimizationPass(std::make_unique<ConstantUniformityPass>());
     // vm->addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
     // vm->addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
@@ -289,6 +292,8 @@ void CompilerApp::runFile(bool needCompile)
     }
 
     ecs.setupVm(*vm);
+    // Commands, the environment and folders: for tools run from the command line, never for games
+    vm->addNativeModule("os", OsModule{});
 
     vm->defineNative("log", nativeLogInfo);
 
