@@ -1,0 +1,1 @@
+{"text": "A table keeps its integer keys apart.\nFirst it looks in the run.\nThen in the others.\nThat is the whole lookup."}

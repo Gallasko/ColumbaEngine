@@ -1,0 +1,1 @@
+{"snippets": [{"file": "src/Engine/Compiler/object.h", "lines": "399-414", "code": "inline Value* findInt(int64_t key)\n{\n    return nullptr;\n}", "why": "where an int key is looked up"}]}

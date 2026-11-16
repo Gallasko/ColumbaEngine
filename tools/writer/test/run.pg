@@ -13,6 +13,7 @@ import "../lib/plan"
 import "../lib/ideas"
 import "../lib/record"
 import "../lib/steps_plan"
+import "../lib/steps_draft"
 import "string"
 import "algorithm"
 import "file"
@@ -353,6 +354,75 @@ if (wants("plan"))
     checkEq("chapter 1 kept as it was", kept.kept, "story")
     var fourth = rec.chapters[3]
     checkEq("chapter 4 title", fourth.title, "A fourth chapter")
+}
+
+// ---------------------------------------------------------------------------------------------
+if (wants("draft"))
+{
+    var site = plannedSite()
+    var slug = PLANNED_SLUG
+    var dir = site + "/writer/articles/" + slug
+    var log = site + "/fake.log"
+    var env = "FAKE_CLAUDE_LOG=" + shq(log)
+    writeText(dir + "/chapters/01.md", "Chapter one, kept by the author.")
+
+    var r = runTool(site, ["draft", slug, "2"], env)
+    checkEq("draft exits 0", r.code, 0)
+    check("code written first", fileExists(dir + "/code/02.md"))
+    var logged = readFile(log)
+    var codeAt = indexOf(logged, "=== call code")
+    var draftAt = indexOf(logged, "=== call draft")
+    check("code call before the drafts", codeAt >= 0 and draftAt > codeAt)
+    for (var voice : ["guide", "story", "brief"])
+    {
+        check("draft " + voice, fileExists(dir + "/chapters/02-" + voice + ".md"))
+    }
+    check("no 02.md", not fileExists(dir + "/chapters/02.md"))
+    var rec = readJson(dir + "/record.json")
+    var c2 = rec.chapters[1]
+    checkEq("drafts recorded", join(c2.drafts, ","), "guide,story,brief")
+    check("draft prompt has chapter 1", contains(logged, "Chapter one, kept by the author."))
+    check("draft prompt has the code", contains(logged, "where an int key is looked up"))
+    check("drafts have no tools", contains(logged, "arg: --tools\narg: \n"))
+
+    writeFile(dir + "/chapters/02-guide.md", "changed by hand")
+    var again = runTool(site, ["draft", slug, "2"], "")
+    checkEq("draft again exits 0", again.code, 0)
+    check("draft again skips", contains(again.out, "skipped"))
+    checkEq("draft kept", readFile(dir + "/chapters/02-guide.md"), "changed by hand")
+    var forced = runTool(site, ["draft", slug, "2", "--again"], "")
+    checkEq("draft --again exits 0", forced.code, 0)
+    check("draft rewritten", readFile(dir + "/chapters/02-guide.md") != "changed by hand")
+
+    var pick = runTool(site, ["pick", slug, "2", "story"], "")
+    checkEq("pick exits 0", pick.code, 0)
+    checkEq("kept file is the story", readFile(dir + "/chapters/02.md"), readFile(dir + "/chapters/02-story.md"))
+    var picked = readJson(dir + "/record.json")
+    var pc = picked.chapters[1]
+    checkEq("kept story", pc.kept, "story")
+
+    writeFile(dir + "/chapters/02.md", "my own words")
+    checkEq("pick over own text fails", runTool(site, ["pick", slug, "2", "guide"], "").code, 1)
+    checkEq("own text kept", readFile(dir + "/chapters/02.md"), "my own words")
+    var replaced = runTool(site, ["pick", slug, "2", "guide", "--replace"], "")
+    checkEq("pick --replace exits 0", replaced.code, 0)
+    checkEq("kept file is the guide", readFile(dir + "/chapters/02.md"), readFile(dir + "/chapters/02-guide.md"))
+    checkEq("pick of an unknown voice fails", runTool(site, ["pick", slug, "2", "nosuch"], "").code, 1)
+
+    checkEq("mine without the file fails", runTool(site, ["mine", slug, "3"], "").code, 1)
+    writeText(dir + "/chapters/03.md", "Chapter three, all mine.")
+    checkEq("mine exits 0", runTool(site, ["mine", slug, "3"], "").code, 0)
+    var mineRec = readJson(dir + "/record.json")
+    var m3 = mineRec.chapters[2]
+    checkEq("kept mine", m3.kept, "mine")
+
+    writeFile(dir + "/plan.md", readFile(dir + "/plan.md") + "\n## 4. Afterwards\nanswers: what is left\ncode: none\n")
+    var fourth = runTool(site, ["draft", slug, "4"], "")
+    checkEq("draft of a new chapter exits 0", fourth.code, 0)
+    check("chapter 4 drafted", fileExists(dir + "/chapters/04-brief.md"))
+    var four = readJson(dir + "/record.json")
+    checkEq("record has 4 chapters", len(four.chapters), 4)
+    checkEq("draft of a missing chapter fails", runTool(site, ["draft", slug, "9"], "").code, 1)
 }
 
 print(toString(passed) + " passed, " + toString(failed) + " failed")

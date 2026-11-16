@@ -1,0 +1,268 @@
+// steps_draft.pg - article code / draft / pick / mine: a chapter's code found, the chapter drafted
+// in every voice, one draft kept or the author's own text recorded.
+
+import "string"
+import "algorithm"
+import "file"
+import "os" as os
+
+// The voices of writer/voices.md: each "## name" section, {name, text}
+fun voicesOf(config)
+{
+    var text = fileText(config.writer + "/voices.md")
+    if (typeOf(text) == "none")
+    {
+        fail("no writer/voices.md")
+    }
+    var voices = []
+    var current = none
+    for (var line : splitLines(text))
+    {
+        if (startsWith(trim(line), "## "))
+        {
+            current = {name: trim(substring(trim(line), 3, strlen(trim(line)))), lines: []}
+            push(voices, current)
+        }
+        else if (typeOf(current) != "none")
+        {
+            push(current.lines, line)
+        }
+    }
+    var out = []
+    for (var voice : voices)
+    {
+        push(out, {name: voice.name, text: trim(join(voice.lines, "\n"))})
+    }
+    if (len(out) == 0)
+    {
+        fail("writer/voices.md has no voice (a \"## name\" section each)")
+    }
+    return out
+}
+
+fun voiceNames(config)
+{
+    var names = []
+    for (var voice : voicesOf(config))
+    {
+        push(names, voice.name)
+    }
+    return names
+}
+
+// A chapter number given on the command line
+fun chapterArg(text)
+{
+    if (not allDigits(text))
+    {
+        fail("'" + text + "' is not a chapter number")
+    }
+    return toInt(text)
+}
+
+fun chapterFile(config, slug, n, voice)
+{
+    var name = nn(n)
+    if (voice != "")
+    {
+        name = name + "-" + voice
+    }
+    return articleDir(config, slug) + "/chapters/" + name + ".md"
+}
+
+fun codeFile(config, slug, n)
+{
+    return articleDir(config, slug) + "/code/" + nn(n) + ".md"
+}
+
+// The record and plan of an article, the record's chapters made to follow the plan
+fun openArticle(config, slug)
+{
+    var record = needRecord(config, slug)
+    var plan = loadPlan(config, slug)
+    syncChapters(record, plan)
+    return {record: record, plan: plan}
+}
+
+fun fenceFor(file)
+{
+    if (endsWith(file, ".pg"))
+    {
+        return "javascript"
+    }
+    if (endsWith(file, ".cpp") or endsWith(file, ".h") or endsWith(file, ".hpp") or endsWith(file, ".cc"))
+    {
+        return "cpp"
+    }
+    return ""
+}
+
+fun wantsCode(chapter)
+{
+    var code = toLowerCase(trim(chapter.code))
+    return code != "" and code != "none"
+}
+
+// article code <slug> <n>
+fun runCode(config, slug, n)
+{
+    var opened = openArticle(config, slug)
+    var record = opened.record
+    var plan = opened.plan
+    var chapter = planChapter(plan, n)
+
+    var values = {title: chapter.title, answers: chapter.answers, code: chapter.code, plan: planText(plan), engine: config.engine}
+    var text = fill(prompt(config, "code"), values)
+    var snippet = {type: "object", properties: {file: {type: "string"}, lines: {type: "string"}, code: {type: "string"}, why: {type: "string"}}, required: ["file", "lines", "code", "why"]}
+    var schema = {type: "object", properties: {snippets: {type: "array", items: snippet}}, required: ["snippets"]}
+    var answer = askClaude(config, "code", text, schema, "Read,Grep,Glob", [config.engine])
+
+    var parts = ["<!-- code for chapter " + toString(n) + ": " + chapter.code + " -->"]
+    for (var s : answer.snippets)
+    {
+        push(parts, "")
+        push(parts, "`" + s.file + ":" + s.lines + "` - " + s.why)
+        push(parts, "")
+        push(parts, "```" + fenceFor(s.file))
+        push(parts, s.code)
+        push(parts, "```")
+    }
+    var path = codeFile(config, slug, n)
+    writeText(path, join(parts, "\n") + "\n")
+
+    addStep(record, "code", modelFor(config, "code"))
+    saveRecord(config, record)
+    print("wrote " + path)
+}
+
+// The chapters kept before n, in the plan's order, as the draft prompt shows them
+fun keptBefore(config, slug, plan, n)
+{
+    var parts = []
+    for (var chapter : plan.chapters)
+    {
+        if (chapter.n != n)
+        {
+            var text = fileText(chapterFile(config, slug, chapter.n, ""))
+            if (typeOf(text) == "string" and chapter.n < n)
+            {
+                push(parts, "## " + toString(chapter.n) + ". " + chapter.title + "\n\n" + trim(text))
+            }
+        }
+    }
+    if (len(parts) == 0)
+    {
+        return "(this is the first chapter kept)"
+    }
+    return join(parts, "\n\n")
+}
+
+// article draft <slug> <n> [--again]
+fun commandDraft(config, slug, n, again)
+{
+    var opened = openArticle(config, slug)
+    var plan = opened.plan
+    var chapter = planChapter(plan, n)
+
+    if (wantsCode(chapter) and not fileExists(codeFile(config, slug, n)))
+    {
+        print("chapter " + toString(n) + " needs code: finding it first")
+        runCode(config, slug, n)
+    }
+
+    var record = needRecord(config, slug)
+    syncChapters(record, plan)
+    var entry = recordChapter(record, n)
+
+    var code = fileText(codeFile(config, slug, n))
+    if (typeOf(code) == "none")
+    {
+        code = "(no code for this chapter)"
+    }
+    var previous = keptBefore(config, slug, plan, n)
+    var schema = {type: "object", properties: {text: {type: "string"}}, required: ["text"]}
+
+    for (var voice : voicesOf(config))
+    {
+        var path = chapterFile(config, slug, n, voice.name)
+        if (fileExists(path) and not again)
+        {
+            print("skipped " + voice.name + ": " + path + " exists (--again to draft it anew)")
+        }
+        else
+        {
+            var values = {n: toString(n), title: chapter.title, answers: chapter.answers, core: chapter.core, visual: chapter.visual, plan: planText(plan), voice: voice.name, voiceText: voice.text, previous: previous, code: code}
+            var text = fill(prompt(config, "draft"), values)
+            var answer = askClaude(config, "draft", text, schema, "", [])
+            writeText(path, trim(answer.text) + "\n")
+            if (not has(entry.drafts, voice.name))
+            {
+                push(entry.drafts, voice.name)
+            }
+            entry.draftedAt = nowMs()
+            addStep(record, "draft", modelFor(config, "draft"))
+            print("wrote " + path)
+        }
+    }
+    saveRecord(config, record)
+    print("next: read the drafts, then `article pick " + slug + " " + toString(n) + " <voice>` (or write " + nn(n) + ".md and `article mine " + slug + " " + toString(n) + "`)")
+}
+
+// article pick <slug> <n> <voice> [--replace]
+fun commandPick(config, slug, n, voice, replaceOwn)
+{
+    var opened = openArticle(config, slug)
+    var record = opened.record
+    planChapter(opened.plan, n)
+    if (not has(voiceNames(config), voice))
+    {
+        fail("no voice '" + voice + "' in writer/voices.md")
+    }
+    var draft = fileText(chapterFile(config, slug, n, voice))
+    if (typeOf(draft) == "none")
+    {
+        fail("no " + voice + " draft of chapter " + toString(n) + " (article draft " + slug + " " + toString(n) + ")")
+    }
+    var keptPath = chapterFile(config, slug, n, "")
+    var current = fileText(keptPath)
+    if (typeOf(current) == "string" and not replaceOwn)
+    {
+        var isDraft = false
+        for (var name : voiceNames(config))
+        {
+            var other = fileText(chapterFile(config, slug, n, name))
+            if (typeOf(other) == "string" and other == current)
+            {
+                isDraft = true
+            }
+        }
+        if (not isDraft)
+        {
+            fail(keptPath + " holds your own text: --replace to put the " + voice + " draft over it")
+        }
+    }
+    writeText(keptPath, draft)
+    var entry = recordChapter(record, n)
+    entry.kept = voice
+    entry.keptAt = nowMs()
+    saveRecord(config, record)
+    print("kept " + voice + " as " + keptPath)
+}
+
+// article mine <slug> <n>
+fun commandMine(config, slug, n)
+{
+    var opened = openArticle(config, slug)
+    var record = opened.record
+    planChapter(opened.plan, n)
+    var keptPath = chapterFile(config, slug, n, "")
+    if (not fileExists(keptPath))
+    {
+        fail("write " + keptPath + " first")
+    }
+    var entry = recordChapter(record, n)
+    entry.kept = "mine"
+    entry.keptAt = nowMs()
+    saveRecord(config, record)
+    print("chapter " + toString(n) + " is yours")
+}

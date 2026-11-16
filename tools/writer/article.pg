@@ -13,6 +13,7 @@ import "lib/plan"
 import "lib/ideas"
 import "lib/record"
 import "lib/steps_plan"
+import "lib/steps_draft"
 import "string"
 import "algorithm"
 import "os" as os
@@ -85,6 +86,27 @@ fun main()
     if (command == "plan" and (len(args) == 1 or (len(args) == 2 and args[1] == "--again")))
     {
         commandPlan(config, args[0], len(args) == 2)
+        return
+    }
+
+    if (command == "code" and len(args) == 2)
+    {
+        runCode(config, args[0], chapterArg(args[1]))
+        return
+    }
+    if (command == "draft" and (len(args) == 2 or (len(args) == 3 and args[2] == "--again")))
+    {
+        commandDraft(config, args[0], chapterArg(args[1]), len(args) == 3)
+        return
+    }
+    if (command == "pick" and (len(args) == 3 or (len(args) == 4 and args[3] == "--replace")))
+    {
+        commandPick(config, args[0], chapterArg(args[1]), args[2], len(args) == 4)
+        return
+    }
+    if (command == "mine" and len(args) == 2)
+    {
+        commandMine(config, args[0], chapterArg(args[1]))
         return
     }
 
