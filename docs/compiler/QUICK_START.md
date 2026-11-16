@@ -177,7 +177,8 @@ __dprint(str.toUpperCase("abc"))  // "ABC"
 ```
 
 `json` reads and writes JSON text, everywhere (games included): objects are tables (keys keep their
-order), arrays lists, `null` is `none`; a number written without `.` or an exponent is an int.
+order), arrays lists, `null` is `none`; a number written without `.` or an exponent is an int when it fits one (±2^46), every other
+number a double.
 
 ```javascript
 import "json" as json
@@ -207,6 +208,10 @@ os.exit(1)
 
 A command that fails gives its exit code (no script error); one that cannot start gives 127 and the
 reason in `err`. Put the result in a `var` before reading its fields, as above.
+
+`os.call` returns once every program holding the command's output has closed it: a command that
+leaves something running in the background (`os.call("server &")`) waits for it, unless its output
+goes elsewhere (`os.call("server >/dev/null 2>&1 &")`).
 
 ## Game Development Features
 
