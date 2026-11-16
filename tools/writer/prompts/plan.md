@@ -26,5 +26,8 @@ Follow the teaching rules of the system prompt. The plan gives:
     PgScript is always core; general programming never is, unless it is the subject)
   - code: the engine code it needs, said in words (a function, a file), or "none"
   - visual: a chart or diagram it wants, said in words, or "none"
+  - facts: the numbers and facts the chapter states, each with where it comes from, read from the
+    sources ("map_numeric 1594 ms to 117 ms (notes/pgscript-table-int-keys.md)"), or "none". The
+    drafts can only use the numbers written here: they do not read the sources
 
 Three to seven chapters. Every value on one line.

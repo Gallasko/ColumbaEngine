@@ -30,7 +30,7 @@ fun slugForIdea(config, idea)
 
 fun planSchema()
 {
-    var chapter = {type: "object", properties: {title: {type: "string"}, answers: {type: "string"}, core: {type: "string"}, code: {type: "string"}, visual: {type: "string"}}, required: ["title", "answers", "core", "code", "visual"]}
+    var chapter = {type: "object", properties: {title: {type: "string"}, answers: {type: "string"}, core: {type: "string"}, code: {type: "string"}, visual: {type: "string"}, facts: {type: "string"}}, required: ["title", "answers", "core", "code", "visual", "facts"]}
     return {type: "object", properties: {title: {type: "string"}, theme: {type: "string"}, reader: {type: "string"}, knows: {type: "string"}, learns: {type: "string"}, question: {type: "string"}, chapters: {type: "array", items: chapter}}, required: ["title", "theme", "reader", "knows", "learns", "question", "chapters"]}
 }
 
@@ -78,8 +78,13 @@ fun commandPlan(config, idText, again)
     var n = 1
     for (var chapter : answer.chapters)
     {
-        push(plan.chapters, {n: n, title: chapter.title, answers: chapter.answers, core: chapter.core, code: chapter.code, visual: chapter.visual})
+        push(plan.chapters, {n: n, title: chapter.title, answers: chapter.answers, core: chapter.core, code: chapter.code, visual: chapter.visual, facts: chapter.facts})
         n++
+    }
+    var check = parsePlan(planText(plan))
+    if (not check.ok)
+    {
+        fail("plan: claude's plan cannot be used: " + check.error + " (nothing written; see writer/last-call.json)")
     }
     writeText(target, planText(plan))
 

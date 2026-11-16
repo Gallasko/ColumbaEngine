@@ -1,0 +1,1 @@
+{"title": "Why integer keys made tables 13x faster", "theme": "vm-performance", "reader": "a developer who knows a language well, not ColumbaEngine", "knows": "hash maps", "learns": "how a PgScript table keeps its keys", "question": "Why did t[5] cost so much?", "chapters": []}

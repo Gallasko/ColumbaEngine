@@ -65,6 +65,16 @@ if (wants("stitch"))
     var record2 = readJson(dir + "/record.json")
     checkEq("published time kept", record2.published.time, firstTime)
 
+    var planPath = dir + "/plan.md"
+    writeFile(planPath, replace(readFile(planPath), "## 2. Two kinds of key", "## 2. Keys, two kinds"))
+    var renamed = runTool(site, ["stitch", slug], "")
+    checkEq("stitch after a rename exits 0", renamed.code, 0)
+    check("rename warned with both titles", contains(renamed.out, "Two kinds of key") and contains(renamed.out, "Keys, two kinds"))
+    var record3 = readJson(dir + "/record.json")
+    var lastCheck = record3.checks[len(record3.checks) - 1]
+    check("rename in the findings", len(lastCheck.findings) >= 2)
+    var record2 = readJson(dir + "/record.json")
+
     var c2entry = record2.chapters[1]
     c2entry.kept = none
     writeJson(dir + "/record.json", record2)

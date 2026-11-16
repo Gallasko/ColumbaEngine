@@ -63,4 +63,29 @@ if (wants("ideas"))
     check("list shows declined", contains(listed.out, "declined"))
     check("list shows new", contains(listed.out, "new"))
     checkEq("decline 99", runTool(site, ["decline", "99"], "").code, 1)
+
+    // The digest: notes and questions first, at most 8 files a commit, untracked sources found
+    var big = ideasSite()
+    var bigEngine = big + "/engine"
+    var k = 0
+    var adds = []
+    while (k < 20)
+    {
+        writeFile(bigEngine + "/f" + toString(k) + ".txt", "x")
+        push(adds, "f" + toString(k) + ".txt")
+        k++
+    }
+    var many = os.call("cd " + shq(bigEngine) + " && git add " + join(adds, " ") + " && git -c user.email=t@t -c user.name=t commit -q -m 'Many files'")
+    writeText(big + "/notes/table-keys-note.md", "1594 ms to 117 ms")
+    writeText(bigEngine + "/benchmark/results/run.txt", "untracked result")
+    writeFile(big + "/writer/questions.md", "Why not use Lua?")
+    var bigLog = big + "/fake.log"
+    var scan = runTool(big, ["ideas"], "FAKE_CLAUDE_LOG=" + shq(bigLog))
+    checkEq("big scan exits 0", scan.code, 0)
+    var bigText = readFile(bigLog)
+    check("files of a commit capped", contains(bigText, "(12 more files)"))
+    check("note listed", contains(bigText, "table-keys-note.md"))
+    check("question listed", contains(bigText, "Why not use Lua?"))
+    check("notes before commits", indexOf(bigText, "table-keys-note.md") < indexOf(bigText, "Many files"))
+    check("untracked source found", contains(bigText, "benchmark/results/run.txt"))
 }

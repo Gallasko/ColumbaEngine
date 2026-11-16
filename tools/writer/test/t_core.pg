@@ -38,6 +38,10 @@ if (wants("core"))
     check("no chapter says chapter", contains(noChapter.error, "chapter"))
 
     checkEq("fill", fill("a {{x}} b {{y}}", {x: "1", y: "2"}), "a 1 b 2")
+    checkEq("fill keeps braces in a value", fill("{{code}}", {code: "m = {{1, 2}};"}), "m = {{1, 2}};")
+    checkEq("fill never rescans a value", fill("{{a}} {{b}}", {a: "{{b}}", b: "x"}), "{{b}} x")
+    var c2f = bp.chapters[1]
+    checkEq("chapter facts read back", c2f.facts, "1594 ms to 117 ms (notes)")
 
     var site = tempSite()
     var log = site + "/fake.log"

@@ -8,6 +8,8 @@ The article:
 
 The link to put in the post, exactly as given (it says where readers came from): {{link}}
 
+Use only numbers and facts present in the article's lines above; never invent one.
+
 Write for that community and its rules: on Reddit, lead with what the reader gets and what was
 learned (a number, a surprise), say plainly it is your own project, no hype, no marketing words,
 and end with an honest question that invites discussion. On X, one or two short sentences and the

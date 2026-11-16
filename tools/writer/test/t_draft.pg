@@ -32,6 +32,8 @@ if (wants("draft"))
     check("draft prompt has chapter 1", contains(logged, "Chapter one, kept by the author."))
     check("draft prompt has the code", contains(logged, "where an int key is looked up"))
     check("drafts have no tools", contains(logged, "arg: --tools\narg: \n"))
+    check("draft prompt has the chapter's facts", contains(logged, "1594 ms became 117 ms"))
+    check("draft prompt forbids inventing numbers", contains(logged, "never invent"))
 
     writeFile(dir + "/chapters/02-guide.md", "changed by hand")
     var again = runTool(site, ["draft", slug, "2"], "")
@@ -71,4 +73,9 @@ if (wants("draft"))
     var four = readJson(dir + "/record.json")
     checkEq("record has 4 chapters", len(four.chapters), 4)
     checkEq("draft of a missing chapter fails", runTool(site, ["draft", slug, "9"], "").code, 1)
+
+    var before4 = readFile(dir + "/chapters/04-guide.md")
+    var emptyDraft = runTool(site, ["draft", slug, "4", "--again"], "FAKE_CLAUDE_VARIANT=empty")
+    checkEq("empty draft fails", emptyDraft.code, 1)
+    checkEq("empty draft writes nothing", readFile(dir + "/chapters/04-guide.md"), before4)
 }

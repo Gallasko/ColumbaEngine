@@ -79,13 +79,25 @@ fun commandStitch(config, slug)
         fail("chapters not kept yet: " + join(missing, ", ") + " (article pick / article mine)")
     }
 
+    // A chapter renamed or renumbered in plan.md since its text was kept: the text may now sit
+    // under another chapter's heading
+    var warnings = []
+    for (var c : chapters)
+    {
+        var keptTitle = c.entry.keptTitle
+        if (typeOf(keptTitle) == "string" and keptTitle != c.chapter.title)
+        {
+            push(warnings, "chapter " + toString(c.chapter.n) + " was kept as \"" + keptTitle + "\" and the plan now calls it \"" + c.chapter.title + "\": check " + nn(c.chapter.n) + ".md is the right text")
+        }
+    }
+
     var parts = []
     for (var c : chapters)
     {
         push(parts, "## " + toString(c.chapter.n) + ". " + c.chapter.title + "\n\n" + c.text)
     }
     var values = {plan: planText(plan), article: join(parts, "\n\n")}
-    var schema = {type: "object", properties: {description: {type: "string"}, excerpt: {type: "string"}, tags: {type: "array", items: {type: "string"}}, findings: {type: "array", items: {type: "string"}}}, required: ["description", "excerpt", "tags", "findings"]}
+    var schema = {type: "object", properties: {description: {type: "string"}, excerpt: {type: "string"}, tags: {type: "array", items: {type: "string"}}, findings: {type: "array", items: {type: "string"}}}, required: ["description", "excerpt", "tags", "findings"], allowEmpty: ["tags", "findings"]}
     var answer = askClaude(config, "stitch", fill(prompt(config, "stitch"), values), schema, "", [])
 
     var first = typeOf(record.published) != "table"
@@ -139,7 +151,16 @@ fun commandStitch(config, slug)
     writeText(config.site + "/" + relative, join(header, "\n") + "\n\n" + join(body, "\n\n") + "\n")
 
     record.published = {path: relative, time: publishedTime, date: pubDate, description: answer.description, excerpt: answer.excerpt}
-    push(record.checks, {time: nowMs(), findings: answer.findings})
+    var findings = []
+    for (var w : warnings)
+    {
+        push(findings, w)
+    }
+    for (var f : answer.findings)
+    {
+        push(findings, f)
+    }
+    push(record.checks, {time: nowMs(), findings: findings})
     addStep(record, "stitch", modelFor(config, "stitch"))
     saveRecord(config, record)
 
@@ -152,14 +173,14 @@ fun commandStitch(config, slug)
     }
 
     print("wrote " + config.site + "/" + relative)
-    if (len(answer.findings) == 0)
+    if (len(findings) == 0)
     {
         print("checks: nothing found")
     }
     else
     {
         print("checks:")
-        for (var finding : answer.findings)
+        for (var finding : findings)
         {
             print("  - " + finding)
         }
@@ -238,7 +259,7 @@ fun commandShare(config, slug)
         fail("no places for the theme '" + toString(record.theme) + "' in writer/themes.json")
     }
 
-    var schema = {type: "object", properties: {title: {type: "string"}, text: {type: "string"}}, required: ["title", "text"]}
+    var schema = {type: "object", properties: {title: {type: "string"}, text: {type: "string"}}, required: ["title", "text"], allowEmpty: ["title"]}
     var made = []
     for (var place : places)
     {

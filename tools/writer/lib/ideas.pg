@@ -6,7 +6,6 @@ import "file"
 import "os" as os
 
 var IDEA_STATUSES = ["new", "planned", "written", "declined"]
-var DIGEST_LINES = 1500
 
 fun loadIdeas(config)
 {
@@ -65,37 +64,78 @@ fun outputLines(r)
     return lines
 }
 
-// What changed in the author's work since `sinceMs`, as a list (never the contents): the
-// commits on the current branch with the files they touched, the notes changed, the questions
-// file when it changed. Empty when nothing changed
+// The engine's paths the spec names as sources, found by their date too: some are not tracked by
+// git (benchmark results, an AoC day not committed yet)
+var SOURCE_PATHS = ["benchmark", "test/pgcompiler/examples/adventofcode2025", "docs/superpowers", "CHANGELOG.md", "examples/Chronicle/CHANGELOG.md"]
+var FILES_A_COMMIT = 8
+var COMMIT_LINES = 1200
+var SOURCE_LINES = 200
+
+// The first `cap` items of a list, and a line saying how many were left out
+fun capped(items, cap, what)
+{
+    if (len(items) <= cap)
+    {
+        return items
+    }
+    var kept = []
+    var i = 0
+    while (i < cap)
+    {
+        push(kept, items[i])
+        i++
+    }
+    push(kept, "(" + toString(len(items) - cap) + " more " + what + " left out)")
+    return kept
+}
+
+// The commits as listed: each commit's files cut to FILES_A_COMMIT
+fun commitLines(log)
+{
+    var out = []
+    var extra = 0
+    var shown = 0
+    for (var line : splitLines(log.out))
+    {
+        var t = trim(line)
+        if (startsWith(t, "commit "))
+        {
+            if (extra > 0)
+            {
+                push(out, "    (" + toString(extra) + " more files)")
+            }
+            extra = 0
+            shown = 0
+            push(out, "- " + substring(t, 7, strlen(t)))
+        }
+        else if (t != "")
+        {
+            if (shown < FILES_A_COMMIT)
+            {
+                push(out, "    " + t)
+                shown = shown + 1
+            }
+            else
+            {
+                extra = extra + 1
+            }
+        }
+    }
+    if (extra > 0)
+    {
+        push(out, "    (" + toString(extra) + " more files)")
+    }
+    return out
+}
+
+// What changed in the author's work since `sinceMs`, as lists (never the contents), the hand-made
+// sources first so a long history never pushes them out: the questions, the notes, the source
+// files changed (tracked by git or not), then the commits with the files they touched. Empty when
+// nothing changed
 fun gatherDigest(config, sinceMs)
 {
     var since = toString(sinceMs / 1000)
     var lines = []
-
-    var log = os.call(["git", "-C", config.engine, "log", "--since=@" + since, "--format=commit %h %ad %s", "--date=short", "--name-only"])
-    var commits = outputLines(log)
-    if (len(commits) > 0)
-    {
-        push(lines, "Commits in " + config.engine + " (newest first; the files each touched under it):")
-        for (var line : commits)
-        {
-            push(lines, "- " + line)
-        }
-    }
-
-    if (typeOf(config.notes) == "string" and os.isDir(config.notes))
-    {
-        var notes = outputLines(os.call(["find", config.notes, "-type", "f", "-newermt", "@" + since]))
-        if (len(notes) > 0)
-        {
-            push(lines, "Notes changed (read the ones that matter):")
-            for (var line : notes)
-            {
-                push(lines, "- " + line)
-            }
-        }
-    }
 
     var questions = config.writer + "/questions.md"
     if (fileExists(questions))
@@ -108,19 +148,56 @@ fun gatherDigest(config, sinceMs)
         }
     }
 
-    if (len(lines) > DIGEST_LINES)
+    if (typeOf(config.notes) == "string" and os.isDir(config.notes))
     {
-        var dropped = len(lines) - DIGEST_LINES
-        var kept = []
-        var i = 0
-        while (i < DIGEST_LINES)
+        var notes = outputLines(os.call(["find", config.notes, "-type", "f", "-newermt", "@" + since]))
+        if (len(notes) > 0)
         {
-            push(kept, lines[i])
-            i++
+            push(lines, "Notes changed (read the ones that matter):")
+            for (var line : capped(notes, SOURCE_LINES, "notes"))
+            {
+                push(lines, "- " + line)
+            }
         }
-        push(kept, "(" + toString(dropped) + " more lines left out)")
-        lines = kept
     }
+
+    var sources = []
+    for (var path : SOURCE_PATHS)
+    {
+        var full = config.engine + "/" + path
+        if (fileExists(full) or os.isDir(full))
+        {
+            var found = outputLines(os.call(["find", full, "-type", "f", "-newermt", "@" + since, "-not", "-name", "*.pgc", "-not", "-path", "*/target/*"]))
+            for (var f : found)
+            {
+                push(sources, substring(f, strlen(config.engine) + 1, strlen(f)))
+            }
+        }
+    }
+    if (len(sources) > 0)
+    {
+        push(lines, "Source files changed in " + config.engine + " (benchmarks, AoC, design docs, changelogs; some not in git):")
+        for (var line : capped(sources, SOURCE_LINES, "files"))
+        {
+            push(lines, "- " + line)
+        }
+    }
+
+    var log = os.call(["git", "-C", config.engine, "log", "--since=@" + since, "--format=commit %h %ad %s", "--date=short", "--name-only"])
+    if (log.code != 0)
+    {
+        print("warning: git log failed in " + config.engine + ": " + trim(log.err))
+    }
+    var commits = commitLines(log)
+    if (len(commits) > 0)
+    {
+        push(lines, "Commits in " + config.engine + " (newest first; the files each touched under it):")
+        for (var line : capped(commits, COMMIT_LINES, "lines of commits"))
+        {
+            push(lines, line)
+        }
+    }
+
     return join(lines, "\n")
 }
 
@@ -183,7 +260,7 @@ fun commandIdeas(config)
     var text = fill(prompt(config, "ideas"), values)
 
     var item = {type: "object", properties: {title: {type: "string"}, question: {type: "string"}, why: {type: "string"}, sources: {type: "array", items: {type: "string"}}, theme: {type: "string"}}, required: ["title", "question", "why", "sources", "theme"]}
-    var schema = {type: "object", properties: {ideas: {type: "array", items: item}}, required: ["ideas"]}
+    var schema = {type: "object", properties: {ideas: {type: "array", items: item}}, required: ["ideas"], allowEmpty: ["ideas"]}
     var dirs = [config.engine]
     if (typeOf(config.notes) == "string" and os.isDir(config.notes))
     {

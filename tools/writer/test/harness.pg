@@ -92,7 +92,7 @@ fun runTool(site, args, env)
 fun samplePlan()
 {
     var plan = {title: "Integer keys", theme: "vm-performance", reader: "a developer", knows: "C++", learns: "how tables store keys", question: "why was it slow?"}
-    plan.chapters = [{n: 1, title: "The symptom", answers: "what we saw", core: "tables", code: "none", visual: "none"}, {n: 2, title: "Two kinds of key", answers: "why it was slow", core: "int run, string keys", code: "ObjInstance::findInt", visual: "chart"}]
+    plan.chapters = [{n: 1, title: "The symptom", answers: "what we saw", core: "tables", code: "none", visual: "none"}, {n: 2, title: "Two kinds of key", answers: "why it was slow", core: "int run, string keys", code: "ObjInstance::findInt", visual: "chart", facts: "1594 ms to 117 ms (notes)"}]
     return plan
 }
 

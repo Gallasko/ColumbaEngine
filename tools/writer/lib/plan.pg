@@ -3,7 +3,7 @@
 //     # <title>
 //     theme: ...   reader: ...   knows: ...   learns: ...   question: ...
 //     ## 1. <chapter title>
-//     answers: ...   core: ...   code: ...   visual: ...
+//     answers: ...   core: ...   code: ...   visual: ...   facts: ...
 //
 // The first "# " line is the title; "key: value" lines before the first "## " are the article's;
 // each "## N. title" starts a chapter, the "key: value" lines under it are that chapter's; other
@@ -13,7 +13,7 @@ import "string"
 import "algorithm"
 
 var PLAN_KEYS = ["theme", "reader", "knows", "learns", "question"]
-var CHAPTER_KEYS = ["answers", "core", "code", "visual"]
+var CHAPTER_KEYS = ["answers", "core", "code", "visual", "facts"]
 var DIGITS = "0123456789"
 
 // A value on one line: newlines from Claude would break the format

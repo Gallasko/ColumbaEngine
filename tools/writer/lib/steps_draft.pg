@@ -114,7 +114,7 @@ fun runCode(config, slug, n)
     var values = {title: chapter.title, answers: chapter.answers, code: chapter.code, plan: planText(plan), engine: config.engine}
     var text = fill(prompt(config, "code"), values)
     var snippet = {type: "object", properties: {file: {type: "string"}, lines: {type: "string"}, code: {type: "string"}, why: {type: "string"}}, required: ["file", "lines", "code", "why"]}
-    var schema = {type: "object", properties: {snippets: {type: "array", items: snippet}}, required: ["snippets"]}
+    var schema = {type: "object", properties: {snippets: {type: "array", items: snippet}}, required: ["snippets"], allowEmpty: ["snippets"]}
     var answer = askClaude(config, "code", text, schema, "Read,Grep,Glob", [config.engine])
 
     var parts = ["<!-- code for chapter " + toString(n) + ": " + chapter.code + " -->"]
@@ -191,7 +191,7 @@ fun commandDraft(config, slug, n, again)
         }
         else
         {
-            var values = {n: toString(n), title: chapter.title, answers: chapter.answers, core: chapter.core, visual: chapter.visual, plan: planText(plan), voice: voice.name, voiceText: voice.text, previous: previous, code: code}
+            var values = {n: toString(n), title: chapter.title, answers: chapter.answers, core: chapter.core, visual: chapter.visual, facts: chapter.facts, plan: planText(plan), voice: voice.name, voiceText: voice.text, previous: previous, code: code}
             var text = fill(prompt(config, "draft"), values)
             var answer = askClaude(config, "draft", text, schema, "", [])
             writeText(path, trim(answer.text) + "\n")
@@ -243,6 +243,7 @@ fun commandPick(config, slug, n, voice, replaceOwn)
     }
     writeText(keptPath, draft)
     var entry = recordChapter(record, n)
+    entry.keptTitle = planChapter(opened.plan, n).title
     entry.kept = voice
     entry.keptAt = nowMs()
     saveRecord(config, record)
@@ -261,6 +262,7 @@ fun commandMine(config, slug, n)
         fail("write " + keptPath + " first")
     }
     var entry = recordChapter(record, n)
+    entry.keptTitle = planChapter(opened.plan, n).title
     entry.kept = "mine"
     entry.keptAt = nowMs()
     saveRecord(config, record)

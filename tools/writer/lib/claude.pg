@@ -8,26 +8,38 @@ import "file"
 import "json" as json
 import "os" as os
 
-// A template with each {{name}} replaced by values[name]
+// A template with each {{name}} replaced by values[name], in one pass from left to right: a value
+// is never read again, so code or text holding "{{" goes in as it is
 fun fill(template, values)
 {
-    var out = template
-    for (var name : values)
+    var parts = []
+    var rest = template
+    var at = indexOf(rest, "{{")
+    while (at >= 0)
     {
+        push(parts, substring(rest, 0, at))
+        var after = substring(rest, at + 2, strlen(rest))
+        var close = indexOf(after, "}}")
+        if (close < 0)
+        {
+            fail("prompt template: a {{ with no }}")
+        }
+        var name = substring(after, 0, close)
         var value = values[name]
+        if (typeOf(value) == "none")
+        {
+            fail("prompt template: no value for {{" + name + "}}")
+        }
         if (typeOf(value) != "string")
         {
             value = toString(value)
         }
-        out = replace(out, "{{" + name + "}}", value)
+        push(parts, value)
+        rest = substring(after, close + 2, strlen(after))
+        at = indexOf(rest, "{{")
     }
-    var left = indexOf(out, "{{")
-    if (left >= 0)
-    {
-        var end = indexOf(substring(out, left, strlen(out)), "}}")
-        fail("prompt template: no value for " + substring(out, left, left + end + 2))
-    }
-    return out
+    push(parts, rest)
+    return join(parts, "")
 }
 
 // The prompt template of a step (tools/writer/prompts/<step>.md)
@@ -62,6 +74,21 @@ fun modelFor(config, step)
 // Any failure stops the command, with the step named; last-call.json keeps the call either way
 fun askClaude(config, step, promptText, schema, tools, dirs)
 {
+    // The required keys that may be empty ("" or []): every other one must hold something
+    var allowEmpty = schema.allowEmpty
+    if (typeOf(allowEmpty) != "array")
+    {
+        allowEmpty = []
+    }
+    var sent = {}
+    for (var key : schema)
+    {
+        if (key != "allowEmpty")
+        {
+            sent[key] = schema[key]
+        }
+    }
+    schema = sent
     schema.title = step
     var guide = fileText(config.writer + "/guide.md")
     if (typeOf(guide) == "none")
@@ -118,7 +145,20 @@ fun askClaude(config, step, promptText, schema, tools, dirs)
     {
         for (var key : required)
         {
-            if (typeOf(value[key]) == "none")
+            var held = value[key]
+            var empty = typeOf(held) == "none"
+            if (not has(allowEmpty, key))
+            {
+                if (typeOf(held) == "string" and trim(held) == "")
+                {
+                    empty = true
+                }
+                if (typeOf(held) == "array" and len(held) == 0)
+                {
+                    empty = true
+                }
+            }
+            if (empty)
             {
                 fail(step + ": claude's answer has no " + key + " (see writer/last-call.json)")
             }

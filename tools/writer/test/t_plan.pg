@@ -49,6 +49,15 @@ if (wants("plan"))
     var d = runTool(site, ["decline", "2"], "")
     checkEq("plan of a declined idea fails", runTool(site, ["plan", "2"], "").code, 1)
 
+    // An empty plan answer writes nothing and leaves the idea new
+    var emptySite = ideasSite()
+    var ie = runTool(emptySite, ["ideas"], "")
+    var pe = runTool(emptySite, ["plan", "1"], "FAKE_CLAUDE_VARIANT=empty")
+    checkEq("empty plan fails", pe.code, 1)
+    check("empty plan writes no plan.md", not fileExists(emptySite + "/writer/articles/" + PLANNED_SLUG + "/plan.md"))
+    var stillNew = findIdea(readJson(emptySite + "/writer/ideas.json"), 1)
+    checkEq("idea still new", stillNew.status, "new")
+
     // The record follows the plan the author edited: a 4th chapter, the first three as they were
     var config = {writer: site + "/writer"}
     var rec = loadRecord(config, PLANNED_SLUG)

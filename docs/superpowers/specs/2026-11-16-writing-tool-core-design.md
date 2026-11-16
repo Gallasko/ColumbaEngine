@@ -166,6 +166,7 @@ answers: <what this chapter answers, and how it follows from the previous one>
 core: <core topics this chapter explains, comma separated>
 code: <the code it needs, in words, or "none">
 visual: <a visual it wants, or "none">
+facts: <the numbers it states, each with its source, or "none" (added 2026-11-16 after review: the drafts read no sources, so the plan carries the numbers)>
 
 ## 2. ...
 ```
