@@ -66,6 +66,13 @@ namespace pg
             void docEnd(bool extend);
             void selectAll();
 
+            // Undo and redo, by groups: a word typed with the spaces after it, a run of
+            // backspaces, or any other single edit; a move, setCursor or breakUndoGroup ends the
+            // group. False when there is nothing to undo or redo
+            bool undo();
+            bool redo();
+            void breakUndoGroup() { groupOpen_ = false; }
+
             // Grows on every edit (a move leaves it)
             size_t revision() const { return revision_; }
 
@@ -78,7 +85,29 @@ namespace pg
             size_t wordRight(size_t line, size_t column) const;
 
         private:
+            struct Snapshot
+            {
+                std::vector<std::string> lines;
+                TextPos cursor;
+                std::optional<TextPos> anchor;
+            };
+            struct UndoGroup
+            {
+                Snapshot before;
+                Snapshot after;
+            };
+            enum class EditKind { Typing, Backspace, Other };
+
+            Snapshot snapshot() const { return {lines_, cursor_, anchor_}; }
+            void restore(const Snapshot& s);
+            // Around every public edit: joins the edit to the open group or starts one
+            void beginEdit(EditKind kind, bool startsWord);
+            void endEdit(EditKind kind);
+
             void moveTo(TextPos pos, bool extend, bool keepWanted = false);
+            void insertText(const std::string& text);
+            void backspaceAt(bool word);
+            void delAt(bool word);
             void removeRange(TextPos from, TextPos to);
             void edited();
 
@@ -88,6 +117,13 @@ namespace pg
             // The column up and down try to keep, set by the first vertical move
             std::optional<size_t> wantedColumn_;
             size_t revision_ = 0;
+
+            std::vector<UndoGroup> undo_;
+            std::vector<UndoGroup> redo_;
+            bool groupOpen_ = false;
+            EditKind groupKind_ = EditKind::Other;
+            bool lastTypedWordByte_ = false;
+            int editDepth_ = 0;
         };
     }
 }

@@ -43,7 +43,68 @@ namespace pg
             cursor_ = {0, 0};
             anchor_.reset();
             wantedColumn_.reset();
+            undo_.clear();
+            redo_.clear();
+            groupOpen_ = false;
             edited();
+        }
+
+        void TextBuffer::restore(const Snapshot& s)
+        {
+            lines_ = s.lines;
+            cursor_ = s.cursor;
+            anchor_ = s.anchor;
+            wantedColumn_.reset();
+            edited();
+        }
+
+        void TextBuffer::beginEdit(EditKind kind, bool startsWord)
+        {
+            if (editDepth_++ > 0)
+                return;
+            // Typing joins the open typing group, except a word starting after a non-word
+            // character (a space, a comma); backspaces join backspaces; anything else is alone
+            const bool joins = groupOpen_ and kind == groupKind_ and kind != EditKind::Other and not hasSelection() and not (kind == EditKind::Typing and startsWord and not lastTypedWordByte_);
+            if (not joins)
+            {
+                undo_.push_back(UndoGroup{snapshot(), snapshot()});
+                groupOpen_ = true;
+                groupKind_ = kind;
+            }
+        }
+
+        void TextBuffer::endEdit(EditKind kind)
+        {
+            if (--editDepth_ > 0)
+                return;
+            undo_.back().after = snapshot();
+            redo_.clear();
+            if (kind == EditKind::Other)
+                groupOpen_ = false;
+        }
+
+        bool TextBuffer::undo()
+        {
+            groupOpen_ = false;
+            if (undo_.empty())
+                return false;
+            UndoGroup group = undo_.back();
+            undo_.pop_back();
+            restore(group.before);
+            redo_.push_back(group);
+            return true;
+        }
+
+        bool TextBuffer::redo()
+        {
+            groupOpen_ = false;
+            if (redo_.empty())
+                return false;
+            UndoGroup group = redo_.back();
+            redo_.pop_back();
+            restore(group.after);
+            undo_.push_back(group);
+            return true;
         }
 
         std::string TextBuffer::text() const
@@ -156,6 +217,8 @@ namespace pg
             cursor_ = pos;
             if (not keepWanted)
                 wantedColumn_.reset();
+            if (editDepth_ == 0)
+                groupOpen_ = false;
         }
 
         void TextBuffer::setCursor(TextPos pos, bool extend)
@@ -186,12 +249,27 @@ namespace pg
                 anchor_.reset();
                 return;
             }
+            beginEdit(EditKind::Other, false);
             auto [from, to] = selection();
             removeRange(from, to);
             edited();
+            endEdit(EditKind::Other);
         }
 
         void TextBuffer::insert(const std::string& text)
+        {
+            // One character typed is Typing (a run of them is one undo group); a paste, a new
+            // line or any longer text is an edit of its own
+            const bool single = text.size() > 0 and text.find('\n') == std::string::npos and text.size() <= 4 and (text.size() == 1 or static_cast<unsigned char>(text[0]) >= 0xC0);
+            const EditKind kind = single ? EditKind::Typing : EditKind::Other;
+            const bool wordByte = single and isWordByte(static_cast<unsigned char>(text[0]));
+            beginEdit(kind, wordByte);
+            insertText(text);
+            lastTypedWordByte_ = wordByte;
+            endEdit(kind);
+        }
+
+        void TextBuffer::insertText(const std::string& text)
         {
             if (hasSelection())
                 deleteSelection();
@@ -231,6 +309,14 @@ namespace pg
                 deleteSelection();
                 return;
             }
+            const EditKind kind = word ? EditKind::Other : EditKind::Backspace;
+            beginEdit(kind, false);
+            backspaceAt(word);
+            endEdit(kind);
+        }
+
+        void TextBuffer::backspaceAt(bool word)
+        {
             anchor_.reset();
             if (cursor_.column == 0)
             {
@@ -253,6 +339,13 @@ namespace pg
                 deleteSelection();
                 return;
             }
+            beginEdit(EditKind::Other, false);
+            delAt(word);
+            endEdit(EditKind::Other);
+        }
+
+        void TextBuffer::delAt(bool word)
+        {
             anchor_.reset();
             const std::string& line = lines_[cursor_.line];
             if (cursor_.column >= line.size())
@@ -356,6 +449,7 @@ namespace pg
             anchor_ = TextPos{0, 0};
             cursor_ = {lines_.size() - 1, lines_.back().size()};
             wantedColumn_.reset();
+            groupOpen_ = false;
         }
     }
 }

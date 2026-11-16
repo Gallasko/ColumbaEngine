@@ -205,5 +205,123 @@ namespace pg
             b.right(false, false);
             EXPECT_EQ(b.revision(), r2);
         }
+
+        // ---------------------------------------------------------------- TextBuffer: undo
+
+        namespace
+        {
+            void typeEach(TextBuffer& b, const std::string& text)
+            {
+                for (char c : text)
+                    b.insert(std::string(1, c));
+            }
+        }
+
+        TEST(TextBuffer, TypingAWordIsOneUndo)
+        {
+            TextBuffer b;
+            typeEach(b, "hello");
+            EXPECT_TRUE(b.undo());
+            EXPECT_EQ(b.text(), "");
+            EXPECT_FALSE(b.undo());
+        }
+
+        TEST(TextBuffer, SpaceStartsANewGroup)
+        {
+            TextBuffer b;
+            typeEach(b, "ab cd");
+            EXPECT_TRUE(b.undo());
+            EXPECT_EQ(b.text(), "ab ");
+            EXPECT_TRUE(b.undo());
+            EXPECT_EQ(b.text(), "");
+        }
+
+        TEST(TextBuffer, MoveBreaksTheGroup)
+        {
+            TextBuffer b;
+            typeEach(b, "ab");
+            b.left(false, false);
+            typeEach(b, "c");
+            EXPECT_EQ(b.text(), "acb");
+            EXPECT_TRUE(b.undo());
+            EXPECT_EQ(b.text(), "ab");
+            EXPECT_EQ(b.cursor(), (TextPos{0, 1}));
+        }
+
+        TEST(TextBuffer, PasteManyLinesIsOneUndo)
+        {
+            TextBuffer b("start");
+            b.docEnd(false);
+            b.insert("1\n2\n3\n4");
+            EXPECT_EQ(b.lines().size(), 4u);
+            EXPECT_TRUE(b.undo());
+            EXPECT_EQ(b.text(), "start");
+            EXPECT_EQ(b.cursor(), (TextPos{0, 5}));
+        }
+
+        TEST(TextBuffer, ReplaceSelectionThenUndo)
+        {
+            TextBuffer b("hello");
+            b.selectAll();
+            b.insert("X");
+            EXPECT_EQ(b.text(), "X");
+            EXPECT_TRUE(b.undo());
+            EXPECT_EQ(b.text(), "hello");
+            EXPECT_EQ(b.selectedText(), "hello");
+        }
+
+        TEST(TextBuffer, CutThenUndo)
+        {
+            TextBuffer b("hello");
+            b.setCursor({0, 1}, false);
+            b.setCursor({0, 4}, true);
+            b.deleteSelection();
+            EXPECT_EQ(b.text(), "ho");
+            EXPECT_TRUE(b.undo());
+            EXPECT_EQ(b.text(), "hello");
+        }
+
+        TEST(TextBuffer, RedoAfterUndo)
+        {
+            TextBuffer b;
+            typeEach(b, "ab");
+            b.undo();
+            EXPECT_TRUE(b.redo());
+            EXPECT_EQ(b.text(), "ab");
+            EXPECT_EQ(b.cursor(), (TextPos{0, 2}));
+            b.undo();
+            b.insert("z");
+            EXPECT_FALSE(b.redo());
+        }
+
+        TEST(TextBuffer, BackspacesGroupTogether)
+        {
+            TextBuffer b("abcd");
+            b.docEnd(false);
+            b.backspace(false);
+            b.backspace(false);
+            EXPECT_EQ(b.text(), "ab");
+            EXPECT_TRUE(b.undo());
+            EXPECT_EQ(b.text(), "abcd");
+        }
+
+        TEST(TextBuffer, BreakUndoGroupSplits)
+        {
+            TextBuffer b;
+            typeEach(b, "ab");
+            b.breakUndoGroup();
+            typeEach(b, "c");
+            EXPECT_TRUE(b.undo());
+            EXPECT_EQ(b.text(), "ab");
+        }
+
+        TEST(TextBuffer, SetTextClearsHistory)
+        {
+            TextBuffer b;
+            typeEach(b, "ab");
+            b.setText("new");
+            EXPECT_FALSE(b.undo());
+            EXPECT_EQ(b.text(), "new");
+        }
     }
 }
