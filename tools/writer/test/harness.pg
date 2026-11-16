@@ -1,0 +1,148 @@
+// harness.pg - what every test group uses: counting checks, temporary sites, running the tool.
+
+import "string"
+import "algorithm"
+import "file"
+import "os" as os
+
+var passed = 0
+var failed = 0
+var group = ""
+if (getArgCount() > 2)
+{
+    group = getArg(2)
+}
+
+var repo = "/home/corse/Documents/PgEngine"
+var tool = repo + "/tools/writer"
+var fake = tool + "/test/fake-claude.sh"
+
+fun check(name, condition)
+{
+    if (condition)
+    {
+        passed = passed + 1
+    }
+    else
+    {
+        failed = failed + 1
+        print("FAIL " + name)
+    }
+}
+
+fun checkEq(name, got, want)
+{
+    if (got == want)
+    {
+        passed = passed + 1
+    }
+    else
+    {
+        failed = failed + 1
+        print("FAIL " + name + ": got [" + toString(got) + "] want [" + toString(want) + "]")
+    }
+}
+
+fun wants(name)
+{
+    return group == "" or group == name
+}
+
+fun shq(text)
+{
+    return "'" + replace(text, "'", "'\\''") + "'"
+}
+
+// A temporary folder with nothing in it
+fun bareSite()
+{
+    var r = os.call(["mktemp", "-d", "/tmp/claude-1000/writer-test-XXXXXX"])
+    return trim(r.out)
+}
+
+// A temporary site whose config points `claude` at the fake
+fun tempSite()
+{
+    var site = bareSite()
+    var config = {}
+    config.claude = fake
+    config.engine = repo
+    config.notes = site + "/notes"
+    config.site = site
+    config.author = "PigeonCodeur"
+    config.models = {ideas: "opus", plan: "opus", draft: "sonnet", code: "sonnet", stitch: "opus", share: "sonnet"}
+    os.makeDir(site + "/notes")
+    writeJson(site + "/writer/config.json", config)
+    return site
+}
+
+// The tool run as a command: `args` a list of strings, `env` shell assignments ("A=1 B=2")
+fun runTool(site, args, env)
+{
+    var quoted = []
+    for (var a : args)
+    {
+        push(quoted, shq(a))
+    }
+    var line = env + " ARTICLE_SITE=" + shq(site) + " " + repo + "/release/PgCompilerBootstrap " + tool + "/article.pg " + join(quoted, " ")
+    var r = os.call(line)
+    return r
+}
+
+fun samplePlan()
+{
+    var plan = {title: "Integer keys", theme: "vm-performance", reader: "a developer", knows: "C++", learns: "how tables store keys", question: "why was it slow?"}
+    plan.chapters = [{n: 1, title: "The symptom", answers: "what we saw", core: "tables", code: "none", visual: "none"}, {n: 2, title: "Two kinds of key", answers: "why it was slow", core: "int run, string keys", code: "ObjInstance::findInt", visual: "chart"}]
+    return plan
+}
+
+// A site whose config's engine is a small git repo with two commits, and whose notes folder is empty
+fun ideasSite()
+{
+    var site = tempSite()
+    var engine = site + "/engine"
+    os.makeDir(engine)
+    var g = os.call(["git", "-C", engine, "init", "-q"])
+    writeFile(engine + "/a.txt", "a")
+    var c1 = os.call("cd " + shq(engine) + " && git add a.txt && git -c user.email=t@t -c user.name=t commit -q -m 'Tables: int keys are ints'")
+    writeFile(engine + "/b.txt", "b")
+    var c2 = os.call("cd " + shq(engine) + " && git add b.txt && git -c user.email=t@t -c user.name=t commit -q -m 'VM: fused compares'")
+    var config = readJson(site + "/writer/config.json")
+    config.engine = engine
+    writeJson(site + "/writer/config.json", config)
+    return site
+}
+
+fun countOf(text, piece)
+{
+    return len(split(text, piece)) - 1
+}
+
+var PLANNED_SLUG = "why-integer-keys-made-tables-13x-faster"
+
+// A site with two ideas and idea 1 planned
+fun plannedSite()
+{
+    var site = ideasSite()
+    var r = runTool(site, ["ideas"], "")
+    var p = runTool(site, ["plan", "1"], "")
+    return site
+}
+
+// The planned article with its 3 chapters kept: 1 a draft untouched, 2 a draft edited on 1 of its
+// 4 lines, 3 the author's own
+fun keptSite()
+{
+    var site = plannedSite()
+    var slug = PLANNED_SLUG
+    var dir = site + "/writer/articles/" + slug
+    var d1 = runTool(site, ["draft", slug, "1"], "")
+    var p1 = runTool(site, ["pick", slug, "1", "guide"], "")
+    var d2 = runTool(site, ["draft", slug, "2"], "")
+    var p2 = runTool(site, ["pick", slug, "2", "story"], "")
+    var kept = readFile(dir + "/chapters/02.md")
+    writeFile(dir + "/chapters/02.md", replace(kept, "First it looks in the run.", "It looks in the run first, always."))
+    writeText(dir + "/chapters/03.md", "Chapter three, all mine.")
+    var m3 = runTool(site, ["mine", slug, "3"], "")
+    return site
+}

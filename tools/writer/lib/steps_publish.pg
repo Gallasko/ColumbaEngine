@@ -1,0 +1,167 @@
+// steps_publish.pg - article stitch / share / status: the kept chapters written into the site,
+// the posts prepared, where an article stands.
+
+import "string"
+import "algorithm"
+import "file"
+import "json" as json
+import "os" as os
+
+// The share of `kept`'s non-empty lines not found, unchanged, among `draft`'s lines
+fun editedShare(kept, draft)
+{
+    var draftLines = []
+    for (var line : splitLines(draft))
+    {
+        push(draftLines, trim(line))
+    }
+    var total = 0
+    var changed = 0
+    for (var line : splitLines(kept))
+    {
+        var t = trim(line)
+        if (t != "")
+        {
+            total = total + 1
+            if (not has(draftLines, t))
+            {
+                changed = changed + 1
+            }
+        }
+    }
+    if (total == 0)
+    {
+        return 0.0
+    }
+    return toFloat(changed) / toFloat(total)
+}
+
+// A value for the article's header: a double-quoted string, escaped as JSON writes it (which YAML
+// reads as the same string), so quotes, colons, # and new lines cannot break the header
+fun yamlString(text)
+{
+    if (typeOf(text) != "string")
+    {
+        text = toString(text)
+    }
+    return json.stringify(text)
+}
+
+fun blogPath(slug)
+{
+    return "src/content/blog/" + slug + ".md"
+}
+
+// article stitch <slug>
+fun commandStitch(config, slug)
+{
+    var opened = openArticle(config, slug)
+    var record = opened.record
+    var plan = opened.plan
+
+    var missing = []
+    var chapters = []
+    for (var chapter : plan.chapters)
+    {
+        var entry = recordChapter(record, chapter.n)
+        var text = fileText(chapterFile(config, slug, chapter.n, ""))
+        if (typeOf(entry.kept) == "none" or typeOf(text) == "none")
+        {
+            push(missing, toString(chapter.n))
+        }
+        else
+        {
+            push(chapters, {chapter: chapter, entry: entry, text: trim(text)})
+        }
+    }
+    if (len(missing) > 0)
+    {
+        fail("chapters not kept yet: " + join(missing, ", ") + " (article pick / article mine)")
+    }
+
+    var parts = []
+    for (var c : chapters)
+    {
+        push(parts, "## " + toString(c.chapter.n) + ". " + c.chapter.title + "\n\n" + c.text)
+    }
+    var values = {plan: planText(plan), article: join(parts, "\n\n")}
+    var schema = {type: "object", properties: {description: {type: "string"}, excerpt: {type: "string"}, tags: {type: "array", items: {type: "string"}}, findings: {type: "array", items: {type: "string"}}}, required: ["description", "excerpt", "tags", "findings"]}
+    var answer = askClaude(config, "stitch", fill(prompt(config, "stitch"), values), schema, "", [])
+
+    var first = typeOf(record.published) != "table"
+    var pubDate = today()
+    var publishedTime = nowMs()
+    if (not first)
+    {
+        pubDate = record.published.date
+        publishedTime = record.published.time
+    }
+
+    var tags = []
+    for (var tag : answer.tags)
+    {
+        push(tags, yamlString(tag))
+    }
+    var header = ["---", "title: " + yamlString(plan.title), "description: " + yamlString(answer.description), "pubDate: " + yamlString(pubDate)]
+    if (not first)
+    {
+        push(header, "updatedDate: " + yamlString(today()))
+    }
+    push(header, "tags: [" + join(tags, ", ") + "]")
+    push(header, "author: " + yamlString(config.author))
+    push(header, "excerpt: " + yamlString(answer.excerpt))
+    push(header, "---")
+
+    var body = []
+    for (var c : chapters)
+    {
+        push(body, "## " + c.chapter.title + "\n\n" + c.text)
+
+        if (c.entry.kept == "mine")
+        {
+            c.entry.edited = none
+        }
+        else
+        {
+            var draft = fileText(chapterFile(config, slug, c.chapter.n, c.entry.kept))
+            if (typeOf(draft) == "none")
+            {
+                c.entry.edited = none
+            }
+            else
+            {
+                c.entry.edited = editedShare(c.text, draft)
+            }
+        }
+    }
+
+    var relative = blogPath(slug)
+    writeText(config.site + "/" + relative, join(header, "\n") + "\n\n" + join(body, "\n\n") + "\n")
+
+    record.published = {path: relative, time: publishedTime, date: pubDate}
+    push(record.checks, {time: nowMs(), findings: answer.findings})
+    addStep(record, "stitch", modelFor(config, "stitch"))
+    saveRecord(config, record)
+
+    var ideas = loadIdeas(config)
+    var idea = findIdea(ideas, record.idea)
+    if (typeOf(idea) == "table")
+    {
+        idea.status = "written"
+        saveIdeas(config, ideas)
+    }
+
+    print("wrote " + config.site + "/" + relative)
+    if (len(answer.findings) == 0)
+    {
+        print("checks: nothing found")
+    }
+    else
+    {
+        print("checks:")
+        for (var finding : answer.findings)
+        {
+            print("  - " + finding)
+        }
+    }
+}

@@ -1,0 +1,74 @@
+// t_stitch.pg - the "stitch" test group (run.pg imports it).
+
+import "string"
+import "algorithm"
+import "file"
+import "os" as os
+
+if (wants("stitch"))
+{
+    checkEq("edited none", editedShare("a\nb\nc", "a\nb\nc"), 0.0)
+    checkEq("edited one of four", editedShare("a\nX\nc\nd", "a\nb\nc\nd"), 0.25)
+    checkEq("edited empty", editedShare("", "x"), 0.0)
+    checkEq("yaml string", yamlString("a \"q\": b\n# c"), "\"a \\\"q\\\": b\\n# c\"")
+
+    var site = keptSite()
+    var slug = PLANNED_SLUG
+    var dir = site + "/writer/articles/" + slug
+    var blog = site + "/src/content/blog/" + slug + ".md"
+
+    var r = runTool(site, ["stitch", slug], "")
+    checkEq("stitch exits 0", r.code, 0)
+    check("blog file written", fileExists(blog))
+    var text = readFile(blog)
+    check("starts with the header", startsWith(text, "---\n"))
+    var headings = []
+    for (var line : splitLines(text))
+    {
+        if (startsWith(line, "## "))
+        {
+            push(headings, line)
+        }
+    }
+    checkEq("three chapters", len(headings), 3)
+    checkEq("chapter headings in order", join(headings, "|"), "## The symptom|## Two kinds of key|## What changed")
+    check("chapter 2 text unchanged", contains(text, "## Two kinds of key\n\n" + readFile(dir + "/chapters/02.md")))
+    check("chapter 3 text", contains(text, "Chapter three, all mine."))
+    check("no h1", not contains(text, "\n# "))
+    for (var key : ["title: ", "description: ", "pubDate: ", "author: ", "excerpt: ", "tags: "])
+    {
+        check("header has " + key, contains(text, "\n" + key))
+    }
+    check("pubDate today", contains(text, "pubDate: " + yamlString(today())))
+    check("no updatedDate yet", not contains(text, "updatedDate"))
+
+    var record = readJson(dir + "/record.json")
+    var c1 = record.chapters[0]
+    var c2 = record.chapters[1]
+    var c3 = record.chapters[2]
+    checkEq("chapter 1 untouched", c1.edited, 0.0)
+    checkEq("chapter 2 edited a quarter", c2.edited, 0.25)
+    checkEq("chapter 3 mine", typeOf(c3.edited), "none")
+    var check1 = record.checks[0]
+    checkEq("findings recorded", len(check1.findings), 1)
+    check("findings printed", contains(r.out, "uses 'run' before"))
+    var idea = findIdea(readJson(site + "/writer/ideas.json"), 1)
+    checkEq("idea written", idea.status, "written")
+    var firstTime = record.published.time
+
+    var tricky = runTool(site, ["stitch", slug], "FAKE_CLAUDE_VARIANT=tricky")
+    checkEq("stitch again exits 0", tricky.code, 0)
+    var text2 = readFile(blog)
+    var trickyReply = readJson(tool + "/test/replies/stitch-tricky.json")
+    check("tricky description quoted", contains(text2, "\ndescription: " + yamlString(trickyReply.description) + "\n"))
+    check("updatedDate set", contains(text2, "\nupdatedDate: "))
+    var record2 = readJson(dir + "/record.json")
+    checkEq("published time kept", record2.published.time, firstTime)
+
+    var c2entry = record2.chapters[1]
+    c2entry.kept = none
+    writeJson(dir + "/record.json", record2)
+    var missing = runTool(site, ["stitch", slug], "")
+    checkEq("stitch with a chapter not kept fails", missing.code, 1)
+    check("names chapter 2", contains(missing.out, "2"))
+}

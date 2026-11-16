@@ -1,0 +1,40 @@
+// t_foundations.pg - the "foundations" test group (run.pg imports it).
+
+import "string"
+import "algorithm"
+import "file"
+import "os" as os
+
+if (wants("foundations"))
+{
+    checkEq("slug plain", slugOf("Closing the gap with Lua"), "closing-the-gap-with-lua")
+    checkEq("slug symbols", slugOf("  C++ & WASM: part 2!  "), "c-wasm-part-2")
+    var long = ""
+    var i = 0
+    while (i < 80)
+    {
+        long = long + "a"
+        i++
+    }
+    checkEq("slug long", strlen(slugOf(long + " b")), 60)
+    checkEq("slug empty", slugOf("!!!"), "untitled")
+    checkEq("nn 2", nn(2), "02")
+    checkEq("nn 12", nn(12), "12")
+
+    // First run: no writer/ at all
+    var site = bareSite()
+    var first = runTool(site, [], "")
+    checkEq("no command exits 1", first.code, 1)
+    check("no command prints usage", contains(first.out, "usage"))
+    for (var name : ["config.json", "guide.md", "voices.md", "themes.json", "questions.md"])
+    {
+        check("first run writes " + name, fileExists(site + "/writer/" + name))
+        check("first run lists " + name, contains(first.out, name))
+    }
+
+    // Second run: the author's guide is kept, nothing listed
+    writeFile(site + "/writer/guide.md", "my own guide")
+    var second = runTool(site, [], "")
+    checkEq("guide kept", readFile(site + "/writer/guide.md"), "my own guide")
+    check("nothing written again", not contains(second.out, "guide.md"))
+}

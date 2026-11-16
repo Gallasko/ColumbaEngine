@@ -1,0 +1,1 @@
+{"description": "How a PgScript table keeps integer keys", "excerpt": "Integer keys got a home of their own.", "tags": ["pgscript", "vm", "performance"], "findings": ["chapter 2 uses 'run' before chapter 2 explains it"]}

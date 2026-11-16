@@ -1,0 +1,66 @@
+// t_ideas.pg - the "ideas" test group (run.pg imports it).
+
+import "string"
+import "algorithm"
+import "file"
+import "os" as os
+
+if (wants("ideas"))
+{
+    var site = ideasSite()
+    var log = site + "/fake.log"
+    var env = "FAKE_CLAUDE_LOG=" + shq(log)
+
+    var r = runTool(site, ["ideas"], env)
+    checkEq("ideas exits 0", r.code, 0)
+    var ideas = readJson(site + "/writer/ideas.json")
+    checkEq("two ideas", len(ideas.ideas), 2)
+    var first = ideas.ideas[0]
+    var second = ideas.ideas[1]
+    checkEq("id 1", first.id, 1)
+    checkEq("id 2", second.id, 2)
+    checkEq("status new", first.status, "new")
+    check("lastScan set", ideas.lastScan.time > 0)
+    // A literal "1. " does not lex (engine bug: a string starting with a digit and a dot)
+    check("lists 1.", contains(r.out, toString(1) + ". "))
+    check("lists 2.", contains(r.out, toString(2) + ". "))
+    var logged = readFile(log)
+    check("digest has the commits", contains(logged, "Tables: int keys are ints") and contains(logged, "VM: fused compares"))
+    check("ideas may read", contains(logged, "arg: Read,Grep,Glob"))
+
+    var again = runTool(site, ["ideas"], env)
+    checkEq("ideas again exits 0", again.code, 0)
+    check("nothing new", contains(again.out, "nothing new"))
+    checkEq("no second call", countOf(readFile(log), "=== call ideas"), 1)
+
+    // A new commit: the ideas known are in the prompt, so none is proposed twice
+    var engine = site + "/engine"
+    var wait = os.call(["sleep", "1.2"])
+    writeFile(engine + "/c.txt", "c")
+    var c3 = os.call("cd " + shq(engine) + " && git add c.txt && git -c user.email=t@t -c user.name=t commit -q -m 'Docs: imports'")
+    var third = runTool(site, ["ideas"], env)
+    checkEq("third scan exits 0", third.code, 0)
+    var logged3 = readFile(log)
+    check("known ideas in the prompt", contains(logged3, first.title))
+    check("only the new commit", contains(logged3, "Docs: imports"))
+
+    var mine = runTool(site, ["idea", "My own"], "")
+    checkEq("idea exits 0", mine.code, 0)
+    var after = readJson(site + "/writer/ideas.json")
+    var own = findIdea(after, 5)
+    check("own idea id 5", typeOf(own) == "table")
+    if (typeOf(own) == "table")
+    {
+        checkEq("own idea title", own.title, "My own")
+        checkEq("own idea question", own.question, "")
+    }
+
+    var d = runTool(site, ["decline", "2"], "")
+    checkEq("decline exits 0", d.code, 0)
+    var declined = findIdea(readJson(site + "/writer/ideas.json"), 2)
+    checkEq("declined", declined.status, "declined")
+    var listed = runTool(site, ["ideas", "list"], "")
+    check("list shows declined", contains(listed.out, "declined"))
+    check("list shows new", contains(listed.out, "new"))
+    checkEq("decline 99", runTool(site, ["decline", "99"], "").code, 1)
+}

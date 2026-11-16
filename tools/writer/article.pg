@@ -14,6 +14,7 @@ import "lib/ideas"
 import "lib/record"
 import "lib/steps_plan"
 import "lib/steps_draft"
+import "lib/steps_publish"
 import "string"
 import "algorithm"
 import "os" as os
@@ -107,6 +108,12 @@ fun main()
     if (command == "mine" and len(args) == 2)
     {
         commandMine(config, args[0], chapterArg(args[1]))
+        return
+    }
+
+    if (command == "stitch" and len(args) == 1)
+    {
+        commandStitch(config, args[0])
         return
     }
 
