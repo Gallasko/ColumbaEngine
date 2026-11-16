@@ -25,10 +25,12 @@
 //               (step 5); tailExpr = verbatim return expression instead
 //
 // Kernel tuple: [typeA, typeB, expr, guard, where]
-//   typeA/typeB "int" | "dbl" | "rawint" | "tagged"  (rawint: $a/$b are the BOXED
+//   typeA/typeB "int" | "dbl" | "rawint" | "tagged" | "long"  (rawint: $a/$b are the BOXED
 //               values — canonical NaN-boxed int bit-compare; tagged: any
-//               value that is not a double, also seen BOXED)
-//   expr        C++ over $a/$b (unboxed reads substituted; raw for rawint)
+//               value that is not a double, also seen BOXED; long: a long
+//               string, seen BOXED)
+//   expr        C++ over $a/$b (unboxed reads substituted; raw for rawint);
+//               $vm is the VM it runs in
 //   guard       extra C++ condition over $a/$b, "" for none
 //   where       "inline" → functor + base handler + helper
 //               "helper" → helper body only (epsilon/error-prone cases kept
@@ -83,8 +85,9 @@ fun binaryOps()
 
     // Equality: canonical NaN-boxed ints compare as raw bits; anything
     // involving a double keeps the epsilon semantics, helper-only. Two long
-    // strings compare their text: a string made while running is not
-    // interned (createString), so one text can stand at two places. Every
+    // strings compare their text, inline so a branch on it gets a plain bool:
+    // a string made while running is not interned (createString), so one
+    // text can stand at two places. Every
     // other pair without a double is equal by its bits (a short string, a
     // bool, none, a handle): inline, `c == " "` never leaves the handler.
     push(ops, { name: "equal", opcode: "OP_Equal", kind: "cmp",
@@ -92,20 +95,22 @@ fun binaryOps()
                 kernels: [
                     ["rawint", "rawint", "$a == $b", "", "inline"],
                     ["tagged", "tagged", "$a == $b", "not (IS_LONG_STRING($a) and IS_LONG_STRING($b))", "inline"],
+                    ["long", "long", "$a == $b or $vm->sameLongString($a, $b)", "", "inline"],
                     ["dbl", "dbl", "areAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"],
                     ["int", "dbl", "areAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"],
                     ["dbl", "int", "areAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"]],
-                tailExpr: "BOOL_VAL(a == b or sameLongString(a, b))" })
+                tailExpr: "BOOL_VAL(a == b)" })
 
     push(ops, { name: "notEqual", opcode: "OP_NotEqual", kind: "cmp",
                 helper: "notEqualsValues", commutative: true,
                 kernels: [
                     ["rawint", "rawint", "$a != $b", "", "inline"],
                     ["tagged", "tagged", "$a != $b", "not (IS_LONG_STRING($a) and IS_LONG_STRING($b))", "inline"],
+                    ["long", "long", "$a != $b and not $vm->sameLongString($a, $b)", "", "inline"],
                     ["dbl", "dbl", "areNotAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"],
                     ["int", "dbl", "areNotAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"],
                     ["dbl", "int", "areNotAlmostEqual(static_cast<float>($a), static_cast<float>($b))", "", "helper"]],
-                tailExpr: "BOOL_VAL(a != b and not sameLongString(a, b))" })
+                tailExpr: "BOOL_VAL(a != b)" })
 
     push(ops, { name: "greater", opcode: "OP_Greater", kind: "cmp", op: ">",
                 helper: "greaterValues", commutative: false,

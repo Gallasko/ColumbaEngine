@@ -92,6 +92,8 @@
                 return BOOL_VAL(a == b);
             if (IS_TAGGED(a) and IS_TAGGED(b) and (not (IS_LONG_STRING(a) and IS_LONG_STRING(b))))
                 return BOOL_VAL(a == b);
+            if (IS_LONG_STRING(a) and IS_LONG_STRING(b))
+                return BOOL_VAL(a == b or vm->sameLongString(a, b));
             return vm->equalsValues(a, b);
         }
 
@@ -102,6 +104,32 @@
                 return a == b;
             if (IS_TAGGED(a) and IS_TAGGED(b) and (not (IS_LONG_STRING(a) and IS_LONG_STRING(b))))
                 return a == b;
+            if (IS_LONG_STRING(a) and IS_LONG_STRING(b))
+                return a == b or vm->sameLongString(a, b);
+            return isValueTrue(vm->equalsValues(a, b));
+        }
+
+        // The kernels without the VM: true and the condition in `cond`, false for what applyCond decides.
+        PG_FUSION_INLINE static bool tryApplyCond(const Value& a, const Value& b, bool& cond)
+        {
+            if (IS_INT(a) and IS_INT(b))
+            {
+                cond = a == b;
+                return true;
+            }
+            if (IS_TAGGED(a) and IS_TAGGED(b) and (not (IS_LONG_STRING(a) and IS_LONG_STRING(b))))
+            {
+                cond = a == b;
+                return true;
+            }
+            return false;
+        }
+
+        // What tryApplyCond leaves: the kernels with the VM, then the helper.
+        PG_FUSION_INLINE static bool applyCondSlow(VM* vm, const Value& a, const Value& b)
+        {
+            if (IS_LONG_STRING(a) and IS_LONG_STRING(b))
+                return a == b or vm->sameLongString(a, b);
             return isValueTrue(vm->equalsValues(a, b));
         }
     };
@@ -115,6 +143,8 @@
                 return BOOL_VAL(a != b);
             if (IS_TAGGED(a) and IS_TAGGED(b) and (not (IS_LONG_STRING(a) and IS_LONG_STRING(b))))
                 return BOOL_VAL(a != b);
+            if (IS_LONG_STRING(a) and IS_LONG_STRING(b))
+                return BOOL_VAL(a != b and not vm->sameLongString(a, b));
             return vm->notEqualsValues(a, b);
         }
 
@@ -125,6 +155,32 @@
                 return a != b;
             if (IS_TAGGED(a) and IS_TAGGED(b) and (not (IS_LONG_STRING(a) and IS_LONG_STRING(b))))
                 return a != b;
+            if (IS_LONG_STRING(a) and IS_LONG_STRING(b))
+                return a != b and not vm->sameLongString(a, b);
+            return isValueTrue(vm->notEqualsValues(a, b));
+        }
+
+        // The kernels without the VM: true and the condition in `cond`, false for what applyCond decides.
+        PG_FUSION_INLINE static bool tryApplyCond(const Value& a, const Value& b, bool& cond)
+        {
+            if (IS_INT(a) and IS_INT(b))
+            {
+                cond = a != b;
+                return true;
+            }
+            if (IS_TAGGED(a) and IS_TAGGED(b) and (not (IS_LONG_STRING(a) and IS_LONG_STRING(b))))
+            {
+                cond = a != b;
+                return true;
+            }
+            return false;
+        }
+
+        // What tryApplyCond leaves: the kernels with the VM, then the helper.
+        PG_FUSION_INLINE static bool applyCondSlow(VM* vm, const Value& a, const Value& b)
+        {
+            if (IS_LONG_STRING(a) and IS_LONG_STRING(b))
+                return a != b and not vm->sameLongString(a, b);
             return isValueTrue(vm->notEqualsValues(a, b));
         }
     };
@@ -158,6 +214,38 @@
                 return AS_DOUBLE(a) > static_cast<double>(AS_INT(b));
             return isValueTrue(vm->greaterValues(a, b));
         }
+
+        // The kernels without the VM: true and the condition in `cond`, false for what applyCond decides.
+        PG_FUSION_INLINE static bool tryApplyCond(const Value& a, const Value& b, bool& cond)
+        {
+            if (IS_INT(a) and IS_INT(b))
+            {
+                cond = AS_INT(a) > AS_INT(b);
+                return true;
+            }
+            if (IS_DOUBLE(a) and IS_DOUBLE(b))
+            {
+                cond = AS_DOUBLE(a) > AS_DOUBLE(b);
+                return true;
+            }
+            if (IS_INT(a) and IS_DOUBLE(b))
+            {
+                cond = static_cast<double>(AS_INT(a)) > AS_DOUBLE(b);
+                return true;
+            }
+            if (IS_DOUBLE(a) and IS_INT(b))
+            {
+                cond = AS_DOUBLE(a) > static_cast<double>(AS_INT(b));
+                return true;
+            }
+            return false;
+        }
+
+        // What tryApplyCond leaves: the kernels with the VM, then the helper.
+        PG_FUSION_INLINE static bool applyCondSlow(VM* vm, const Value& a, const Value& b)
+        {
+            return isValueTrue(vm->greaterValues(a, b));
+        }
     };
 
     // op: greaterEqual (cmp; helper: greaterEqualValues)
@@ -187,6 +275,38 @@
                 return static_cast<double>(AS_INT(a)) >= AS_DOUBLE(b);
             if (IS_DOUBLE(a) and IS_INT(b))
                 return AS_DOUBLE(a) >= static_cast<double>(AS_INT(b));
+            return isValueTrue(vm->greaterEqualValues(a, b));
+        }
+
+        // The kernels without the VM: true and the condition in `cond`, false for what applyCond decides.
+        PG_FUSION_INLINE static bool tryApplyCond(const Value& a, const Value& b, bool& cond)
+        {
+            if (IS_INT(a) and IS_INT(b))
+            {
+                cond = AS_INT(a) >= AS_INT(b);
+                return true;
+            }
+            if (IS_DOUBLE(a) and IS_DOUBLE(b))
+            {
+                cond = AS_DOUBLE(a) >= AS_DOUBLE(b);
+                return true;
+            }
+            if (IS_INT(a) and IS_DOUBLE(b))
+            {
+                cond = static_cast<double>(AS_INT(a)) >= AS_DOUBLE(b);
+                return true;
+            }
+            if (IS_DOUBLE(a) and IS_INT(b))
+            {
+                cond = AS_DOUBLE(a) >= static_cast<double>(AS_INT(b));
+                return true;
+            }
+            return false;
+        }
+
+        // What tryApplyCond leaves: the kernels with the VM, then the helper.
+        PG_FUSION_INLINE static bool applyCondSlow(VM* vm, const Value& a, const Value& b)
+        {
             return isValueTrue(vm->greaterEqualValues(a, b));
         }
     };
@@ -220,6 +340,38 @@
                 return AS_DOUBLE(a) < static_cast<double>(AS_INT(b));
             return isValueTrue(vm->lessValues(a, b));
         }
+
+        // The kernels without the VM: true and the condition in `cond`, false for what applyCond decides.
+        PG_FUSION_INLINE static bool tryApplyCond(const Value& a, const Value& b, bool& cond)
+        {
+            if (IS_INT(a) and IS_INT(b))
+            {
+                cond = AS_INT(a) < AS_INT(b);
+                return true;
+            }
+            if (IS_DOUBLE(a) and IS_DOUBLE(b))
+            {
+                cond = AS_DOUBLE(a) < AS_DOUBLE(b);
+                return true;
+            }
+            if (IS_INT(a) and IS_DOUBLE(b))
+            {
+                cond = static_cast<double>(AS_INT(a)) < AS_DOUBLE(b);
+                return true;
+            }
+            if (IS_DOUBLE(a) and IS_INT(b))
+            {
+                cond = AS_DOUBLE(a) < static_cast<double>(AS_INT(b));
+                return true;
+            }
+            return false;
+        }
+
+        // What tryApplyCond leaves: the kernels with the VM, then the helper.
+        PG_FUSION_INLINE static bool applyCondSlow(VM* vm, const Value& a, const Value& b)
+        {
+            return isValueTrue(vm->lessValues(a, b));
+        }
     };
 
     // op: lessEqual (cmp; helper: lessEqualValues)
@@ -251,6 +403,38 @@
                 return AS_DOUBLE(a) <= static_cast<double>(AS_INT(b));
             return isValueTrue(vm->lessEqualValues(a, b));
         }
+
+        // The kernels without the VM: true and the condition in `cond`, false for what applyCond decides.
+        PG_FUSION_INLINE static bool tryApplyCond(const Value& a, const Value& b, bool& cond)
+        {
+            if (IS_INT(a) and IS_INT(b))
+            {
+                cond = AS_INT(a) <= AS_INT(b);
+                return true;
+            }
+            if (IS_DOUBLE(a) and IS_DOUBLE(b))
+            {
+                cond = AS_DOUBLE(a) <= AS_DOUBLE(b);
+                return true;
+            }
+            if (IS_INT(a) and IS_DOUBLE(b))
+            {
+                cond = static_cast<double>(AS_INT(a)) <= AS_DOUBLE(b);
+                return true;
+            }
+            if (IS_DOUBLE(a) and IS_INT(b))
+            {
+                cond = AS_DOUBLE(a) <= static_cast<double>(AS_INT(b));
+                return true;
+            }
+            return false;
+        }
+
+        // What tryApplyCond leaves: the kernels with the VM, then the helper.
+        PG_FUSION_INLINE static bool applyCondSlow(VM* vm, const Value& a, const Value& b)
+        {
+            return isValueTrue(vm->lessEqualValues(a, b));
+        }
     };
 
     // Schema safety net: a generator bug that changes a signature must fail
@@ -269,23 +453,47 @@
                   "generated functor FEqual::apply has the wrong signature");
     static_assert(std::is_invocable_r_v<bool, decltype(&FEqual::applyCond), VM*, const Value&, const Value&>,
                   "generated functor FEqual::applyCond has the wrong signature");
+    static_assert(std::is_invocable_r_v<bool, decltype(&FEqual::tryApplyCond), const Value&, const Value&, bool&>,
+                  "generated functor FEqual::tryApplyCond has the wrong signature");
+    static_assert(std::is_invocable_r_v<bool, decltype(&FEqual::applyCondSlow), VM*, const Value&, const Value&>,
+                  "generated functor FEqual::applyCondSlow has the wrong signature");
     static_assert(std::is_invocable_r_v<Value, decltype(&FNotEqual::apply), VM*, const Value&, const Value&>,
                   "generated functor FNotEqual::apply has the wrong signature");
     static_assert(std::is_invocable_r_v<bool, decltype(&FNotEqual::applyCond), VM*, const Value&, const Value&>,
                   "generated functor FNotEqual::applyCond has the wrong signature");
+    static_assert(std::is_invocable_r_v<bool, decltype(&FNotEqual::tryApplyCond), const Value&, const Value&, bool&>,
+                  "generated functor FNotEqual::tryApplyCond has the wrong signature");
+    static_assert(std::is_invocable_r_v<bool, decltype(&FNotEqual::applyCondSlow), VM*, const Value&, const Value&>,
+                  "generated functor FNotEqual::applyCondSlow has the wrong signature");
     static_assert(std::is_invocable_r_v<Value, decltype(&FGreater::apply), VM*, const Value&, const Value&>,
                   "generated functor FGreater::apply has the wrong signature");
     static_assert(std::is_invocable_r_v<bool, decltype(&FGreater::applyCond), VM*, const Value&, const Value&>,
                   "generated functor FGreater::applyCond has the wrong signature");
+    static_assert(std::is_invocable_r_v<bool, decltype(&FGreater::tryApplyCond), const Value&, const Value&, bool&>,
+                  "generated functor FGreater::tryApplyCond has the wrong signature");
+    static_assert(std::is_invocable_r_v<bool, decltype(&FGreater::applyCondSlow), VM*, const Value&, const Value&>,
+                  "generated functor FGreater::applyCondSlow has the wrong signature");
     static_assert(std::is_invocable_r_v<Value, decltype(&FGreaterEqual::apply), VM*, const Value&, const Value&>,
                   "generated functor FGreaterEqual::apply has the wrong signature");
     static_assert(std::is_invocable_r_v<bool, decltype(&FGreaterEqual::applyCond), VM*, const Value&, const Value&>,
                   "generated functor FGreaterEqual::applyCond has the wrong signature");
+    static_assert(std::is_invocable_r_v<bool, decltype(&FGreaterEqual::tryApplyCond), const Value&, const Value&, bool&>,
+                  "generated functor FGreaterEqual::tryApplyCond has the wrong signature");
+    static_assert(std::is_invocable_r_v<bool, decltype(&FGreaterEqual::applyCondSlow), VM*, const Value&, const Value&>,
+                  "generated functor FGreaterEqual::applyCondSlow has the wrong signature");
     static_assert(std::is_invocable_r_v<Value, decltype(&FLess::apply), VM*, const Value&, const Value&>,
                   "generated functor FLess::apply has the wrong signature");
     static_assert(std::is_invocable_r_v<bool, decltype(&FLess::applyCond), VM*, const Value&, const Value&>,
                   "generated functor FLess::applyCond has the wrong signature");
+    static_assert(std::is_invocable_r_v<bool, decltype(&FLess::tryApplyCond), const Value&, const Value&, bool&>,
+                  "generated functor FLess::tryApplyCond has the wrong signature");
+    static_assert(std::is_invocable_r_v<bool, decltype(&FLess::applyCondSlow), VM*, const Value&, const Value&>,
+                  "generated functor FLess::applyCondSlow has the wrong signature");
     static_assert(std::is_invocable_r_v<Value, decltype(&FLessEqual::apply), VM*, const Value&, const Value&>,
                   "generated functor FLessEqual::apply has the wrong signature");
     static_assert(std::is_invocable_r_v<bool, decltype(&FLessEqual::applyCond), VM*, const Value&, const Value&>,
                   "generated functor FLessEqual::applyCond has the wrong signature");
+    static_assert(std::is_invocable_r_v<bool, decltype(&FLessEqual::tryApplyCond), const Value&, const Value&, bool&>,
+                  "generated functor FLessEqual::tryApplyCond has the wrong signature");
+    static_assert(std::is_invocable_r_v<bool, decltype(&FLessEqual::applyCondSlow), VM*, const Value&, const Value&>,
+                  "generated functor FLessEqual::applyCondSlow has the wrong signature");

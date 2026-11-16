@@ -641,16 +641,12 @@ namespace fusion
     //           constantPtr; the target is instead a signed 16-bit RELATIVE
     //           instruction offset in operand bytes 3/4, written at fixup time.
     //           This lets `local == const` (etc.) fuse its branch as well.
-    template <typename Op, Src A, Src B, bool RelTarget = false>
-    const DecodedInstruction* fusedCmpBranchIfFalse(VM* vm, const DecodedInstruction& instr)
+    // Where a compare-and-branch goes: its target when the condition is `Taken`, the next
+    // instruction otherwise
+    template <bool Taken, bool RelTarget>
+    PG_FUSION_INLINE const DecodedInstruction* cmpBranchTo(const DecodedInstruction& instr, bool cond)
     {
-        Value b = readSrc<B>(vm, instr, instr.operands.indexed.byte2);
-        Value a = readSrc<A>(vm, instr, instr.operands.indexed.byte1);
-        const bool cond = applyCondFast<Op>(vm, a, b);
-        releaseSrc<A>(vm, a);
-        releaseSrc<B>(vm, b);
-
-        if (not cond)
+        if (cond == Taken)
         {
             if constexpr (RelTarget)
             {
@@ -666,6 +662,53 @@ namespace fusion
         return &instr + 1;
     }
 
+    template <typename Op, typename = void>
+    struct HasTryApplyCond : std::false_type {};
+
+    template <typename Op>
+    struct HasTryApplyCond<Op, std::void_t<decltype(
+        Op::tryApplyCond(Value{}, Value{}, std::declval<bool&>()))>>
+        : std::true_type {};
+
+    // What tryApplyCond leaves (a long string, a double), out of line and reached by a tail call:
+    // inline, its calls into the VM give every compare a frame, ints too
+    template <typename Op, bool Taken, bool RelTarget>
+    [[gnu::noinline]] const DecodedInstruction* cmpBranchSlow(VM* vm, const DecodedInstruction& instr, Value a, Value b)
+    {
+        return cmpBranchTo<Taken, RelTarget>(instr, Op::applyCondSlow(vm, a, b));
+    }
+
+    // A compare-and-branch that branches when the condition is `Taken`. Borrowed sources have
+    // nothing to release, so what the VM-free kernels decide never leaves the handler
+    template <typename Op, Src A, Src B, bool Taken, bool RelTarget>
+    PG_FUSION_INLINE const DecodedInstruction* fusedCmpBranch(VM* vm, const DecodedInstruction& instr)
+    {
+        Value b = readSrc<B>(vm, instr, instr.operands.indexed.byte2);
+        Value a = readSrc<A>(vm, instr, instr.operands.indexed.byte1);
+
+        if constexpr (A != Src::Stack and B != Src::Stack and HasTryApplyCond<Op>::value)
+        {
+            bool cond;
+            if (not Op::tryApplyCond(a, b, cond))
+                return cmpBranchSlow<Op, Taken, RelTarget>(vm, instr, a, b);
+
+            return cmpBranchTo<Taken, RelTarget>(instr, cond);
+        }
+        else
+        {
+            const bool cond = applyCondFast<Op>(vm, a, b);
+            releaseSrc<A>(vm, a);
+            releaseSrc<B>(vm, b);
+            return cmpBranchTo<Taken, RelTarget>(instr, cond);
+        }
+    }
+
+    template <typename Op, Src A, Src B, bool RelTarget = false>
+    const DecodedInstruction* fusedCmpBranchIfFalse(VM* vm, const DecodedInstruction& instr)
+    {
+        return fusedCmpBranch<Op, A, B, false, RelTarget>(vm, instr);
+    }
+
     // Comparison + backward popping conditional jump (loop-rotation bottom
     // test): identical to fusedCmpBranchIfFalse but branches when the result is
     // TRUE, back to the loop body. The target (pointer or relative offset) is
@@ -673,26 +716,7 @@ namespace fusion
     template <typename Op, Src A, Src B, bool RelTarget = false>
     const DecodedInstruction* fusedCmpBranchIfTrue(VM* vm, const DecodedInstruction& instr)
     {
-        Value b = readSrc<B>(vm, instr, instr.operands.indexed.byte2);
-        Value a = readSrc<A>(vm, instr, instr.operands.indexed.byte1);
-        const bool cond = applyCondFast<Op>(vm, a, b);
-        releaseSrc<A>(vm, a);
-        releaseSrc<B>(vm, b);
-
-        if (cond)
-        {
-            if constexpr (RelTarget)
-            {
-                const int16_t rel = static_cast<int16_t>(
-                    static_cast<uint16_t>(instr.operands.indexed.byte3)
-                    | (static_cast<uint16_t>(instr.operands.indexed.byte4) << 8));
-                return &instr + rel;
-            }
-            else
-                return instr.jumpTargetPtr;
-        }
-
-        return &instr + 1;
+        return fusedCmpBranch<Op, A, B, true, RelTarget>(vm, instr);
     }
 
     // Everything but an int, out of line: its calls take addresses, which inline give the int path

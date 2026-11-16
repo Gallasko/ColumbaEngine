@@ -220,16 +220,34 @@ namespace pg
             return offset + 3;
         }
 
-        int invokeInstruction(VM *vm, const std::string& name, const Chunk& chunk, int offset)
+        // A property or method name: an index into the chunk's constantStrings, not its constants
+        void printName(const Chunk& chunk, uint8_t index)
         {
-            uint8_t constant = chunk.code[offset + 1];
+            if (index >= chunk.constantStrings.size())
+                std::cout << "<invalid name index>";
+            else
+                std::cout << chunk.constantStrings[index];
+        }
+
+        int nameInstruction(const std::string& name, const Chunk& chunk, int offset)
+        {
+            uint8_t index = chunk.code[offset + 1];
+
+            std::cout << std::left << std::setw(16) << name << " " << static_cast<int>(index) << " '";
+            printName(chunk, index);
+            std::cout << "'" << std::endl;
+
+            return offset + 2;
+        }
+
+        int invokeInstruction(const std::string& name, const Chunk& chunk, int offset)
+        {
+            uint8_t index = chunk.code[offset + 1];
             uint8_t argCount = chunk.code[offset + 2];
 
             std::cout << std::left << std::setw(16) << name << " (" << static_cast<int>(argCount) << " args) "
-                      << static_cast<int>(constant) << " '";
-
-            printValue(vm, chunk.constants[constant]);
-
+                      << static_cast<int>(index) << " '";
+            printName(chunk, index);
             std::cout << "'" << std::endl;
 
             return offset + 3;
@@ -411,7 +429,7 @@ namespace pg
                 return byteInstruction("OP_Call", chunk, offset);
 
             case OpCode::OP_Invoke:
-                return invokeInstruction(vm, "OP_Invoke", chunk, offset);
+                return invokeInstruction("OP_Invoke", chunk, offset);
 
             case OpCode::OP_Closure:
             {
@@ -466,10 +484,10 @@ namespace pg
                 return constantInstruction(vm, "OP_Class", chunk, offset);
 
             case OpCode::OP_Set_Property:
-                return constantInstruction(vm, "OP_Set_Property", chunk, offset);
+                return nameInstruction("OP_Set_Property", chunk, offset);
 
             case OpCode::OP_Get_Property:
-                return constantInstruction(vm, "OP_Get_Property", chunk, offset);
+                return nameInstruction("OP_Get_Property", chunk, offset);
 
             case OpCode::OP_Method:
                 return constantInstruction(vm, "OP_Method", chunk, offset);

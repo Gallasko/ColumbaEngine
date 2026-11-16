@@ -92,7 +92,7 @@ fun validateOps(ops)
             for (var t = 0; t < 2; t = t + 1)
             {
                 var ty = kernel[t]
-                if (ty != "int" and ty != "dbl" and ty != "rawint" and ty != "tagged")
+                if (ty != "int" and ty != "dbl" and ty != "rawint" and ty != "tagged" and ty != "long")
                 {
                     log("ERROR: op '" + name + "' kernel " + toString(k) + " has invalid type: " + ty)
                     return false
@@ -112,9 +112,14 @@ fun validateOps(ops)
 // C++ rendering helpers
 // ============================================================================
 
-// Type guard for one operand: int/rawint -> IS_INT, dbl -> IS_DOUBLE, tagged -> IS_TAGGED.
+// Type guard for one operand: int/rawint -> IS_INT, dbl -> IS_DOUBLE, tagged -> IS_TAGGED,
+// long -> IS_LONG_STRING.
 fun typeCond(ty, v)
 {
+    if (ty == "long")
+    {
+        return "IS_LONG_STRING(" + v + ")"
+    }
     if (ty == "dbl")
     {
         return "IS_DOUBLE(" + v + ")"
@@ -126,7 +131,7 @@ fun typeCond(ty, v)
     return "IS_INT(" + v + ")"
 }
 
-// Unboxed read for one operand; rawint and tagged kernels see the boxed value itself.
+// Unboxed read for one operand; rawint, tagged and long kernels see the boxed value itself.
 fun typeRead(ty, v)
 {
     if (ty == "int")
@@ -140,20 +145,22 @@ fun typeRead(ty, v)
     return v
 }
 
-// Substitute the $a/$b placeholders with this kernel's operand reads.
-fun substKernel(expr, ta, tb)
+// Substitute the $a/$b placeholders with this kernel's operand reads, and $vm with the VM
+// it runs in: `vm` in the functors and handlers, `this` in the VM::*Values helpers.
+fun substKernel(expr, ta, tb, vm)
 {
-    var out = replace(expr, "$a", typeRead(ta, "a"))
+    var out = replace(expr, "$vm", vm)
+    out = replace(out, "$a", typeRead(ta, "a"))
     return replace(out, "$b", typeRead(tb, "b"))
 }
 
 // The `if (...)` condition for a kernel: both type guards + optional guard.
-fun kernelCond(kernel)
+fun kernelCond(kernel, vm)
 {
     var cond = typeCond(kernel[0], "a") + " and " + typeCond(kernel[1], "b")
     if (kernel[3] != "")
     {
-        cond += " and (" + substKernel(kernel[3], kernel[0], kernel[1]) + ")"
+        cond += " and (" + substKernel(kernel[3], kernel[0], kernel[1], vm) + ")"
     }
     return cond
 }
@@ -216,8 +223,8 @@ fun renderApply(op, indent)
     for (var i = 0; i < len(kernels); i = i + 1)
     {
         var kernel = kernels[i]
-        var expr = substKernel(kernel[2], kernel[0], kernel[1])
-        code += indent + "    if (" + kernelCond(kernel) + ")\n"
+        var expr = substKernel(kernel[2], kernel[0], kernel[1], "vm")
+        code += indent + "    if (" + kernelCond(kernel, "vm") + ")\n"
         code += indent + "        return " + boxResult(op, kernel, expr) + ";\n"
     }
 
@@ -237,8 +244,60 @@ fun renderApplyCond(op, indent)
     for (var i = 0; i < len(kernels); i = i + 1)
     {
         var kernel = kernels[i]
-        var expr = substKernel(kernel[2], kernel[0], kernel[1])
-        code += indent + "    if (" + kernelCond(kernel) + ")\n"
+        var expr = substKernel(kernel[2], kernel[0], kernel[1], "vm")
+        code += indent + "    if (" + kernelCond(kernel, "vm") + ")\n"
+        code += indent + "        return " + expr + ";\n"
+    }
+
+    code += indent + "    return isValueTrue(vm->" + op["helper"] + "(a, b));\n"
+    code += indent + "}\n"
+    return code
+}
+
+// The inline kernels that need no VM, for the branch handlers' fast path: what they leave goes to
+// applyCondSlow, out of line and as a tail call, so a kernel that calls into the VM (a long
+// string) does not give every compare a frame.
+fun renderTryApplyCond(op, indent)
+{
+    var code = ""
+    code += indent + "// The kernels without the VM: true and the condition in `cond`, false for what applyCond decides.\n"
+    code += indent + "PG_FUSION_INLINE static bool tryApplyCond(const Value& a, const Value& b, bool& cond)\n"
+    code += indent + "{\n"
+
+    var kernels = kernelsWhere(op, "inline")
+    for (var i = 0; i < len(kernels); i = i + 1)
+    {
+        var kernel = kernels[i]
+        if (contains(kernel[2], "$vm") or contains(kernel[3], "$vm"))
+        {
+            continue
+        }
+
+        var expr = substKernel(kernel[2], kernel[0], kernel[1], "vm")
+        code += indent + "    if (" + kernelCond(kernel, "vm") + ")\n"
+        code += indent + "    {\n"
+        code += indent + "        cond = " + expr + ";\n"
+        code += indent + "        return true;\n"
+        code += indent + "    }\n"
+    }
+
+    code += indent + "    return false;\n"
+    code += indent + "}\n"
+    code += "\n"
+    code += indent + "// What tryApplyCond leaves: the kernels with the VM, then the helper.\n"
+    code += indent + "PG_FUSION_INLINE static bool applyCondSlow(VM* vm, const Value& a, const Value& b)\n"
+    code += indent + "{\n"
+
+    for (var i = 0; i < len(kernels); i = i + 1)
+    {
+        var kernel = kernels[i]
+        if (not (contains(kernel[2], "$vm") or contains(kernel[3], "$vm")))
+        {
+            continue
+        }
+
+        var expr = substKernel(kernel[2], kernel[0], kernel[1], "vm")
+        code += indent + "    if (" + kernelCond(kernel, "vm") + ")\n"
         code += indent + "        return " + expr + ";\n"
     }
 
@@ -265,6 +324,8 @@ fun renderFunctor(op)
     {
         code += "\n"
         code += renderApplyCond(op, "        ")
+        code += "\n"
+        code += renderTryApplyCond(op, "        ")
     }
     if (contain(op, "orderedIf"))
     {
@@ -300,6 +361,10 @@ fun renderFunctorsFile(ops)
         {
             code += "    static_assert(std::is_invocable_r_v<bool, decltype(&" + name + "::applyCond), VM*, const Value&, const Value&>,\n"
             code += "                  \"generated functor " + name + "::applyCond has the wrong signature\");\n"
+            code += "    static_assert(std::is_invocable_r_v<bool, decltype(&" + name + "::tryApplyCond), const Value&, const Value&, bool&>,\n"
+            code += "                  \"generated functor " + name + "::tryApplyCond has the wrong signature\");\n"
+            code += "    static_assert(std::is_invocable_r_v<bool, decltype(&" + name + "::applyCondSlow), VM*, const Value&, const Value&>,\n"
+            code += "                  \"generated functor " + name + "::applyCondSlow has the wrong signature\");\n"
         }
     }
 
@@ -534,8 +599,8 @@ fun renderValuesHelpersFile(ops)
         for (var k = 0; k < len(kernels); k = k + 1)
         {
             var kernel = kernels[k]
-            var expr = substKernel(kernel[2], kernel[0], kernel[1])
-            code += "        if (" + kernelCond(kernel) + ")\n"
+            var expr = substKernel(kernel[2], kernel[0], kernel[1], "this")
+            code += "        if (" + kernelCond(kernel, "this") + ")\n"
             code += "            return " + boxResult(op, kernel, expr) + ";\n"
         }
 

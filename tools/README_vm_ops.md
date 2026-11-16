@@ -7,7 +7,7 @@ and rendered by `/tools/gen_vm_ops.pg` (a PgScript program, run by
 
 | file | consumed by | contains |
 |---|---|---|
-| `ops_functors.inc` | `decoded_fusion.h` | `FAdd`… functor structs: inline typed kernels + `applyCond` for comparisons |
+| `ops_functors.inc` | `decoded_fusion.h` | `FAdd`… functor structs: inline typed kernels + `applyCond` for comparisons, split into `tryApplyCond` (the kernels without the VM) and `applyCondSlow` (the rest) for the branch handlers |
 | `ops_binop_tables.inc` | `decoded_fusion.h` | `BinOp` enum, `classifyBinary`, `isComparison`, `isCommutative`, `binOpName` |
 | `ops_select.inc` | `decoded_fusion.h` | `selectFusedBinary` / `selectFusedLocalCompound` / `selectFusedLocalCompoundSwapped` switches |
 | `ops_base_handlers.inc` | `vm_binary_op.cpp` | base stack/stack `op_*_decoded` handlers |

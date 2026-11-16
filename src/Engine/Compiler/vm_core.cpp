@@ -273,6 +273,12 @@ namespace pg
     #endif
             }
 
+            if (printFinalBytecode)
+            {
+                disassembleChunk(this, func->chunk, func->name.empty() ? "<script>" : func->name);
+                std::cout << std::endl;
+            }
+
             // Pre-decode chunk for faster execution (compiled only, it is not run here: whoever runs
             // it decodes it, as executeChunk does)
             if (not compileOnly and not func->chunk.code.empty())

@@ -504,8 +504,10 @@ namespace pg
         }
 
         // Two long strings of the same text (equalsValues): only constants are interned, so a string
-        // made while running can hold the text of another
-        inline bool sameLongString(const Value& a, const Value& b)
+        // made while running can hold the text of another. Out of line and by value: the fused
+        // compares call it, and inline (or an operand's address) gives each of them, on ints too,
+        // a bigger frame (a stack guard)
+        inline bool sameLongString(Value a, Value b)
         {
             return IS_LONG_STRING(a) and IS_LONG_STRING(b) and *asStringPtr(a) == *asStringPtr(b);
         }
@@ -873,6 +875,10 @@ namespace pg
         // Bytecode optimization
         PassManager passManager;
         bool enableOptimizations = true;
+
+        // Disassemble every function once its passes ran: the compilers own the functions, and
+        // they are gone once interpret() returns
+        bool printFinalBytecode = false;
 
         // AST-level optimization (runs only on the AST front-end path,
         // between parsing and emission; see ast/ast_pass.h)

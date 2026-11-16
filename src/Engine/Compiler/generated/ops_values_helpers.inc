@@ -73,13 +73,15 @@
             return BOOL_VAL(a == b);
         if (IS_TAGGED(a) and IS_TAGGED(b) and (not (IS_LONG_STRING(a) and IS_LONG_STRING(b))))
             return BOOL_VAL(a == b);
+        if (IS_LONG_STRING(a) and IS_LONG_STRING(b))
+            return BOOL_VAL(a == b or this->sameLongString(a, b));
         if (IS_DOUBLE(a) and IS_DOUBLE(b))
             return BOOL_VAL(areAlmostEqual(static_cast<float>(AS_DOUBLE(a)), static_cast<float>(AS_DOUBLE(b))));
         if (IS_INT(a) and IS_DOUBLE(b))
             return BOOL_VAL(areAlmostEqual(static_cast<float>(AS_INT(a)), static_cast<float>(AS_DOUBLE(b))));
         if (IS_DOUBLE(a) and IS_INT(b))
             return BOOL_VAL(areAlmostEqual(static_cast<float>(AS_DOUBLE(a)), static_cast<float>(AS_INT(b))));
-        return BOOL_VAL(a == b or sameLongString(a, b));
+        return BOOL_VAL(a == b);
     }
 
     Value VM::notEqualsValues(Value a, Value b)
@@ -88,13 +90,15 @@
             return BOOL_VAL(a != b);
         if (IS_TAGGED(a) and IS_TAGGED(b) and (not (IS_LONG_STRING(a) and IS_LONG_STRING(b))))
             return BOOL_VAL(a != b);
+        if (IS_LONG_STRING(a) and IS_LONG_STRING(b))
+            return BOOL_VAL(a != b and not this->sameLongString(a, b));
         if (IS_DOUBLE(a) and IS_DOUBLE(b))
             return BOOL_VAL(areNotAlmostEqual(static_cast<float>(AS_DOUBLE(a)), static_cast<float>(AS_DOUBLE(b))));
         if (IS_INT(a) and IS_DOUBLE(b))
             return BOOL_VAL(areNotAlmostEqual(static_cast<float>(AS_INT(a)), static_cast<float>(AS_DOUBLE(b))));
         if (IS_DOUBLE(a) and IS_INT(b))
             return BOOL_VAL(areNotAlmostEqual(static_cast<float>(AS_DOUBLE(a)), static_cast<float>(AS_INT(b))));
-        return BOOL_VAL(a != b and not sameLongString(a, b));
+        return BOOL_VAL(a != b);
     }
 
     Value VM::greaterValues(Value a, Value b)

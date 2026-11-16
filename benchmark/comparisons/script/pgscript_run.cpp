@@ -23,7 +23,6 @@
 #include "logger.h"
 #include "ECS/entitysystem.h"
 #include "Compiler/vm.h"
-#include "Compiler/compiler_debug.h"
 #include "Compiler/object.h"
 
 #include <chrono>
@@ -105,7 +104,8 @@ int main(int argc, char** argv)
                 "  --no-opt          same as -O0\n"
                 "  --frontend=ast    compile through the AST front-end (default)\n"
                 "  --frontend=pratt  compile through the Pratt front-end\n"
-                "  --dump-bytecode   disassemble every compiled function after passes\n"
+                "  --dump-bytecode   disassemble every compiled function after passes;\n"
+                "                    compiles only, the script does not run\n"
                 "  --debug-passes    print disassembly after each optimization pass\n"
                 "  --profile         enable instruction profiling; print report at exit\n",
                 argv[0]);
@@ -131,9 +131,8 @@ int main(int argc, char** argv)
     EntitySystem ecs;
     VM vm;
 
-    // Profiling first: setupVm times itself when it is on. --dump-bytecode
-    // needs it too (compiledFunctions is filled only when profiling is on).
-    if (dumpBytecode || profile) vm.enableProfiling();
+    // Profiling first: setupVm times itself when it is on.
+    if (profile) vm.enableProfiling();
 
     // Modules, natives and the pass pipeline for the level, as the engine
     // sets up every VM.
@@ -142,6 +141,9 @@ int main(int argc, char** argv)
     ecs.setupVm(vm);
 
     if (debugPasses) vm.enableOptimizationDebugging();
+
+    // Each function is printed as it is compiled, the script is not run
+    vm.printFinalBytecode = dumpBytecode;
 
     // now() -> int64 ns since steady_clock epoch. Bench-only; not part of the
     // engine's core natives. Used by scenarios for in-script self-timing.
@@ -154,9 +156,7 @@ int main(int argc, char** argv)
         vm.defineGlobal("count", makeIntValue(count));
     }
 
-    // Execution still happens with --dump-bytecode: the function pointers
-    // stored in compiledFunctions are only stable after full setup.
-    InterpretResult result = vm.interpretFromFile(scriptPath);
+    InterpretResult result = vm.interpretFromFile(scriptPath, /*compileOnly=*/dumpBytecode);
     if (result != InterpretResult::OK)
     {
         std::fprintf(stderr, "pgscript_run: interpretation failed (code %d)\n",
@@ -169,22 +169,6 @@ int main(int argc, char** argv)
         // sortByTime=false → sort by execution count, matching how the Python
         // analyzer reports its top opcodes. We want the count-dominant ops.
         vm.printProfilingReport(/*sortByTime=*/false);
-    }
-
-    if (dumpBytecode)
-    {
-        std::fprintf(stderr, "compiledFunctions.size() = %zu\n",
-                     vm.compiledFunctions.size());
-        for (auto* func : vm.compiledFunctions)
-        {
-            if (func == nullptr) { std::fprintf(stderr, "  <null>\n"); continue; }
-            std::string name = func->name.empty() ? "<script>" : func->name;
-            std::fprintf(stderr, "  %s  chunk.code.size=%zu  decodedChunk=%p\n",
-                         name.c_str(), func->chunk.code.size(),
-                         (void*)func->decodedChunk);
-            disassembleChunk(&vm, func->chunk, name);
-            std::printf("\n");
-        }
     }
 
     return 0;
