@@ -12,6 +12,8 @@ included):
 
 {{known}}
 
+{{hint}}
+
 Propose the ideas worth an article. Group changes by topic: one idea may rest on many commits,
 and most commits make no idea at all. A good idea has a question a developer would want answered,
 and something that makes it worth reading: a measured number, a surprise, a failure, a choice

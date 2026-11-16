@@ -64,6 +64,32 @@ if (wants("ideas"))
     check("list shows new", contains(listed.out, "new"))
     checkEq("decline 99", runTool(site, ["decline", "99"], "").code, 1)
 
+    // Scanning again, a window of days, a direction for one run
+    var steer = ideasSite()
+    var steerLog = steer + "/fake.log"
+    var senv = "FAKE_CLAUDE_LOG=" + shq(steerLog)
+    var s1 = runTool(steer, ["ideas"], senv)
+    var s2 = runTool(steer, ["ideas"], senv)
+    check("plain rerun finds nothing new", contains(s2.out, "nothing new"))
+    var s3 = runTool(steer, ["ideas", "--again"], senv)
+    checkEq("ideas --again exits 0", s3.code, 0)
+    checkEq("ideas --again calls claude", countOf(readFile(steerLog), "=== call ideas"), 2)
+    check("--again sends the commits again", countOf(readFile(steerLog), "Tables: int keys are ints") == 2)
+    var s4 = runTool(steer, ["ideas", "--days", "1"], senv)
+    checkEq("ideas --days 1 exits 0", s4.code, 0)
+    checkEq("--days calls claude", countOf(readFile(steerLog), "=== call ideas"), 3)
+    var s5 = runTool(steer, ["ideas", "about the VM's speed"], senv)
+    checkEq("a direction with nothing new still asks", s5.code, 0)
+    checkEq("a direction calls claude", countOf(readFile(steerLog), "=== call ideas"), 4)
+    check("the direction is in the prompt", contains(readFile(steerLog), "about the VM's speed"))
+    var steered = readJson(steer + "/writer/ideas.json")
+    var lastIdea = steered.ideas[len(steered.ideas) - 1]
+    checkEq("an idea records its direction", lastIdea.hint, "about the VM's speed")
+    var s6 = runTool(steer, ["ideas", "--days", "1", "failures"], senv)
+    checkEq("--days with a direction exits 0", s6.code, 0)
+    checkEq("bad --days fails", runTool(steer, ["ideas", "--days", "x"], "").code, 1)
+    checkEq("two directions fail", runTool(steer, ["ideas", "a", "b"], "").code, 1)
+
     // The digest: notes and questions first, at most 8 files a commit, untracked sources found
     var big = ideasSite()
     var bigEngine = big + "/engine"

@@ -45,7 +45,7 @@ fun addIdea(ideas, fields)
             next = idea.id + 1
         }
     }
-    var idea = {id: next, title: fields.title, question: fields.question, why: fields.why, sources: fields.sources, theme: fields.theme, status: "new", created: nowMs(), slug: none}
+    var idea = {id: next, title: fields.title, question: fields.question, why: fields.why, sources: fields.sources, theme: fields.theme, status: "new", created: nowMs(), slug: none, hint: fields.hint}
     push(ideas.ideas, idea)
     return idea
 }
@@ -222,15 +222,60 @@ fun ideaLine(idea)
     return line
 }
 
-// article ideas
-fun commandIdeas(config)
+// The options of `article ideas`: [--again] [--days N] ["a direction"], in any order
+fun ideasOptions(args)
+{
+    var options = {again: false, days: 0, hint: ""}
+    var i = 0
+    while (i < len(args))
+    {
+        var a = args[i]
+        if (a == "--again")
+        {
+            options.again = true
+        }
+        else if (a == "--days")
+        {
+            i++
+            if (i >= len(args) or not allDigits(args[i]) or toInt(args[i]) < 1)
+            {
+                fail("--days needs a number of days, 1 or more")
+            }
+            options.days = toInt(args[i])
+        }
+        else if (startsWith(a, "--"))
+        {
+            fail("unknown option " + a + " (ideas [--again] [--days N] [\"a direction\"])")
+        }
+        else if (options.hint != "")
+        {
+            fail("one direction at a time, in quotes: article ideas \"" + options.hint + "\"")
+        }
+        else
+        {
+            options.hint = trim(a)
+        }
+        i++
+    }
+    return options
+}
+
+// article ideas [--again] [--days N] ["a direction"]: what changed since the last scan; --again
+// or --days look at a window of days whatever the last scan covered (60 by default); a direction
+// steers this run, and asks even when nothing changed (the subject can be anywhere)
+fun commandIdeas(config, options)
 {
     var ideas = loadIdeas(config)
-    var sixtyDays = 60 * 24 * 3600 * 1000
-    var since = ideas.lastScan.time
-    if (since == 0)
+    var days = 60
+    if (options.days > 0)
     {
-        since = nowMs() - sixtyDays
+        days = options.days
+    }
+    var window = days * 24 * 3600 * 1000
+    var since = ideas.lastScan.time
+    if (options.again or options.days > 0 or since == 0)
+    {
+        since = nowMs() - window
     }
     else
     {
@@ -241,8 +286,18 @@ fun commandIdeas(config)
     var digest = gatherDigest(config, since)
     if (digest == "")
     {
-        print("nothing new since " + os.formatTime(since, "%Y-%m-%d %H:%M") + " (UTC)")
-        return
+        if (options.hint == "")
+        {
+            print("nothing new since " + os.formatTime(since, "%Y-%m-%d %H:%M") + " (UTC); `article ideas --again` looks at the last 60 days again")
+            return
+        }
+        digest = "(nothing changed in this window: look through the engine and the notes for the subject)"
+    }
+
+    var hint = ""
+    if (options.hint != "")
+    {
+        hint = "This time the author wants ideas about: " + options.hint + ". Prefer those; propose others only if they are much stronger."
     }
 
     var known = []
@@ -256,7 +311,7 @@ fun commandIdeas(config)
         knownText = "(none yet)"
     }
 
-    var values = {digest: digest, known: knownText, themes: join(themeNames(config), ", "), engine: config.engine, notes: toString(config.notes)}
+    var values = {digest: digest, known: knownText, themes: join(themeNames(config), ", "), engine: config.engine, notes: toString(config.notes), hint: hint}
     var text = fill(prompt(config, "ideas"), values)
 
     var item = {type: "object", properties: {title: {type: "string"}, question: {type: "string"}, why: {type: "string"}, sources: {type: "array", items: {type: "string"}}, theme: {type: "string"}}, required: ["title", "question", "why", "sources", "theme"]}
@@ -271,6 +326,11 @@ fun commandIdeas(config)
     var added = []
     for (var proposed : answer.ideas)
     {
+        proposed.hint = none
+        if (options.hint != "")
+        {
+            proposed.hint = options.hint
+        }
         push(added, addIdea(ideas, proposed))
     }
 
@@ -318,7 +378,7 @@ fun commandIdea(config, title)
         fail("an idea needs a title")
     }
     var ideas = loadIdeas(config)
-    var idea = addIdea(ideas, {title: trim(title), question: "", why: "", sources: [], theme: ""})
+    var idea = addIdea(ideas, {title: trim(title), question: "", why: "", sources: [], theme: "", hint: none})
     saveIdeas(config, ideas)
     print("added " + ideaLine(idea))
 }

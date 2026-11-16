@@ -27,6 +27,8 @@ defaults into `<site>/writer/`, never over a file you changed:
 
 ```bash
 article ideas                      # new ideas from your commits, notes, questions (Claude reads, read-only)
+article ideas --again              # the last 60 days again, whatever the last scan covered (--days N for another window)
+article ideas "about the VM"       # steer one run; it asks even when nothing changed
 article ideas list                 # by status: new, planned, written, declined
 article idea "My own idea"         # add one; article decline <id> drops one
 article plan 3                     # writer/articles/<slug>/plan.md: edit it before drafting
