@@ -406,6 +406,7 @@ set(ENGINESOURCE
     src/Engine/UI/sizer.cpp
     src/Engine/UI/textinput.cpp
     src/Engine/UI/texteditor/textbuffer.cpp
+    src/Engine/UI/texteditor/wrap.cpp
     src/Engine/UI/theme.cpp
     src/Engine/UI/themesystem.cpp
     src/Engine/UI/tooltip.cpp

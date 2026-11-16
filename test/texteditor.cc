@@ -3,6 +3,7 @@
 #include "gtest/gtest.h"
 
 #include "UI/texteditor/textbuffer.h"
+#include "UI/texteditor/wrap.h"
 
 namespace pg
 {
@@ -322,6 +323,128 @@ namespace pg
             b.setText("new");
             EXPECT_FALSE(b.undo());
             EXPECT_EQ(b.text(), "new");
+        }
+
+        // ---------------------------------------------------------------- Wrapping
+
+        namespace
+        {
+            // 10 px a byte, counting its calls
+            struct FixedMeasure
+            {
+                size_t calls = 0;
+                texteditor::MeasureFn fn()
+                {
+                    return [this](const std::string& s) { ++calls; return static_cast<float>(s.size()) * 10.0f; };
+                }
+            };
+
+            std::vector<std::string> piecesOf(const texteditor::WrapLayout& w, const std::vector<std::string>& lines)
+            {
+                std::vector<std::string> out;
+                for (const auto& v : w.visual())
+                    out.push_back(lines[v.line].substr(v.start, v.end - v.start));
+                return out;
+            }
+        }
+
+        TEST(Wrap, ShortLinesDoNotWrap)
+        {
+            FixedMeasure m;
+            std::vector<std::string> lines{"abc", "de"};
+            texteditor::WrapLayout w;
+            w.rebuild(lines, 100, m.fn());
+            EXPECT_EQ(w.visual().size(), 2u);
+        }
+
+        TEST(Wrap, WrapsAtLastSpace)
+        {
+            FixedMeasure m;
+            std::vector<std::string> lines{"aaa bbb ccc"};
+            texteditor::WrapLayout w;
+            w.rebuild(lines, 65, m.fn());
+            EXPECT_EQ(piecesOf(w, lines), (std::vector<std::string>{"aaa ", "bbb ", "ccc"}));
+        }
+
+        TEST(Wrap, LongWordBreaksAnywhere)
+        {
+            FixedMeasure m;
+            std::vector<std::string> lines{"https://example.com/a/very/long/path"};
+            texteditor::WrapLayout w;
+            w.rebuild(lines, 100, m.fn());
+            std::string joined;
+            for (const auto& piece : piecesOf(w, lines))
+            {
+                EXPECT_LE(piece.size(), 10u);
+                EXPECT_GE(piece.size(), 1u);
+                joined += piece;
+            }
+            EXPECT_EQ(joined, lines[0]);
+        }
+
+        TEST(Wrap, Utf8WrapPoint)
+        {
+            FixedMeasure m;
+            std::vector<std::string> lines{"\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9"};
+            texteditor::WrapLayout w;
+            w.rebuild(lines, 50, m.fn());
+            for (const auto& v : w.visual())
+            {
+                EXPECT_EQ(v.start % 2, 0u);
+                EXPECT_EQ(v.end % 2, 0u);
+            }
+            EXPECT_EQ(w.visual().size(), 3u);
+        }
+
+        TEST(Wrap, EmptyLineIsOneVisualLine)
+        {
+            FixedMeasure m;
+            std::vector<std::string> lines{"a", "", "b"};
+            texteditor::WrapLayout w;
+            w.rebuild(lines, 100, m.fn());
+            ASSERT_EQ(w.visual().size(), 3u);
+            EXPECT_EQ(w.visual()[1].line, 1u);
+            EXPECT_EQ(w.visual()[1].start, 0u);
+            EXPECT_EQ(w.visual()[1].end, 0u);
+        }
+
+        TEST(Wrap, XAndPosRoundTrip)
+        {
+            FixedMeasure m;
+            std::vector<std::string> lines{"aaa bbb ccc ddd", "", "x\xC3\xA9y zz"};
+            texteditor::WrapLayout w;
+            w.rebuild(lines, 65, m.fn());
+            TextBuffer b("aaa bbb ccc ddd\n\nx\xC3\xA9y zz");
+            for (size_t l = 0; l < lines.size(); ++l)
+            {
+                size_t c = 0;
+                while (true)
+                {
+                    TextPos p{l, c};
+                    const size_t vi = w.visualOf(p);
+                    const float x = w.xOf(p, lines, m.fn());
+                    EXPECT_EQ(w.posAt(vi, x, lines, m.fn()), p) << "line " << l << " column " << c;
+                    if (c >= lines[l].size())
+                        break;
+                    c = b.nextBoundary(l, c);
+                }
+            }
+        }
+
+        TEST(Wrap, CacheSkipsUnchangedLines)
+        {
+            FixedMeasure m;
+            std::vector<std::string> lines{"aaa bbb ccc", "ddd eee fff", "ggg"};
+            texteditor::WrapLayout w;
+            w.rebuild(lines, 65, m.fn());
+            lines[1] = "changed text here";
+            FixedMeasure second;
+            w.rebuild(lines, 65, second.fn());
+            FixedMeasure third;
+            texteditor::WrapLayout fresh;
+            std::vector<std::string> only{"changed text here"};
+            fresh.rebuild(only, 65, third.fn());
+            EXPECT_EQ(second.calls, third.calls);
         }
     }
 }
