@@ -4,6 +4,13 @@
 
 #include "UI/texteditor/textbuffer.h"
 #include "UI/texteditor/wrap.h"
+#include "UI/texteditor/markdown.h"
+#include "UI/texteditor/search.h"
+#include "UI/texteditor/markup.h"
+
+#include "UI/ttftext.h"
+#include "ECS/entitysystem.h"
+#include "mocklogger.h"
 
 namespace pg
 {
@@ -445,6 +452,179 @@ namespace pg
             std::vector<std::string> only{"changed text here"};
             fresh.rebuild(only, 65, third.fn());
             EXPECT_EQ(second.calls, third.calls);
+        }
+
+        // ---------------------------------------------------------------- Markdown
+
+        namespace
+        {
+            using texteditor::SpanKind;
+
+            SpanKind kindAt(const std::vector<texteditor::Span>& spans, size_t byte)
+            {
+                for (const auto& s : spans)
+                    if (byte >= s.start and byte < s.end)
+                        return s.kind;
+                return SpanKind::Plain;
+            }
+
+            bool onlyKind(const std::vector<texteditor::Span>& spans, SpanKind kind)
+            {
+                for (const auto& s : spans)
+                    if (s.kind != kind)
+                        return false;
+                return not spans.empty();
+            }
+        }
+
+        TEST(Markdown, HeadingLine)
+        {
+            auto spans = texteditor::markdownSpans({"## Two kinds"});
+            ASSERT_EQ(spans.size(), 1u);
+            EXPECT_TRUE(onlyKind(spans[0], SpanKind::Heading));
+            EXPECT_EQ(spans[0].back().end, 12u);
+        }
+
+        TEST(Markdown, FenceAndCodeBlock)
+        {
+            auto spans = texteditor::markdownSpans({"text", "```cpp", "int a; // **not bold**", "```", "after"});
+            EXPECT_TRUE(onlyKind(spans[0], SpanKind::Plain));
+            EXPECT_TRUE(onlyKind(spans[1], SpanKind::Fence));
+            EXPECT_TRUE(onlyKind(spans[2], SpanKind::CodeBlock));
+            EXPECT_TRUE(onlyKind(spans[3], SpanKind::Fence));
+            EXPECT_TRUE(onlyKind(spans[4], SpanKind::Plain));
+        }
+
+        TEST(Markdown, UnclosedFenceRunsToEnd)
+        {
+            auto open = texteditor::markdownSpans({"```", "a", "b"});
+            EXPECT_TRUE(onlyKind(open[1], SpanKind::CodeBlock));
+            EXPECT_TRUE(onlyKind(open[2], SpanKind::CodeBlock));
+            auto closed = texteditor::markdownSpans({"```", "a", "b", "```", "*after*"});
+            EXPECT_TRUE(onlyKind(closed[3], SpanKind::Fence));
+            EXPECT_EQ(kindAt(closed[4], 1), SpanKind::Italic);
+        }
+
+        TEST(Markdown, InlineCodeBoldItalicLink)
+        {
+            // 0123456789012345678901
+            // a `x` **b** *c* [d](e)
+            auto spans = texteditor::markdownSpans({"a `x` **b** *c* [d](e)"})[0];
+            EXPECT_EQ(kindAt(spans, 0), SpanKind::Plain);
+            EXPECT_EQ(kindAt(spans, 2), SpanKind::InlineCode);
+            EXPECT_EQ(kindAt(spans, 4), SpanKind::InlineCode);
+            EXPECT_EQ(kindAt(spans, 6), SpanKind::Bold);
+            EXPECT_EQ(kindAt(spans, 10), SpanKind::Bold);
+            EXPECT_EQ(kindAt(spans, 12), SpanKind::Italic);
+            EXPECT_EQ(kindAt(spans, 14), SpanKind::Italic);
+            EXPECT_EQ(kindAt(spans, 16), SpanKind::Link);
+            EXPECT_EQ(kindAt(spans, 21), SpanKind::Link);
+        }
+
+        TEST(Markdown, UnderscoreInsideWordIsNotItalic)
+        {
+            auto spans = texteditor::markdownSpans({"snake_case_name"})[0];
+            EXPECT_TRUE(onlyKind(spans, SpanKind::Plain));
+            auto italic = texteditor::markdownSpans({"an _italic_ word"})[0];
+            EXPECT_EQ(kindAt(italic, 4), SpanKind::Italic);
+        }
+
+        TEST(Markdown, ListMarkers)
+        {
+            auto spans = texteditor::markdownSpans({"- a", "  * b", "12. c", "-not a list"});
+            EXPECT_EQ(kindAt(spans[0], 0), SpanKind::ListMarker);
+            EXPECT_EQ(kindAt(spans[0], 2), SpanKind::Plain);
+            EXPECT_EQ(kindAt(spans[1], 2), SpanKind::ListMarker);
+            EXPECT_EQ(kindAt(spans[1], 4), SpanKind::Plain);
+            EXPECT_EQ(kindAt(spans[2], 0), SpanKind::ListMarker);
+            EXPECT_EQ(kindAt(spans[2], 2), SpanKind::ListMarker);
+            EXPECT_EQ(kindAt(spans[2], 4), SpanKind::Plain);
+            EXPECT_EQ(kindAt(spans[3], 0), SpanKind::Plain);
+        }
+
+        TEST(Markdown, WriterMarkers)
+        {
+            auto spans = texteditor::markdownSpans({"x <!-- visual: chart --> y", "<!-- number: n"});
+            EXPECT_EQ(kindAt(spans[0], 0), SpanKind::Plain);
+            EXPECT_EQ(kindAt(spans[0], 2), SpanKind::WriterMarker);
+            EXPECT_EQ(kindAt(spans[0], 23), SpanKind::WriterMarker);
+            EXPECT_EQ(kindAt(spans[0], 25), SpanKind::Plain);
+            EXPECT_TRUE(onlyKind(spans[1], SpanKind::WriterMarker));
+        }
+
+        TEST(Markdown, SpansCoverTheLine)
+        {
+            const std::vector<std::string> lines{"a `b` **c d", "[x](y", "_ *", "## h", "", "```", "z"};
+            auto all = texteditor::markdownSpans(lines);
+            ASSERT_EQ(all.size(), lines.size());
+            for (size_t l = 0; l < lines.size(); ++l)
+            {
+                size_t at = 0;
+                for (const auto& s : all[l])
+                {
+                    EXPECT_EQ(s.start, at) << "line " << l;
+                    EXPECT_GT(s.end, s.start) << "line " << l;
+                    at = s.end;
+                }
+                EXPECT_EQ(at, lines[l].size()) << "line " << l;
+            }
+        }
+
+        // ---------------------------------------------------------------- Search
+
+        TEST(Search, FindAllIgnoresCase)
+        {
+            const std::vector<std::string> lines{"Foo foo", "FOO"};
+            auto matches = texteditor::findAll(lines, "foo");
+            ASSERT_EQ(matches.size(), 3u);
+            EXPECT_EQ(matches[1].start, 4u);
+            EXPECT_EQ(matches[2].line, 1u);
+            auto wrapped = texteditor::nextMatch(matches, TextPos{1, 0}, false);
+            ASSERT_TRUE(wrapped);
+            EXPECT_EQ(wrapped->line, 0u);
+            EXPECT_EQ(wrapped->start, 0u);
+            auto back = texteditor::nextMatch(matches, TextPos{0, 0}, true);
+            ASSERT_TRUE(back);
+            EXPECT_EQ(back->line, 1u);
+            EXPECT_TRUE(texteditor::findAll(lines, "").empty());
+            EXPECT_FALSE(texteditor::nextMatch({}, TextPos{0, 0}, false));
+        }
+
+        // ---------------------------------------------------------------- Line markup
+
+        namespace
+        {
+            texteditor::Rgba colourOf(SpanKind kind)
+            {
+                return kind == SpanKind::Heading ? texteditor::Rgba{120, 170, 255, 255} : texteditor::Rgba{220, 220, 225, 255};
+            }
+        }
+
+        TEST(Markup, MarkupColoursSpans)
+        {
+            const std::string text = "## x";
+            auto spans = texteditor::markdownSpans({text})[0];
+            const std::string m = texteditor::lineMarkup(text, 0, text.size(), spans, colourOf);
+            EXPECT_EQ(m, "\\c{120,170,255,255}## x");
+        }
+
+        TEST(Markup, MarkupEscapesBackslashes)
+        {
+            MockLogger logger;
+            EntitySystem ecs;
+            MasterRenderer renderer;
+            ecs.createSystem<PositionComponentSystem>();
+            auto* sys = ecs.createSystem<TTFTextSystem>(&renderer);
+            sys->registerFont("fonts/Inter-Regular.ttf", "inter", 16);
+
+            const std::string text = "a\\nb q\\c{1,2,3,4}z end\\";
+            auto spans = texteditor::markdownSpans({text})[0];
+            const std::string m = texteditor::lineMarkup(text, 0, text.size(), spans, colourOf);
+            const TextMetrics drawn = sys->measureText("inter", m);
+            EXPECT_EQ(drawn.lineCount, 1);
+            // Every visible character is drawn: at least as wide as the text without its backslashes
+            const TextMetrics plain = sys->measureText("inter", "anb qc{1,2,3,4}z end");
+            EXPECT_GT(drawn.penEnd, plain.penEnd);
         }
     }
 }
