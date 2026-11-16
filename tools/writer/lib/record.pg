@@ -1,0 +1,118 @@
+// record.pg - an article's folder and its record.json.
+
+import "string"
+import "algorithm"
+import "file"
+
+fun articleDir(config, slug)
+{
+    return config.writer + "/articles/" + slug
+}
+
+fun loadRecord(config, slug)
+{
+    return readJson(articleDir(config, slug) + "/record.json")
+}
+
+fun saveRecord(config, record)
+{
+    writeJson(articleDir(config, record.slug) + "/record.json", record)
+}
+
+// The record of an article that must exist (the command stops otherwise)
+fun needRecord(config, slug)
+{
+    var record = loadRecord(config, slug)
+    if (typeOf(record) == "none")
+    {
+        fail("no article '" + slug + "' (article plan <id> makes one)")
+    }
+    return record
+}
+
+fun newChapterEntry(n, title)
+{
+    return {n: n, title: title, drafts: [], kept: none, edited: none, draftedAt: 0, keptAt: 0}
+}
+
+// The record's chapters made to follow the plan's: an entry kept by its number (its title
+// updated), new chapters added, removed ones dropped; in the plan's order
+fun syncChapters(record, plan)
+{
+    var chapters = []
+    for (var chapter : plan.chapters)
+    {
+        var entry = none
+        for (var old : record.chapters)
+        {
+            if (old.n == chapter.n)
+            {
+                entry = old
+            }
+        }
+        if (typeOf(entry) == "none")
+        {
+            entry = newChapterEntry(chapter.n, chapter.title)
+        }
+        entry.title = chapter.title
+        push(chapters, entry)
+    }
+    record.chapters = chapters
+    record.title = plan.title
+    record.theme = plan.theme
+    record.reader = {reader: plan.reader, knows: plan.knows, learns: plan.learns, question: plan.question}
+}
+
+fun newRecord(idea, slug, plan)
+{
+    var record = {slug: slug, title: plan.title, idea: idea.id, theme: plan.theme, created: nowMs(), reader: {}, chapters: [], steps: [], published: none, checks: [], posts: []}
+    syncChapters(record, plan)
+    return record
+}
+
+fun addStep(record, step, model)
+{
+    push(record.steps, {step: step, model: model, time: nowMs()})
+}
+
+// The article's plan.md read; the command stops on a plan it cannot read
+fun loadPlan(config, slug)
+{
+    var path = articleDir(config, slug) + "/plan.md"
+    var text = fileText(path)
+    if (typeOf(text) == "none")
+    {
+        fail("no plan for '" + slug + "' (" + path + ")")
+    }
+    var parsed = parsePlan(text)
+    if (not parsed.ok)
+    {
+        fail(path + ": " + parsed.error)
+    }
+    return parsed.plan
+}
+
+// A chapter of the plan by its number, the command stops when there is none
+fun planChapter(plan, n)
+{
+    for (var chapter : plan.chapters)
+    {
+        if (chapter.n == n)
+        {
+            return chapter
+        }
+    }
+    fail("the plan has no chapter " + toString(n))
+}
+
+fun recordChapter(record, n)
+{
+    for (var chapter : record.chapters)
+    {
+        if (chapter.n == n)
+        {
+            return chapter
+        }
+    }
+    return none
+}

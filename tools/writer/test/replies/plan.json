@@ -1,0 +1,8 @@
+{"title": "Why integer keys made tables 13x faster", "theme": "vm-performance",
+ "reader": "a developer who knows a language well, not ColumbaEngine", "knows": "hash maps", "learns": "how a PgScript table keeps its keys",
+ "question": "Why did t[5] cost so much?",
+ "chapters": [
+  {"title": "The symptom", "answers": "what we measured", "core": "PgScript tables", "code": "none", "visual": "chart before/after"},
+  {"title": "Two kinds of key", "answers": "why ints and strings were mixed", "core": "int run, string keys", "code": "ObjInstance::findInt", "visual": "none"},
+  {"title": "What changed", "answers": "the fix and its cost", "core": "the run vector", "code": "none", "visual": "none"}
+ ]}

@@ -1,0 +1,100 @@
+// steps_plan.pg - article plan <id>: an idea made into a teaching plan (plan.md) and a record.
+
+import "string"
+import "algorithm"
+import "file"
+import "os" as os
+
+// A slug for the idea: its title's, or with -2, -3... when another idea's article has it
+fun slugForIdea(config, idea)
+{
+    if (typeOf(idea.slug) == "string")
+    {
+        return idea.slug
+    }
+    var base = slugOf(idea.title)
+    var slug = base
+    var k = 2
+    while (os.isDir(articleDir(config, slug)))
+    {
+        var other = loadRecord(config, slug)
+        if (typeOf(other) == "table" and other.idea == idea.id)
+        {
+            return slug
+        }
+        slug = base + "-" + toString(k)
+        k++
+    }
+    return slug
+}
+
+fun planSchema()
+{
+    var chapter = {type: "object", properties: {title: {type: "string"}, answers: {type: "string"}, core: {type: "string"}, code: {type: "string"}, visual: {type: "string"}}, required: ["title", "answers", "core", "code", "visual"]}
+    return {type: "object", properties: {title: {type: "string"}, theme: {type: "string"}, reader: {type: "string"}, knows: {type: "string"}, learns: {type: "string"}, question: {type: "string"}, chapters: {type: "array", items: chapter}}, required: ["title", "theme", "reader", "knows", "learns", "question", "chapters"]}
+}
+
+// article plan <id> [--again]
+fun commandPlan(config, idText, again)
+{
+    var ideas = loadIdeas(config)
+    var idea = ideaArg(ideas, idText)
+    if (idea.status != "new" and idea.status != "planned")
+    {
+        fail("idea " + idText + " is " + idea.status)
+    }
+
+    var slug = slugForIdea(config, idea)
+    var dir = articleDir(config, slug)
+    var planFile = dir + "/plan.md"
+    var target = planFile
+    if (fileExists(planFile))
+    {
+        if (not again)
+        {
+            print(planFile + " exists: edit it, or `article plan " + idText + " --again` for a new one beside it (plan-new.md)")
+            return
+        }
+        target = dir + "/plan-new.md"
+    }
+
+    var sources = "(none)"
+    if (typeOf(idea.sources) == "array" and len(idea.sources) > 0)
+    {
+        sources = join(idea.sources, "\n- ")
+        sources = "- " + sources
+    }
+    var values = {title: idea.title, question: idea.question, why: idea.why, sources: sources, themes: join(themeNames(config), ", "), engine: config.engine, notes: toString(config.notes)}
+    var text = fill(prompt(config, "plan"), values)
+
+    var dirs = [config.engine]
+    if (typeOf(config.notes) == "string" and os.isDir(config.notes))
+    {
+        push(dirs, config.notes)
+    }
+    var answer = askClaude(config, "plan", text, planSchema(), "Read,Grep,Glob", dirs)
+
+    var plan = {title: answer.title, theme: answer.theme, reader: answer.reader, knows: answer.knows, learns: answer.learns, question: answer.question, chapters: []}
+    var n = 1
+    for (var chapter : answer.chapters)
+    {
+        push(plan.chapters, {n: n, title: chapter.title, answers: chapter.answers, core: chapter.core, code: chapter.code, visual: chapter.visual})
+        n++
+    }
+    writeText(target, planText(plan))
+
+    var record = loadRecord(config, slug)
+    if (typeOf(record) == "none")
+    {
+        record = newRecord(idea, slug, plan)
+    }
+    addStep(record, "plan", modelFor(config, "plan"))
+    saveRecord(config, record)
+
+    idea.status = "planned"
+    idea.slug = slug
+    saveIdeas(config, ideas)
+
+    print("wrote " + target)
+    print("next: edit the plan, then `article draft " + slug + " 1`")
+}

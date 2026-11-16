@@ -11,6 +11,8 @@ import "lib/config"
 import "lib/claude"
 import "lib/plan"
 import "lib/ideas"
+import "lib/record"
+import "lib/steps_plan"
 import "string"
 import "algorithm"
 import "os" as os
@@ -77,6 +79,12 @@ fun main()
     if (command == "decline" and len(args) == 1)
     {
         commandDecline(config, args[0])
+        return
+    }
+
+    if (command == "plan" and (len(args) == 1 or (len(args) == 2 and args[1] == "--again")))
+    {
+        commandPlan(config, args[0], len(args) == 2)
         return
     }
 

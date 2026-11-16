@@ -11,6 +11,8 @@ import "../lib/config"
 import "../lib/claude"
 import "../lib/plan"
 import "../lib/ideas"
+import "../lib/record"
+import "../lib/steps_plan"
 import "string"
 import "algorithm"
 import "file"
@@ -281,6 +283,76 @@ if (wants("ideas"))
     check("list shows declined", contains(listed.out, "declined"))
     check("list shows new", contains(listed.out, "new"))
     checkEq("decline 99", runTool(site, ["decline", "99"], "").code, 1)
+}
+
+// ---------------------------------------------------------------------------------------------
+var PLANNED_SLUG = "why-integer-keys-made-tables-13x-faster"
+
+// A site with two ideas and idea 1 planned
+fun plannedSite()
+{
+    var site = ideasSite()
+    var r = runTool(site, ["ideas"], "")
+    var p = runTool(site, ["plan", "1"], "")
+    return site
+}
+
+if (wants("plan"))
+{
+    var site = ideasSite()
+    var ideasRun = runTool(site, ["ideas"], "")
+    var r = runTool(site, ["plan", "1"], "")
+    checkEq("plan exits 0", r.code, 0)
+    var dir = site + "/writer/articles/" + PLANNED_SLUG
+    var planFile = dir + "/plan.md"
+    check("plan.md written", fileExists(planFile))
+    var parsed = parsePlan(readFile(planFile))
+    check("plan.md reads", parsed.ok)
+    if (parsed.ok)
+    {
+        var pp = parsed.plan
+        checkEq("three chapters", len(pp.chapters), 3)
+        var third = pp.chapters[2]
+        checkEq("chapter 3 is n 3", third.n, 3)
+    }
+    var record = readJson(dir + "/record.json")
+    checkEq("record slug", record.slug, PLANNED_SLUG)
+    checkEq("record chapters", len(record.chapters), 3)
+    var rc = record.chapters[2]
+    checkEq("record chapter 3", rc.n, 3)
+    var step = record.steps[0]
+    checkEq("record step", step.step, "plan")
+    var idea = findIdea(readJson(site + "/writer/ideas.json"), 1)
+    checkEq("idea planned", idea.status, "planned")
+    checkEq("idea slug", idea.slug, PLANNED_SLUG)
+
+    writeFile(planFile, readFile(planFile) + "\n## 4. A fourth chapter\nanswers: more\n")
+    var before = readFile(planFile)
+    var again = runTool(site, ["plan", "1"], "")
+    checkEq("plan again exits 0", again.code, 0)
+    check("plan again says it exists", contains(again.out, "exists"))
+    checkEq("plan.md kept", readFile(planFile), before)
+    var fresh = runTool(site, ["plan", "1", "--again"], "")
+    checkEq("plan --again exits 0", fresh.code, 0)
+    check("plan-new.md written", fileExists(dir + "/plan-new.md"))
+    checkEq("plan.md still kept", readFile(planFile), before)
+
+    checkEq("plan 99 fails", runTool(site, ["plan", "99"], "").code, 1)
+    var d = runTool(site, ["decline", "2"], "")
+    checkEq("plan of a declined idea fails", runTool(site, ["plan", "2"], "").code, 1)
+
+    // The record follows the plan the author edited: a 4th chapter, the first three as they were
+    var config = {writer: site + "/writer"}
+    var rec = loadRecord(config, PLANNED_SLUG)
+    var first = rec.chapters[0]
+    first.kept = "story"
+    var edited = loadPlan(config, PLANNED_SLUG)
+    syncChapters(rec, edited)
+    checkEq("synced to 4 chapters", len(rec.chapters), 4)
+    var kept = rec.chapters[0]
+    checkEq("chapter 1 kept as it was", kept.kept, "story")
+    var fourth = rec.chapters[3]
+    checkEq("chapter 4 title", fourth.title, "A fourth chapter")
 }
 
 print(toString(passed) + " passed, " + toString(failed) + " failed")
