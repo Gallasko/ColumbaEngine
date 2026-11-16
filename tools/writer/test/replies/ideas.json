@@ -1,0 +1,4 @@
+{"ideas": [
+  {"title": "Why integer keys made tables 13x faster", "question": "What does a table do with t[5]?", "why": "1594 ms became 117 ms", "sources": ["commit 3552e2d8"], "theme": "vm-performance"},
+  {"title": "Fused compares", "question": "Why fuse a compare and a branch?", "why": "a surprise in the profile", "sources": ["commit 3961cbc0"], "theme": "vm-performance"}
+]}

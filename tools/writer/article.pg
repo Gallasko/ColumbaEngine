@@ -10,6 +10,7 @@ import "lib/util"
 import "lib/config"
 import "lib/claude"
 import "lib/plan"
+import "lib/ideas"
 import "string"
 import "algorithm"
 import "os" as os
@@ -55,6 +56,27 @@ fun main()
         var schema = {type: "object", properties: {theme: {type: "string"}}, required: ["theme"]}
         var answer = askClaude(config, args[0], args[1], schema, "", [])
         print(answer.theme)
+        return
+    }
+
+    if (command == "ideas" and len(args) == 0)
+    {
+        commandIdeas(config)
+        return
+    }
+    if (command == "ideas" and len(args) == 1 and args[0] == "list")
+    {
+        commandIdeasList(config)
+        return
+    }
+    if (command == "idea" and len(args) == 1)
+    {
+        commandIdea(config, args[0])
+        return
+    }
+    if (command == "decline" and len(args) == 1)
+    {
+        commandDecline(config, args[0])
         return
     }
 

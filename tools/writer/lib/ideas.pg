@@ -1,0 +1,272 @@
+// ideas.pg - writer/ideas.json and the commands on it: ideas, ideas list, idea, decline.
+
+import "string"
+import "algorithm"
+import "file"
+import "os" as os
+
+var IDEA_STATUSES = ["new", "planned", "written", "declined"]
+var DIGEST_LINES = 1500
+
+fun loadIdeas(config)
+{
+    var ideas = readJson(config.writer + "/ideas.json")
+    if (typeOf(ideas) == "none")
+    {
+        ideas = {lastScan: {commit: none, time: 0}, ideas: []}
+    }
+    return ideas
+}
+
+fun saveIdeas(config, ideas)
+{
+    writeJson(config.writer + "/ideas.json", ideas)
+}
+
+fun findIdea(ideas, id)
+{
+    for (var idea : ideas.ideas)
+    {
+        if (idea.id == id)
+        {
+            return idea
+        }
+    }
+    return none
+}
+
+// A new idea: the next id, status new
+fun addIdea(ideas, fields)
+{
+    var next = 1
+    for (var idea : ideas.ideas)
+    {
+        if (idea.id >= next)
+        {
+            next = idea.id + 1
+        }
+    }
+    var idea = {id: next, title: fields.title, question: fields.question, why: fields.why, sources: fields.sources, theme: fields.theme, status: "new", created: nowMs(), slug: none}
+    push(ideas.ideas, idea)
+    return idea
+}
+
+// The lines of a command's output, without the empty ones
+fun outputLines(r)
+{
+    var lines = []
+    for (var line : splitLines(r.out))
+    {
+        if (trim(line) != "")
+        {
+            push(lines, line)
+        }
+    }
+    return lines
+}
+
+// What changed in the author's work since `sinceMs`, as a list (never the contents): the
+// commits on the current branch with the files they touched, the notes changed, the questions
+// file when it changed. Empty when nothing changed
+fun gatherDigest(config, sinceMs)
+{
+    var since = toString(sinceMs / 1000)
+    var lines = []
+
+    var log = os.call(["git", "-C", config.engine, "log", "--since=@" + since, "--format=commit %h %ad %s", "--date=short", "--name-only"])
+    var commits = outputLines(log)
+    if (len(commits) > 0)
+    {
+        push(lines, "Commits in " + config.engine + " (newest first; the files each touched under it):")
+        for (var line : commits)
+        {
+            push(lines, "- " + line)
+        }
+    }
+
+    if (typeOf(config.notes) == "string" and os.isDir(config.notes))
+    {
+        var notes = outputLines(os.call(["find", config.notes, "-type", "f", "-newermt", "@" + since]))
+        if (len(notes) > 0)
+        {
+            push(lines, "Notes changed (read the ones that matter):")
+            for (var line : notes)
+            {
+                push(lines, "- " + line)
+            }
+        }
+    }
+
+    var questions = config.writer + "/questions.md"
+    if (fileExists(questions))
+    {
+        var changed = outputLines(os.call(["find", questions, "-newermt", "@" + since]))
+        if (len(changed) > 0)
+        {
+            push(lines, "Questions people asked (writer/questions.md):")
+            push(lines, readFile(questions))
+        }
+    }
+
+    if (len(lines) > DIGEST_LINES)
+    {
+        var dropped = len(lines) - DIGEST_LINES
+        var kept = []
+        var i = 0
+        while (i < DIGEST_LINES)
+        {
+            push(kept, lines[i])
+            i++
+        }
+        push(kept, "(" + toString(dropped) + " more lines left out)")
+        lines = kept
+    }
+    return join(lines, "\n")
+}
+
+fun themeNames(config)
+{
+    var themes = readJson(config.writer + "/themes.json")
+    var names = []
+    for (var name : themes)
+    {
+        push(names, name)
+    }
+    return names
+}
+
+fun ideaLine(idea)
+{
+    var line = toString(idea.id) + ". " + idea.title
+    if (typeOf(idea.question) == "string" and idea.question != "")
+    {
+        line = line + " - " + idea.question
+    }
+    return line
+}
+
+// article ideas
+fun commandIdeas(config)
+{
+    var ideas = loadIdeas(config)
+    var sixtyDays = 60 * 24 * 3600 * 1000
+    var since = ideas.lastScan.time
+    if (since == 0)
+    {
+        since = nowMs() - sixtyDays
+    }
+    else
+    {
+        // git --since and find -newermt count the scan's own second: start at the next one
+        since = (since / 1000 + 1) * 1000
+    }
+
+    var digest = gatherDigest(config, since)
+    if (digest == "")
+    {
+        print("nothing new since " + os.formatTime(since, "%Y-%m-%d %H:%M") + " (UTC)")
+        return
+    }
+
+    var known = []
+    for (var idea : ideas.ideas)
+    {
+        push(known, "- " + idea.title + " (" + idea.status + ")")
+    }
+    var knownText = join(known, "\n")
+    if (knownText == "")
+    {
+        knownText = "(none yet)"
+    }
+
+    var values = {digest: digest, known: knownText, themes: join(themeNames(config), ", "), engine: config.engine, notes: toString(config.notes)}
+    var text = fill(prompt(config, "ideas"), values)
+
+    var item = {type: "object", properties: {title: {type: "string"}, question: {type: "string"}, why: {type: "string"}, sources: {type: "array", items: {type: "string"}}, theme: {type: "string"}}, required: ["title", "question", "why", "sources", "theme"]}
+    var schema = {type: "object", properties: {ideas: {type: "array", items: item}}, required: ["ideas"]}
+    var dirs = [config.engine]
+    if (typeOf(config.notes) == "string" and os.isDir(config.notes))
+    {
+        push(dirs, config.notes)
+    }
+    var answer = askClaude(config, "ideas", text, schema, "Read,Grep,Glob", dirs)
+
+    var added = []
+    for (var proposed : answer.ideas)
+    {
+        push(added, addIdea(ideas, proposed))
+    }
+
+    var head = os.call(["git", "-C", config.engine, "rev-parse", "--short", "HEAD"])
+    ideas.lastScan = {commit: trim(head.out), time: nowMs()}
+    saveIdeas(config, ideas)
+
+    if (len(added) == 0)
+    {
+        print("no new idea this time")
+    }
+    for (var idea : added)
+    {
+        print(ideaLine(idea))
+    }
+}
+
+// article ideas list
+fun commandIdeasList(config)
+{
+    var ideas = loadIdeas(config)
+    for (var status : IDEA_STATUSES)
+    {
+        var lines = []
+        for (var idea : ideas.ideas)
+        {
+            if (idea.status == status)
+            {
+                push(lines, "  " + ideaLine(idea))
+            }
+        }
+        if (len(lines) > 0)
+        {
+            print(status + ":")
+            print(join(lines, "\n"))
+        }
+    }
+}
+
+// article idea "<title>"
+fun commandIdea(config, title)
+{
+    if (trim(title) == "")
+    {
+        fail("an idea needs a title")
+    }
+    var ideas = loadIdeas(config)
+    var idea = addIdea(ideas, {title: trim(title), question: "", why: "", sources: [], theme: ""})
+    saveIdeas(config, ideas)
+    print("added " + ideaLine(idea))
+}
+
+// An idea id given on the command line, the idea itself
+fun ideaArg(ideas, text)
+{
+    if (not allDigits(text))
+    {
+        fail("'" + text + "' is not an idea number")
+    }
+    var idea = findIdea(ideas, toInt(text))
+    if (typeOf(idea) == "none")
+    {
+        fail("no idea " + text + " (article ideas list)")
+    }
+    return idea
+}
+
+// article decline <id>
+fun commandDecline(config, text)
+{
+    var ideas = loadIdeas(config)
+    var idea = ideaArg(ideas, text)
+    idea.status = "declined"
+    saveIdeas(config, ideas)
+    print("declined " + ideaLine(idea))
+}
