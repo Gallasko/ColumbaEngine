@@ -316,6 +316,8 @@ namespace pg
                 releaseAndDelete(field);
             }
 
+            asInstance(value)->forEachIntValue([this](Value& v) { releaseAndDelete(v); });
+
             pools.instancePool.release(asInstance(value));
         }
         else if (IS_BOUND_METHOD(value))

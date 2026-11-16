@@ -1,0 +1,115 @@
+// A table's integer keys: apart from its names (t[5] is not t["5"]), walked first in ascending
+// order, then the names in the order they were added
+import "algorithm"
+
+var t = {}
+t[5] = "int five"
+t["5"] = "string five"
+__dprint(t[5])
+__dprint(t["5"])
+__dprint(len(t))
+
+// A for-in gives the integer keys as integers, ascending, then the names
+var m = {}
+m["b"] = 1
+m[3] = "three"
+m[-2] = "minus two"
+m["a"] = 2
+m[1] = "one"
+m[100] = "hundred"
+m[2] = "two"
+
+for (var k : m)
+    __dprint(k)
+
+var sum = 0
+for (var k : m)
+{
+    if (typeOf(k) == typeOf(0))
+        sum = sum + k
+}
+__dprint(sum)
+
+// Filled from 1 up and read back; what was never written reads none
+var big = {}
+for (var i = 1; i <= 1000; i++)
+    big[i] = i * 2
+
+var total = 0
+for (var i = 1; i <= 1000; i++)
+    total = total + big[i]
+__dprint(total)
+__dprint(typeOf(big[0]))
+__dprint(typeOf(big[1001]))
+__dprint(typeOf(big["1"]))
+__dprint(len(big))
+
+// Keys written past the end, then the gap filled: all in order
+var joined = {}
+joined[10] = "j"
+joined[12] = "l"
+joined[13] = "m"
+joined[11] = "k"
+joined[5] = "e"
+joined[12] = "L"
+
+for (var k : joined)
+    __dprint(joined[k])
+__dprint(len(joined))
+
+// Literals: a key written as an integer is one, a list's entries are 0, 1, ...
+var lit = {1: "one", "1": "string one", x: 3}
+__dprint(lit[1])
+__dprint(lit["1"])
+__dprint(lit.x)
+__dprint(len(lit))
+
+var pos = {"a", "b"}
+__dprint(pos[0])
+__dprint(pos[1])
+__dprint(typeOf(pos["0"]))
+
+// The natives take an integer key as t[k] does
+__dprint(contain(t, 5))
+__dprint(contain(t, 6))
+__dprint(contain(t, "5"))
+__dprint(pick(t, 6, "fallback"))
+__dprint(pick(t, 5, "fallback"))
+__dprint(lookup(t, 5, 0))
+
+var c = copy(m)
+c[1] = "changed"
+__dprint(m[1])
+__dprint(c[1])
+__dprint(len(c))
+
+var d = deepCopy({1: {2: "deep"}})
+__dprint(d[1][2])
+
+var into = {1: "a"}
+merge(into, {1: "b", 2: "c", name: "n"})
+__dprint(into[1])
+__dprint(into[2])
+__dprint(into.name)
+
+var byNum = indexBy([{n: 7, v: "seven"}, {n: 8, v: "eight"}], "n")
+__dprint(byNum[7].v)
+__dprint(typeOf(byNum["7"]))
+
+// A metamethod is handed the key as it was written
+class Keys
+{
+    init()
+    {
+        this.seen = []
+    }
+
+    __get(key)
+    {
+        return typeOf(key)
+    }
+}
+
+var keys = Keys()
+__dprint(keys[4])
+__dprint(keys["4"])

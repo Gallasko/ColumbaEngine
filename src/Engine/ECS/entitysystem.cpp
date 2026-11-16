@@ -961,15 +961,19 @@ namespace pg
             {
                 ObjInstance* table = vm->asInstance(args[0]);
                 LOG_INFO("Script", "Table contents:");
-                for (size_t v = 0; v < table->fieldCount(); ++v)
+
+                // The integer keys first, in ascending order, then the fields
+                for (size_t v = 0; v < table->entryCount(); ++v)
                 {
-                    const std::string& key = table->fieldName(v);
+                    const bool intKey = v < table->intCount();
+                    const size_t slot = v - (intKey ? 0 : table->intCount());
+                    const std::string key = intKey ? "[" + std::to_string(table->intKeyAt(v)) + "]" : table->fieldName(slot);
 
                     // A name written twice is the field at its last slot, as a lookup by name finds it
-                    if (table->findField(key) != v)
+                    if (not intKey and table->findField(key) != slot)
                         continue;
 
-                    auto value = table->fieldValue(v);
+                    auto value = intKey ? table->intValueAt(v) : table->fieldValue(slot);
 
                     std::string valStr;
                     if (IS_STRING(value))

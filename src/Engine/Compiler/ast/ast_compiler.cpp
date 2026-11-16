@@ -524,12 +524,16 @@ namespace pg
 
             entry.value->accept(this);
 
-            // Keys are constants on the Pratt path: implicit indices are int
-            // Atoms; explicit keys always emit as the raw token text (a
-            // string constant), mirroring createTable's writeConstant(first.text)
+            // Keys are constants: implicit indices are int Atoms, and an explicit key is an integer
+            // when it is written as one (`{1: x}` is `t[1]`, not `t["1"]`), else its text (a
+            // string constant), mirroring createTable on the Pratt path
             if (entry.explicitKey)
             {
-                if (entry.key->kind() == AstKind::Atom or entry.key->kind() == AstKind::Var)
+                if (entry.key->kind() == AstKind::Atom and std::static_pointer_cast<Atom>(entry.key)->value.type == UnionType::INT)
+                {
+                    root.parser.writeConstant(std::static_pointer_cast<Atom>(entry.key)->value);
+                }
+                else if (entry.key->kind() == AstKind::Atom or entry.key->kind() == AstKind::Var)
                 {
                     root.parser.writeConstant(entry.key->getName());
                 }

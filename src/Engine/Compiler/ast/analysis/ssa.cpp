@@ -816,10 +816,8 @@ namespace pg
                             }
                             else
                             {
-                                // A list's entry: its index
-                                if (entry.key and entry.key->kind() == AstKind::Atom)
-                                    key = nameKey(std::static_pointer_cast<Atom>(entry.key)->value.toString());
-
+                                // A list's entry: an integer index, which no name is (t[0] is
+                                // not t["0"]), any key as an integer index read is
                                 named = false;
                             }
 

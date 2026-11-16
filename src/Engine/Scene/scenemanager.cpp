@@ -198,7 +198,7 @@ namespace pg
             {
                 const std::string name = ent.has<EntityName>() ? ent.get<EntityName>()->name : "UnNamed";
 
-                entities->setField(std::to_string(ent.id), vm->createString(name), vm, true);
+                entities->setInt(static_cast<int64_t>(ent.id), vm->createString(name), vm);
             }
 
             scene->setField("entities", entitiesValue, vm, true);
@@ -211,7 +211,7 @@ namespace pg
 
             for (const auto& subscene : sceneFile.subScenes)
             {
-                subscenes->setField(std::to_string(i), vm->createString(subscene.filename), vm, true);
+                subscenes->setInt(static_cast<int64_t>(i), vm->createString(subscene.filename), vm);
 
                 ++i;
             }

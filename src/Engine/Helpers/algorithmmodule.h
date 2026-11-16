@@ -49,6 +49,26 @@ namespace pg
          *       sysData["i"] = 0
          *   }
          */
+        // The value a table keeps under a key, nullptr when it has none. An integer key is its own,
+        // apart from the fields (t[5] is not t["5"]); `known` is false for a key of another type
+        static Value* keyedValue(VM* vm, ObjInstance* instance, const Value& key, bool& known)
+        {
+            known = true;
+
+            if (IS_INT(key))
+                return instance->findInt(AS_INT(key));
+
+            if (IS_STRING(key))
+            {
+                const size_t slot = instance->findField(vm->asString(key));
+
+                return slot == ObjInstance::npos ? nullptr : &instance->fieldValueRef(slot);
+            }
+
+            known = false;
+            return nullptr;
+        }
+
         static Value nativeContain(VM* vm, int argCount, Value* args)
         {
             if (argCount != 2)
@@ -56,25 +76,22 @@ namespace pg
                 throw std::runtime_error("contain expects exactly 2 arguments (table, key)");
             }
 
-            // Second argument must be a string (key name)
-            if (not IS_STRING(args[1]))
-            {
-                throw std::runtime_error("contain expects second argument to be a string key");
-            }
-
-            // First argument must be an instance (table)
+            // First argument must be an instance (table): a string or an integer key
             if (IS_INSTANCE(args[0]))
             {
-                ObjInstance* instance = vm->asInstance(args[0]);
-                std::string key = vm->asString(args[1]);
+                bool known = false;
+                const bool exists = keyedValue(vm, vm->asInstance(args[0]), args[1], known) != nullptr;
 
-                // Check if the key exists in the instance's fields
-                bool exists = instance->hasField(key);
+                if (not known)
+                    throw std::runtime_error("contain expects a string or integer key for a table");
 
                 return makeBoolValue(exists);
             }
             else if (IS_STRING(args[0]))
             {
+                if (not IS_STRING(args[1]))
+                    throw std::runtime_error("contain expects a string to look for in a string");
+
                 std::string value = vm->asString(args[0]);
                 std::string key = vm->asString(args[1]);
 
@@ -104,37 +121,22 @@ namespace pg
                 throw std::runtime_error("lookup expects exactly 3 arguments (table, key, fallback)");
             }
 
-            if (not IS_STRING(args[1]))
-            {
-                throw std::runtime_error("lookup expects second argument to be a string key");
-            }
-
             if (not IS_INSTANCE(args[0]))
             {
                 throw std::runtime_error("lookup expects first argument to be a table instance");
             }
 
-            ObjInstance* instance = vm->asInstance(args[0]);
-            const size_t slot = instance->findField(vm->asString(args[1]));
+            bool known = false;
+            const Value* found = keyedValue(vm, vm->asInstance(args[0]), args[1], known);
+
+            if (not known)
+                throw std::runtime_error("lookup expects a string or integer key");
 
             // The arguments are released once the call is over: what is returned is retained
-            if (slot != ObjInstance::npos)
-                return vm->retainValue(instance->fieldValue(slot));
+            if (found != nullptr)
+                return vm->retainValue(*found);
 
             return vm->retainValue(args[2]);
-        }
-
-        // The text a table keys a field by: a string as it is, an integer written out (as t[k] does)
-        static bool keyText(VM* vm, const Value& key, std::string& text)
-        {
-            if (IS_STRING(key))
-                text = vm->asString(key);
-            else if (IS_INT(key))
-                text = std::to_string(AS_INT(key));
-            else
-                return false;
-
-            return true;
         }
 
         /**
@@ -153,16 +155,14 @@ namespace pg
 
             if (IS_INSTANCE(args[0]))
             {
-                std::string key;
+                bool known = false;
+                const Value* found = keyedValue(vm, vm->asInstance(args[0]), args[1], known);
 
-                if (not keyText(vm, args[1], key))
+                if (not known)
                     throw std::runtime_error("pick expects a string or integer key");
 
-                const ObjInstance* instance = vm->asInstance(args[0]);
-                const size_t slot = instance->findField(key);
-
-                if (slot != ObjInstance::npos and not IS_NONE(instance->fieldValue(slot)))
-                    return vm->retainValue(instance->fieldValue(slot));
+                if (found != nullptr and not IS_NONE(*found))
+                    return vm->retainValue(*found);
 
                 return vm->retainValue(args[2]);
             }
@@ -241,8 +241,6 @@ namespace pg
             Value indexValue = vm->createTable();
             ObjInstance* index = vm->asInstance(indexValue);
 
-            std::string key;
-
             for (const Value& entry : vm->asVector(args[0])->fields)
             {
                 if (not IS_INSTANCE(entry))
@@ -251,11 +249,23 @@ namespace pg
                 const ObjInstance* instance = vm->asInstance(entry);
                 const size_t slot = instance->findField(field);
 
-                if (slot == ObjInstance::npos or not keyText(vm, instance->fieldValue(slot), key))
+                if (slot == ObjInstance::npos)
                     continue;
 
-                if (index->findField(key) == ObjInstance::npos)
-                    index->appendNewField(key, vm->retainValue(entry));
+                const Value key = instance->fieldValue(slot);
+
+                if (IS_INT(key))
+                {
+                    if (index->findInt(AS_INT(key)) == nullptr)
+                        index->addInt(AS_INT(key), vm->retainValue(entry));
+                }
+                else if (IS_STRING(key))
+                {
+                    const std::string name = vm->asString(key);
+
+                    if (index->findField(name) == ObjInstance::npos)
+                        index->appendNewField(name, vm->retainValue(entry));
+                }
             }
 
             return indexValue;
@@ -264,7 +274,7 @@ namespace pg
         /**
          * A copy of a table or of a list, one level deep
          * Usage: var after = copy(character)
-         * Returns: a new table with the same fields in the same order (or a new list with the same
+         * Returns: a new table with the same keys (fields in the same order, integer keys) (or a new list with the same
          * entries); the values are the same values, not copies of them
          *
          * What a script wrote as `for (var k : t) { copy[k] = t[k] }`. A table copied keeps the
@@ -313,6 +323,8 @@ namespace pg
 
             for (Value& value : to->allFieldValues())
                 vm->retainValue(value);
+
+            from->forEachInt([vm, to](int64_t key, Value& value) { to->addInt(key, vm->retainValue(value)); });
 
             return copyValue;
         }
@@ -381,13 +393,15 @@ namespace pg
                     to->appendNewField(from->fieldName(slot), deepCopyOf(vm, from->fieldValue(slot), depth + 1));
             }
 
+            from->forEachInt([vm, to, depth](int64_t key, Value& entry) { to->addInt(key, deepCopyOf(vm, entry, depth + 1)); });
+
             return copyValue;
         }
 
         /**
          * One table's fields written into another
          * Usage: merge(into, from)
-         * Returns: into, with each field of from set on it in from's order (a field it had takes from's value)
+         * Returns: into, with each key of from set on it, fields in from's order (a key it had takes from's value)
          *
          * What a script wrote as `for (var k : from) { into[k] = from[k] }`. A __set metamethod is not asked
          */
@@ -420,6 +434,21 @@ namespace pg
                     into->appendNewField(name, value);
                 }
             }
+
+            from->forEachInt([vm, into](int64_t key, Value& entry)
+            {
+                const Value value = vm->retainValue(entry);
+
+                if (Value* found = into->findInt(key))
+                {
+                    vm->releaseAndDelete(*found);
+                    *found = value;
+                }
+                else
+                {
+                    into->addInt(key, value);
+                }
+            });
 
             return vm->retainValue(args[0]);
         }
@@ -606,7 +635,7 @@ namespace pg
             }
             else if (IS_INSTANCE(args[0]) and vm->asInstance(args[0])->klass and vm->asInstance(args[0])->klass->name == "__Table")
             {
-                return makeIntValue(vm->asInstance(args[0])->fieldCount());
+                return makeIntValue(vm->asInstance(args[0])->entryCount());
             }
             else
             {

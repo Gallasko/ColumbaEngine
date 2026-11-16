@@ -387,7 +387,90 @@ namespace pg
                 klass->fieldsReached = static_cast<uint32_t>(fieldValueList.size());
         }
 
+        // ---- The integer keys ----------------------------------------------------------------
+        // Apart from the fields: `t[5]` and `t["5"]` are two keys. A run of consecutive keys
+        // [base, base + size) is a vector, so a table filled 0.. or 1.. up is read with one bound
+        // check; the others are in a map. They come in ascending order, and before the fields
+        // (entryCount, entry positions). Like a field, a key is never removed.
+
+        // The value of an integer key in place (the caller releases and retains), nullptr when the
+        // instance has none
+        inline Value* findInt(int64_t key)
+        {
+            if (not ints)
+                return nullptr;
+
+            const uint64_t at = static_cast<uint64_t>(key) - static_cast<uint64_t>(ints->base);
+
+            if (at < ints->run.size())
+                return &ints->run[at];
+
+            if (ints->others.empty())
+                return nullptr;
+
+            auto it = ints->others.find(key);
+
+            return it == ints->others.end() ? nullptr : &it->second;
+        }
+
+        // An integer key the instance does not have yet, with its value (whose reference it takes)
+        void addInt(int64_t key, Value value);
+
+        // An integer key set, added or replaced (the old value released), taking the reference
+        void setInt(int64_t key, Value value, VM* vm);
+
+        inline size_t intCount() const { return ints ? ints->run.size() + ints->others.size() : 0; }
+
+        // The integer key of rank `rank` in ascending order, and its value in place
+        int64_t intKeyAt(size_t rank) const;
+        Value& intValueAt(size_t rank);
+
+        // Every integer key and its value in place: the run first, in order, then the others in no
+        // order. Added to an instance in this order, they make the same run (copies)
+        template <typename F>
+        void forEachInt(F&& f)
+        {
+            if (not ints)
+                return;
+
+            for (size_t i = 0; i < ints->run.size(); ++i)
+                f(ints->base + static_cast<int64_t>(i), ints->run[i]);
+
+            for (auto& pair : ints->others)
+                f(pair.first, pair.second);
+        }
+
+        // Every value of an integer key, in no order (releasing them)
+        template <typename F>
+        void forEachIntValue(F&& f)
+        {
+            forEachInt([&f](int64_t, Value& value) { f(value); });
+        }
+
+        // ---- Every key -----------------------------------------------------------------------
+        // The positions a for-in walks: the integer keys in ascending order, then the fields in
+        // slot order
+
+        inline size_t entryCount() const { return intCount() + fieldCount(); }
+
     private:
+        // The integer keys: a run from `base`, the others by key (`order` sorts them when asked)
+        struct IntKeys
+        {
+            int64_t base = 0;
+            std::vector<Value> run;
+            std::unordered_map<int64_t, Value> others;
+
+            // The keys of `others` in ascending order, and how many of them are below `base`
+            std::vector<int64_t> order;
+            size_t below = 0;
+            bool ordered = true;
+
+            void sortOthers();
+        };
+
+        std::unique_ptr<IntKeys> ints;
+
         // What an instance off the shapes keeps: its names in slot order and its name -> slot index
         struct Dictionary
         {

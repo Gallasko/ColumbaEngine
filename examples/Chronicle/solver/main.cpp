@@ -150,6 +150,9 @@ namespace
             for (size_t i : namedOrder(instance))
                 table->setField(instance->fieldName(i), across(from, instance->fieldValue(i), to));
 
+            // The integer keys, the run first: the copy has the same run
+            instance->forEachInt([&](int64_t key, Value& value) { table->addInt(key, across(from, value, to)); });
+
             return out;
         }
 
@@ -174,6 +177,8 @@ namespace
         std::string text;                // String
         std::vector<Tree> items;         // A list's items; a table's values
         std::vector<std::string> keys;   // A table's keys, as `items`
+        std::vector<int64_t> intKeys;    // A table's integer keys (apart from its names)
+        std::vector<Tree> intItems;      // Their values, as `intKeys`
     };
 
     void treeOf(VM& vm, Value v, Tree& out)
@@ -223,6 +228,14 @@ namespace
                 out.items.emplace_back();
                 treeOf(vm, instance->fieldValue(i), out.items.back());
             }
+
+            // The integer keys, the run first (as `across` copies them)
+            instance->forEachInt([&](int64_t key, Value& value)
+            {
+                out.intKeys.push_back(key);
+                out.intItems.emplace_back();
+                treeOf(vm, value, out.intItems.back());
+            });
         }
         else
             out.kind = Tree::Kind::None;
@@ -263,6 +276,9 @@ namespace
 
             for (size_t i = 0; i < t.keys.size(); ++i)
                 table->setField(t.keys[i], valueOf(vm, t.items[i]));
+
+            for (size_t i = 0; i < t.intKeys.size(); ++i)
+                table->addInt(t.intKeys[i], valueOf(vm, t.intItems[i]));
 
             return out;
         }
@@ -348,6 +364,16 @@ namespace
             std::sort(order.begin(), order.end(), [instance](size_t a, size_t b) { return instance->fieldName(a) < instance->fieldName(b); });
 
             out += '{';
+
+            // The integer keys in ascending order, marked apart from the names (t[1] is not t["1"])
+            for (size_t rank = 0; rank < instance->intCount(); ++rank)
+            {
+                out += '#';
+                out += std::to_string(instance->intKeyAt(rank));
+                out += '=';
+                keyOf(vm, instance->intValueAt(rank), out);
+                out += ';';
+            }
 
             for (size_t i : order)
             {

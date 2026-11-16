@@ -173,9 +173,10 @@ namespace pg
 
         size_t index = 0;
 
+        // Under integer keys 0, 1, ... (t[0], not t["0"])
         for (auto entity : entities)
         {
-            entitiesTable->setField(std::to_string(index), serializeEntityToTable(vm, ecsRef, entity));
+            entitiesTable->addInt(static_cast<int64_t>(index), serializeEntityToTable(vm, ecsRef, entity));
 
             ++index;
         }
@@ -284,19 +285,11 @@ namespace pg
 
         std::vector<EntityRef> entities;
 
-        for (size_t index = 0; index < table->fieldCount(); ++index)
+        // Entities are stored under integer keys, in ascending order; the fields ("count", ...)
+        // are skipped
+        for (size_t rank = 0; rank < table->intCount(); ++rank)
         {
-            const std::string& key = table->fieldName(index);
-
-            // A name written twice is the field at its last slot, as a lookup by name finds it
-            if (table->findField(key) != index)
-                continue;
-
-            // Entities are stored under numeric keys, anything else ("count", ...) is skipped
-            if (key.empty() or key.find_first_not_of("0123456789") != std::string::npos)
-                continue;
-
-            auto value = table->fieldValue(index);
+            auto value = table->intValueAt(rank);
 
             if (IS_INSTANCE(value))
                 entities.push_back(deserializeEntityFromTable(vm, ecsRef, value, createNew));

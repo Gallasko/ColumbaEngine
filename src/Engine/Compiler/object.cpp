@@ -6,6 +6,8 @@
 
 #include "vm.h"
 
+#include <algorithm>
+
 namespace pg
 {
     Closure::Closure(ObjFunction* func) : function(func)
@@ -133,6 +135,90 @@ namespace pg
         dictionary->names.push_back(name);
 
         return slot;
+    }
+
+    void ObjInstance::addInt(int64_t key, Value value)
+    {
+        if (not ints)
+        {
+            ints = std::make_unique<IntKeys>();
+            ints->base = key;
+            ints->run.push_back(value);
+            return;
+        }
+
+        const int64_t end = ints->base + static_cast<int64_t>(ints->run.size());
+
+        if (key != end)
+        {
+            ints->others.emplace(key, value);
+            ints->ordered = false;
+            return;
+        }
+
+        ints->run.push_back(value);
+
+        // The run reaches keys written before it: they join it
+        for (int64_t next = key + 1; not ints->others.empty(); ++next)
+        {
+            auto it = ints->others.find(next);
+
+            if (it == ints->others.end())
+                break;
+
+            ints->run.push_back(it->second);
+            ints->others.erase(it);
+            ints->ordered = false;
+        }
+    }
+
+    void ObjInstance::setInt(int64_t key, Value value, VM* vm)
+    {
+        if (Value* found = findInt(key))
+        {
+            vm->releaseAndDelete(*found);
+            *found = value;
+        }
+        else
+        {
+            addInt(key, value);
+        }
+    }
+
+    void ObjInstance::IntKeys::sortOthers()
+    {
+        order.clear();
+        order.reserve(others.size());
+
+        for (const auto& pair : others)
+            order.push_back(pair.first);
+
+        std::sort(order.begin(), order.end());
+        below = static_cast<size_t>(std::lower_bound(order.begin(), order.end(), base) - order.begin());
+        ordered = true;
+    }
+
+    int64_t ObjInstance::intKeyAt(size_t rank) const
+    {
+        if (not ints->ordered)
+            ints->sortOthers();
+
+        if (rank < ints->below)
+            return ints->order[rank];
+
+        rank -= ints->below;
+
+        if (rank < ints->run.size())
+            return ints->base + static_cast<int64_t>(rank);
+
+        return ints->order[ints->below + rank - ints->run.size()];
+    }
+
+    Value& ObjInstance::intValueAt(size_t rank)
+    {
+        const int64_t key = intKeyAt(rank);
+
+        return *findInt(key);
     }
 
     size_t ObjInstance::appendField(const std::string& name, Value value)

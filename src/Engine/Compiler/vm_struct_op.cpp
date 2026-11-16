@@ -742,14 +742,30 @@ namespace pg
 
         ObjInstance* inst = vm->asInstance(target);
 
+        // An integer key is its own, apart from the fields: `t[5]` is not `t["5"]`
         std::string key;
         if (IS_INT(index))
         {
-            key = std::to_string(AS_INT(index));
+            if (const Value* found = inst->findInt(AS_INT(index)))
+            {
+                const Value value = vm->retainValue(*found);
+                vm->releaseAndDelete(target);
+                vm->push(value);
+                return &instr + 1;
+            }
         }
         else if (IS_STRING(index))
         {
             key = vm->asString(index);
+
+            const size_t fieldSlot = inst->findField(key);
+            if (fieldSlot != ObjInstance::npos)
+            {
+                vm->releaseAndDelete(index);
+                vm->releaseAndDelete(target);
+                vm->push(vm->retainValue(inst->fieldValue(fieldSlot)));
+                return &instr + 1;
+            }
         }
         else
         {
@@ -760,29 +776,22 @@ namespace pg
             return nullptr;
         }
 
-        const size_t fieldSlot = inst->findField(key);
-        if (fieldSlot != ObjInstance::npos)
-        {
-            vm->releaseAndDelete(index);
-            vm->releaseAndDelete(target);
-            vm->push(vm->retainValue(inst->fieldValue(fieldSlot)));
-            return &instr + 1;
-        }
-
         // Look up __get metamethod.
         Value getMethod;
         bool hasGetMethod = false;
         bool isDynamicGet = false;
 
+        // Neither looked up by name when it cannot be there: a class without methods, a table
+        // without fields
         if (inst->klass)
         {
-            auto getMetaIt = inst->klass->methods.find("__get");
+            auto getMetaIt = inst->klass->methods.empty() ? inst->klass->methods.end() : inst->klass->methods.find("__get");
             if (getMetaIt != inst->klass->methods.end())
             {
                 getMethod = getMetaIt->second;
                 hasGetMethod = true;
             }
-            else
+            else if (inst->fieldCount() != 0)
             {
                 const size_t dynSlot = inst->findField("__get");
                 if (dynSlot != ObjInstance::npos)
@@ -796,7 +805,8 @@ namespace pg
 
         if (hasGetMethod and (IS_CLOSURE(getMethod) or IS_NAT_FUNC(getMethod)))
         {
-            Value keyValue = vm->createString(key);
+            // The key as it was written: an integer stays one
+            Value keyValue = IS_INT(index) ? index : vm->createString(key);
 
             if (IS_CLOSURE(getMethod))
             {
@@ -978,10 +988,13 @@ namespace pg
         {
             ObjInstance* inst = vm->asInstance(target);
 
+            // An integer key is its own, apart from the fields: `t[5]` is not `t["5"]`
+            const bool intKey = IS_INT(index);
+
             std::string key;
-            if (IS_INT(index))
+            if (intKey)
             {
-                key = std::to_string(AS_INT(index));
+                // Written below, when no __set takes it
             }
             else if (IS_STRING(index))
             {
@@ -1008,15 +1021,17 @@ namespace pg
             bool hasSetMethod = false;
             bool isDynamicSet = false;
 
+            // Neither looked up by name when it cannot be there: a class without methods, a table
+            // without fields (one of integer keys only, a list or a map)
             if (not isInternalField and inst->klass)
             {
-                auto setMetaIt = inst->klass->methods.find("__set");
+                auto setMetaIt = inst->klass->methods.empty() ? inst->klass->methods.end() : inst->klass->methods.find("__set");
                 if (setMetaIt != inst->klass->methods.end())
                 {
                     setMethod = setMetaIt->second;
                     hasSetMethod = true;
                 }
-                else if (inst->hasField("__set"))
+                else if (inst->fieldCount() != 0 and inst->hasField("__set"))
                 {
                     setMethod = inst->getField("__set");
                     hasSetMethod = true;
@@ -1026,7 +1041,8 @@ namespace pg
 
             if (hasSetMethod and (IS_CLOSURE(setMethod) or IS_NAT_FUNC(setMethod)))
             {
-                Value keyValue = vm->createString(key);
+                // The key as it was written: an integer stays one (it holds no reference)
+                Value keyValue = intKey ? index : vm->createString(key);
 
                 if (IS_CLOSURE(setMethod))
                 {
@@ -1095,6 +1111,22 @@ namespace pg
                     // Note: target stays on stack (peek(0)) per op_set_index contract.
                     return &instr + 1;
                 }
+            }
+
+            if (intKey)
+            {
+                if (Value* found = inst->findInt(AS_INT(index)))
+                {
+                    vm->releaseAndDelete(*found);
+                    *found = vm->retainValue(value);
+                }
+                else
+                {
+                    inst->addInt(AS_INT(index), vm->retainValue(value));
+                }
+
+                vm->releaseAndDelete(value);
+                return &instr + 1;
             }
 
             // Plain field assignment.
@@ -1169,6 +1201,17 @@ namespace pg
     // Iterator Operations
     // ========================================================================
 
+    // The key at a for-in position: the integer keys in ascending order, then the fields' names
+    static Value entryKey(VM* vm, ObjInstance* table, size_t position)
+    {
+        const size_t ints = table->intCount();
+
+        if (position < ints)
+            return makeIntValue(table->intKeyAt(position));
+
+        return vm->createString(table->fieldName(position - ints));
+    }
+
     const DecodedInstruction* op_get_iterator_decoded(VM* vm, const DecodedInstruction& instr)
     {
         Value tableVal = vm->peek(0);  // Don't pop, we keep table on stack
@@ -1215,8 +1258,8 @@ namespace pg
         ObjInstance* table = vm->asInstance(tableVal);
         int64_t index = AS_INT(iteratorState);
 
-        // Determine total field count
-        size_t totalFields = table->fieldCount();
+        // Every key: the integer ones, then the fields
+        size_t totalFields = table->entryCount();
 
         // Check if we've reached the end
         if (static_cast<size_t>(index) >= totalFields)
@@ -1227,10 +1270,6 @@ namespace pg
             return &instr + 1;
         }
 
-        // The key of the current slot (it was found by scanning the whole name index, every step)
-        // Borrowed from the shape (or the dictionary): createString makes the one copy
-        const std::string& key = table->fieldName(static_cast<size_t>(index));
-
         // Pop old iterator state
         vm->pop();  // Remove old iterator state
         vm->releaseAndDelete(iteratorState);
@@ -1238,9 +1277,7 @@ namespace pg
         // Push incremented iterator state
         vm->push(makeIntValue(index + 1));
 
-        // Push the key as a string
-        Value keyVal = vm->createString(key);
-        vm->push(keyVal);
+        vm->push(entryKey(vm, table, static_cast<size_t>(index)));
 
         // Final stack: [table, iterator_state+1, key]
         return &instr + 1;
@@ -1277,8 +1314,8 @@ namespace pg
         vm->pop();
         vm->releaseAndDelete(tableVal);
 
-        // Push the field count
-        size_t totalSize = table->fieldCount();
+        // Push the count of keys, integer ones and fields
+        size_t totalSize = table->entryCount();
         vm->push(makeIntValue(static_cast<int64_t>(totalSize)));
         return &instr + 1;
     }
@@ -1348,8 +1385,8 @@ namespace pg
         ObjInstance* table = vm->asInstance(tableVal);
         int64_t index = AS_INT(indexVal);
 
-        // Determine total field count
-        size_t totalFields = table->fieldCount();
+        // Every key: the integer ones, then the fields
+        size_t totalFields = table->entryCount();
 
         // Check bounds
         if (index < 0 || static_cast<size_t>(index) >= totalFields)
@@ -1361,15 +1398,13 @@ namespace pg
             return nullptr;
         }
 
-        // The key of that slot, in O(1) (a scan of the name index made every for-in over a table
-        // quadratic in its size)
-        const std::string& key = table->fieldName(static_cast<size_t>(index));
+        // The key at that position, in O(1) (a scan of the name index made every for-in over a
+        // table quadratic in its size)
+        Value keyVal = entryKey(vm, table, static_cast<size_t>(index));
 
         vm->releaseAndDelete(indexVal);
         vm->releaseAndDelete(tableVal);
 
-        // Push the key as a string
-        Value keyVal = vm->createString(key);
         vm->push(keyVal);
         return &instr + 1;
     }
@@ -1597,16 +1632,31 @@ namespace pg
             const Value value = vm->stack[base + 2 * i];
             const Value key = vm->stack[base + 2 * i + 1];
 
-            std::string keyStr = IS_STRING(key) ? vm->asString(key) : std::to_string(AS_INT(key));
+            // The stack's reference to the value is the table's now: no retain, no release
+            if (IS_INT(key))
+            {
+                // An integer key written twice keeps the last value
+                if (Value* found = table->findInt(AS_INT(key)))
+                {
+                    vm->releaseAndDelete(*found);
+                    *found = value;
+                }
+                else
+                {
+                    table->addInt(AS_INT(key), value);
+                }
 
-            // A key written twice keeps both slots, found at the last (as before). The stack's
-            // reference to the value is the table's now: no retain, no release
-            table->appendField(std::move(keyStr), value);
+                continue;
+            }
+
+            // A name written twice keeps both slots, found at the last (as before)
+            table->appendField(vm->asString(key), value);
         }
 
-        // Learned for the next time, when the table is on the shapes and every key is a value whose
-        // meaning cannot change (an integer, an inline or interned string, a constant one): a string
-        // freed and made again could otherwise come back with the same bits and other words
+        // Learned for the next time, when the table is on the shapes and every key is a string
+        // whose meaning cannot change (an inline or interned string, a constant one): a string
+        // freed and made again could otherwise come back with the same bits and other words. An
+        // integer key is not on the shapes, the table keeps it apart
         if (literal != nullptr and table->layout() != nullptr)
         {
             bool stable = true;
@@ -1614,7 +1664,7 @@ namespace pg
             for (size_t i = 0; i < pairCount and stable; i++)
             {
                 const Value key = vm->stack[base + 2 * i + 1];
-                stable = IS_INT(key) or IS_SMALL_STRING(key) or IS_INTERNED_STRING(key) or (IS_STRING(key) and vm->pools.isConstant(key));
+                stable = IS_SMALL_STRING(key) or IS_INTERNED_STRING(key) or (IS_STRING(key) and vm->pools.isConstant(key));
             }
 
             if (stable)

@@ -477,10 +477,14 @@ namespace pg
 
             auto list = vm->asInstance(table->getField("list"));
 
-            EXPECT_EQ(list->fieldCount(), 3);
-            EXPECT_EQ(AS_INT(list->getField("0")), 4);
-            EXPECT_EQ(AS_INT(list->getField("1")), 5);
-            EXPECT_EQ(AS_INT(list->getField("2")), 6);
+            // A list is a table of integer keys (t[0], not t["0"])
+            EXPECT_EQ(list->fieldCount(), 0);
+            EXPECT_EQ(list->intCount(), 3);
+            ASSERT_NE(list->findInt(0), nullptr);
+            EXPECT_EQ(AS_INT(*list->findInt(0)), 4);
+            EXPECT_EQ(AS_INT(*list->findInt(1)), 5);
+            EXPECT_EQ(AS_INT(*list->findInt(2)), 6);
+            EXPECT_FALSE(list->hasField("0"));
 
             ASSERT_TRUE(IS_INSTANCE(table->getField("scores")));
 

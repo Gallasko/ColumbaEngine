@@ -82,12 +82,12 @@ namespace pg
             return tableValue;
         }
 
-        // Elements are stored under their index: "0", "1", ...
+        // Elements are stored under their index, an integer key: t[0], t[1], ...
         void addVectorElements(VM* vm, Klass* tableClass, const SerializedInfoHolder& node, ObjInstance* table)
         {
             for (size_t i = 0; i < node.children.size(); ++i)
             {
-                table->setField(std::to_string(i), valueFromNode(vm, tableClass, node.children[i]), vm, true);
+                table->setInt(static_cast<int64_t>(i), valueFromNode(vm, tableClass, node.children[i]), vm);
             }
         }
 
@@ -177,8 +177,69 @@ namespace pg
             table->setField(node.name, nestedValue, vm, true);
         }
 
+        void addTableFields(VM* vm, ObjInstance* table, UnserializedObject& object);
+
+        // One key of a table and its value, as a child of the object: a table nested, or an attribute
+        void addTableEntry(VM* vm, const std::string& key, Value value, UnserializedObject& object)
+        {
+            if (IS_INSTANCE(value))
+            {
+                UnserializedObject child(key, "", "");
+
+                addTableFields(vm, vm->asInstance(value), child);
+
+                object.children.push_back(std::move(child));
+
+                return;
+            }
+
+            std::string type;
+            std::string text;
+
+            if (IS_INT(value))
+            {
+                type = "int";
+                text = std::to_string(AS_INT(value));
+            }
+            else if (IS_BOOL(value))
+            {
+                type = "bool";
+                text = AS_BOOL(value) ? "true" : "false";
+            }
+            else if (IS_DOUBLE(value))
+            {
+                // Enough digits to read the same double back, std::to_string stops at 6 decimals
+                char buffer[32];
+
+                std::snprintf(buffer, sizeof(buffer), "%.17g", AS_DOUBLE(value));
+
+                type = "float";
+                text = buffer;
+            }
+            else if (IS_STRING(value))
+            {
+                type = "string";
+                text = vm->asString(value);
+            }
+            else
+            {
+                // Functions and other script only values have no serialized form
+                return;
+            }
+
+            // An attribute is written as: __PGSA type {value}
+            UnserializedObject attribute("__PGSA " + type + " {" + text + "}", key, false);
+
+            object.children.push_back(std::move(attribute));
+        }
+
         void addTableFields(VM* vm, ObjInstance* table, UnserializedObject& object)
         {
+            // The integer keys first, in ascending order, under their number (what a list
+            // serialized as a table, addVectorElements, reads back)
+            for (size_t rank = 0; rank < table->intCount(); ++rank)
+                addTableEntry(vm, std::to_string(table->intKeyAt(rank)), table->intValueAt(rank), object);
+
             for (size_t index = 0; index < table->fieldCount(); ++index)
             {
                 const std::string& key = table->fieldName(index);
@@ -190,57 +251,7 @@ namespace pg
                 if (key == "__className")
                     continue;
 
-                auto value = table->fieldValue(index);
-
-                if (IS_INSTANCE(value))
-                {
-                    UnserializedObject child(key, "", "");
-
-                    addTableFields(vm, vm->asInstance(value), child);
-
-                    object.children.push_back(std::move(child));
-
-                    continue;
-                }
-
-                std::string type;
-                std::string text;
-
-                if (IS_INT(value))
-                {
-                    type = "int";
-                    text = std::to_string(AS_INT(value));
-                }
-                else if (IS_BOOL(value))
-                {
-                    type = "bool";
-                    text = AS_BOOL(value) ? "true" : "false";
-                }
-                else if (IS_DOUBLE(value))
-                {
-                    // Enough digits to read the same double back, std::to_string stops at 6 decimals
-                    char buffer[32];
-
-                    std::snprintf(buffer, sizeof(buffer), "%.17g", AS_DOUBLE(value));
-
-                    type = "float";
-                    text = buffer;
-                }
-                else if (IS_STRING(value))
-                {
-                    type = "string";
-                    text = vm->asString(value);
-                }
-                else
-                {
-                    // Functions and other script only values have no serialized form
-                    continue;
-                }
-
-                // An attribute is written as: __PGSA type {value}
-                UnserializedObject attribute("__PGSA " + type + " {" + text + "}", key, false);
-
-                object.children.push_back(std::move(attribute));
+                addTableEntry(vm, key, table->fieldValue(index), object);
             }
         }
     }

@@ -110,14 +110,27 @@ namespace pg
         return vm->valueToElement(value).toString();
     }
 
-    // Elements of an array ([a, b]) or values of a table, in insertion order
+    // Elements of an array ([a, b]) or values of a table: its integer keys in ascending order
+    // ({a, b}), then its fields in insertion order
     inline std::vector<Value> listValues(VM* vm, Value list)
     {
         if (IS_VECTOR(list))
             return vm->asVector(list)->fields;
 
         if (IS_INSTANCE(list))
-            return vm->asInstance(list)->allFieldValues();
+        {
+            ObjInstance* table = vm->asInstance(list);
+            std::vector<Value> values;
+            values.reserve(table->entryCount());
+
+            for (size_t rank = 0; rank < table->intCount(); ++rank)
+                values.push_back(table->intValueAt(rank));
+
+            for (Value value : table->allFieldValues())
+                values.push_back(value);
+
+            return values;
+        }
 
         return {};
     }

@@ -612,6 +612,27 @@ namespace pg
         variable(parser, false);
     }
 
+    // An explicit table key: an integer when it is written as one (`{1: x}` is `t[1]`, not
+    // `t["1"]`), else its text
+    static void writeTableKey(CParser& parser, const Token& key)
+    {
+        if (key.type == TokenType::NUMBER)
+        {
+            try
+            {
+                parser.writeConstant(std::stoi(key.text));
+                return;
+            }
+            catch (const std::exception&)
+            {
+                parser.error("Integer key " + key.text + " is past 32 bits");
+                return;
+            }
+        }
+
+        parser.writeConstant(key.text);
+    }
+
     void createTable(CParser& parser, bool)
     {
         uint8_t autoIndex = 0;
@@ -633,7 +654,7 @@ namespace pg
                 {
                     // Parse the value expression normally
                     parser.expression(); // value
-                    parser.writeConstant(first.text);
+                    writeTableKey(parser, first);
                     buildTable = true;
                 }
                 else
@@ -677,7 +698,7 @@ namespace pg
                 {
                     // Parse the value expression normally
                     parser.expression(); // value
-                    parser.writeConstant(first.text);
+                    writeTableKey(parser, first);
                 }
                 else
                 {
