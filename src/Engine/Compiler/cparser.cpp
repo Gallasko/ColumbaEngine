@@ -1412,6 +1412,12 @@ namespace pg
 
         auto moduleName = getModuleName();
 
+        if (check(TokenType::TOK_AS))
+        {
+            error("`import ... as` needs the AST front-end");
+            return;
+        }
+
         if (not parseImportFile(moduleName))
         {
             // Try to import a native module if file import failed
@@ -1552,7 +1558,7 @@ namespace pg
                 // The native modules the module was compiled against, for it and for whoever loads our bytecode
                 for (const auto& nativeModule : chunk.importedModules)
                 {
-                    if (not vm->loadNativeModule(nativeModule))
+                    if (not vm->replayImport(nativeModule))
                     {
                         LOG_ERROR("CParser", "Compiled module '" << moduleName << "' needs the native module '" << nativeModule << "', which is not available");
                         continue;

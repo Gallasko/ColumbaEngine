@@ -535,7 +535,7 @@ namespace pg
         // Load all native modules that were imported during compilation
         for (const std::string& moduleName : chunk.importedModules)
         {
-            if (not loadNativeModule(moduleName))
+            if (not replayImport(moduleName))
             {
                 LOG_WARNING("VM", "Failed to load imported module '" << moduleName << "' from bytecode file");
             }
@@ -585,7 +585,7 @@ namespace pg
         // Load all native modules that were imported during compilation
         for (const std::string& moduleName : chunk.importedModules)
         {
-            if (not loadNativeModule(moduleName))
+            if (not replayImport(moduleName))
             {
                 LOG_WARNING("VM", "Failed to load imported module '" << moduleName << "' from cached bytecode");
             }

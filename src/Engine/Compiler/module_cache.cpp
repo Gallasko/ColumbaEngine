@@ -139,7 +139,7 @@ namespace pg
                     return 0x0;
 
                 for (const auto& native : entry.reads.natives)
-                    vm->loadNativeModule(native);
+                    vm->replayImport(native);
 
                 Value function = vm->createFunction();
                 ObjFunction* object = vm->asFunction(function);

@@ -1281,6 +1281,47 @@ namespace pg
 
         auto imports = stmt->imports;
 
+        // `import "module" as alias`: a native module's functions bound to a table (the parser
+        // takes `as` after a single module only)
+        if (stmt->importName and imports.size() == 1)
+        {
+            std::string moduleName = imports.front()->getName();
+            if (moduleName.size() >= 2 and moduleName.front() == '"' and moduleName.back() == '"')
+                moduleName = moduleName.substr(1, moduleName.size() - 2);
+
+            const std::string alias = stmt->importName->getName();
+            auto isIdentifier = [](const std::string& text) {
+                if (text.empty() or std::isdigit(static_cast<unsigned char>(text[0])))
+                    return false;
+                for (char c : text)
+                    if (not (std::isalnum(static_cast<unsigned char>(c)) or c == '_'))
+                        return false;
+                return true;
+            };
+            // A string literal names itself without its quotes: the expression must be a name
+            if (stmt->importName->kind() != AstKind::Var or not isIdentifier(alias))
+            {
+                error(stmt->name, "`as` needs a name: import \"" + moduleName + "\" as name");
+                return;
+            }
+
+            // Resolved as a plain import is, the file first: a file is refused, not shadowed
+            if (root.parser.parseImportFile(moduleName))
+            {
+                error(stmt->name, "`as` takes a native module only for now: '" + moduleName + "' is a file");
+                return;
+            }
+
+            if (not vm->loadNativeModuleAs(moduleName, alias))
+            {
+                error(stmt->name, "Failed to import module '" + moduleName + "': not found as file or native module");
+                return;
+            }
+
+            Compiler::current->getCurrentChunk().importedModules.push_back(VM::importRecord(moduleName, alias));
+            return;
+        }
+
         while (not imports.empty())
         {
             auto import = imports.front();

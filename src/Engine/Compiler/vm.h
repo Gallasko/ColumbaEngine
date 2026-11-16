@@ -1118,6 +1118,57 @@ namespace pg
             return true;
         }
 
+        bool hasNativeModule(const std::string& moduleName) const
+        {
+            return nativeModules.find(moduleName) != nativeModules.end();
+        }
+
+        // `import "module" as alias`: the module's functions and variables in a table bound to the
+        // global `alias` (replacing what it held), no flat names
+        bool loadNativeModuleAs(const std::string& moduleName, const std::string& alias)
+        {
+            auto it = nativeModules.find(moduleName);
+            if (it == nativeModules.end())
+            {
+                LOG_WARNING("VM", "Native module '" << moduleName << "' not found");
+                return false;
+            }
+
+            Value table = createTable();
+            ObjInstance* instance = asInstance(table);
+
+            for (const auto& [name, func] : it->second.functions)
+                instance->setField(name, createNativeFunction(func), this);
+
+            for (const auto& [name, value] : it->second.variables)
+                instance->setField(name, elementToValue(value), this);
+
+            // Takes the table's reference and releases what the global held
+            defineGlobal(alias, table);
+
+            it->second.init(this);
+
+            return true;
+        }
+
+        // How a native import is kept in Chunk::importedModules: the module's name for a plain
+        // import, "module as alias" for an `as` import. A record made before `as` existed is a
+        // plain name, so it still loads flat
+        static std::string importRecord(const std::string& moduleName, const std::string& alias)
+        {
+            return alias.empty() ? moduleName : moduleName + " as " + alias;
+        }
+
+        // The import a record of Chunk::importedModules stands for, done again
+        bool replayImport(const std::string& record)
+        {
+            const auto at = record.find(" as ");
+            if (at == std::string::npos)
+                return loadNativeModule(record);
+
+            return loadNativeModuleAs(record.substr(0, at), record.substr(at + 4));
+        }
+
         template <typename Type>
         _unique_id getGlobalGenericId() const noexcept
         {

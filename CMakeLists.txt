@@ -1887,6 +1887,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/pgcompiler/unit/test_effects.cc
             test/pgcompiler/unit/test_module_cache.cc
             test/pgcompiler/unit/test_shape_budget.cc
+            test/pgcompiler/unit/test_import_as.cc
         )
 
         # Include directories for compiler tests
