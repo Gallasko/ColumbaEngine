@@ -4,8 +4,11 @@
 #include "ECS/entitysystem.h"
 #include "Helpers/osmodule.h"
 
+#include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <string>
 
 namespace pg
@@ -51,7 +54,7 @@ namespace pg
                 if (withOs)
                     vm.addNativeModule("os", OsModule{});
 
-                const InterpretResult result = vm.interpretFromText("import \"os\" as os\nimport \"file\"\nimport \"string\"\n" + body);
+                const InterpretResult result = vm.interpretFromText("import \"os\" as os\nimport \"file\"\nimport \"string\"\nimport \"algorithm\"\n" + body);
                 output = vm.testOutput;
 
                 const Value out = vm.findGlobal("out");
@@ -170,6 +173,88 @@ namespace pg
         TEST_F(OsCall, NotInSetupVm)
         {
             EXPECT_EQ(run("var r = 1\n", false), InterpretResult::COMPILE_ERROR);
+        }
+
+        // The rest of os: the environment, time, folders and exit
+        class OsFunctions : public OsCall
+        {
+        };
+
+        TEST_F(OsFunctions, Env)
+        {
+            setenv("PG_OS_TEST", "v", 1);
+            unsetenv("PG_OS_UNSET_XYZ");
+
+            ASSERT_EQ(run("var out = os.env(\"PG_OS_TEST\")\n__dprint(typeOf(os.env(\"PG_OS_UNSET_XYZ\")))\n"), InterpretResult::OK);
+            EXPECT_EQ(outGlobal, "v");
+            EXPECT_EQ(output, "none\n");
+        }
+
+        TEST_F(OsFunctions, Time)
+        {
+            const int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+
+            ASSERT_EQ(run("__dprint(typeOf(os.time()))\n__dprint(os.time())\n"), InterpretResult::OK);
+            ASSERT_EQ(output.substr(0, 4), "int\n");
+
+            const int64_t seen = std::stoll(output.substr(4));
+            EXPECT_LE(std::llabs(seen - now), 5000);
+        }
+
+        TEST_F(OsFunctions, FormatTime)
+        {
+            // An int literal is 32 bits: the time is made from two
+            ASSERT_EQ(run("var out = os.formatTime(1794830998 * 1000 + 386, \"%Y-%m-%d %H:%M:%S\")\n__dprint(os.formatTime(0, \"%Y-%m-%d\"))\n"), InterpretResult::OK);
+            EXPECT_EQ(outGlobal, "2026-11-16 12:09:58");
+            EXPECT_EQ(output, "1970-01-01\n");
+        }
+
+        TEST_F(OsFunctions, FormatTimeTooLongIsAnError)
+        {
+            EXPECT_EQ(run("os.formatTime(0, \"" + std::string(300, 'x') + "\")\n"), InterpretResult::RUNTIME_ERROR);
+        }
+
+        TEST_F(OsFunctions, ListDirSorted)
+        {
+            writeBytes("b", "");
+            writeBytes("a", "");
+            writeBytes(".hidden", "");
+            std::filesystem::create_directories(dir / "sub");
+
+            ASSERT_EQ(run("var names = os.listDir(\"" + dir.string() + "\")\nfor (var n : names)\n{\n    __dprint(n)\n}\n"), InterpretResult::OK);
+            EXPECT_EQ(output, ".hidden\na\nb\nsub\n");
+
+            EXPECT_EQ(run("os.listDir(\"" + path("missing") + "\")\n"), InterpretResult::RUNTIME_ERROR);
+            EXPECT_EQ(run("os.listDir(\"" + path("a") + "\")\n"), InterpretResult::RUNTIME_ERROR);
+        }
+
+        TEST_F(OsFunctions, IsDir)
+        {
+            writeBytes("file", "x");
+
+            ASSERT_EQ(run("__dprint(os.isDir(\"" + dir.string() + "\"))\n__dprint(os.isDir(\"" + path("file") + "\"))\n__dprint(os.isDir(\"" + path("missing") + "\"))\n"), InterpretResult::OK);
+            EXPECT_EQ(output, "true\nfalse\nfalse\n");
+        }
+
+        TEST_F(OsFunctions, MakeDirWithParents)
+        {
+            const std::string deep = path("x/y/z");
+
+            ASSERT_EQ(run("os.makeDir(\"" + deep + "\")\n__dprint(os.isDir(\"" + deep + "\"))\nos.makeDir(\"" + deep + "\")\n__dprint(1)\n"), InterpretResult::OK);
+            EXPECT_EQ(output, "true\n1\n");
+
+            writeBytes("file", "x");
+            EXPECT_EQ(run("os.makeDir(\"" + path("file") + "\")\n"), InterpretResult::RUNTIME_ERROR);
+        }
+
+        TEST_F(OsFunctions, ExitsWithTheCode)
+        {
+            EXPECT_EXIT(
+                {
+                    run("os.exit(7)\n__dprint(1)\n");
+                    std::exit(0);
+                },
+                ::testing::ExitedWithCode(7), "");
         }
     }
 }

@@ -157,20 +157,56 @@ for (var idx : items) {
 
 ### 8. Using Modules
 
+A plain import puts a module's functions in the script's globals, flat. `import "module" as name`
+puts them in a table `name` instead (native modules only for now; a file import with `as` is an
+error). The `as` form is also the way to keep a module's names from clashing with your own.
+
 ```javascript
-// Import standard library
-import string
-import math
+// Flat: the functions are globals
+import "string"
+import "math"
 
-// Use string functions
 var text = "hello-world"
-var parts = string.split(text, "-")
+var parts = split(text, "-")
 __dprint(parts[0])  // "hello"
+__dprint(sqrt(16))  // 4.000000
 
-// Use math functions
-var x = math.sqrt(16)
-__dprint(x)  // 4.0
+// As a table
+import "string" as str
+__dprint(str.toUpperCase("abc"))  // "ABC"
 ```
+
+`json` reads and writes JSON text, everywhere (games included): objects are tables (keys keep their
+order), arrays lists, `null` is `none`; a number written without `.` or an exponent is an int.
+
+```javascript
+import "json" as json
+import "file"
+
+var record = json.parse(readFile("record.json"))
+record.views = 12
+writeFile("record.json", json.stringify(record, 2))   // indented by 2; json.stringify(v) is compact
+```
+
+`os` exists only in the command-line tool (`PgCompilerBootstrap` / `PgCompiler`), never in a game,
+a mod or the web build:
+
+```javascript
+import "os" as os
+
+var r = os.call(["git", "log", "--oneline", "-5"])   // a list runs directly, nothing interpreted
+var n = os.call("git log --oneline | wc -l")         // a string runs through /bin/sh -c
+var c = os.call(["curl", "-s", "--data-binary", "@-", url], {input: body, cwd: "/tmp"})
+print(r.out)   // also r.code (the exit code) and r.err
+
+os.env("HOME")                        // the variable, or none
+os.formatTime(os.time(), "%Y-%m-%d")  // os.time() is ms since 1970, formatted in UTC
+os.listDir("src")                     // names, sorted; os.isDir(path), os.makeDir(path)
+os.exit(1)
+```
+
+A command that fails gives its exit code (no script error); one that cannot start gives 127 and the
+reason in `err`. Put the result in a `var` before reading its fields, as above.
 
 ## Game Development Features
 

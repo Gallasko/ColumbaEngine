@@ -1,7 +1,15 @@
 #include "osmodule.h"
 
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <cstdlib>
+#include <ctime>
+#include <filesystem>
+#include <iostream>
 #include <stdexcept>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #ifndef _WIN32
@@ -24,6 +32,13 @@ namespace pg
 {
     namespace
     {
+        std::string stringArgument(VM* vm, int argCount, Value* args, const char* name)
+        {
+            if (argCount != 1 or not IS_STRING(args[0]))
+                throw std::runtime_error(std::string("os.") + name + " expects one string");
+            return vm->asString(args[0]);
+        }
+
         bool isTable(VM* vm, Value value)
         {
             return IS_INSTANCE(value) and vm->asInstance(value)->klass == vm->asClass(vm->tableClassValue());
@@ -301,5 +316,104 @@ namespace pg
 
         return callResult(vm, code, outText, errText);
 #endif
+    }
+
+    Value OsModule::nativeEnv(VM* vm, int argCount, Value* args)
+    {
+        const std::string name = stringArgument(vm, argCount, args, "env");
+        const char* value = std::getenv(name.c_str());
+        return value ? vm->createString(std::string(value)) : makeNoneValue();
+    }
+
+    Value OsModule::nativeTime(VM*, int argCount, Value*)
+    {
+        if (argCount != 0)
+            throw std::runtime_error("os.time takes no argument");
+
+        const auto since = std::chrono::system_clock::now().time_since_epoch();
+        return makeIntValue(std::chrono::duration_cast<std::chrono::milliseconds>(since).count());
+    }
+
+    Value OsModule::nativeFormatTime(VM* vm, int argCount, Value* args)
+    {
+        if (argCount != 2 or not (IS_INT(args[0]) or IS_DOUBLE(args[0])) or not IS_STRING(args[1]))
+            throw std::runtime_error("os.formatTime expects a time in milliseconds and a format string");
+
+        const double ms = IS_INT(args[0]) ? static_cast<double>(AS_INT(args[0])) : AS_DOUBLE(args[0]);
+        const std::time_t seconds = static_cast<std::time_t>(std::floor(ms / 1000.0));
+        const std::string format = vm->asString(args[1]);
+
+        std::tm utc{};
+#ifdef _WIN32
+        if (gmtime_s(&utc, &seconds) != 0)
+#else
+        if (gmtime_r(&seconds, &utc) == nullptr)
+#endif
+            throw std::runtime_error("os.formatTime: a time out of range");
+
+        if (format.empty())
+            return vm->createString(std::string());
+
+        char buffer[256];
+        const size_t length = std::strftime(buffer, sizeof(buffer), format.c_str(), &utc);
+        if (length == 0)
+            throw std::runtime_error("os.formatTime: the result is longer than 255 characters");
+
+        return vm->createString(std::string(buffer, length));
+    }
+
+    Value OsModule::nativeListDir(VM* vm, int argCount, Value* args)
+    {
+        const std::string path = stringArgument(vm, argCount, args, "listDir");
+
+        std::error_code error;
+        if (not std::filesystem::is_directory(path, error))
+            throw std::runtime_error("os.listDir: '" + path + "' is not a folder");
+
+        std::vector<std::string> names;
+        for (const auto& entry : std::filesystem::directory_iterator(path, error))
+            names.push_back(entry.path().filename().string());
+
+        if (error)
+            throw std::runtime_error("os.listDir: cannot read '" + path + "': " + error.message());
+
+        std::sort(names.begin(), names.end());
+
+        Value list = vm->createVector();
+        for (const auto& name : names)
+        {
+            Value item = vm->createString(name);
+            vm->asVector(list)->fields.push_back(item);
+        }
+        return list;
+    }
+
+    Value OsModule::nativeIsDir(VM* vm, int argCount, Value* args)
+    {
+        const std::string path = stringArgument(vm, argCount, args, "isDir");
+        std::error_code error;
+        return makeBoolValue(std::filesystem::is_directory(path, error));
+    }
+
+    Value OsModule::nativeMakeDir(VM* vm, int argCount, Value* args)
+    {
+        const std::string path = stringArgument(vm, argCount, args, "makeDir");
+
+        std::error_code error;
+        std::filesystem::create_directories(path, error);
+        if (error or not std::filesystem::is_directory(path))
+            throw std::runtime_error("os.makeDir: cannot make '" + path + "'" + (error ? ": " + error.message() : std::string(": something else is there")));
+
+        return makeNoneValue();
+    }
+
+    Value OsModule::nativeExit(VM*, int argCount, Value* args)
+    {
+        if (argCount != 1 or not IS_INT(args[0]))
+            throw std::runtime_error("os.exit expects an int exit code");
+
+        std::cout.flush();
+        std::cerr.flush();
+        std::exit(static_cast<int>(AS_INT(args[0])));
     }
 }
